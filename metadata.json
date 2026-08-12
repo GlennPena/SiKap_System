@@ -1,0 +1,6 @@
+{
+  "name": "SiKap Skills Matching",
+  "description": "AI-Integrated Youth Skills and Livelihood Matching System for Sangguniang Kabataan San Luis Pampanga.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

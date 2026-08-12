@@ -1,0 +1,180 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  SK_OFFICIAL
+  KK_YOUTH
+  TESDA_PARTNER
+  BARANGAY_CAPTAIN
+}
+
+enum ApprovalStatus {
+  Approved
+  Pending
+  Rejected
+}
+
+enum ProgramType {
+  Training
+  Employment
+  Entrepreneurship
+}
+
+enum ProgramCost {
+  Free
+  Subsidized
+  With_Fee
+}
+
+enum ProgramStatus {
+  Active
+  Full
+  Closed
+}
+
+enum ReferralStatus {
+  Pending
+  Enrolled
+  Declined
+  Archived
+}
+
+model User {
+  id            String           @id @default(cuid())
+  email         String           @unique
+  passwordHash  String
+  name          String
+  role          Role
+  barangayId    String?
+  barangay      Barangay?        @relation(fields: [barangayId], references: [id])
+  status        String           @default("Active")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  youthProfile  YouthProfile?
+  officialAcc   OfficialAccount?
+  councilor     Councilor?
+}
+
+model Barangay {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  users            User[]
+  youthProfiles    YouthProfile[]
+  officialAccounts OfficialAccount[]
+  announcements    SKAnnouncement[]
+  councilors       Councilor[]
+}
+
+model YouthProfile {
+  id                      String         @id @default(cuid())
+  userId                  String?        @unique
+  user                    User?          @relation(fields: [userId], references: [id])
+  name                    String
+  age                     Int
+  purok                   String
+  barangayId              String
+  barangay                Barangay       @relation(fields: [barangayId], references: [id])
+  educationalAttainment   String
+  currentStatus           String         // "Out-of-school" | "In-school" | "Employed" | "Self-employed" | "Graduate"
+  skills                  String[]       // Array of skill strings
+  interests               String[]       // Array of interest strings
+  sectorPreference        String
+  livelihoodGoal          String
+  contactNumberEncrypted   String         // AES-256-GCM Encrypted
+  registeredDate          DateTime       @default(now())
+  matchScore              Float          @default(0)
+  soloParent              Boolean        @default(false)
+  pwd                     Boolean        @default(false)
+  indigenous              Boolean        @default(false)
+  hasReferred             Boolean        @default(false)
+  approvalStatus          ApprovalStatus @default(Approved)
+  verificationIdType      String?
+  verificationIdNumberEnc String?        // AES-256-GCM Encrypted
+  verificationIdImageEnc  String?        // AES-256-GCM Encrypted
+  referrals               Referral[]
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+}
+
+model TESDAProgram {
+  id                 String        @id @default(cuid())
+  title              String
+  provider           String
+  type               ProgramType
+  location           String
+  duration           String
+  cost               ProgramCost   @default(Free)
+  slotsTotal         Int
+  slotsRemaining     Int
+  youthMatched       Int           @default(0)
+  eligibility        String
+  contactPerson      String
+  contactNumber      String
+  activeStatus       ProgramStatus @default(Active)
+  requiredDocuments  String[]
+  requiredSkills     String[]
+  classScheduleDays  String?
+  classScheduleTime  String?
+  room               String?
+  instructor         String?
+  startDate          DateTime?
+  endDate            DateTime?
+  referrals          Referral[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model SKAnnouncement {
+  id          String    @id @default(cuid())
+  title       String
+  body        String
+  category    String    // "Program Update" | "Event" | "Reminder" | "General"
+  audience    String    // "All KK members" | "OSY only" | "In-school youth only"
+  barangayId  String?
+  barangay    Barangay? @relation(fields: [barangayId], references: [id])
+  datePosted  DateTime  @default(now())
+}
+
+model Referral {
+  id           String         @id @default(cuid())
+  youthId      String
+  youth        YouthProfile   @relation(fields: [youthId], references: [id])
+  programId    String
+  program      TESDAProgram   @relation(fields: [programId], references: [id])
+  matchScore   Float
+  referralDate DateTime       @default(now())
+  status       ReferralStatus @default(Pending)
+}
+
+model OfficialAccount {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  user       User      @relation(fields: [userId], references: [id])
+  name       String
+  email      String
+  role       String    // "SK Chairperson" | "Barangay Captain" | "TESDA Representative"
+  barangayId String?
+  barangay   Barangay? @relation(fields: [barangayId], references: [id])
+  status     String    @default("Active")
+  createdAt  DateTime  @default(now())
+}
+
+model Councilor {
+  id         String   @id @default(cuid())
+  userId     String?  @unique
+  user       User?    @relation(fields: [userId], references: [id])
+  name       String
+  email      String
+  role       String   // "SK Councilor" | "Secretary" | "Treasurer"
+  status     String   @default("Active")
+  barangayId String
+  barangay   Barangay @relation(fields: [barangayId], references: [id])
+  createdAt  DateTime @default(now())
+}
