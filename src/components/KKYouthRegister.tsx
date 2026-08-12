@@ -15,14 +15,23 @@ interface KKYouthRegisterProps {
 }
 
 const BARANGAYS = [
+  "San Sebastian",
+  "Sta. Cruz Pambilog",
+  "San Nicolas",
+  "Sto. Rosario",
+  "San Jose",
+  "San Juan",
+  "Sta. Rita",
+  "Sto. Niño",
   "San Agustin",
-  "Santa Cruz Pambilog",
-  "Santa Cruz Poblacion",
-  "Santa Lucia",
-  "Santa Monica",
-  "Santo Tomas",
-  "Santa Catalina",
-  "San Sebastian"
+  "San Carlos",
+  "San Isidro",
+  "San Roque",
+  "Sta. Cruz Población",
+  "Sta. Lucia",
+  "Sta. Monica",
+  "Sta. Catalina",
+  "Sto. Tomas"
 ];
 
 export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({

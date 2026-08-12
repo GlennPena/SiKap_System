@@ -990,14 +990,23 @@ export const SKILLS_GAPS: SkillGapData[] = [
 ];
 
 export const INITIAL_BARANGAYS: Barangay[] = [
+  { name: "San Sebastian" },
+  { name: "Sta. Cruz Pambilog" },
+  { name: "San Nicolas" },
+  { name: "Sto. Rosario" },
+  { name: "San Jose" },
+  { name: "San Juan" },
+  { name: "Sta. Rita" },
+  { name: "Sto. Niño" },
   { name: "San Agustin" },
-  { name: "Santa Cruz Pambilog" },
-  { name: "Santa Cruz Poblacion" },
-  { name: "Santa Lucia" },
-  { name: "Santa Monica" },
-  { name: "Santo Tomas" },
-  { name: "Santa Catalina" },
-  { name: "San Sebastian" }
+  { name: "San Carlos" },
+  { name: "San Isidro" },
+  { name: "San Roque" },
+  { name: "Sta. Cruz Población" },
+  { name: "Sta. Lucia" },
+  { name: "Sta. Monica" },
+  { name: "Sta. Catalina" },
+  { name: "Sto. Tomas" }
 ];
 
 export const INITIAL_OFFICIALS: OfficialAccount[] = [
