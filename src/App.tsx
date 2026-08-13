@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { UserRole } from "./types";
 import {
   INITIAL_YOUTH_PROFILES, INITIAL_TESDA_PROGRAMS,
@@ -18,9 +19,23 @@ import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft } from "lucide-react";
 
 export default function App() {
+  const { data: session, status } = useSession();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [viewingLanding, setViewingLanding] = useState(true);
   
+  useEffect(() => {
+    if (status === "authenticated" && session?.user) {
+      const roleStr = (session.user as any).role;
+      if (roleStr === "SUPER_ADMIN") setCurrentUserRole(UserRole.SUPER_ADMIN);
+      else if (roleStr === "SK_OFFICIAL") setCurrentUserRole(UserRole.SK_OFFICIAL);
+      else if (roleStr === "BARANGAY_CAPTAIN") setCurrentUserRole(UserRole.BARANGAY_CAPTAIN);
+      else if (roleStr === "TESDA_PARTNER") setCurrentUserRole(UserRole.TESDA_PARTNER);
+      else if (roleStr === "KK_YOUTH") setCurrentUserRole(UserRole.KK_YOUTH);
+    } else if (status === "unauthenticated") {
+      setCurrentUserRole(null);
+    }
+  }, [session, status]);
+
   // New Super Admin & Councilor states
   const [barangays, setBarangays] = useState(INITIAL_BARANGAYS);
   const [officialAccounts, setOfficialAccounts] = useState(INITIAL_OFFICIALS);
@@ -37,26 +52,35 @@ export default function App() {
 
   // Sync state from Next.js API Routes
   useEffect(() => {
-    fetch("/api/youth")
-      .then(res => res.json())
-      .then(res => { if (res.success && res.data) setYouthProfiles(res.data); })
-      .catch(err => console.log("Using initial youth profiles", err));
+    if (status === "authenticated") {
+      fetch("/api/youth")
+        .then(res => res.json())
+        .then(res => { if (res.success && res.data) setYouthProfiles(res.data); })
+        .catch(err => console.log("Error fetching youth profiles", err));
 
-    fetch("/api/programs")
-      .then(res => res.json())
-      .then(res => { if (res.success && res.data) setPrograms(res.data); })
-      .catch(err => console.log("Using initial programs", err));
+      fetch("/api/programs")
+        .then(res => res.json())
+        .then(res => { if (res.success && res.data) setPrograms(res.data); })
+        .catch(err => console.log("Error fetching programs", err));
 
-    fetch("/api/announcements")
-      .then(res => res.json())
-      .then(res => { if (res.success && res.data) setAnnouncements(res.data); })
-      .catch(err => console.log("Using initial announcements", err));
+      fetch("/api/announcements")
+        .then(res => res.json())
+        .then(res => { if (res.success && res.data) setAnnouncements(res.data); })
+        .catch(err => console.log("Error fetching announcements", err));
 
-    fetch("/api/referrals")
-      .then(res => res.json())
-      .then(res => { if (res.success && res.data) setReferrals(res.data); })
-      .catch(err => console.log("Using initial referrals", err));
-  }, []);
+      fetch("/api/referrals")
+        .then(res => res.json())
+        .then(res => { if (res.success && res.data) setReferrals(res.data); })
+        .catch(err => console.log("Error fetching referrals", err));
+        
+      if ((session?.user as any)?.role === "SUPER_ADMIN") {
+        fetch("/api/users")
+          .then(res => res.json())
+          .then(res => { if (res.success && res.data) setOfficialAccounts(res.data); })
+          .catch(err => console.log("Error fetching users", err));
+      }
+    }
+  }, [status, session]);
 
 
   // Dynamic lookups for quick login aligning with designatedBarangay
@@ -103,61 +127,23 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Standard login trigger
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       addToast("Please input valid credentials", "error");
       return;
     }
 
-    // Role detection fallback/match for testing
-    const emailLower = email.toLowerCase();
-    
-    // Check dynamic officials database
-    const matchedOfficial = officialAccounts.find(o => o.email.toLowerCase() === emailLower);
-    if (matchedOfficial) {
-      if (matchedOfficial.role === "SK Chairperson") {
-        setCurrentUserRole(UserRole.SK_OFFICIAL);
-        setDesignatedBarangay(matchedOfficial.barangay);
-        addToast(`Successfully logged in as SK Chairperson ${matchedOfficial.name} (${matchedOfficial.barangay})!`, "success");
-        return;
-      } else if (matchedOfficial.role === "Barangay Captain") {
-        setCurrentUserRole(UserRole.BARANGAY_CAPTAIN);
-        addToast(`Successfully logged in as Barangay Captain ${matchedOfficial.name} (${matchedOfficial.barangay})!`, "success");
-        return;
-      }
-    }
+    const res = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
 
-    if (emailLower === "superadmin@sikap.gov.ph" && password === "superadmin2026") {
-      setCurrentUserRole(UserRole.SUPER_ADMIN);
-      addToast("Successfully logged in as Super Administrator!", "success");
-    } else if (emailLower.includes("official") || emailLower.includes("rhea")) {
-      setCurrentUserRole(UserRole.SK_OFFICIAL);
-      setDesignatedBarangay("San Sebastian");
-      addToast("Successfully logged in as SK Official Rhea Cruz!", "success");
-    } else if (emailLower.includes("youth") || emailLower.includes("juan")) {
-      setCurrentUserRole(UserRole.KK_YOUTH);
-      setLoggedInYouthId("y-01");
-      addToast("Successfully logged in as KK Member Juan dela Cruz!", "success");
-    } else if (emailLower.includes("partner") || emailLower.includes("tesda")) {
-      setCurrentUserRole(UserRole.TESDA_PARTNER);
-      addToast("Successfully logged in as TESDA Partner!", "success");
-    } else if (emailLower.includes("captain") || emailLower.includes("cap")) {
-      setCurrentUserRole(UserRole.BARANGAY_CAPTAIN);
-      addToast("Successfully logged in as Barangay Captain Danilo Santos!", "success");
+    if (res?.error) {
+      addToast("Invalid credentials", "error");
     } else {
-      // Check if they matched a registered KK member name in the email address
-      const matchedYouth = youthProfiles.find(y => emailLower.includes(y.name.toLowerCase().split(" ")[0]));
-      if (matchedYouth) {
-        setCurrentUserRole(UserRole.KK_YOUTH);
-        setLoggedInYouthId(matchedYouth.id);
-        addToast(`Successfully logged in as KK Member ${matchedYouth.name}!`, "success");
-      } else {
-        // Default to SK Official for convenient testing
-        setCurrentUserRole(UserRole.SK_OFFICIAL);
-        setDesignatedBarangay("San Sebastian");
-        addToast("Logged in successfully (Defaulted to SK Official)", "success");
-      }
+      addToast("Successfully logged in!", "success");
     }
   };
 
@@ -166,10 +152,10 @@ export default function App() {
     if (role === UserRole.KK_YOUTH) {
       if (activeBrgyYouth) {
         setLoggedInYouthId(activeBrgyYouth.id);
-        addToast(`Successfully logged in as KK Member ${activeBrgyYouth.name} (${activeBrgyYouth.barangay})!`, "success");
+        addToast(`Prototype quick-login: Authenticated as KK Member ${activeBrgyYouth.name} (${activeBrgyYouth.barangay})!`, "success");
       } else {
         setLoggedInYouthId("y-01");
-        addToast("Successfully logged in as KK Member Juan dela Cruz (San Sebastian)!", "success");
+        addToast("Prototype quick-login: Authenticated as KK Member Juan dela Cruz (San Sebastian)!", "success");
       }
       return;
     } else if (role === UserRole.SK_OFFICIAL) {
@@ -182,11 +168,15 @@ export default function App() {
       const name = matchingCaptain ? matchingCaptain.name : "Capt. Danilo Santos";
       addToast(`Prototype quick-login: Authenticated as Barangay Captain ${name} (${designatedBarangay})`, "success");
       return;
+    } else if (role === UserRole.SUPER_ADMIN) {
+      addToast(`Prototype quick-login: UI only! Use the real login form to interact with the database!`, "warning");
+    } else {
+      addToast(`Prototype quick-login: Authenticated as ${role}`, "success");
     }
-    addToast(`Prototype quick-login: Authenticated as ${role}`, "success");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
     setCurrentUserRole(null);
     setEmail("");
     setPassword("");
@@ -406,7 +396,8 @@ export default function App() {
         <div>
           {currentUserRole === UserRole.SK_OFFICIAL && (
             <SKOfficialPortal
-              designatedBarangay={designatedBarangay}
+              currentUser={session?.user}
+              designatedBarangay={(session?.user as any)?.barangay || designatedBarangay}
               youthProfiles={youthProfiles}
               setYouthProfiles={setYouthProfiles}
               programs={programs}
@@ -425,6 +416,7 @@ export default function App() {
 
           {currentUserRole === UserRole.KK_YOUTH && (
             <KKYouthPortal
+              currentUser={session?.user}
               youthProfile={activeYouthProfile}
               setYouthProfiles={setYouthProfiles}
               programs={programs}
@@ -438,6 +430,7 @@ export default function App() {
 
           {currentUserRole === UserRole.TESDA_PARTNER && (
             <TESDAPartnerPortal
+              currentUser={session?.user}
               programs={programs}
               setPrograms={setPrograms}
               referrals={referrals}
@@ -450,8 +443,9 @@ export default function App() {
 
           {currentUserRole === UserRole.BARANGAY_CAPTAIN && (
             <BarangayCaptainPortal
+              currentUser={session?.user}
               onLogout={handleLogout}
-              designatedBarangay={designatedBarangay}
+              designatedBarangay={(session?.user as any)?.barangay || designatedBarangay}
               youthProfiles={youthProfiles}
               referrals={referrals}
               officialAccounts={officialAccounts}
@@ -461,6 +455,7 @@ export default function App() {
 
           {currentUserRole === UserRole.SUPER_ADMIN && (
             <SuperAdminPortal
+              currentUser={session?.user}
               barangays={barangays}
               setBarangays={setBarangays}
               officialAccounts={officialAccounts}

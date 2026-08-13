@@ -18,6 +18,7 @@ interface SuperAdminPortalProps {
   councilors: Councilor[];
   onLogout: () => void;
   addToast: (msg: string, type: "success" | "error" | "info") => void;
+  currentUser?: any;
 }
 
 export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
@@ -29,7 +30,8 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   setOfficialAccounts,
   councilors,
   onLogout,
-  addToast
+  addToast,
+  currentUser
 }) => {
   const [activeTab, setActiveTab] = useState<"dashboard" | "barangays" | "tesda_records" | "create_account" | "create_tesda">("dashboard");
 
@@ -75,13 +77,25 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
     generatePassword();
   });
 
+  // Fetch actual officials from database
+  React.useEffect(() => {
+    fetch("/api/users")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setOfficialAccounts(data.data);
+        }
+      })
+      .catch(err => console.error("Error fetching users:", err));
+  }, [setOfficialAccounts]);
+
   // Handle role change (disable barangay for TESDA)
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedRole = e.target.value as "SK Chairperson" | "Barangay Captain" | "TESDA Representative";
     setRole(selectedRole);
   };
 
-  const handleCreateAccountSubmit = (e: React.FormEvent) => {
+  const handleCreateAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim() || !tempPassword.trim()) {
       addToast("Please fill in all required fields", "error");
@@ -94,31 +108,95 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
       return;
     }
 
-    const newAccount: OfficialAccount = {
-      id: `o-${Date.now()}`,
-      name: fullName,
-      email: email,
-      role: role,
-      barangay: role === "TESDA Representative" ? undefined : barangayAssignment,
-      status: "Active",
-      dateCreated: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-    };
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullName,
+          email: email,
+          tempPassword: tempPassword,
+          role: role,
+          barangay: role === "TESDA Representative" ? undefined : barangayAssignment
+        })
+      });
 
-    setOfficialAccounts(prev => [newAccount, ...prev]);
-    setCreatedCredentials({
-      name: fullName,
-      email: email,
-      pass: tempPassword,
-      role: role,
-      barangay: role === "TESDA Representative" ? undefined : barangayAssignment
-    });
+      const data = await response.json();
 
-    addToast(`Successfully created ${role} account for ${fullName}!`, "success");
+      if (data.success) {
+        setOfficialAccounts(prev => [data.data, ...prev]);
+        setCreatedCredentials({
+          name: fullName,
+          email: email,
+          pass: tempPassword,
+          role: role,
+          barangay: role === "TESDA Representative" ? undefined : barangayAssignment
+        });
 
-    // Reset fields
-    setFullName("");
-    setEmail("");
-    generatePassword();
+        addToast(`Successfully created ${role} account for ${fullName}!`, "success");
+
+        // Reset fields
+        setFullName("");
+        setEmail("");
+        generatePassword();
+      } else {
+        addToast(data.message || "Failed to create account", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Network error creating account", "error");
+    }
+  };
+
+  const handleCreateTesdaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim() || !email.trim() || !tempPassword.trim()) {
+      addToast("Please fill in all required fields", "error");
+      return;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      addToast("Please enter a valid email address", "error");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullName,
+          email: email,
+          tempPassword: tempPassword,
+          role: "TESDA Representative"
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setOfficialAccounts(prev => [data.data, ...prev]);
+        setCreatedCredentials({
+          name: fullName,
+          email: email,
+          pass: tempPassword,
+          role: "TESDA Representative"
+        });
+
+        addToast(`Successfully created TESDA Representative account for ${fullName}!`, "success");
+
+        // Reset fields
+        setFullName("");
+        setEmail("");
+        generatePassword();
+      } else {
+        addToast(data.message || "Failed to create account", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Network error creating account", "error");
+    }
   };
 
   const handleCopyCredentials = () => {
@@ -805,7 +883,7 @@ Please sign in and change your password immediately.`;
                   <p className="text-xs text-slate-400 mt-1 font-semibold">Generate certified secure authentication nodes for municipal TESDA representatives</p>
                 </div>
 
-                <form onSubmit={handleCreateAccountSubmit} className="space-y-5 text-xs font-semibold">
+                <form onSubmit={handleCreateTesdaSubmit} className="space-y-5 text-xs font-semibold">
                   
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Authorized Full Name</label>

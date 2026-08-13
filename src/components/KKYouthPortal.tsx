@@ -19,6 +19,7 @@ interface KKYouthPortalProps {
   addToast: (msg: string, type: "success" | "error" | "info") => void;
   referrals?: ReferralPipelineItem[];
   setReferrals?: React.Dispatch<React.SetStateAction<ReferralPipelineItem[]>>;
+  currentUser?: any;
 }
 
 export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
@@ -29,7 +30,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   onLogout,
   addToast,
   referrals,
-  setReferrals
+  setReferrals,
+  currentUser
 }) => {
   const isUnverified = youthProfile.approvalStatus === "Pending" || youthProfile.approvalStatus === "Rejected";
 
@@ -50,15 +52,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     });
   }, [announcements, youthProfile.barangay]);
 
-  // Identify the SK Chairperson for this member's barangay dynamically
+  // Use generic title since we no longer have static officials list
   const skChairpersonName = useMemo(() => {
-    const cleanUserBrgy = youthProfile.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-    const match = INITIAL_OFFICIALS.find(o => 
-      o.role === "SK Chairperson" && 
-      o.barangay && 
-      o.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase() === cleanUserBrgy
-    );
-    return match ? match.name : "Rhea Cruz";
+    return "Your SK Chairperson";
   }, [youthProfile.barangay]);
 
   // Get enrolled referrals and match them with program details

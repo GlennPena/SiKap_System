@@ -1,5 +1,7 @@
 import NextAuth, { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { db } from "@/lib/db";
+import bcrypt from "bcryptjs";
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -7,20 +9,29 @@ export const authOptions: AuthOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" },
-        role: { label: "Role", type: "text" },
-        barangay: { label: "Barangay", type: "text" }
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null;
+        if (!credentials?.email || !credentials?.password) return null;
 
-        // In full DB mode, query db.user.findUnique. For flexible demo login:
+        const user = await db.user.findUnique({
+          where: { email: credentials.email },
+          include: { barangay: true }
+        });
+
+        if (!user || user.status !== "Active") return null;
+
+        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
+
+        if (!isValid) return null;
+
         return {
-          id: credentials.email.toLowerCase().replace(/[^a-z0-9]/g, "-"),
-          name: credentials.email.split("@")[0],
-          email: credentials.email,
-          role: credentials.role || "SK Official",
-          barangay: credentials.barangay || "San Sebastian"
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          barangay: user.barangay?.name || undefined,
+          barangayId: user.barangayId || undefined,
         };
       }
     })
@@ -30,13 +41,17 @@ export const authOptions: AuthOptions = {
       if (user) {
         token.role = (user as any).role;
         token.barangay = (user as any).barangay;
+        token.barangayId = (user as any).barangayId;
+        token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
+        (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).barangay = token.barangay;
+        (session.user as any).barangayId = token.barangayId;
       }
       return session;
     }

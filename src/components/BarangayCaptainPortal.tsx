@@ -39,6 +39,7 @@ interface BarangayCaptainPortalProps {
   referrals: ReferralPipelineItem[];
   officialAccounts: OfficialAccount[];
   programs?: TESDAProgram[];
+  currentUser?: any;
 }
 
 export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
@@ -47,7 +48,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   youthProfiles,
   referrals,
   officialAccounts,
-  programs = []
+  programs = [],
+  currentUser
 }) => {
   const [activeTab, setActiveTab] = useState<"dashboard" | "youth_list" | "tesda_programs">("dashboard");
   const [selectedYouth, setSelectedYouth] = useState<YouthProfile | null>(null);
@@ -69,6 +71,12 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
   // Dynamic captain info lookup
   const captainInfo = useMemo(() => {
+    if (currentUser) {
+      return {
+        name: currentUser.name,
+        email: currentUser.email
+      };
+    }
     const match = officialAccounts.find(o => 
       o.role === "Barangay Captain" && 
       o.barangay && 
@@ -78,7 +86,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       name: "Capt. Danilo Santos",
       email: "danilo.santos@sanluispampanga.gov.ph"
     };
-  }, [officialAccounts, cleanBrgy]);
+  }, [officialAccounts, cleanBrgy, currentUser]);
 
   // Dynamic local youth profiles
   const localYouthProfiles = useMemo(() => {

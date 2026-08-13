@@ -16,6 +16,7 @@ interface TESDAPartnerPortalProps {
   youthProfiles: YouthProfile[];
   onLogout: () => void;
   addToast: (msg: string, type: "success" | "error" | "info") => void;
+  currentUser?: any;
 }
 
 export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
@@ -25,7 +26,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   setReferrals,
   youthProfiles,
   onLogout,
-  addToast
+  addToast,
+  currentUser
 }) => {
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
 
@@ -380,11 +382,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         <div className="p-6 border-t border-teal-900/40">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-full bg-teal-700 text-white flex items-center justify-center font-bold text-sm">
-              TS
+              {currentUser?.name?.charAt(0).toUpperCase() || "T"}
             </div>
             <div>
-              <p className="text-xs font-bold leading-none">TESDA GPSAT Representative</p>
-              <p className="text-[10px] text-teal-200 mt-0.5">GPSAT Office</p>
+              <p className="text-xs font-bold leading-none">{currentUser?.name || "TESDA Representative"}</p>
+              <p className="text-[10px] text-teal-200 mt-0.5">{currentUser?.email || "GPSAT Office"}</p>
             </div>
           </div>
           <button
@@ -401,7 +403,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-10 px-8 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">Welcome, TESDA GPSAT 🏢</h1>
+            <h1 className="text-lg font-bold text-gray-900 leading-tight">Welcome, {currentUser?.name || "TESDA GPSAT"} 🏢</h1>
             <p className="text-xs text-gray-500 font-medium">Out-of-School Youth (OSY) Vocational & Livelihood Pipeline · San Luis, Pampanga</p>
           </div>
         </header>

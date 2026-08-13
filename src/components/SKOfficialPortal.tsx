@@ -32,6 +32,7 @@ interface SKOfficialPortalProps {
   onLogout: () => void;
   addToast: (msg: string, type: "success" | "error" | "info") => void;
   designatedBarangay: string;
+  currentUser?: any;
 }
 
 export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
@@ -48,7 +49,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   setCouncilors,
   onLogout,
   addToast,
-  designatedBarangay
+  designatedBarangay,
+  currentUser
 }) => {
   const [currentScreen, setCurrentScreen] = useState<SKOfficialScreen>(SKOfficialScreen.DASHBOARD);
   const [selectedYouthId, setSelectedYouthId] = useState<string | null>("y-01"); // Default to Juan
@@ -106,6 +108,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   // Synchronize settings with current SK Chairperson of designatedBarangay
   useEffect(() => {
+    if (currentUser) {
+      setSettingsName(currentUser.name);
+      setSettingsEmail(currentUser.email);
+      return;
+    }
     const cleanBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
     const match = INITIAL_OFFICIALS.find(o => 
       o.role === "SK Chairperson" && 
@@ -119,7 +126,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       setSettingsName("SK Chairperson");
       setSettingsEmail("chairperson@sanluispampanga.gov.ph");
     }
-  }, [designatedBarangay]);
+  }, [designatedBarangay, currentUser]);
 
   // Councilor management states
   const [councilorName, setCouncilorName] = useState("");

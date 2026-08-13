@@ -44,6 +44,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
   // Form states
   const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
   const [regAge, setRegAge] = useState<number>(20);
   const [regDOB, setRegDOB] = useState("2006-05-15");
   const [regContact, setRegContact] = useState("+63 9");
@@ -69,6 +71,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [certifyAge, setCertifyAge] = useState(false);
   const [certifyResidency, setCertifyResidency] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const STEPS = [
     { label: "Location", desc: "Barangay Select", icon: <MapPin className="w-4 h-4" /> },
@@ -128,9 +131,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName.trim() || !regGoal.trim() || !regContact.trim() || !selectedBarangay) {
+    if (!regName.trim() || !regGoal.trim() || !regContact.trim() || !selectedBarangay || !regEmail.trim() || regPassword.length < 6) {
       return;
     }
 
@@ -138,11 +141,13 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       return;
     }
 
+    setIsRegistering(true);
+
     const generatedIdImage = regIdImage || `https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600`;
 
-    const newId = `y-self-${Date.now()}`;
-    const newProfile: YouthProfile = {
-      id: newId,
+    const payload = {
+      email: regEmail,
+      password: regPassword,
       name: regName,
       age: regAge,
       purok: regPurok,
@@ -154,28 +159,46 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       sectorPreference: regSector,
       livelihoodGoal: regGoal,
       contactNumber: regContact,
-      registeredDate: new Date().toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' }),
-      matchScore: Math.floor(Math.random() * 20) + 75,
       soloParent: regSolo,
       pwd: regPwd,
       indigenous: regIndigenous,
-      hasReferred: false,
-      approvalStatus: "Pending",
       verificationIdType: regIdType,
       verificationIdNumber: regIdNumber || `ID-${Math.floor(100000 + Math.random() * 900000)}`,
       verificationIdImage: generatedIdImage
     };
 
-    onRegisterComplete(newProfile);
-    setCurrentStep(5); // Go to "Pending Approval" screen
+    try {
+      const res = await fetch("/api/users/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        onRegisterComplete(data.data);
+        setCurrentStep(5); // Go to "Pending Approval" screen
+      } else {
+        alert("Registration failed: " + data.message);
+      }
+    } catch (err) {
+      alert("An error occurred during registration.");
+      console.error(err);
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   const isStepValid = (stepIndex: number) => {
     switch (stepIndex) {
       case 0:
         return !!selectedBarangay;
-      case 1:
-        return !!regName.trim() && !!regContact.trim() && regAge >= 15 && regAge <= 30;
+      case 1: {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return !!regName.trim() && !!regContact.trim() && regAge >= 15 && regAge <= 30 && emailRegex.test(regEmail) && regPassword.length >= 6;
+      }
       case 2:
         return true; // Dropdowns and checkboxes have default values
       case 3:
@@ -363,6 +386,31 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
                     placeholder="e.g. Juan dela Cruz"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase block">Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    placeholder="juan@example.com"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase block">Password *</label>
+                  <input
+                    type="password"
+                    required
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    placeholder="Min 6 characters"
                     className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />
                 </div>
