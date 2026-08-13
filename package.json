@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "@prisma/client": "^6.3.1",
+    "@prisma/client": "^6.19.3",
     "@tailwindcss/postcss": "^4.0.8",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
@@ -22,7 +22,7 @@
     "dotenv": "^17.2.3",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
-    "next": "^15.1.7",
+    "next": "^16.3.0",
     "next-auth": "^4.24.11",
     "postcss": "^8.5.2",
     "react": "^19.0.0",
@@ -35,9 +35,8 @@
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
-    "prisma": "^6.3.1",
+    "prisma": "^6.19.3",
     "tsx": "^4.21.0",
     "typescript": "^5.8.2"
   }
 }
-
