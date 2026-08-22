@@ -73,7 +73,7 @@ export async function POST(req: Request) {
           purok,
           barangayId: brgy.id,
           educationalAttainment,
-          currentStatus,
+          currentStatus: "Out-of-school",
           skills: Array.isArray(skills) ? skills : [skills],
           interests: Array.isArray(interests) ? interests : [interests],
           sectorPreference,

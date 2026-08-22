@@ -557,7 +557,7 @@ Please sign in and change your password immediately.`;
                     <UserCheck className="w-8 h-8 text-emerald-400 opacity-80" />
                     <div>
                       <p className="font-bold text-white text-xs">AI Inference Engine</p>
-                      <p className="text-slate-400 mt-1 leading-relaxed">Google Gemini alignment matrix ready. Zero queue latency on referrals.</p>
+                      <p className="text-slate-400 mt-1 leading-relaxed">Google Gemini alignment matrix ready. Zero queue latency on direct applications.</p>
                     </div>
                   </div>
                 </div>

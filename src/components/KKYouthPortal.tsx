@@ -4,11 +4,10 @@ import React, { useState, useMemo } from "react";
 import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
-  Calendar, Clock, XCircle
+  Calendar, Clock, XCircle, Megaphone
 } from "lucide-react";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
-import { INITIAL_OFFICIALS } from "../data";
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -51,6 +50,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return annBrgy === dbBrgy;
     });
   }, [announcements, youthProfile.barangay]);
+
+  const calculatedAge = useMemo(() => {
+    if (!youthProfile.registeredDate) return youthProfile.age;
+    const regDate = new Date(youthProfile.registeredDate);
+    const now = new Date();
+    if (isNaN(regDate.getTime())) return youthProfile.age;
+
+    let years = now.getFullYear() - regDate.getFullYear();
+    const m = now.getMonth() - regDate.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < regDate.getDate())) {
+      years--;
+    }
+    return youthProfile.age + Math.max(0, years);
+  }, [youthProfile.age, youthProfile.registeredDate]);
 
   // Use generic title since we no longer have static officials list
   const skChairpersonName = useMemo(() => {
@@ -137,7 +150,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   };
 
   // local convenience updates
-  const handleAddSkillSubmit = (e: React.FormEvent) => {
+  const handleAddSkillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isUnverified) {
       addToast("Cannot add skills in View-Only Mode (Awaiting SK Verification)", "error");
@@ -151,6 +164,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
 
     const updatedSkills = [...youthProfile.skills, newSkillInput.trim()];
+    const updatedMatchScore = Math.min(99, youthProfile.matchScore + 2);
     
     // update global profiles
     setYouthProfiles(prev => prev.map(y => {
@@ -158,31 +172,61 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         return {
           ...y,
           skills: updatedSkills,
-          // dynamically upgrade matches when they add more skills for realism
-          matchScore: Math.min(99, y.matchScore + 2)
+          matchScore: updatedMatchScore
         };
       }
       return y;
     }));
+
+    // Persist skill addition to PostgreSQL
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: youthProfile.id,
+          skills: updatedSkills,
+          matchScore: updatedMatchScore
+        })
+      });
+    } catch (err) {
+      console.error("Error persisting skill addition:", err);
+    }
 
     addToast(`Added "${newSkillInput.trim()}" to your skills. Matches refreshed!`, "success");
     setNewSkillInput("");
     setShowAddSkillModal(false);
   };
 
-  const handleRemoveSkillLocal = (skill: string) => {
+  const handleRemoveSkillLocal = async (skill: string) => {
     if (isUnverified) {
       addToast("Cannot remove skills in View-Only Mode (Awaiting SK Verification)", "error");
       return;
     }
     const updatedSkills = youthProfile.skills.filter(s => s !== skill);
+
     setYouthProfiles(prev => prev.map(y => {
       if (y.id === youthProfile.id) {
         return { ...y, skills: updatedSkills };
       }
       return y;
     }));
-    addToast("Skill removed", "info");
+
+    // Persist skill removal to PostgreSQL
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: youthProfile.id,
+          skills: updatedSkills
+        })
+      });
+    } catch (err) {
+      console.error("Error persisting skill removal:", err);
+    }
+
+    addToast(`Skill "${skill}" removed`, "info");
   };
 
   // Direct Apply to TESDA
@@ -437,18 +481,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 {/* Greeting / Intro */}
                 <div className="bg-[#1C2B20] text-white p-6 rounded-2xl shadow-xs md:col-span-2 flex flex-col justify-between">
                   <div>
-                    <span className="text-xs uppercase font-bold tracking-wider text-emerald-300">Welcome Back</span>
+                    <span className="text-xs uppercase font-bold tracking-wider text-emerald-300">Welcome</span>
                     <h3 className="font-extrabold text-2xl mt-1">Mabuhay, {youthProfile.name}! 👋</h3>
                     <p className="text-sm text-emerald-100/80 mt-2 leading-relaxed">
                       You are registered as an active Katipunan ng Kabataan member in {youthProfile.purok}, Barangay {youthProfile.barangay}. Use this portal to map your competencies, discover high-matching TESDA training programs, and track your active roadmap.
                     </p>
                   </div>
-                  <div className="mt-4 flex gap-1.5">
+                  <div className="mt-4 flex gap-1.5 flex-wrap">
                     <span className="bg-emerald-800 text-emerald-100 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-600 uppercase">
-                      Pampanga Resident
+                      {youthProfile.barangay ? `${youthProfile.barangay.startsWith("Barangay ") ? youthProfile.barangay : `Barangay ${youthProfile.barangay}`} Resident` : "San Luis Resident"}
                     </span>
                     <span className="bg-emerald-800 text-emerald-100 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-600 uppercase">
-                      Age: {youthProfile.age}
+                      Age: {calculatedAge}
                     </span>
                   </div>
                 </div>
@@ -464,10 +508,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     <p className="text-sm font-bold text-[#D97706] mt-1">
                       {(() => {
                         const app = referrals?.find(r => r.youthName === youthProfile.name);
-                        if (app?.status === "Enrolled") return "Complete Welding NC II Class";
-                        if (app?.status === "Pending") return "Awaiting Enrollment Approval";
-                        if (app?.status === "Declined") return "Revise Profile & Re-apply";
-                        return "Apply Directly for Welding NC II";
+                        if (app?.status === "Enrolled") return `Enrolled in ${app.programTitle}`;
+                        if (app?.status === "Pending") return `Application Pending: ${app.programTitle}`;
+                        if (app?.status === "Declined") return "Revise Profile & Explore Opportunities";
+                        if (programs && programs.length > 0) return `Apply Directly for ${programs[0].title}`;
+                        return "Explore & Apply for Training Programs";
                       })()}
                     </p>
                   </div>
@@ -573,105 +618,110 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
 
                 {/* Best Match Card (60%) */}
-                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-6 shadow-xs space-y-4 md:col-span-3">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <span className="text-xs uppercase font-bold text-[#D97706] tracking-wider block">Featured AI Match for You</span>
-                      <h4 className="font-extrabold text-gray-800 text-lg mt-1">Welding NC II Training Course</h4>
-                      <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-150 inline-block mt-1">
-                        TESDA GPSAT Partner Program
-                      </span>
+                {programs.length === 0 ? (
+                  <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-3 text-center md:col-span-3 flex flex-col justify-center items-center">
+                    <div className="w-12 h-12 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mb-1">
+                      <Target className="w-6 h-6" />
                     </div>
-                    <FlameMatchScore score={youthProfile.hasReferred ? 94 : youthProfile.matchScore} />
-                  </div>
-
-                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                    <p className="text-sm italic text-emerald-950 leading-relaxed font-medium">
-                      "Based on your welding skills and interest in trade work, this free 3-month course at TESDA GPSAT is your 94% fit. You will achieve NC II certificate immediately."
+                    <h4 className="font-extrabold text-gray-800 text-base">No Active TESDA Programs Published Yet</h4>
+                    <p className="text-xs text-gray-500 max-w-md leading-relaxed font-medium">
+                      There are currently no active training courses published in the system database. As soon as TESDA partners publish new training programs, our Gemini AI engine will automatically evaluate your registered skills and display your top match here.
                     </p>
                   </div>
+                ) : (
+                  (() => {
+                    const featuredProg = programs[0];
+                    const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
+                    const isEnrolled = app?.status === "Enrolled";
+                    const isDeclined = app?.status === "Declined";
+                    const isPending = app?.status === "Pending";
+                    const isFull = !app && (featuredProg.slotsRemaining !== undefined && featuredProg.slotsRemaining <= 0);
+                    
+                    const overlapWarning = getOverlapWarning(featuredProg);
+                    const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
 
-                  <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
-                    <p className="text-[11px] font-bold text-amber-950 uppercase tracking-wider mb-1 flex items-center gap-1">
-                      📋 Physical Requirements Needed Beforehand:
-                    </p>
-                    <ul className="list-disc pl-4 text-[10px] text-amber-800 space-y-0.5 font-semibold">
-                      <li>PSA Birth Certificate (Original & Photocopy)</li>
-                      <li>4 copies of 1x1 Pictures (white background, collar, with name tag)</li>
-                      <li>High School Report Card / Form 137 or SHS Diploma</li>
-                      <li>Certificate of Barangay Residency (San Luis, Pampanga)</li>
-                      <li>Medical Certificate indicating you are physically fit</li>
-                    </ul>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-xs text-gray-500 pt-3 border-t border-gray-100">
-                    <div className="space-y-1">
-                      <p>⏱ <strong>Duration:</strong> 3 months (268 hours)</p>
-                      <p>📍 <strong>Location:</strong> TESDA PTC, San Fernando, Pampanga</p>
-                    </div>
-                    {(() => {
-                      const featuredProg = programs.find(p => p.id === "p-01") || programs[0] || { id: "p-01", title: "Shielded Metal Arc Welding (SMAW) NC II", slotsRemaining: 0 };
-                      const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
-                      const isEnrolled = app?.status === "Enrolled";
-                      const isDeclined = app?.status === "Declined";
-                      const isPending = app?.status === "Pending";
-                      const isFull = !app && (featuredProg.slotsRemaining !== undefined && featuredProg.slotsRemaining <= 0);
-                      
-                      const overlapWarning = getOverlapWarning(featuredProg as TESDAProgram);
-                      const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
-                      
-                      return (
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                          <button
-                            onClick={() => handleDirectApply(featuredProg as TESDAProgram)}
-                            disabled={isDisabled}
-                            className={`text-xs font-extrabold px-4 py-2.5 rounded-lg transition-all ${
-                              app
-                                ? isEnrolled
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                                  : isDeclined
-                                  ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
-                                  : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
-                                : isFull
-                                ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                : overlapWarning
-                                ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
-                                : isUnverified
-                                ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
-                                : "bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs cursor-pointer"
-                            }`}
-                          >
-                            {app
-                              ? isEnrolled
-                                ? "Enrolled in Program ✓"
-                                : isDeclined
-                                ? "Application Declined"
-                                : "Application Pending..."
-                              : isFull
-                              ? "Slots Full"
-                              : overlapWarning
-                              ? "Schedule Overlap"
-                              : isUnverified
-                              ? "Awaiting SK Verification"
-                              : "Apply Directly for Program"}
-                          </button>
+                    return (
+                      <div className="bg-white border border-[#D1FAE5] rounded-2xl p-6 shadow-xs space-y-4 md:col-span-3">
+                        <div className="flex justify-between items-start gap-4">
+                          <div>
+                            <span className="text-xs uppercase font-bold text-[#D97706] tracking-wider block">Featured AI Match for You</span>
+                            <h4 className="font-extrabold text-gray-800 text-lg mt-1">{featuredProg.title}</h4>
+                            <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-150 inline-block mt-1">
+                              {featuredProg.provider || "TESDA Partner Program"}
+                            </span>
+                          </div>
+                          <FlameMatchScore score={youthProfile.hasReferred ? 94 : youthProfile.matchScore} />
                         </div>
-                      );
-                    })()}
-                  </div>
-                  {(() => {
-                    const featuredProg = programs.find(p => p.id === "p-01") || programs[0];
-                    const overlapWarning = getOverlapWarning(featuredProg as TESDAProgram);
-                    if (overlapWarning) {
-                      return (
-                        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 font-semibold leading-relaxed">
-                          ⚠️ <strong>Overlap Warning:</strong> {overlapWarning}
-                        </p>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
+
+                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                          <p className="text-sm italic text-emerald-950 leading-relaxed font-medium">
+                            "Based on your registered competencies, this course at {featuredProg.provider || "TESDA"} is evaluated as your top match ({youthProfile.matchScore || 85}% fit)."
+                          </p>
+                        </div>
+
+                        {featuredProg.requiredDocuments && featuredProg.requiredDocuments.length > 0 && (
+                          <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                            <p className="text-[11px] font-bold text-amber-950 uppercase tracking-wider mb-1 flex items-center gap-1">
+                              📋 Physical Requirements Needed Beforehand:
+                            </p>
+                            <ul className="list-disc pl-4 text-[10px] text-amber-800 space-y-0.5 font-semibold">
+                              {featuredProg.requiredDocuments.map((doc, dIdx) => (
+                                <li key={dIdx}>{doc}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-xs text-gray-500 pt-3 border-t border-gray-100">
+                          <div className="space-y-1">
+                            <p>⏱ <strong>Duration:</strong> {featuredProg.duration}</p>
+                            <p>📍 <strong>Location:</strong> {featuredProg.location}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-2 shrink-0">
+                            <button
+                              onClick={() => handleDirectApply(featuredProg)}
+                              disabled={isDisabled}
+                              className={`text-xs font-extrabold px-4 py-2.5 rounded-lg transition-all ${
+                                app
+                                  ? isEnrolled
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                                    : isDeclined
+                                    ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
+                                    : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
+                                  : isFull
+                                  ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                  : overlapWarning
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                                  : isUnverified
+                                  ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
+                                  : "bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs cursor-pointer"
+                              }`}
+                            >
+                              {app
+                                ? isEnrolled
+                                  ? "Enrolled in Program ✓"
+                                  : isDeclined
+                                  ? "Application Declined"
+                                  : "Application Pending..."
+                                : isFull
+                                ? "Slots Full"
+                                : overlapWarning
+                                ? "Schedule Overlap"
+                                : isUnverified
+                                ? "Awaiting SK Verification"
+                                : "Apply Directly for Program"}
+                            </button>
+                          </div>
+                        </div>
+                        {overlapWarning && (
+                          <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 font-semibold leading-relaxed">
+                            ⚠️ <strong>Overlap Warning:</strong> {overlapWarning}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()
+                )}
 
                 {/* My Skills Segment (40%) */}
                 <div className="bg-white p-6 border border-[#D1FAE5] rounded-2xl shadow-xs flex flex-col justify-between md:col-span-2">
@@ -697,11 +747,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {youthProfile.skills.map((s) => (
-                        <span key={s} className="bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full border border-amber-100">
-                          {s}
-                        </span>
-                      ))}
+                      {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                        youthProfile.skills.map((s) => (
+                          <span key={s} className="bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full border border-amber-100 flex items-center gap-1.5 shadow-2xs">
+                            {s}
+                            <button
+                              onClick={() => handleRemoveSkillLocal(s)}
+                              disabled={isUnverified}
+                              title={`Remove ${s}`}
+                              className={`font-bold text-xs pl-1 ${isUnverified ? "text-amber-400 cursor-not-allowed" : "hover:text-red-600 cursor-pointer"}`}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-400 italic font-medium py-1">No skills added yet. Click "+ Add Skill" to register your competencies.</p>
+                      )}
                     </div>
                   </div>
 
@@ -715,23 +777,35 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {/* Barangay Announcements Segment */}
               <div className="space-y-3">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Sangguniang Kabataan Announcements</span>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {localAnnouncements.map((ann) => (
-                    <div key={ann.id} className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-emerald-300 transition-colors">
-                      <div>
-                        <div className="flex justify-between text-[10px] text-gray-400 mb-2">
-                          <span className="font-extrabold uppercase tracking-wide text-[#D97706] bg-amber-50 px-2.5 py-0.5 rounded-full">{ann.category}</span>
-                          <span>{ann.datePosted}</span>
-                        </div>
-                        <h5 className="font-bold text-gray-800 text-sm">{ann.title}</h5>
-                        <p className="text-xs text-gray-600 mt-2 leading-relaxed">{ann.body}</p>
-                      </div>
-                      <div className="text-[10px] text-gray-400 mt-4 pt-2 border-t border-gray-50">
-                        Target Audience: <span className="font-semibold text-gray-600">{ann.audience}</span>
-                      </div>
+                {localAnnouncements.length === 0 ? (
+                  <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs text-center flex flex-col items-center justify-center space-y-2">
+                    <div className="w-10 h-10 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-center text-[#D97706]">
+                      <Megaphone className="w-5 h-5" />
                     </div>
-                  ))}
-                </div>
+                    <h5 className="font-extrabold text-gray-800 text-sm">No Active SK Announcements</h5>
+                    <p className="text-xs text-gray-500 max-w-md font-medium leading-relaxed">
+                      There are currently no published announcements from Sangguniang Kabataan for Barangay {youthProfile.barangay}. Official youth updates and community notices will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {localAnnouncements.map((ann) => (
+                      <div key={ann.id} className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-emerald-300 transition-colors">
+                        <div>
+                          <div className="flex justify-between text-[10px] text-gray-400 mb-2">
+                            <span className="font-extrabold uppercase tracking-wide text-[#D97706] bg-amber-50 px-2.5 py-0.5 rounded-full">{ann.category}</span>
+                            <span>{ann.datePosted}</span>
+                          </div>
+                          <h5 className="font-bold text-gray-800 text-sm">{ann.title}</h5>
+                          <p className="text-xs text-gray-600 mt-2 leading-relaxed">{ann.body}</p>
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-4 pt-2 border-t border-gray-50">
+                          Target Audience: <span className="font-semibold text-gray-600">{ann.audience}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -745,120 +819,130 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <p className="text-xs text-gray-500 mt-1">Based on your registered competencies, Purok residence, and vocational career goals.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {programs.map((prog, idx) => {
-                  // dynamic match scores
-                  const score = idx === 0 
-                    ? (youthProfile.hasReferred ? 94 : youthProfile.matchScore) 
-                    : idx === 1 
-                      ? Math.max(50, youthProfile.matchScore - 12) 
-                      : Math.max(50, youthProfile.matchScore - 23);
+              {programs.length === 0 ? (
+                <div className="bg-white border border-gray-150 rounded-2xl p-10 shadow-xs text-center flex flex-col items-center justify-center space-y-3">
+                  <div className="w-12 h-12 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
+                    <Target className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-extrabold text-gray-800 text-base">No Matching TESDA Programs Available Yet</h4>
+                  <p className="text-xs text-gray-500 max-w-md font-medium leading-relaxed">
+                    There are currently no active training programs published in the system. As soon as TESDA partners publish new courses, Google Gemini will automatically analyze your profile and display your personalized matches here.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {programs.map((prog, idx) => {
+                    // dynamic match scores
+                    const score = idx === 0 
+                      ? (youthProfile.hasReferred ? 94 : youthProfile.matchScore) 
+                      : idx === 1 
+                        ? Math.max(50, youthProfile.matchScore - 12) 
+                        : Math.max(50, youthProfile.matchScore - 23);
 
-                  return (
-                    <div key={prog.id} className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-emerald-200 transition-all">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start gap-3">
-                          <div>
-                            <span className="text-[10px] font-extrabold uppercase text-gray-400 block tracking-wider">{prog.provider}</span>
-                            <h4 className="font-bold text-gray-800 text-sm mt-1">{prog.title}</h4>
+                    return (
+                      <div key={prog.id} className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-emerald-200 transition-all">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-start gap-3">
+                            <div>
+                              <span className="text-[10px] font-extrabold uppercase text-gray-400 block tracking-wider">{prog.provider}</span>
+                              <h4 className="font-bold text-gray-800 text-sm mt-1">{prog.title}</h4>
+                            </div>
+                            <FlameMatchScore score={score} />
                           </div>
-                          <FlameMatchScore score={score} />
-                        </div>
 
-                        <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
-                          <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                            {idx === 0
-                              ? "Your welding skills are a strong match for this program. This is your fastest path to NC II certification."
-                              : `Google Gemini identified a ${score}% compatibility score between your technical competencies and this local program.`}
-                          </p>
-                        </div>
-
-                        <div className="space-y-1.5 text-xs text-gray-600">
-                          <p>📍 <strong>Location:</strong> {prog.location}</p>
-                          <p>⏱ <strong>Duration:</strong> {prog.duration} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""}</p>
-                          <p>💰 <strong>Cost:</strong> {prog.cost}</p>
-                          <p>🎓 <strong>Eligibility:</strong> {prog.eligibility}</p>
-                        </div>
-
-                        {prog.requiredDocuments && prog.requiredDocuments.length > 0 && (
-                          <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 space-y-1.5">
-                            <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                              📋 Required Documents Beforehand:
+                          <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
+                            <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
+                              Google Gemini identified a {score}% compatibility score between your technical competencies and this local program.
                             </p>
-                            <ul className="list-disc pl-4 text-[10px] text-amber-800 space-y-0.5 font-semibold">
-                              {prog.requiredDocuments.map((doc, dIdx) => (
-                                <li key={dIdx}>{doc}</li>
-                              ))}
-                            </ul>
                           </div>
-                        )}
-                        
-                        {(() => {
-                          const overlapWarning = getOverlapWarning(prog);
-                          if (overlapWarning) {
+
+                          <div className="space-y-1.5 text-xs text-gray-600">
+                            <p>📍 <strong>Location:</strong> {prog.location}</p>
+                            <p>⏱ <strong>Duration:</strong> {prog.duration} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""}</p>
+                            <p>💰 <strong>Cost:</strong> {prog.cost}</p>
+                            <p>🎓 <strong>Eligibility:</strong> {prog.eligibility}</p>
+                          </div>
+
+                          {prog.requiredDocuments && prog.requiredDocuments.length > 0 && (
+                            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 space-y-1.5">
+                              <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                                📋 Required Documents Beforehand:
+                              </p>
+                              <ul className="list-disc pl-4 text-[10px] text-amber-800 space-y-0.5 font-semibold">
+                                {prog.requiredDocuments.map((doc, dIdx) => (
+                                  <li key={dIdx}>{doc}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {(() => {
+                            const overlapWarning = getOverlapWarning(prog);
+                            if (overlapWarning) {
+                              return (
+                                <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 font-semibold leading-relaxed">
+                                  ⚠️ <strong>Overlap Warning:</strong> {overlapWarning}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+
+                        <div className="flex justify-between items-center text-xs text-gray-500 pt-4 mt-6 border-t border-gray-100">
+                          <span>Slots: <strong>{prog.slotsRemaining}/{prog.slotsTotal}</strong> left</span>
+                          {(() => {
+                            const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+                            const isEnrolled = app?.status === "Enrolled";
+                            const isDeclined = app?.status === "Declined";
+                            const isPending = app?.status === "Pending";
+
+                            const isFull = !app && prog.slotsRemaining <= 0;
+                            const overlapWarning = getOverlapWarning(prog);
+                            const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
+
                             return (
-                              <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 font-semibold leading-relaxed">
-                                ⚠️ <strong>Overlap Warning:</strong> {overlapWarning}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-
-                      <div className="flex justify-between items-center text-xs text-gray-500 pt-4 mt-6 border-t border-gray-100">
-                        <span>Slots: <strong>{prog.slotsRemaining}/{prog.slotsTotal}</strong> left</span>
-                        {(() => {
-                          const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
-                          const isEnrolled = app?.status === "Enrolled";
-                          const isDeclined = app?.status === "Declined";
-                          const isPending = app?.status === "Pending";
-
-                          const isFull = !app && prog.slotsRemaining <= 0;
-                          const overlapWarning = getOverlapWarning(prog);
-                          const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
-
-                          return (
-                            <button
-                              onClick={() => handleDirectApply(prog)}
-                              disabled={isDisabled}
-                              className={`text-xs font-bold px-3 py-2 rounded-lg transition-colors ${
-                                app
+                              <button
+                                onClick={() => handleDirectApply(prog)}
+                                disabled={isDisabled}
+                                className={`text-xs font-bold px-3 py-2 rounded-lg transition-colors ${
+                                  app
+                                    ? isEnrolled
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default"
+                                      : isDeclined
+                                      ? "bg-red-50 text-red-700 border border-red-100 cursor-default"
+                                      : "bg-blue-50 text-blue-700 border border-blue-100 cursor-default animate-pulse"
+                                    : isFull
+                                    ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                    : overlapWarning
+                                    ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                                    : isUnverified
+                                    ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
+                                    : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer"
+                                }`}
+                              >
+                                {app
                                   ? isEnrolled
-                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default"
+                                    ? "Enrolled ✓"
                                     : isDeclined
-                                    ? "bg-red-50 text-red-700 border border-red-100 cursor-default"
-                                    : "bg-blue-50 text-blue-700 border border-blue-100 cursor-default animate-pulse"
+                                    ? "Declined"
+                                    : "Pending"
                                   : isFull
-                                  ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                  ? "Slots Full"
                                   : overlapWarning
-                                  ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                                  ? "Overlap"
                                   : isUnverified
-                                  ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
-                                  : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer"
-                              }`}
-                            >
-                              {app
-                                ? isEnrolled
-                                  ? "Enrolled ✓"
-                                  : isDeclined
-                                  ? "Declined"
-                                  : "Pending"
-                                : isFull
-                                ? "Slots Full"
-                                : overlapWarning
-                                ? "Overlap"
-                                : isUnverified
-                                ? "Awaiting SK Verification"
-                                : "Apply Directly"}
-                            </button>
-                          );
-                        })()}
+                                  ? "Awaiting SK Verification"
+                                  : "Apply Directly"}
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1130,12 +1214,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 {/* User Card */}
                 <div className="bg-white border border-gray-150 rounded-2xl p-6 flex items-center gap-6 shadow-xs">
                   <div className="w-20 h-20 rounded-full bg-amber-100 text-amber-700 font-extrabold text-2xl flex items-center justify-center shrink-0">
-                    JD
+                    {youthProfile.name ? youthProfile.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "KK"}
                   </div>
                   <div className="space-y-1">
                     <h4 className="font-extrabold text-gray-900 text-lg">{youthProfile.name}</h4>
-                    <p className="text-xs text-gray-500">{youthProfile.age} y/o · {youthProfile.purok} · Barangay {youthProfile.barangay}</p>
-                    <div className="flex gap-2 pt-1.5">
+                    <p className="text-xs text-gray-500">{calculatedAge} y/o · {youthProfile.purok} · Barangay {youthProfile.barangay}</p>
+                    <div className="flex gap-2 pt-1.5 flex-wrap">
                       <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-2.5 py-0.5 border border-amber-200 rounded-full uppercase">
                         {youthProfile.currentStatus}
                       </span>
@@ -1161,9 +1245,21 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     <span className="font-medium text-gray-400">Municipality & Province:</span>
                     <span className="font-bold text-gray-800">San Luis, Pampanga</span>
                   </div>
-                  <div className="flex justify-between py-1">
+                  <div className="flex justify-between items-center py-1">
                     <span className="font-medium text-gray-400">Youth Organization Membership:</span>
-                    <span className="font-bold text-[#0A6B43]">Katipunan ng Kabataan (KK) Verified</span>
+                    <span className={`font-extrabold text-[11px] px-2.5 py-0.5 rounded-full border ${
+                      youthProfile.approvalStatus === "Approved"
+                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                        : youthProfile.approvalStatus === "Rejected"
+                        ? "bg-red-50 text-red-700 border-red-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}>
+                      {youthProfile.approvalStatus === "Approved"
+                        ? "Katipunan ng Kabataan (KK) Verified ✓"
+                        : youthProfile.approvalStatus === "Rejected"
+                        ? "Verification Declined"
+                        : "Awaiting SK Verification..."}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1188,24 +1284,28 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {youthProfile.skills.map((s) => (
-                      <span key={s} className="bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full border border-amber-100 flex items-center gap-1.5">
-                        {s}
-                        <button
-                          onClick={() => {
-                            if (isUnverified) {
-                              addToast("Cannot remove skills in View-Only Mode", "error");
-                              return;
-                            }
-                            handleRemoveSkillLocal(s);
-                          }}
-                          disabled={isUnverified}
-                          className={`font-bold text-xs pl-1 ${isUnverified ? "text-amber-400 cursor-not-allowed" : "hover:text-red-500 cursor-pointer"}`}
-                        >
-                          &times;
-                        </button>
-                      </span>
-                    ))}
+                    {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                      youthProfile.skills.map((s) => (
+                        <span key={s} className="bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full border border-amber-100 flex items-center gap-1.5">
+                          {s}
+                          <button
+                            onClick={() => {
+                              if (isUnverified) {
+                                addToast("Cannot remove skills in View-Only Mode", "error");
+                                return;
+                              }
+                              handleRemoveSkillLocal(s);
+                            }}
+                            disabled={isUnverified}
+                            className={`font-bold text-xs pl-1 ${isUnverified ? "text-amber-400 cursor-not-allowed" : "hover:text-red-500 cursor-pointer"}`}
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-400 italic font-medium py-1">No skills registered yet. Click "+ Add New" to register your skills.</p>
+                    )}
                   </div>
                 </div>
 

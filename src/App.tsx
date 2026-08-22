@@ -38,17 +38,17 @@ export default function App() {
 
   // New Super Admin & Councilor states
   const [barangays, setBarangays] = useState(INITIAL_BARANGAYS);
-  const [officialAccounts, setOfficialAccounts] = useState(INITIAL_OFFICIALS);
-  const [councilors, setCouncilors] = useState(INITIAL_COUNCILORS);
+  const [officialAccounts, setOfficialAccounts] = useState<any[]>([]);
+  const [councilors, setCouncilors] = useState<any[]>([]);
   const [designatedBarangay, setDesignatedBarangay] = useState<string>("San Sebastian");
   const [isSelfRegistering, setIsSelfRegistering] = useState(false);
-  const [loggedInYouthId, setLoggedInYouthId] = useState<string>("y-01");
+  const [loggedInYouthId, setLoggedInYouthId] = useState<string>("");
 
   // Shared state synchronized across portals
-  const [youthProfiles, setYouthProfiles] = useState(INITIAL_YOUTH_PROFILES);
-  const [programs, setPrograms] = useState(INITIAL_TESDA_PROGRAMS);
-  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
-  const [referrals, setReferrals] = useState(INITIAL_REFERRALS);
+  const [youthProfiles, setYouthProfiles] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [referrals, setReferrals] = useState<any[]>([]);
 
   // Sync state from Next.js API Routes
   useEffect(() => {
@@ -82,32 +82,6 @@ export default function App() {
     }
   }, [status, session]);
 
-
-  // Dynamic lookups for quick login aligning with designatedBarangay
-  const activeBrgyChairperson = useMemo(() => {
-    const cleanBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-    return officialAccounts.find(o => 
-      o.role === "SK Chairperson" && 
-      o.barangay && 
-      o.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase() === cleanBrgy
-    );
-  }, [designatedBarangay, officialAccounts]);
-
-  const activeBrgyYouth = useMemo(() => {
-    const cleanBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-    return youthProfiles.find(y => 
-      y.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase() === cleanBrgy
-    );
-  }, [designatedBarangay, youthProfiles]);
-
-  const activeBrgyCaptain = useMemo(() => {
-    const cleanBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-    return officialAccounts.find(o => 
-      o.role === "Barangay Captain" && 
-      o.barangay && 
-      o.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase() === cleanBrgy
-    );
-  }, [designatedBarangay, officialAccounts]);
 
   // Simple toast system
   const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error" | "info" }[]>([]);
@@ -147,34 +121,6 @@ export default function App() {
     }
   };
 
-  const handleQuickRoleSelect = (role: UserRole) => {
-    setCurrentUserRole(role);
-    if (role === UserRole.KK_YOUTH) {
-      if (activeBrgyYouth) {
-        setLoggedInYouthId(activeBrgyYouth.id);
-        addToast(`Prototype quick-login: Authenticated as KK Member ${activeBrgyYouth.name} (${activeBrgyYouth.barangay})!`, "success");
-      } else {
-        setLoggedInYouthId("y-01");
-        addToast("Prototype quick-login: Authenticated as KK Member Juan dela Cruz (San Sebastian)!", "success");
-      }
-      return;
-    } else if (role === UserRole.SK_OFFICIAL) {
-      const matchingChair = activeBrgyChairperson;
-      const name = matchingChair ? matchingChair.name : "Rhea Cruz";
-      addToast(`Prototype quick-login: Authenticated as SK Chairperson ${name} (${designatedBarangay})`, "success");
-      return;
-    } else if (role === UserRole.BARANGAY_CAPTAIN) {
-      const matchingCaptain = activeBrgyCaptain;
-      const name = matchingCaptain ? matchingCaptain.name : "Capt. Danilo Santos";
-      addToast(`Prototype quick-login: Authenticated as Barangay Captain ${name} (${designatedBarangay})`, "success");
-      return;
-    } else if (role === UserRole.SUPER_ADMIN) {
-      addToast(`Prototype quick-login: UI only! Use the real login form to interact with the database!`, "warning");
-    } else {
-      addToast(`Prototype quick-login: Authenticated as ${role}`, "success");
-    }
-  };
-
   const handleLogout = async () => {
     await signOut({ redirect: false });
     setCurrentUserRole(null);
@@ -185,7 +131,29 @@ export default function App() {
   };
 
   // Find dynamic logged-in youth's profile for the Youth Portal view
-  const activeYouthProfile = youthProfiles.find(y => y.id === loggedInYouthId) || youthProfiles[0];
+  const defaultEmptyYouthProfile: any = {
+    id: "empty-youth-profile",
+    name: session?.user?.name || "Youth Member",
+    age: 18,
+    purok: "Purok 1",
+    barangay: "San Sebastian",
+    educationalAttainment: "High School Graduate",
+    currentStatus: "Out-of-school",
+    skills: [],
+    interests: [],
+    sectorPreference: "General",
+    livelihoodGoal: "Configure your career goals",
+    contactNumber: "",
+    registeredDate: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+    matchScore: 85,
+    soloParent: false,
+    pwd: false,
+    indigenous: false,
+    hasReferred: false,
+    approvalStatus: "Approved"
+  };
+
+  const activeYouthProfile = youthProfiles.find(y => y.id === loggedInYouthId || y.name === session?.user?.name) || youthProfiles[0] || defaultEmptyYouthProfile;
 
   return (
     <div className="font-sans antialiased" id="sikap-application-root">
@@ -335,55 +303,6 @@ export default function App() {
                       Register Profile Here
                     </button>
                   </p>
-                </div>
-
-                {/* Target Barangay Select for testing */}
-                <div className="mt-4 pt-3 border-t border-gray-150 space-y-1.5 bg-emerald-50/25 p-2.5 rounded-lg">
-                  <label className="text-[9px] font-black uppercase text-[#0A6B43] block">
-                    Target Barangay (for Quick Login & Portal Testing)
-                  </label>
-                  <select
-                    value={designatedBarangay}
-                    onChange={(e) => setDesignatedBarangay(e.target.value)}
-                    className="w-full p-1.5 border border-[#A7F3D0] bg-white rounded-md text-xs font-bold text-gray-700 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    {barangays.map((b) => (
-                      <option key={b.name} value={b.name}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Prototype Role Picker Grid */}
-                <div className="space-y-2.5 pt-4 border-t border-gray-150">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">
-                    Quick Access Portal Demo Roles
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { role: UserRole.SK_OFFICIAL, label: "SK Official", desc: activeBrgyChairperson ? activeBrgyChairperson.name : "Chairperson Cruz", icon: <Shield className="w-4 h-4 text-[#0A6B43]" /> },
-                      { role: UserRole.KK_YOUTH, label: "Youth Member", desc: activeBrgyYouth ? activeBrgyYouth.name : "Juan dela Cruz", icon: <Award className="w-4 h-4 text-[#D97706]" /> },
-                      { role: UserRole.TESDA_PARTNER, label: "TESDA Partner", desc: "GPSAT Rep", icon: <Briefcase className="w-4 h-4 text-[#0F6E56]" /> },
-                      { role: UserRole.BARANGAY_CAPTAIN, label: "Brgy Captain", desc: "Danilo Santos", icon: <Landmark className="w-4 h-4 text-[#1C2B20]" /> },
-                      { role: UserRole.SUPER_ADMIN, label: "Super Admin", desc: "System Manager", icon: <Shield className="w-4 h-4 text-[#0D1B3E]" /> }
-                    ].map((tile) => (
-                      <button
-                        key={tile.role}
-                        onClick={() => handleQuickRoleSelect(tile.role)}
-                        className="p-3 border border-gray-150 hover:border-emerald-300 hover:bg-emerald-50/20 rounded-xl text-left transition-all flex flex-col justify-between"
-                      >
-                        <div className="flex justify-between items-start w-full">
-                          {tile.icon}
-                          <UserCheck className="w-3.5 h-3.5 text-gray-300" />
-                        </div>
-                        <div className="mt-2">
-                          <p className="text-xs font-extrabold text-gray-800">{tile.label}</p>
-                          <p className="text-[9px] text-gray-400 font-medium mt-0.5">{tile.desc}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TESDAProgram } from "../types";
 import { 
   BookOpen, 
@@ -30,6 +30,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   addToast
 }) => {
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
+  const [liveStats, setLiveStats] = useState({
+    totalYouth: 0,
+    totalPrograms: 0,
+    totalApplications: 0,
+    enrolledApplications: 0,
+    barangaysRepresented: 0
+  });
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then(res => res.json())
+      .then(res => {
+        if (res.success && res.data) {
+          setLiveStats(res.data);
+        }
+      })
+      .catch(err => console.error("Error fetching landing stats:", err));
+  }, []);
 
   const toggleFaq = (index: number) => {
     setActiveFaqIndex(prev => (prev === index ? null : index));
@@ -89,7 +107,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button onClick={() => handleScrollToSection("faq")} className="hover:text-[#0A6B43] transition-colors">FAQs</button>
             </nav>
 
-            {/* Portal Button */}
+            {/* Sign In Button */}
             <div className="flex items-center gap-3">
               <button 
                 onClick={onEnterLogin}
@@ -97,7 +115,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 id="landing-access-portals-btn"
               >
                 <ShieldCheck className="w-4 h-4" />
-                Access Portals
+                Sign In
               </button>
             </div>
 
@@ -122,7 +140,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </h1>
 
               <p className="text-sm sm:text-base text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
-                SiKap is the specialized digital platform of San Luis, Pampanga dedicated exclusively to skills-mapping, TVET training, and direct livelihood referrals for out-of-school youth (OSY). Using advanced alignment systems to match OSY profiles to fully funded programs.
+                SiKap is the specialized digital platform of San Luis, Pampanga dedicated exclusively to skills-mapping, TVET training, and direct program applications for out-of-school youth (OSY). Using advanced alignment systems to match OSY profiles to fully funded programs.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
@@ -130,7 +148,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   onClick={onEnterLogin}
                   className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-extrabold px-6 py-3.5 rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
                 >
-                  Enter Authorized Portals
+                  Sign In
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button 
@@ -228,30 +246,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             
             <div className="bg-emerald-950/40 p-6 rounded-2xl border border-emerald-800/40">
               <Users className="w-7 h-7 mx-auto text-amber-500 mb-2" />
-              <p className="text-3xl font-black text-white">150+</p>
+              <p className="text-3xl font-black text-white">{liveStats.totalYouth}</p>
               <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-1">KK Youth Registered</p>
               <p className="text-[10px] text-gray-400 mt-1">Katipunan ng Kabataan Database</p>
             </div>
 
             <div className="bg-emerald-950/40 p-6 rounded-2xl border border-emerald-800/40">
               <BookOpen className="w-7 h-7 mx-auto text-amber-500 mb-2" />
-              <p className="text-3xl font-black text-white">6 Core</p>
+              <p className="text-3xl font-black text-white">{liveStats.totalPrograms}</p>
               <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-1">Active Programs</p>
               <p className="text-[10px] text-gray-400 mt-1">TESDA Accredited Syllabi</p>
             </div>
 
             <div className="bg-emerald-950/40 p-6 rounded-2xl border border-emerald-800/40">
               <Building2 className="w-7 h-7 mx-auto text-amber-500 mb-2" />
-              <p className="text-3xl font-black text-white">8</p>
-              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-1">Barangays Covered</p>
+              <p className="text-3xl font-black text-white">{liveStats.barangaysRepresented}</p>
+              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-1">Barangays Represented</p>
               <p className="text-[10px] text-gray-400 mt-1">San Luis Local Governance</p>
             </div>
 
             <div className="bg-emerald-950/40 p-6 rounded-2xl border border-emerald-800/40">
               <TrendingUp className="w-7 h-7 mx-auto text-amber-500 mb-2" />
-              <p className="text-3xl font-black text-white">85%</p>
-              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-1">Placement Goal</p>
-              <p className="text-[10px] text-gray-400 mt-1">Subsidized career tracking</p>
+              <p className="text-3xl font-black text-white">{liveStats.totalApplications}</p>
+              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-1">Direct Applications</p>
+              <p className="text-[10px] text-gray-400 mt-1">Active TESDA Submissions</p>
             </div>
 
           </div>

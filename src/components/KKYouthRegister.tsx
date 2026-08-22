@@ -55,7 +55,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regStatus, setRegStatus] = useState("Out-of-school");
   
   const [skillInput, setSkillInput] = useState("");
-  const [regSkills, setRegSkills] = useState<string[]>(["Basic computing"]);
+  const [regSkills, setRegSkills] = useState<string[]>([]);
   const [regSector, setRegSector] = useState("IT & Technology");
   const [regGoal, setRegGoal] = useState("");
   
@@ -154,7 +154,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       barangay: selectedBarangay,
       educationalAttainment: regEdu,
       currentStatus: regStatus,
-      skills: regSkills.length > 0 ? regSkills : ["Communication skills"],
+      skills: regSkills,
       interests: [regSector, "Vocational Training"],
       sectorPreference: regSector,
       livelihoodGoal: regGoal,
@@ -525,17 +525,14 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold text-[#0A6B43] uppercase block flex items-center justify-between">
                     <span>Youth Status</span>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black">OSY System Priority</span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black">System Target</span>
                   </label>
-                  <select
-                    value={regStatus}
-                    onChange={(e) => setRegStatus(e.target.value)}
-                    className="w-full p-2.5 border border-emerald-300 bg-emerald-50/30 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="Out-of-school">Out-of-school Youth (OSY)</option>
-                    <option value="Employed">Employed</option>
-                    <option value="Self-employed">Self-employed</option>
-                  </select>
+                  <input
+                    type="text"
+                    readOnly
+                    value="Out-of-school Youth (OSY)"
+                    className="w-full p-2.5 border border-emerald-300 bg-emerald-50/80 rounded-lg text-xs font-extrabold text-emerald-900 cursor-not-allowed shadow-2xs"
+                  />
                 </div>
               </div>
 

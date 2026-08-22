@@ -5,7 +5,15 @@ import { Flame, Check, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, 
 import { TESDAProgram } from "../types";
 
 // Flame match score component
-export const FlameMatchScore: React.FC<{ score: number; className?: string }> = ({ score, className = "" }) => {
+export const FlameMatchScore: React.FC<{ score: number; className?: string; hasPrograms?: boolean }> = ({ score, className = "", hasPrograms = true }) => {
+  if (!hasPrograms || score <= 0) {
+    return (
+      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 text-xs font-semibold text-gray-500 bg-gray-50/80 ${className}`}>
+        <span>N/A (No Programs)</span>
+      </div>
+    );
+  }
+
   let flameColor = "text-gray-400 fill-gray-400";
   let textColor = "text-gray-500 bg-gray-100 border-gray-200";
   let label = "Low Match";

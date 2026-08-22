@@ -1,8 +1,22 @@
 import { NextResponse } from "next/server";
-import { encryptAES256, decryptAES256 } from "@/lib/crypto";
+import { encrypt, decrypt } from "@/lib/encryption";
+import { decryptAES256 } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
+
+function safeDecrypt(enc: string | null | undefined): string {
+  if (!enc) return "";
+  try {
+    if (enc.includes(":")) {
+      return decryptAES256(enc);
+    }
+    return decrypt(enc);
+  } catch (err) {
+    console.error("Decryption failed:", err);
+    return enc;
+  }
+}
 
 function mapToClientProfile(y: any) {
   return {
@@ -17,7 +31,7 @@ function mapToClientProfile(y: any) {
     interests: y.interests,
     sectorPreference: y.sectorPreference,
     livelihoodGoal: y.livelihoodGoal,
-    contactNumber: decryptAES256(y.contactNumberEncrypted),
+    contactNumber: safeDecrypt(y.contactNumberEncrypted),
     registeredDate: y.registeredDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
     matchScore: y.matchScore,
     soloParent: y.soloParent,
@@ -26,8 +40,8 @@ function mapToClientProfile(y: any) {
     hasReferred: y.hasReferred,
     approvalStatus: y.approvalStatus,
     verificationIdType: y.verificationIdType,
-    verificationIdNumber: y.verificationIdNumberEnc ? decryptAES256(y.verificationIdNumberEnc) : undefined,
-    verificationIdImage: y.verificationIdImageEnc ? decryptAES256(y.verificationIdImageEnc) : undefined
+    verificationIdNumber: safeDecrypt(y.verificationIdNumberEnc),
+    verificationIdImage: safeDecrypt(y.verificationIdImageEnc)
   };
 }
 
@@ -88,9 +102,9 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
-    const encryptedContact = encryptAES256(body.contactNumber || "");
-    const encryptedVerificationId = body.verificationIdNumber ? encryptAES256(body.verificationIdNumber) : undefined;
-    const encryptedImage = body.verificationIdImage ? encryptAES256(body.verificationIdImage) : undefined;
+    const encryptedContact = encrypt(body.contactNumber || "");
+    const encryptedVerificationId = body.verificationIdNumber ? encrypt(body.verificationIdNumber) : undefined;
+    const encryptedImage = body.verificationIdImage ? encrypt(body.verificationIdImage) : undefined;
 
     let barangayId = body.barangayId;
     if (!barangayId) {
@@ -148,11 +162,11 @@ export async function PUT(request: Request) {
     delete updateData.barangay; // Ignore relation string update
 
     if (body.contactNumber) {
-       updateData.contactNumberEncrypted = encryptAES256(body.contactNumber);
+       updateData.contactNumberEncrypted = encrypt(body.contactNumber);
        delete updateData.contactNumber;
     }
     if (body.verificationIdNumber) {
-       updateData.verificationIdNumberEnc = encryptAES256(body.verificationIdNumber);
+       updateData.verificationIdNumberEnc = encrypt(body.verificationIdNumber);
        delete updateData.verificationIdNumber;
     }
 
