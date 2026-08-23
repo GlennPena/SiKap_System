@@ -39,12 +39,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Email is already registered" }, { status: 400 });
     }
 
-    // Ensure barangay exists
-    const brgy = await db.barangay.upsert({
-      where: { name: barangay },
-      update: {},
-      create: { name: barangay }
+    // Ensure barangay exists cleanly
+    const brgyName = barangay || "San Sebastian";
+    const cleanName = brgyName.replace(/^Barangay\s+/i, "");
+    let brgy = await db.barangay.findFirst({
+      where: {
+        OR: [
+          { name: brgyName },
+          { name: cleanName },
+          { name: `Barangay ${cleanName}` }
+        ]
+      }
     });
+    if (!brgy) {
+      brgy = await db.barangay.create({ data: { name: cleanName } });
+    }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -74,7 +83,7 @@ export async function POST(req: Request) {
           barangayId: brgy.id,
           educationalAttainment,
           currentStatus: "Out-of-school",
-          skills: Array.isArray(skills) ? skills : [skills],
+          skills: Array.isArray(skills) ? skills : (skills ? [skills] : []),
           interests: Array.isArray(interests) ? interests : [interests],
           sectorPreference,
           livelihoodGoal,
@@ -83,7 +92,7 @@ export async function POST(req: Request) {
           soloParent: Boolean(soloParent),
           pwd: Boolean(pwd),
           indigenous: Boolean(indigenous),
-          approvalStatus: ApprovalStatus.Pending,
+          approvalStatus: body.approvalStatus === "Approved" ? ApprovalStatus.Approved : ApprovalStatus.Pending,
           verificationIdType,
           verificationIdNumberEnc,
           verificationIdImageEnc
@@ -99,6 +108,7 @@ export async function POST(req: Request) {
       data: {
         id: result.newProfile.id,
         name: result.newProfile.name,
+        email: result.newUser.email,
         age: result.newProfile.age,
         purok: result.newProfile.purok,
         barangay: brgy.name,

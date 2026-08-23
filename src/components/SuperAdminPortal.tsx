@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import {
   Building2, Users, Briefcase, Activity, Shield, Copy, Check, RefreshCw, 
-  UserCheck, LogOut, ArrowRight, Eye, Edit, Trash2, PlusCircle, CheckCircle2, Lock
+  UserCheck, LogOut, ArrowRight, Eye, Edit, Trash2, PlusCircle, CheckCircle2, Lock, Bell
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay } from "../types";
 
@@ -38,6 +38,12 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   // Create account states
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterBarangay, setFilterBarangay] = useState("All");
+
+  // Notifications state
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
   const [tempPassword, setTempPassword] = useState("");
   const [role, setRole] = useState<"SK Chairperson" | "Barangay Captain" | "TESDA Representative">("SK Chairperson");
   const [barangayAssignment, setBarangayAssignment] = useState("San Agustin");
@@ -440,11 +446,106 @@ Please sign in and change your password immediately.`;
               SiKap Central Command · San Luis Pampanga
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-widest">
+          <div className="flex items-center gap-4 relative">
+            <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-widest">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
               System Status: Healthy
             </span>
+
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`relative p-2 text-slate-300 hover:text-white bg-[#122240] hover:bg-[#1B2B4A] rounded-xl border border-slate-700/50 transition-all cursor-pointer ${
+                  showNotifications ? "ring-2 ring-amber-400 bg-[#1B2B4A]" : ""
+                }`}
+                title="System Central Alerts"
+              >
+                <Bell className="w-4.5 h-4.5" />
+                {!notificationsRead && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-400 rounded-full ring-2 ring-[#0D1B3E] animate-pulse" />
+                )}
+              </button>
+
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="absolute right-0 top-12 w-80 sm:w-96 bg-[#0D1B3E] border border-[#1B2B4A] rounded-2xl shadow-2xl z-50 py-3 text-xs overflow-hidden text-slate-200 animate-in fade-in-50 slide-in-from-top-2">
+                    <div className="px-4 pb-2 border-b border-[#1B2B4A] flex justify-between items-center bg-[#122240] p-3">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-amber-400" />
+                        <span className="font-extrabold text-white text-sm">System Alerts</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNotificationsRead(true);
+                          addToast("Central alerts marked as read", "info");
+                        }}
+                        className="text-[10px] font-bold text-amber-400 hover:underline cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[#1B2B4A]">
+                      <div
+                        onClick={() => { setActiveTab("dashboard"); setShowNotifications(false); }}
+                        className="p-3.5 hover:bg-[#122240] transition-colors cursor-pointer flex items-start gap-3"
+                      >
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0 mt-0.5">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-xs">Youth Members Registered</p>
+                          <p className="text-[11px] text-slate-400 font-medium">{youthProfiles.length} active youth profiles tracked across San Luis Pampanga.</p>
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => { setActiveTab("create_account"); setShowNotifications(false); }}
+                        className="p-3.5 hover:bg-[#122240] transition-colors cursor-pointer flex items-start gap-3"
+                      >
+                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0 mt-0.5">
+                          <Shield className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-xs">Barangay Official Provisioning</p>
+                          <p className="text-[11px] text-slate-400 font-medium">{officialAccounts.length} authorized official accounts active in database.</p>
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => { setActiveTab("tesda_records"); setShowNotifications(false); }}
+                        className="p-3.5 hover:bg-[#122240] transition-colors cursor-pointer flex items-start gap-3"
+                      >
+                        <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 shrink-0 mt-0.5">
+                          <Briefcase className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-xs">TESDA Vocational Courses</p>
+                          <p className="text-[11px] text-slate-400 font-medium">{programs.length} published training programs available in central catalog.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Profile Avatar Button */}
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-[#122240] transition-all cursor-pointer group border border-transparent hover:border-slate-700/50"
+              title="Go to Super Admin Dashboard"
+            >
+              <div className="w-9 h-9 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center font-black text-xs shadow-xs border border-amber-400">
+                ADM
+              </div>
+              <div className="hidden md:block text-left pr-1">
+                <p className="text-xs font-bold text-white group-hover:text-amber-400 leading-none transition-colors">Super Admin</p>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Municipal MYDO Authority</p>
+              </div>
+            </button>
           </div>
         </header>
 

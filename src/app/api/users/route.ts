@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -95,5 +95,58 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error creating user:", error);
     return NextResponse.json({ success: false, message: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = (session.user as any).id;
+    const { name, email, currentPassword, newPassword } = await req.json();
+
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
+    }
+
+    let updateData: any = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email.toLowerCase();
+
+    // Password change validation
+    if (newPassword) {
+      if (!currentPassword) {
+        return NextResponse.json({ success: false, message: "Current password is required to set a new password" }, { status: 400 });
+      }
+      const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isValidPassword) {
+        return NextResponse.json({ success: false, message: "Incorrect current password" }, { status: 400 });
+      }
+      updateData.passwordHash = await bcrypt.hash(newPassword, 10);
+    }
+
+    const updatedUser = await db.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: { barangay: true }
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        barangay: updatedUser.barangay?.name
+      },
+      message: newPassword ? "Profile and password updated successfully!" : "Profile updated successfully!"
+    });
+  } catch (error: any) {
+    console.error("Error updating user profile:", error);
+    return NextResponse.json({ success: false, message: error.message || "Failed to update profile" }, { status: 500 });
   }
 }

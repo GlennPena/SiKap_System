@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 function mapToAnnouncement(a: any) {
   return {
@@ -10,9 +10,48 @@ function mapToAnnouncement(a: any) {
     body: a.body,
     category: a.category,
     audience: a.audience,
-    datePosted: a.datePosted.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+    eventDate: a.eventDate,
+    venue: a.venue,
+    contactPerson: a.contactPerson,
+    status: a.status || "Active",
+    expiryDate: a.expiryDate ? a.expiryDate.toISOString() : null,
+    datePosted: a.datePosted ? a.datePosted.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Today",
     barangay: a.barangay?.name
   };
+}
+
+// Auto-purge past/expired announcements from database
+async function purgeExpiredAnnouncements() {
+  try {
+    const now = new Date();
+    // 1. Delete announcements whose explicit expiryDate has passed
+    await db.sKAnnouncement.deleteMany({
+      where: {
+        expiryDate: { lt: now }
+      }
+    });
+
+    // 2. Inspect announcements with parsed eventDate in the past (older than 24h)
+    const allAnns = await db.sKAnnouncement.findMany();
+    const expiredIds: string[] = [];
+
+    for (const ann of allAnns) {
+      if (ann.eventDate) {
+        const parsed = Date.parse(ann.eventDate);
+        if (!isNaN(parsed) && parsed < now.getTime() - 86400000) {
+          expiredIds.push(ann.id);
+        }
+      }
+    }
+
+    if (expiredIds.length > 0) {
+      await db.sKAnnouncement.deleteMany({
+        where: { id: { in: expiredIds } }
+      });
+    }
+  } catch (err) {
+    console.error("Error purging expired announcements:", err);
+  }
 }
 
 export async function GET(request: Request) {
@@ -21,6 +60,9 @@ export async function GET(request: Request) {
     if (!session || !session.user) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
+
+    // Auto-clean past announcements
+    await purgeExpiredAnnouncements();
 
     const { searchParams } = new URL(request.url);
     const filterBarangay = searchParams.get("barangay");
@@ -83,6 +125,11 @@ export async function POST(request: Request) {
         body: body.body,
         category: body.category || "Program Update",
         audience: body.audience || "All KK members",
+        eventDate: body.eventDate || null,
+        venue: body.venue || null,
+        contactPerson: body.contactPerson || null,
+        status: body.status || "Active",
+        expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
         barangayId: barangayId
       },
       include: { barangay: true }
@@ -91,6 +138,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: mapToAnnouncement(newAnnouncement) }, { status: 201 });
   } catch (error: any) {
     console.error("Announcements POST Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const roleStr = (session?.user as any)?.role;
+    if (roleStr !== "SUPER_ADMIN" && roleStr !== "SK_OFFICIAL") {
+      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { id, title, body: contentBody, category, audience, eventDate, venue, contactPerson, status, expiryDate } = body;
+
+    if (!id) return NextResponse.json({ success: false, message: "Missing ID" }, { status: 400 });
+
+    const updated = await db.sKAnnouncement.update({
+      where: { id },
+      data: {
+        title,
+        body: contentBody,
+        category,
+        audience,
+        eventDate,
+        venue,
+        contactPerson,
+        status,
+        expiryDate: expiryDate ? new Date(expiryDate) : null
+      },
+      include: { barangay: true }
+    });
+
+    return NextResponse.json({ success: true, data: mapToAnnouncement(updated) });
+  } catch (error: any) {
+    console.error("Announcements PUT Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

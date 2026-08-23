@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { YouthProfile, UserRole } from "../types";
 import { SikapLogo } from "./ReusableComponents";
+import { formatContactNumber, isValidContactNumber } from "../lib/utils";
 
 interface KKYouthRegisterProps {
   onRegisterComplete: (newProfile: YouthProfile) => void;
@@ -46,7 +47,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
-  const [regAge, setRegAge] = useState<number>(20);
+  const [regAge, setRegAge] = useState<number | string>(20);
   const [regDOB, setRegDOB] = useState("2006-05-15");
   const [regContact, setRegContact] = useState("+63 9");
   const [regPurok, setRegPurok] = useState("Purok 2");
@@ -197,7 +198,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         return !!selectedBarangay;
       case 1: {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return !!regName.trim() && !!regContact.trim() && regAge >= 15 && regAge <= 30 && emailRegex.test(regEmail) && regPassword.length >= 6;
+        return !!regName.trim() && isValidContactNumber(regContact) && regAge !== "" && Number(regAge) >= 15 && Number(regAge) <= 30 && emailRegex.test(regEmail) && regPassword.length >= 6;
       }
       case 2:
         return true; // Dropdowns and checkboxes have default values
@@ -424,7 +425,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                       min={15}
                       max={30}
                       value={regAge}
-                      onChange={(e) => setRegAge(Number(e.target.value))}
+                      onChange={(e) => setRegAge(e.target.value === "" ? "" : Number(e.target.value))}
                       className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                     />
                   </div>
@@ -460,7 +461,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     type="text"
                     required
                     value={regContact}
-                    onChange={(e) => setRegContact(e.target.value)}
+                    onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
                     placeholder="+63 9xx xxx xxxx"
                     className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />

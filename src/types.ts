@@ -43,6 +43,7 @@ export interface SkillGapData {
 export interface YouthProfile {
   id: string;
   name: string;
+  email?: string;
   age: number;
   purok: string;
   barangay: string;
@@ -95,9 +96,14 @@ export interface SKAnnouncement {
   title: string;
   body: string;
   category: "Program Update" | "Event" | "Reminder" | "General";
-  audience: "All KK members" | "OSY only" | "In-school youth only";
+  audience: "All KK members" | "OSY only";
   datePosted: string;
   barangay?: string;
+  eventDate?: string;
+  venue?: string;
+  contactPerson?: string;
+  status?: "Active" | "Cancelled";
+  expiryDate?: string;
 }
 
 export interface ReferralPipelineItem {
@@ -126,6 +132,7 @@ export interface Councilor {
   name: string;
   email: string;
   role: "SK Councilor" | "Secretary" | "Treasurer";
+  contactNumber?: string;
   status: "Active" | "Inactive";
   dateCreated: string;
   barangay: string;

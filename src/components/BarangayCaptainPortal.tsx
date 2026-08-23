@@ -18,6 +18,7 @@ import {
   Shield,
   X,
   ExternalLink,
+  Bell,
   User,
   Mail,
   MapPin,
@@ -53,12 +54,17 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<"dashboard" | "youth_list" | "tesda_programs">("dashboard");
   const [selectedYouth, setSelectedYouth] = useState<YouthProfile | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  // Notifications state
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Search & Filter state for Youth Directory
   const [youthSearch, setYouthSearch] = useState("");
   const [purokFilter, setPurokFilter] = useState("All");
   const [eduFilter, setEduFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
 
   // Search & Filter state for TESDA Programs
   const [tesdaSearch, setTesdaSearch] = useState("");
@@ -290,11 +296,92 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           <span className="text-xs font-black text-amber-500 uppercase tracking-widest border-l border-white/20 pl-3">Executive Captain</span>
         </div>
         
-        <div className="flex items-center gap-5">
-          <div className="text-right text-xs">
-            <p className="font-extrabold text-white">{captainInfo.name}</p>
-            <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">{formattedBrgyName} Captain</p>
+        <div className="flex items-center gap-5 relative">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className={`relative p-2 text-emerald-200 hover:text-white bg-emerald-900/40 hover:bg-emerald-900/80 rounded-xl border border-emerald-700/50 transition-all cursor-pointer ${
+                showNotifications ? "ring-2 ring-amber-400 bg-emerald-900" : ""
+              }`}
+              title="Barangay Executive Notifications"
+            >
+              <Bell className="w-4.5 h-4.5" />
+              {!notificationsRead && (localYouthProfiles.length > 0 || programs.length > 0) && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-400 rounded-full ring-2 ring-[#1C2B20] animate-pulse" />
+              )}
+            </button>
+
+            {showNotifications && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 py-3 text-xs overflow-hidden text-slate-800 animate-in fade-in-50 slide-in-from-top-2">
+                  <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-[#0A6B43]" />
+                      <span className="font-extrabold text-gray-900 text-sm">Barangay Executive Alerts</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setNotificationsRead(true);
+                      }}
+                      className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                    <div
+                      onClick={() => { setActiveTab("youth_list"); setShowNotifications(false); }}
+                      className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                    >
+                      <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-[#0A6B43] shrink-0 mt-0.5">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 text-xs">Katipunan ng Kabataan Roster</p>
+                        <p className="text-[11px] text-gray-500 font-medium">{localYouthProfiles.length} registered youth tracked in {formattedBrgyName}.</p>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => { setActiveTab("tesda_programs"); setShowNotifications(false); }}
+                      className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                    >
+                      <div className="p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-700 shrink-0 mt-0.5">
+                        <Briefcase className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900 text-xs">Available TESDA Programs</p>
+                        <p className="text-[11px] text-gray-500 font-medium">{programs.length} active vocational courses open for registration.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                    <span className="text-[10px] font-bold text-gray-400">Click any notification to navigate to tab</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Profile Avatar Click */}
+          <div
+            onClick={() => setActiveTab("dashboard")}
+            className="flex items-center gap-3 text-right text-xs cursor-pointer group p-1.5 rounded-xl hover:bg-emerald-950/60 transition-all border border-transparent hover:border-emerald-800/40"
+            title="Go to Captain Dashboard"
+          >
+            <div className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-amber-400">
+              {captainInfo.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+            </div>
+            <div className="hidden sm:block">
+              <p className="font-extrabold text-white group-hover:text-amber-400 transition-colors leading-none">{captainInfo.name}</p>
+              <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mt-0.5">{formattedBrgyName} Captain</p>
+            </div>
+          </div>
+
           <button
             onClick={onLogout}
             className="flex items-center gap-2 px-3.5 py-2 border border-emerald-900 hover:border-emerald-700 bg-emerald-950/40 hover:bg-emerald-900/40 text-xs text-red-300 rounded-xl transition-all font-bold uppercase tracking-wider"
@@ -738,12 +825,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs"
                   >
-                    <option value="All">All Statuses</option>
-                    <option value="In-school">In-school / Students</option>
-                    <option value="Out-of-school">Out-of-school</option>
-                    <option value="Employed">Employed</option>
-                    <option value="Self-employed">Self-employed</option>
-                    <option value="Graduate">Graduates</option>
+                    <option value="All">All OSY Youth Profiles</option>
+                    <option value="Out-of-school">Out-of-school Youth (OSY)</option>
                   </select>
                 </div>
 
@@ -779,14 +862,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                             {y.age} y/o · <span className="font-bold text-slate-800">{y.purok}</span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                              y.currentStatus.toLowerCase().includes("in-school")
-                                ? "bg-emerald-100 text-emerald-800"
-                                : y.currentStatus.toLowerCase().includes("out-of-school")
-                                ? "bg-rose-100 text-rose-800"
-                                : "bg-blue-100 text-blue-800"
-                            }`}>
-                              {y.currentStatus}
+                            <span className="inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              Out-of-school (OSY)
                             </span>
                           </td>
                           <td className="py-3 px-4">
@@ -1024,11 +1101,23 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       <p className="text-slate-950 text-xs font-bold mt-0.5">{selectedYouth.educationalAttainment}</p>
                     </div>
                     <div>
+                      <p className="text-slate-400 text-[9px] font-black uppercase">Preferred Sector Preference</p>
+                      <p className="text-[#0A6B43] text-xs font-black mt-0.5">{selectedYouth.sectorPreference || "Technical Vocational / Unspecified"}</p>
+                    </div>
+                    <div>
                       <p className="text-slate-400 text-[9px] font-black uppercase">Registered Contact Node</p>
                       <p className="text-slate-950 text-xs font-mono font-bold mt-0.5 flex items-center gap-1">
                         <Phone className="w-3 h-3 text-slate-400" /> {selectedYouth.contactNumber || "None registered"}
                       </p>
                     </div>
+                    {selectedYouth.email && (
+                      <div>
+                        <p className="text-slate-400 text-[9px] font-black uppercase">Registered Email Account</p>
+                        <p className="text-slate-950 text-xs font-bold mt-0.5 flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-slate-400" /> {selectedYouth.email}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-slate-400 text-[9px] font-black uppercase">Roster Entry Date</p>
                       <p className="text-slate-950 text-xs font-bold mt-0.5">{selectedYouth.registeredDate}</p>

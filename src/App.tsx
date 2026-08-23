@@ -72,6 +72,11 @@ export default function App() {
         .then(res => res.json())
         .then(res => { if (res.success && res.data) setReferrals(res.data); })
         .catch(err => console.log("Error fetching referrals", err));
+
+      fetch("/api/councilors")
+        .then(res => res.json())
+        .then(res => { if (res.success && res.data) setCouncilors(res.data); })
+        .catch(err => console.log("Error fetching councilors", err));
         
       if ((session?.user as any)?.role === "SUPER_ADMIN") {
         fetch("/api/users")

@@ -409,7 +409,7 @@ export const OpportunityCard: React.FC<{
   onAction?: (program: TESDAProgram) => void;
   actionLabel?: string;
   isMobile?: boolean;
-}> = ({ program, matchScore, geminiExplanation, onAction, actionLabel = "Refer Now", isMobile = false }) => {
+}> = ({ program, matchScore, geminiExplanation, onAction, actionLabel = "Apply Now", isMobile = false }) => {
   const isFull = program.slotsRemaining === 0;
 
   return (

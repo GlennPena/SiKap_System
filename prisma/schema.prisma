@@ -132,14 +132,19 @@ model TESDAProgram {
 }
 
 model SKAnnouncement {
-  id          String    @id @default(cuid())
-  title       String
-  body        String
-  category    String    // "Program Update" | "Event" | "Reminder" | "General"
-  audience    String    // "All KK members" | "OSY only" | "In-school youth only"
-  barangayId  String?
-  barangay    Barangay? @relation(fields: [barangayId], references: [id])
-  datePosted  DateTime  @default(now())
+  id            String    @id @default(cuid())
+  title         String
+  body          String
+  category      String    // "Program Update" | "Event" | "Reminder" | "General"
+  audience      String    // "All KK members" | "OSY only"
+  eventDate     String?
+  venue         String?
+  contactPerson String?
+  status        String    @default("Active") // "Active" | "Cancelled"
+  expiryDate    DateTime?
+  barangayId    String?
+  barangay      Barangay? @relation(fields: [barangayId], references: [id])
+  datePosted    DateTime  @default(now())
 }
 
 model Referral {
@@ -167,14 +172,15 @@ model OfficialAccount {
 }
 
 model Councilor {
-  id         String   @id @default(cuid())
-  userId     String?  @unique
-  user       User?    @relation(fields: [userId], references: [id])
-  name       String
-  email      String
-  role       String   // "SK Councilor" | "Secretary" | "Treasurer"
-  status     String   @default("Active")
-  barangayId String
-  barangay   Barangay @relation(fields: [barangayId], references: [id])
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String?  @unique
+  user          User?    @relation(fields: [userId], references: [id])
+  name          String
+  email         String
+  role          String   // "SK Councilor" | "Secretary" | "Treasurer"
+  contactNumber String?
+  status        String   @default("Active")
+  barangayId    String
+  barangay      Barangay @relation(fields: [barangayId], references: [id])
+  createdAt     DateTime @default(now())
 }

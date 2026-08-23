@@ -3,7 +3,7 @@ import { encrypt, decrypt } from "@/lib/encryption";
 import { decryptAES256 } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 function safeDecrypt(enc: string | null | undefined): string {
   if (!enc) return "";
@@ -22,6 +22,7 @@ function mapToClientProfile(y: any) {
   return {
     id: y.id,
     name: y.name,
+    email: y.user?.email || y.email || "",
     age: y.age,
     purok: y.purok,
     barangay: y.barangay.name,
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
 
     const youths = await db.youthProfile.findMany({
       where: whereClause,
-      include: { barangay: true, referrals: true },
+      include: { barangay: true, user: true, referrals: true },
       orderBy: { registeredDate: "desc" }
     });
 
@@ -108,8 +109,20 @@ export async function POST(request: Request) {
 
     let barangayId = body.barangayId;
     if (!barangayId) {
-       const brgy = await db.barangay.findUnique({ where: { name: body.barangay } });
-       if (!brgy) return NextResponse.json({ success: false, error: "Barangay not found" }, { status: 400 });
+       const brgyName = body.barangay || "San Sebastian";
+       const cleanName = brgyName.replace(/^Barangay\s+/i, "");
+       let brgy = await db.barangay.findFirst({
+         where: {
+           OR: [
+             { name: brgyName },
+             { name: cleanName },
+             { name: `Barangay ${cleanName}` }
+           ]
+         }
+       });
+       if (!brgy) {
+         brgy = await db.barangay.create({ data: { name: cleanName } });
+       }
        barangayId = brgy.id;
     }
     

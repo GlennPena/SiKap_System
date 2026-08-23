@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import {
   Briefcase, Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
-  Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User, Trash2, Pencil
+  Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User, Trash2, Pencil, Bell, CheckCircle
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo } from "./ReusableComponents";
@@ -30,6 +30,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   currentUser
 }) => {
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  // Notifications state
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Selected applicant for detail view modal
   const [selectedApplicant, setSelectedApplicant] = useState<YouthProfile | null>(null);
@@ -380,12 +386,16 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         </div>
 
         <div className="p-6 border-t border-teal-900/40">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-full bg-teal-700 text-white flex items-center justify-center font-bold text-sm">
+          <div
+            onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
+            className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-teal-950/60 transition-all cursor-pointer group border border-transparent hover:border-teal-800/40"
+            title="Go to TESDA Partner Dashboard"
+          >
+            <div className="w-9 h-9 rounded-full bg-teal-700 text-white flex items-center justify-center font-bold text-sm shadow-xs border border-teal-500">
               {currentUser?.name?.charAt(0).toUpperCase() || "T"}
             </div>
             <div>
-              <p className="text-xs font-bold leading-none">{currentUser?.name || "TESDA Representative"}</p>
+              <p className="text-xs font-bold leading-none group-hover:text-emerald-300 transition-colors">{currentUser?.name || "TESDA Representative"}</p>
               <p className="text-[10px] text-teal-200 mt-0.5">{currentUser?.email || "GPSAT Office"}</p>
             </div>
           </div>
@@ -401,10 +411,98 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       {/* Main viewport */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-10 px-8 py-4 flex items-center justify-between">
+        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-8 py-4 flex items-center justify-between shadow-2xs">
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-tight">Welcome, {currentUser?.name || "TESDA GPSAT"} 🏢</h1>
             <p className="text-xs text-gray-500 font-medium">Out-of-School Youth (OSY) Vocational & Livelihood Pipeline · San Luis, Pampanga</p>
+          </div>
+
+          <div className="flex items-center gap-4 relative">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
+                  showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
+                }`}
+                title="TESDA Partner Alerts"
+              >
+                <Bell className="w-5 h-5" />
+                {!notificationsRead && (referrals.length > 0 || programs.length > 0) && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
+                )}
+              </button>
+
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
+                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/60 p-3">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-[#0A6B43]" />
+                        <span className="font-extrabold text-gray-900 text-sm">TESDA Alerts</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNotificationsRead(true);
+                          addToast("Notifications marked as read", "info");
+                        }}
+                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                      <div
+                        onClick={() => { setCurrentScreen(TESDAPartnerScreen.DASHBOARD); setShowNotifications(false); }}
+                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                      >
+                        <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-[#0A6B43] shrink-0 mt-0.5">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 text-xs">Youth Referrals & Applications</p>
+                          <p className="text-[11px] text-gray-500 font-medium">{referrals.length} youth applications registered for TESDA programs.</p>
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => { setCurrentScreen(TESDAPartnerScreen.DASHBOARD); setShowNotifications(false); }}
+                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                      >
+                        <div className="p-2 rounded-lg bg-teal-50 border border-teal-100 text-teal-700 shrink-0 mt-0.5">
+                          <Briefcase className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 text-xs">Active Program Listings</p>
+                          <p className="text-[11px] text-gray-500 font-medium">{programs.length} active training courses published on SiKap.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-400">Click any notification to navigate to Dashboard</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Profile Avatar Button */}
+            <button
+              onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
+              className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-gray-50 transition-all cursor-pointer group border border-transparent hover:border-gray-200"
+              title="Go to TESDA Partner Dashboard"
+            >
+              <div className="w-9 h-9 rounded-full bg-teal-700 group-hover:bg-teal-800 text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-teal-200 transition-all">
+                {currentUser?.name?.charAt(0).toUpperCase() || "T"}
+              </div>
+              <div className="hidden sm:block text-left pr-1">
+                <p className="text-xs font-bold text-gray-900 group-hover:text-[#0A6B43] leading-none transition-colors">{currentUser?.name || "TESDA Representative"}</p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">TESDA GPSAT Office</p>
+              </div>
+            </button>
           </div>
         </header>
 
@@ -1087,6 +1185,16 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
                     </div>
 
+                    {selectedApplicant.email && (
+                      <div className="flex gap-2">
+                        <Mail className="w-4 h-4 text-[#0F6E56] shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase">Registered Email</p>
+                          <p className="text-xs text-gray-800 font-semibold">{selectedApplicant.email}</p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2">
                       <GraduationCap className="w-4 h-4 text-[#0F6E56] shrink-0 mt-0.5" />
                       <div>
@@ -1099,12 +1207,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <Info className="w-4 h-4 text-[#0F6E56] shrink-0 mt-0.5" />
                       <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase">Status Class</p>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
-                          selectedApplicant.currentStatus === "Out-of-school" 
-                            ? "bg-amber-50 text-amber-800 border border-amber-200"
-                            : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                        }`}>
-                          {selectedApplicant.currentStatus}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Out-of-school Youth (OSY)
                         </span>
                       </div>
                     </div>
