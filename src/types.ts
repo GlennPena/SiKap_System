@@ -28,6 +28,7 @@ export enum YouthScreen {
 
 export enum TESDAPartnerScreen {
   DASHBOARD = "TESDA Dashboard",
+  PROGRAMS = "Programs",
   ADD_PROGRAM = "Add New Program",
   EDIT_PROGRAM = "Edit Program"
 }
@@ -72,7 +73,7 @@ export interface TESDAProgram {
   provider: string;
   type: "Training" | "Employment" | "Entrepreneurship";
   location: string;
-  duration: string;
+  trainingHours: number;
   cost: "Free" | "Subsidized" | "With Fee";
   slotsTotal: number;
   slotsRemaining: number;
@@ -83,8 +84,9 @@ export interface TESDAProgram {
   activeStatus: "Active" | "Full" | "Closed";
   requiredDocuments?: string[];
   requiredSkills?: string[];
-  classScheduleDays?: string;
-  classScheduleTime?: string;
+  trainingDays?: string[];
+  startTime?: string;
+  endTime?: string;
   room?: string;
   instructor?: string;
   startDate?: string;

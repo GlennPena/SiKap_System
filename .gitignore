@@ -32,3 +32,7 @@ yarn-error.log*
 # Prisma local database
 *.db
 *.db-journal
+
+# AI Agent Instructions
+AGENTS.md
+CLAUDE.md

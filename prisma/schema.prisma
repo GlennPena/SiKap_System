@@ -109,7 +109,7 @@ model TESDAProgram {
   provider           String
   type               ProgramType
   location           String
-  duration           String
+  trainingHours      Int
   cost               ProgramCost   @default(Free)
   slotsTotal         Int
   slotsRemaining     Int
@@ -120,8 +120,9 @@ model TESDAProgram {
   activeStatus       ProgramStatus @default(Active)
   requiredDocuments  String[]
   requiredSkills     String[]
-  classScheduleDays  String?
-  classScheduleTime  String?
+  trainingDays       String[]
+  startTime          DateTime?
+  endTime            DateTime?
   room               String?
   instructor         String?
   startDate          DateTime?

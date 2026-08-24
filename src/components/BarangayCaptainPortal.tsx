@@ -1004,7 +1004,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {prog.location}
                           </p>
                           <p className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Duration: <strong className="text-slate-800">{prog.duration}</strong>
+                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Duration: <strong className="text-slate-800">{`${prog.trainingHours} hours`}</strong>
                           </p>
                         </div>
                       </div>

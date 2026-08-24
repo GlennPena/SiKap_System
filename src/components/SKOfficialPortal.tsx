@@ -1794,7 +1794,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               </p>
 
                               <div className="mt-3 flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-100/50 pt-2.5">
-                                <span>⏱ {prog.duration} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""} · Slots: {prog.slotsRemaining}/{prog.slotsTotal}</span>
+                                <span>⏱ {`${prog.trainingHours} hours`} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""} · Slots: {prog.slotsRemaining}/{prog.slotsTotal}</span>
                                 <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
                                   isReferredForThis
                                     ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"

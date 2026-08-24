@@ -31,13 +31,23 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
+    // Backend Validation
+    if (body.trainingHours <= 0) return NextResponse.json({ success: false, message: "Training hours must be greater than 0" }, { status: 400 });
+    if (!body.trainingDays || body.trainingDays.length === 0) return NextResponse.json({ success: false, message: "At least one training day must be selected" }, { status: 400 });
+    
+    const startDateTime = body.startTime ? new Date(`1970-01-01T${body.startTime}:00Z`) : null;
+    const endDateTime = body.endTime ? new Date(`1970-01-01T${body.endTime}:00Z`) : null;
+    
+    if (startDateTime && endDateTime && startDateTime >= endDateTime) return NextResponse.json({ success: false, message: "Start time must be before end time" }, { status: 400 });
+    if (body.startDate && body.endDate && new Date(body.startDate) > new Date(body.endDate)) return NextResponse.json({ success: false, message: "Start date must be before or equal to end date" }, { status: 400 });
+
     const newProgram = await db.tESDAProgram.create({
       data: {
         title: body.title,
         provider: body.provider || "TESDA Pampanga",
         type: body.type || "Training",
         location: body.location || "San Luis Training Center",
-        duration: body.duration || "120 Hours",
+        trainingHours: Number(body.trainingHours),
         cost: body.cost || "Free",
         slotsTotal: Number(body.slotsTotal) || 25,
         slotsRemaining: Number(body.slotsTotal) || 25,
@@ -48,8 +58,9 @@ export async function POST(request: Request) {
         activeStatus: "Active",
         requiredDocuments: body.requiredDocuments || ["Birth Certificate", "2x2 Picture"],
         requiredSkills: body.requiredSkills || [],
-        classScheduleDays: body.classScheduleDays,
-        classScheduleTime: body.classScheduleTime,
+        trainingDays: body.trainingDays,
+        startTime: startDateTime,
+        endTime: endDateTime,
         room: body.room,
         instructor: body.instructor,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
@@ -75,10 +86,30 @@ export async function PUT(request: Request) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
+    // Backend Validation
+    if (body.trainingHours !== undefined && body.trainingHours <= 0) return NextResponse.json({ success: false, message: "Training hours must be greater than 0" }, { status: 400 });
+    if (body.trainingDays !== undefined && (!body.trainingDays || body.trainingDays.length === 0)) return NextResponse.json({ success: false, message: "At least one training day must be selected" }, { status: 400 });
+    
     const updateData: any = { ...body };
     delete updateData.id;
+    
+    if (updateData.startTime) {
+      updateData.startTime = new Date(`1970-01-01T${updateData.startTime}:00Z`);
+    }
+    if (updateData.endTime) {
+      updateData.endTime = new Date(`1970-01-01T${updateData.endTime}:00Z`);
+    }
+
+    if (updateData.startTime && updateData.endTime && updateData.startTime >= updateData.endTime) {
+      return NextResponse.json({ success: false, message: "Start time must be before end time" }, { status: 400 });
+    }
+    
     if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
     if (updateData.endDate) updateData.endDate = new Date(updateData.endDate);
+    
+    if (updateData.startDate && updateData.endDate && updateData.startDate > updateData.endDate) {
+      return NextResponse.json({ success: false, message: "Start date must be before or equal to end date" }, { status: 400 });
+    }
 
     const updated = await db.tESDAProgram.update({
       where: { id: body.id },

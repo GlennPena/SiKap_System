@@ -705,8 +705,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   <div className="p-6 divide-y divide-gray-100">
                     {enrolledPrograms.map(({ ref, program }) => {
                       // Fallback info if the program is custom-created without schedule defaults
-                      const scheduleDays = program?.classScheduleDays || "Mondays to Fridays";
-                      const scheduleTime = program?.classScheduleTime || "8:00 AM - 12:00 PM";
+                      const scheduleDays = (program?.trainingDays?.join(", ") || "TBA") || "Mondays to Fridays";
+                      const scheduleTime = (program?.startTime ? `${new Date(program?.startTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"})} - ${program?.endTime ? new Date(program?.endTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"}) : "TBA"}` : "TBA") || "8:00 AM - 12:00 PM";
                       const room = program?.room || "Vocational Workshop Room 3";
                       const instructor = program?.instructor || "Professor Danilo Santos";
                       const provider = program?.provider || "TESDA GPSAT (Gonzalo Puyat School of Arts and Trades)";
@@ -834,7 +834,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-xs text-gray-500 pt-3 border-t border-gray-100">
                           <div className="space-y-1">
-                            <p>⏱ <strong>Duration:</strong> {featuredProg.duration}</p>
+                            <p>⏱ <strong>Duration:</strong> {featuredProg.trainingHours} hours</p>
                             <p>📍 <strong>Location:</strong> {featuredProg.location}</p>
                           </div>
                           <div className="flex flex-col items-end gap-2 shrink-0">
@@ -1044,7 +1044,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                           <div className="space-y-1.5 text-xs text-gray-600">
                             <p>📍 <strong>Location:</strong> {prog.location}</p>
-                            <p>⏱ <strong>Duration:</strong> {prog.duration} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""}</p>
+                            <p>⏱ <strong>Duration:</strong> {`${prog.trainingHours} hours`} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""}</p>
                             <p>💰 <strong>Cost:</strong> {prog.cost}</p>
                             <p>🎓 <strong>Eligibility:</strong> {prog.eligibility}</p>
                           </div>
@@ -1171,8 +1171,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       const isArchived = app.status === "Archived";
                       
                       const program = programs.find(p => p.title === app.programTitle);
-                      const scheduleDays = program?.classScheduleDays || "Mondays to Fridays";
-                      const scheduleTime = program?.classScheduleTime || "8:00 AM - 12:00 PM";
+                      const scheduleDays = (program?.trainingDays?.join(", ") || "TBA") || "Mondays to Fridays";
+                      const scheduleTime = (program?.startTime ? `${new Date(program?.startTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"})} - ${program?.endTime ? new Date(program?.endTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"}) : "TBA"}` : "TBA") || "8:00 AM - 12:00 PM";
                       const room = program?.room || "Vocational Workshop Room 3";
                       const instructor = program?.instructor || "Professor Danilo Santos";
                       

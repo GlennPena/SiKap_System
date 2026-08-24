@@ -443,7 +443,7 @@ export const OpportunityCard: React.FC<{
             📍 {program.location.includes("PTC") ? "TESDA GPSAT Campus" : "San Luis Satellite"}
           </span>
           <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            ⏱ {program.duration} {program.startDate && program.endDate ? `(${program.startDate} – ${program.endDate})` : ""}
+            ⏱ {( (program.trainingHours) + " hours" )} {program.startDate && program.endDate ? `(${program.startDate} – ${program.endDate})` : ""}
           </span>
           <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
             💰 {program.cost}
