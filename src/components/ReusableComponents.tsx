@@ -496,7 +496,7 @@ export const OpportunityCard: React.FC<{
   );
 };
 
-// Reusable logo component representing the uploaded SiKap logo
+// Reusable logo component representing the official uploaded SiKap logo
 export const SikapLogo: React.FC<{
   size?: number;
   showText?: boolean;
@@ -510,45 +510,25 @@ export const SikapLogo: React.FC<{
   variant = "light",
   className = ""
 }) => {
+  const siColorClass = variant === "white" || variant === "dark" ? "text-white" : "text-[#0D6C43]";
+  const kapColorClass = variant === "white" ? "text-[#F5A623]" : "text-[#D99427]";
   const subtextColorClass = variant === "dark" ? "text-gray-300" : variant === "white" ? "text-white/80" : "text-gray-500";
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* Dynamic Emblem SVG */}
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 100 100"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="shrink-0 drop-shadow-xs"
-      >
-        {/* Leaf/Shield Outer Green Background */}
-        <path
-          d="M50 8C59 21 72 38 72 50C72 61 65 67 60 74C55 81 56 90 50 94C44 90 45 81 40 74C35 67 28 61 28 50C28 38 41 21 50 8Z"
-          fill="#0D6C43"
-        />
-        {/* Center Upward Gold Arrow */}
-        <path
-          d="M50 22 L36 46 L44 46 L44 80 L56 80 L56 46 L64 46 Z"
-          fill="#D99427"
-        />
-        {/* White Network Connections Triangle */}
-        {/* Lines */}
-        <line x1="50" y1="61" x2="44.5" y2="71" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
-        <line x1="50" y1="61" x2="55.5" y2="71" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
-        <line x1="44.5" y1="71" x2="55.5" y2="71" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
-        {/* Node Circles */}
-        <circle cx="50" cy="61" r="2.5" fill="white" />
-        <circle cx="44.5" cy="71" r="2.5" fill="white" />
-        <circle cx="55.5" cy="71" r="2.5" fill="white" />
-      </svg>
+      {/* Official SiKap Emblem Logo */}
+      <img
+        src="/sikap-logo.png"
+        alt="SiKap System Logo"
+        style={{ width: `${size}px`, height: `${size}px` }}
+        className="shrink-0 object-contain filter drop-shadow-xs transition-transform duration-200 hover:scale-105"
+      />
 
       {showText && (
         <div className="flex flex-col justify-center leading-none">
           <div className="flex items-baseline font-sans">
-            <span className="text-[#0D6C43] font-extrabold tracking-tight" style={{ fontSize: `${size * 0.7}px` }}>Si</span>
-            <span className="text-[#D99427] font-extrabold tracking-tight" style={{ fontSize: `${size * 0.7}px` }}>Kap</span>
+            <span className={`${siColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${size * 0.7}px` }}>Si</span>
+            <span className={`${kapColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${size * 0.7}px` }}>Kap</span>
           </div>
           {showSubtext && (
             <span

@@ -869,8 +869,36 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     return youthProfiles.find(y => y.id === "y-01") || youthProfiles[0];
   }, [localYouthProfiles, youthProfiles, selectedYouthId]);
 
-  // State for live Google Gemini LLM API match rationales
+  // State for live Google Gemini LLM API match rationales & Policy Reports
   const [geminiRationales, setGeminiRationales] = useState<Record<string, string>>({});
+  const [aiPolicyReport, setAiPolicyReport] = useState<string>("");
+  const [isGeneratingAiReport, setIsGeneratingAiReport] = useState<boolean>(false);
+
+  const handleGenerateAiPolicyReport = async () => {
+    setIsGeneratingAiReport(true);
+    try {
+      const res = await fetch("/api/ai/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillsGaps: localSkillsGaps,
+          barangay: designatedBarangay
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.report) {
+        setAiPolicyReport(data.report);
+        addToast("Live Gemini AI Policy Recommendation generated!", "success");
+      } else {
+        addToast(data.message || "Failed to generate AI report", "error");
+      }
+    } catch (err) {
+      console.error("AI Report generation error:", err);
+      addToast("Network error generating AI report", "error");
+    } finally {
+      setIsGeneratingAiReport(false);
+    }
+  };
 
   const fetchLiveGeminiRationale = async (progId: string, youth: YouthProfile) => {
     const key = `${youth.id}-${progId}`;
@@ -2467,9 +2495,30 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-5 lg:col-span-2">
-                      <h3 className="font-bold text-gray-800 text-sm mb-3.5">AI Strategic Policy Recommendations</h3>
-                      <div className="space-y-4">
+                    <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-5 lg:col-span-2 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-gray-800 text-sm">AI Strategic Policy Recommendations</h3>
+                        <button
+                          onClick={handleGenerateAiPolicyReport}
+                          disabled={isGeneratingAiReport}
+                          className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          {isGeneratingAiReport ? "Analyzing..." : "Ask Gemini AI"}
+                        </button>
+                      </div>
+
+                      {aiPolicyReport && (
+                        <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-200 text-xs text-emerald-950 leading-relaxed font-medium space-y-2 animate-in fade-in duration-200">
+                          <div className="flex items-center gap-1.5 text-[#0A6B43] font-extrabold uppercase text-[10px] tracking-wider">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                            Live Google Gemini Policy Synthesis
+                          </div>
+                          <p className="whitespace-pre-line">{aiPolicyReport}</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
                         {[
                           {
                             title: `Fund TESDA ${highestSector.name === "Tourism and Food" ? "Food Processing" : highestSector.name === "IT and Business Services" ? "Computer Literacy" : "Construction Trades"} Batch`,

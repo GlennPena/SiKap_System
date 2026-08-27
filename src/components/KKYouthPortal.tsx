@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
@@ -9,7 +9,7 @@ import {
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
-import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
+import { calculateContentBasedMatchScore, getSuggestedSkillsForYouth } from "../lib/cbf-matcher";
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -94,6 +94,37 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
     return youthProfile.age + Math.max(0, years);
   }, [youthProfile.age, youthProfile.registeredDate]);
+
+  const [liveGeminiAdvice, setLiveGeminiAdvice] = useState<string>("");
+  const [liveGeminiBullets, setLiveGeminiBullets] = useState<string[]>([]);
+  const [viewingProgramModal, setViewingProgramModal] = useState<{
+    program: TESDAProgram;
+    matchScore?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (youthProfile && programs.length > 0) {
+      fetch("/api/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          youth: youthProfile,
+          programs: programs.slice(0, 3),
+          generateLLMAdvice: true
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            if (data.careerAdvice) setLiveGeminiAdvice(data.careerAdvice);
+            if (Array.isArray(data.bulletAdvice) && data.bulletAdvice.length > 0) {
+              setLiveGeminiBullets(data.bulletAdvice);
+            }
+          }
+        })
+        .catch(err => console.error("Error fetching Gemini advice:", err));
+    }
+  }, [youthProfile.skills, youthProfile.sectorPreference, youthProfile.livelihoodGoal, programs]);
 
   // Use generic title since we no longer have static officials list
   const skChairpersonName = useMemo(() => {
@@ -194,7 +225,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
 
     const updatedSkills = [...youthProfile.skills, newSkillInput.trim()];
-    const updatedMatchScore = Math.min(99, youthProfile.matchScore + 2);
+    const tempYouth = { ...youthProfile, skills: updatedSkills };
+    const updatedMatchScore = programs && programs.length > 0
+      ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
+      : Math.min(99, youthProfile.matchScore + 3);
     
     // update global profiles
     setYouthProfiles(prev => prev.map(y => {
@@ -815,10 +849,46 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           <FlameMatchScore score={featuredScore} />
                         </div>
 
-                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                          <p className="text-sm italic text-emerald-950 leading-relaxed font-medium">
-                            "Based on your registered competencies, this course at {featuredProg.provider || "TESDA"} is evaluated as your top match ({featuredScore}% fit)."
+                        <div className="bg-emerald-50/90 p-4 rounded-xl border border-emerald-200/80 space-y-2 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                              Gemini Match Rationale
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-700/80">
+                              Powered by Google Gemini
+                            </span>
+                          </div>
+                          <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
+                            "{liveGeminiAdvice || `${youthProfile.name.split(' ')[0]} has practical background skills in ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "vocational trades"}. This ${featuredProg.title} program will officially certify their qualifications under TESDA and unlock formal job opportunities in ${youthProfile.sectorPreference || "their target industry"}.`}"
                           </p>
+                        </div>
+
+                        {/* Personalized 3-Bullet Advice Pathway */}
+                        <div className="bg-linear-to-br from-[#F0FDF4] to-[#E8F5EF] p-4 rounded-xl border border-[#9FE1CB]/70 space-y-2.5 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                              <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Gemini Personalized 3-Step Pathway
+                            </span>
+                            <span className="text-[10px] font-extrabold text-[#D97706] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              AI Action Plan
+                            </span>
+                          </div>
+                          <ul className="space-y-2 text-xs text-emerald-950 font-medium">
+                            {(liveGeminiBullets && liveGeminiBullets.length === 3 ? liveGeminiBullets : [
+                              `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early course modules.`,
+                              `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
+                              `Utilize local SK Livelihood referrals in Barangay ${youthProfile.barangay || "San Luis"} to achieve "${youthProfile.livelihoodGoal || "certified employment"}".`
+                            ]).map((bullet, bIdx) => (
+                              <li key={bIdx} className="flex items-start gap-2.5 bg-white/80 p-2.5 rounded-lg border border-emerald-100/80 shadow-2xs">
+                                <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-extrabold text-[10px] shrink-0 mt-0.5 shadow-2xs">
+                                  {bIdx + 1}
+                                </span>
+                                <span className="leading-relaxed text-emerald-950 font-semibold">{bullet}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
 
                         {featuredProg.requiredDocuments && featuredProg.requiredDocuments.length > 0 && (
@@ -841,37 +911,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           </div>
                           <div className="flex flex-col items-end gap-2 shrink-0">
                             <button
-                              onClick={() => handleDirectApply(featuredProg)}
-                              disabled={isDisabled}
-                              className={`text-xs font-extrabold px-4 py-2.5 rounded-lg transition-all ${
-                                app
-                                  ? isEnrolled
-                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                                    : isDeclined
-                                    ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
-                                    : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
-                                  : isFull
-                                  ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                  : overlapWarning
-                                  ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
-                                  : isUnverified
-                                  ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
-                                  : "bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs cursor-pointer"
-                              }`}
+                              onClick={() => setViewingProgramModal({ program: featuredProg, matchScore: featuredScore })}
+                              className="w-full sm:w-auto text-xs font-extrabold px-5 py-2.5 rounded-lg bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
-                              {app
-                                ? isEnrolled
-                                  ? "Enrolled in Program ✓"
-                                  : isDeclined
-                                  ? "Application Declined"
-                                  : "Application Pending..."
-                                : isFull
-                                ? "Slots Full"
-                                : overlapWarning
-                                ? "Schedule Overlap"
-                                : isUnverified
-                                ? "Awaiting SK Verification"
-                                : "Apply Directly for Program"}
+                              <Eye className="w-4 h-4 text-emerald-200" />
+                              View Details
                             </button>
                           </div>
                         </div>
@@ -1083,41 +1127,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                             const isFull = !app && prog.slotsRemaining <= 0;
                             const overlapWarning = getOverlapWarning(prog);
-                            const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
-
+                            
                             return (
                               <button
-                                onClick={() => handleDirectApply(prog)}
-                                disabled={isDisabled}
-                                className={`text-xs font-bold px-3 py-2 rounded-lg transition-colors ${
-                                  app
-                                    ? isEnrolled
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-default"
-                                      : isDeclined
-                                      ? "bg-red-50 text-red-700 border border-red-100 cursor-default"
-                                      : "bg-blue-50 text-blue-700 border border-blue-100 cursor-default animate-pulse"
-                                    : isFull
-                                    ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                    : overlapWarning
-                                    ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
-                                    : isUnverified
-                                    ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
-                                    : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer"
-                                }`}
+                                onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
+                                className="text-xs font-bold px-3.5 py-2 rounded-lg bg-[#0A6B43] hover:bg-[#075332] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                               >
-                                {app
-                                  ? isEnrolled
-                                    ? "Enrolled ✓"
-                                    : isDeclined
-                                    ? "Declined"
-                                    : "Pending"
-                                  : isFull
-                                  ? "Slots Full"
-                                  : overlapWarning
-                                  ? "Overlap"
-                                  : isUnverified
-                                  ? "Awaiting SK Verification"
-                                  : "Apply Directly"}
+                                <Eye className="w-3.5 h-3.5 text-emerald-200" />
+                                View Details
                               </button>
                             );
                           })()}
@@ -1624,36 +1641,38 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
                   </div>
 
-                  {/* Popular Vocational Skill Suggestions */}
+                  {/* Dynamic Personalized Vocational Skill Suggestions */}
                   <div className="space-y-3 pt-4 border-t border-gray-100">
-                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-amber-500" />
-                      Quick-Add Popular Vocational Skills
-                    </h4>
-                    <p className="text-xs text-gray-500 font-medium">Click any skill below to instantly add it to your profile and boost your program match scores:</p>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        Recommended Skills for Your Profile
+                      </h4>
+                      {youthProfile.sectorPreference && (
+                        <span className="text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wide">
+                          {youthProfile.sectorPreference} Sector
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Tailored vocational skills matching your sector preference ({youthProfile.sectorPreference || "General"}) and available TESDA programs. Click to add and boost your match score:
+                    </p>
                     <div className="flex flex-wrap gap-2 pt-1">
-                      {[
-                        "Basic Computer Typing & MS Office",
-                        "SMAW Shielded Metal Arc Welding",
-                        "Food Sanitation & Preparation",
-                        "Electrical Installation & Wiring",
-                        "Bread & Pastry Baking",
-                        "Automotive Engine Servicing",
-                        "Garment Sewing & Tailoring",
-                        "Digital Marketing & Social Media",
-                        "Customer Service & Reception"
-                      ].map((suggestedSkill) => {
-                        const hasSkill = youthProfile.skills.includes(suggestedSkill);
+                      {getSuggestedSkillsForYouth(youthProfile, programs).map((item) => {
+                        const hasSkill = youthProfile.skills.includes(item.skill);
                         return (
                           <button
-                            key={suggestedSkill}
+                            key={item.skill}
                             disabled={hasSkill || isUnverified}
                             onClick={async () => {
                               if (isUnverified) return;
-                              const updatedSkills = [...youthProfile.skills, suggestedSkill];
-                              const updatedMatchScore = Math.min(99, youthProfile.matchScore + 3);
+                              const updatedSkills = [...youthProfile.skills, item.skill];
+                              const tempYouth = { ...youthProfile, skills: updatedSkills };
+                              const updatedMatchScore = programs && programs.length > 0
+                                ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
+                                : Math.min(99, youthProfile.matchScore + 3);
                               setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, skills: updatedSkills, matchScore: updatedMatchScore } : y));
-                              addToast(`Added "${suggestedSkill}" to your profile!`, "success");
+                              addToast(`Added "${item.skill}" to your profile!`, "success");
                               try {
                                 await fetch("/api/youth", {
                                   method: "PUT",
@@ -1667,11 +1686,21 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${
                               hasSkill
                                 ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                                : item.isHighMatch
+                                ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 shadow-2xs cursor-pointer"
                                 : "bg-emerald-50 text-[#0A6B43] border-emerald-200 hover:bg-emerald-100 cursor-pointer"
                             }`}
+                            title={item.tag}
                           >
-                            {hasSkill ? "✓ " : "+ "}
-                            {suggestedSkill}
+                            {hasSkill ? "✓ " : item.isHighMatch ? "★ " : "+ "}
+                            {item.skill}
+                            {!hasSkill && item.tag && (
+                              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-xs ml-0.5 uppercase ${
+                                item.isHighMatch ? "bg-amber-200/60 text-amber-900" : "bg-emerald-200/50 text-[#075332]"
+                              }`}>
+                                {item.tag}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -1883,6 +1912,161 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   Apply Now
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Complete Program Details Modal Popup */}
+        {viewingProgramModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white w-full max-w-2xl rounded-2xl p-6 sm:p-7 space-y-5 animate-in zoom-in-95 border border-emerald-100 shadow-2xl max-h-[90vh] overflow-y-auto my-auto">
+              {/* Modal Top Header */}
+              <div className="flex justify-between items-start gap-4 pb-4 border-b border-gray-100">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 tracking-wider inline-block mb-1.5">
+                    {viewingProgramModal.program.provider || "TESDA Accredited Program"}
+                  </span>
+                  <h3 className="font-extrabold text-gray-900 text-xl leading-snug">
+                    {viewingProgramModal.program.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 font-medium flex items-center gap-2">
+                    <span>📍 {viewingProgramModal.program.location}</span>
+                    <span>•</span>
+                    <span>⏱ {viewingProgramModal.program.trainingHours} hours</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
+                  <button
+                    onClick={() => setViewingProgramModal(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Gemini AI Compatibility Analysis */}
+              <div className="bg-emerald-50/90 p-4 rounded-xl border border-emerald-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                    Google Gemini AI Compatibility Analysis
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700">
+                    {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% Match Fit
+                  </span>
+                </div>
+                <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
+                  "{liveGeminiAdvice || `${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`}"
+                </p>
+              </div>
+
+              {/* Complete Program Details Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-gray-50/80 p-4 rounded-xl border border-gray-150">
+                <div className="space-y-2">
+                  <p className="text-gray-700">📅 <strong>Training Schedule:</strong> {viewingProgramModal.program.trainingDays || "Monday – Friday"}</p>
+                  <p className="text-gray-700">🕒 <strong>Hours:</strong> {viewingProgramModal.program.startTime || "8:00 AM"} – {viewingProgramModal.program.endTime || "5:00 PM"}</p>
+                  <p className="text-gray-700">🏢 <strong>Facility / Room:</strong> {viewingProgramModal.program.room || "Main Training Facility"}</p>
+                  <p className="text-gray-700">👨‍🏫 <strong>Trainer / Instructor:</strong> {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-gray-700">💰 <strong>Program Cost:</strong> <span className="font-extrabold text-emerald-700">{viewingProgramModal.program.cost || "100% Free / Subsidized"}</span></p>
+                  <p className="text-gray-700">👥 <strong>Available Slots:</strong> <span className="font-bold text-gray-900">{viewingProgramModal.program.slotsRemaining} / {viewingProgramModal.program.slotsTotal}</span> open</p>
+                  <p className="text-gray-700">📞 <strong>Contact Registrar:</strong> {viewingProgramModal.program.contactPerson || "TESDA Registrar"} ({viewingProgramModal.program.contactNumber || "N/A"})</p>
+                  <p className="text-gray-700">🎓 <strong>Eligibility:</strong> {viewingProgramModal.program.eligibility || "Open to all KK Youth"}</p>
+                </div>
+              </div>
+
+              {/* Physical Requirements */}
+              {viewingProgramModal.program.requiredDocuments && viewingProgramModal.program.requiredDocuments.length > 0 && (
+                <div className="bg-amber-50/80 p-4 rounded-xl border border-amber-200/80 space-y-2">
+                  <p className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                    📋 Physical Requirements Needed Beforehand:
+                  </p>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-4 list-disc text-xs text-amber-900 font-medium">
+                    {viewingProgramModal.program.requiredDocuments.map((doc, dIdx) => (
+                      <li key={dIdx}>{doc}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Required Skills */}
+              {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">
+                    💡 Recommended Prerequisite Competencies:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {viewingProgramModal.program.requiredSkills.map((sk, sIdx) => (
+                      <span key={sIdx} className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                        {sk}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Action Footer */}
+              {(() => {
+                const prog = viewingProgramModal.program;
+                const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+                const isEnrolled = app?.status === "Enrolled";
+                const isDeclined = app?.status === "Declined";
+                const isFull = !app && prog.slotsRemaining <= 0;
+                const overlapWarning = getOverlapWarning(prog);
+                const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
+
+                return (
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => setViewingProgramModal(null)}
+                      className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      Close Details
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const p = viewingProgramModal.program;
+                        setViewingProgramModal(null);
+                        handleDirectApply(p);
+                      }}
+                      disabled={isDisabled}
+                      className={`w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
+                        app
+                          ? isEnrolled
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                            : isDeclined
+                            ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
+                            : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
+                          : isFull
+                          ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                          : overlapWarning
+                          ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                          : isUnverified
+                          ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
+                          : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer"
+                      }`}
+                    >
+                      {app
+                        ? isEnrolled
+                          ? "Enrolled in Program ✓"
+                          : isDeclined
+                          ? "Application Declined"
+                          : "Application Pending..."
+                        : isFull
+                        ? "Slots Full"
+                        : overlapWarning
+                        ? "Schedule Overlap"
+                        : isUnverified
+                        ? "Awaiting SK Verification"
+                        : "Apply Directly for Program"}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

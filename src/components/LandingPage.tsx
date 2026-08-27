@@ -424,10 +424,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             
             <div className="md:col-span-5 space-y-4">
               <div className="flex items-center gap-3">
-                <span className="bg-[#0A6B43] text-white px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider">
-                  SiKap
-                </span>
-                <span className="text-xs font-bold text-white">SiKap Skills matching platform</span>
+                <SikapLogo size={32} variant="white" showText={true} showSubtext={false} />
               </div>
               <p className="text-xs text-gray-500 leading-relaxed max-w-md font-medium">
                 Automating Katipunan ng Kabataan demographic skills mapping and direct program pathways across the 17 Barangays of the Municipality of San Luis, Pampanga.

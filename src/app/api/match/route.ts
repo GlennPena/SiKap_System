@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { calculateContentBasedMatchScore } from "@/lib/cbf-matcher";
-import { generateYouthCareerPathway } from "@/lib/gemini";
+import { generateYouthCareerPathway, generateYouthPersonalizedAdviceBullets } from "@/lib/gemini";
 import { YouthProfile, TESDAProgram } from "@/types";
 
 export async function POST(request: Request) {
@@ -21,14 +21,18 @@ export async function POST(request: Request) {
     });
 
     let advice = "";
+    let bulletAdvice: string[] = [];
+
     if (generateLLMAdvice) {
       advice = await generateYouthCareerPathway(youth as YouthProfile, programs.slice(0, 3));
+      bulletAdvice = await generateYouthPersonalizedAdviceBullets(youth as YouthProfile, programs.slice(0, 3));
     }
 
     return NextResponse.json({
       success: true,
       matches,
-      careerAdvice: advice
+      careerAdvice: advice,
+      bulletAdvice
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
