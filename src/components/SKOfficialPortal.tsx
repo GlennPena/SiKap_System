@@ -1773,7 +1773,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     ) : (
                       <div className="space-y-4">
                         {programs.slice(0, 3).map((prog, idx) => {
-                          const matchPoints = idx === 0 ? selectedYouth.matchScore : idx === 1 ? Math.max(50, selectedYouth.matchScore - 12) : Math.max(50, selectedYouth.matchScore - 23);
+                          const matchPoints = calculateContentBasedMatchScore(selectedYouth, prog);
                           const isReferredForThis = selectedYouth.hasReferred && idx === 0;
 
                           return (
@@ -2329,7 +2329,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <OpportunityCard
                       key={prog.id}
                       program={prog}
-                      matchScore={selectedYouth.id === "y-01" && prog.id === "p-01" ? 94 : selectedYouth.matchScore}
+                      matchScore={calculateContentBasedMatchScore(selectedYouth, prog)}
                       geminiExplanation={getGeminiRationale(prog.id, selectedYouth.name)}
                     />
                   ))}

@@ -9,6 +9,7 @@ import {
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
+import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -379,7 +380,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         purok: youthProfile.purok,
         barangay: youthProfile.barangay,
         programTitle: selectedProgramToApply.title,
-        matchScore: selectedProgramToApply.id === "p-01" ? 94 : 78,
+        matchScore: calculateContentBasedMatchScore(youthProfile, selectedProgramToApply),
         referralDate: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
         status: "Pending"
       };
@@ -791,6 +792,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 ) : (
                   (() => {
                     const featuredProg = programs[0];
+                    const featuredScore = calculateContentBasedMatchScore(youthProfile, featuredProg);
                     const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
                     const isEnrolled = app?.status === "Enrolled";
                     const isDeclined = app?.status === "Declined";
@@ -810,12 +812,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               {featuredProg.provider || "TESDA Partner Program"}
                             </span>
                           </div>
-                          <FlameMatchScore score={youthProfile.hasReferred ? 94 : youthProfile.matchScore} />
+                          <FlameMatchScore score={featuredScore} />
                         </div>
 
                         <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                           <p className="text-sm italic text-emerald-950 leading-relaxed font-medium">
-                            "Based on your registered competencies, this course at {featuredProg.provider || "TESDA"} is evaluated as your top match ({youthProfile.matchScore || 85}% fit)."
+                            "Based on your registered competencies, this course at {featuredProg.provider || "TESDA"} is evaluated as your top match ({featuredScore}% fit)."
                           </p>
                         </div>
 
@@ -1019,11 +1021,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {programs.map((prog, idx) => {
                     // dynamic match scores
-                    const score = idx === 0 
-                      ? (youthProfile.hasReferred ? 94 : youthProfile.matchScore) 
-                      : idx === 1 
-                        ? Math.max(50, youthProfile.matchScore - 12) 
-                        : Math.max(50, youthProfile.matchScore - 23);
+                    const score = calculateContentBasedMatchScore(youthProfile, prog);
 
                     return (
                       <div key={prog.id} className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-emerald-200 transition-all">
