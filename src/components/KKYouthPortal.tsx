@@ -4,12 +4,14 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
-  Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert
+  Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
+  BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark
 } from "lucide-react";
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
-import { calculateContentBasedMatchScore, getSuggestedSkillsForYouth } from "../lib/cbf-matcher";
+import { calculateContentBasedMatchScore, getSuggestedSkillsForYouth, formatProgramTime } from "../lib/cbf-matcher";
+import { GeminiLongTermCareerPlan } from "../lib/gemini";
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -58,6 +60,158 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPass, setShowCurrentPass] = useState(false);
+
+  // Helper to reliably parse career plan whether object or JSON string
+  const parseCareerPlan = (plan: any): GeminiLongTermCareerPlan | null => {
+    if (!plan) return null;
+    let obj = plan;
+    if (typeof obj === "string") {
+      try {
+        obj = JSON.parse(obj);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (typeof obj === "string") {
+      try {
+        obj = JSON.parse(obj);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (obj && typeof obj === "object" && (obj.roadmapTitle || obj.summary)) {
+      return {
+        roadmapTitle: obj.roadmapTitle || "Post-Graduation Career Roadmap",
+        summary: obj.summary || "Tailored career development and livelihood roadmap.",
+        targetGoal: obj.targetGoal || "",
+        programTitle: obj.programTitle || "",
+        immediate30Days: Array.isArray(obj.immediate30Days) ? obj.immediate30Days : [],
+        employmentTrack: {
+          targetRoles: Array.isArray(obj.employmentTrack?.targetRoles) ? obj.employmentTrack.targetRoles : ["Entry-Level Specialist"],
+          targetLocations: obj.employmentTrack?.targetLocations || "San Luis & Pampanga Area",
+          estimatedSalary: obj.employmentTrack?.estimatedSalary || "₱15,000 – ₱20,000 / month",
+          actionSteps: Array.isArray(obj.employmentTrack?.actionSteps) ? obj.employmentTrack.actionSteps : []
+        },
+        entrepreneurshipTrack: {
+          businessConcept: obj.entrepreneurshipTrack?.businessConcept || "Local Home-Based Enterprise",
+          starterFunding: obj.entrepreneurshipTrack?.starterFunding || "SK San Luis Youth Livelihood Grant",
+          initialServices: Array.isArray(obj.entrepreneurshipTrack?.initialServices) ? obj.entrepreneurshipTrack.initialServices : []
+        },
+        longTerm1To2Years: Array.isArray(obj.longTerm1To2Years) ? obj.longTerm1To2Years : [],
+        localSupportContacts: Array.isArray(obj.localSupportContacts) ? obj.localSupportContacts : ["SK Federation Livelihood Desk (San Luis, Pampanga)", "San Luis PESO Office"],
+        generatedDate: obj.generatedDate || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      };
+    }
+    return null;
+  };
+
+  const getCachedPlan = () => {
+    if (typeof window === "undefined") return null;
+    const byId = youthProfile.id ? localStorage.getItem(`sikap_career_plan_${youthProfile.id}`) : null;
+    const byName = youthProfile.name ? localStorage.getItem(`sikap_career_plan_${youthProfile.name}`) : null;
+    return parseCareerPlan(byId) || parseCareerPlan(byName);
+  };
+
+  // Step 4 Gemini Long-Term Career Plan states
+  const currentSavedPlan = parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [generatedPlan, setGeneratedPlan] = useState<GeminiLongTermCareerPlan | null>(currentSavedPlan);
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
+
+  useEffect(() => {
+    const parsed = parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+    if (parsed) {
+      setGeneratedPlan(parsed);
+      if (typeof window !== "undefined" && youthProfile.name) {
+        localStorage.setItem(`sikap_career_plan_${youthProfile.name}`, JSON.stringify(parsed));
+        if (youthProfile.id) localStorage.setItem(`sikap_career_plan_${youthProfile.id}`, JSON.stringify(parsed));
+      }
+    }
+  }, [youthProfile.savedCareerPlan, youthProfile.name, youthProfile.id]);
+
+  const handleGenerateCareerPlan = async (prog?: TESDAProgram | null) => {
+    const existing = currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+    if (existing?.roadmapTitle) {
+      addToast("Your official career plan is already generated and saved to your account.", "info");
+      return;
+    }
+
+    setIsGeneratingPlan(true);
+    try {
+      const res = await fetch("/api/career-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          youthProfile,
+          program: prog || null
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const newPlan = parseCareerPlan(data.data) || data.data;
+        setGeneratedPlan(newPlan);
+
+        // Instantly cache in localStorage
+        if (typeof window !== "undefined") {
+          if (youthProfile.name) localStorage.setItem(`sikap_career_plan_${youthProfile.name}`, JSON.stringify(newPlan));
+          if (youthProfile.id) localStorage.setItem(`sikap_career_plan_${youthProfile.id}`, JSON.stringify(newPlan));
+        }
+
+        // Automatically persist to PostgreSQL database
+        try {
+          const saveRes = await fetch("/api/youth", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: youthProfile.id,
+              savedCareerPlan: newPlan
+            })
+          });
+          const saveData = await saveRes.json();
+          if (saveData.success) {
+            setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: newPlan } : y));
+            addToast("Google Gemini Career Plan generated & saved permanently to your account!", "success");
+          }
+        } catch (saveErr) {
+          console.error("Auto-save career plan error:", saveErr);
+        }
+      } else {
+        addToast(data.error || "Failed to generate career plan", "error");
+      }
+    } catch (err) {
+      console.error("Error generating career plan:", err);
+      addToast("Failed to connect to Google Gemini API. Please try again.", "error");
+    } finally {
+      setIsGeneratingPlan(false);
+    }
+  };
+
+  const handleSaveCareerPlanToIDCard = async (planToSave: GeminiLongTermCareerPlan) => {
+    if (!planToSave) return;
+    setIsSavingPlan(true);
+    try {
+      const res = await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: youthProfile.id,
+          savedCareerPlan: planToSave
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: planToSave } : y));
+        addToast("Career Roadmap successfully saved to your KK Digital ID Card!", "success");
+      } else {
+        addToast(data.error || "Failed to save career plan", "error");
+      }
+    } catch (err) {
+      console.error("Error saving career plan:", err);
+      addToast("Network error: Could not save plan.", "error");
+    } finally {
+      setIsSavingPlan(false);
+    }
+  };
   const [showNewPass, setShowNewPass] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
@@ -102,6 +256,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     matchScore?: number;
   } | null>(null);
 
+  const scoredPrograms = useMemo(() => {
+    return programs
+      .map(p => ({
+        program: p,
+        matchScore: calculateContentBasedMatchScore(youthProfile, p)
+      }))
+      .sort((a, b) => b.matchScore - a.matchScore);
+  }, [programs, youthProfile]);
+
   useEffect(() => {
     if (youthProfile && programs.length > 0) {
       fetch("/api/match", {
@@ -109,7 +272,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           youth: youthProfile,
-          programs: programs.slice(0, 3),
+          programs: scoredPrograms.map(sp => sp.program),
           generateLLMAdvice: true
         })
       })
@@ -124,15 +287,22 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         })
         .catch(err => console.error("Error fetching Gemini advice:", err));
     }
-  }, [youthProfile.skills, youthProfile.sectorPreference, youthProfile.livelihoodGoal, programs]);
+  }, [youthProfile.skills, youthProfile.sectorPreference, youthProfile.livelihoodGoal, youthProfile.interests, scoredPrograms]);
 
-  // Use generic title since we no longer have static officials list
   const skChairpersonName = useMemo(() => {
     return "Your SK Chairperson";
   }, [youthProfile.barangay]);
 
+  // Helper to reliably match youth names regardless of accents or casing
+  const isSameYouth = (rYouthName?: string, currentYouthName?: string) => {
+    if (!rYouthName || !currentYouthName) return false;
+    const n1 = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const n2 = currentYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+  };
+
   // Get enrolled referrals and match them with program details
-  const enrolledReferrals = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Enrolled") || [];
+  const enrolledReferrals = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name) && r.status === "Enrolled") || [];
   const enrolledPrograms = enrolledReferrals.map(ref => {
     const program = programs.find(p => p.title === ref.programTitle);
     return {
@@ -168,7 +338,29 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return null;
   };
 
-  const handleDeletePathway = (referralId: string) => {
+  // Check if a youth has already completed this program or an identical/equivalent qualification
+  const isProgramCompleted = (prog: TESDAProgram) => {
+    return !!referrals?.some(r =>
+      isSameYouth(r.youthName, youthProfile.name) &&
+      r.status === "Archived" &&
+      (
+        r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim() ||
+        r.programId === prog.id ||
+        (
+          prog.title.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim().length > 3 &&
+          r.programTitle.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim() ===
+          prog.title.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim()
+        )
+      )
+    );
+  };
+
+  const handleDeletePathway = async (referralId: string) => {
+    try {
+      await fetch(`/api/referrals?id=${referralId}`, { method: "DELETE" });
+    } catch (err) {
+      console.error("Error deleting referral:", err);
+    }
     if (setReferrals) {
       setReferrals(prev => {
         const filtered = prev.filter(r => r.id !== referralId);
@@ -187,10 +379,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
   };
 
-  const handleCancelApplication = (referralId: string) => {
+  const handleCancelApplication = async (referralId: string) => {
     if (isUnverified) {
       addToast("Cannot cancel applications in View-Only Mode (Awaiting SK Verification)", "error");
       return;
+    }
+    try {
+      const res = await fetch(`/api/referrals?id=${referralId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success && data.error) {
+        addToast(data.error || "Failed to cancel application", "error");
+        return;
+      }
+    } catch (err) {
+      console.error("Error cancelling referral:", err);
     }
     if (setReferrals) {
       setReferrals(prev => {
@@ -268,6 +470,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       addToast("Cannot edit profile details while awaiting SK Verification", "error");
       return;
     }
+
+    const tempYouth = {
+      ...youthProfile,
+      livelihoodGoal: editGoal,
+      sectorPreference: editSector,
+      educationalAttainment: editEdu,
+      currentStatus: editStatus
+    };
+    const updatedMatchScore = programs && programs.length > 0
+      ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
+      : youthProfile.matchScore;
+
     setIsSavingProfile(true);
     try {
       const res = await fetch("/api/youth", {
@@ -279,12 +493,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           sectorPreference: editSector,
           contactNumber: editPhone,
           educationalAttainment: editEdu,
-          currentStatus: editStatus
+          currentStatus: editStatus,
+          matchScore: updatedMatchScore
         })
       });
       const data = await res.json();
       if (data.success) {
-        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, ...data.data } : y));
+        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, ...data.data, matchScore: updatedMatchScore } : y));
         addToast("Profile details updated in PostgreSQL database!", "success");
       } else {
         addToast(data.error || "Failed to update profile", "error");
@@ -376,6 +591,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       addToast("Cannot apply for programs in View-Only Mode (Awaiting SK Verification)", "error");
       return;
     }
+    if (isProgramCompleted(prog)) {
+      addToast(`You have already completed "${prog.title}" and earned your certification. You cannot re-take this qualification.`, "info");
+      return;
+    }
     if (prog.slotsRemaining <= 0) {
       addToast(`Sorry, "${prog.title}" is already full!`, "error");
       return;
@@ -385,7 +604,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     setShowApplyModal(true);
   };
 
-  const confirmDirectApply = () => {
+  const confirmDirectApply = async () => {
     if (!selectedProgramToApply) return;
     if (selectedProgramToApply.slotsRemaining <= 0) {
       addToast(`Sorry, "${selectedProgramToApply.title}" is already full!`, "error");
@@ -398,31 +617,43 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return;
     }
 
-    // Update profile applied state (using hasReferred as the flag)
-    setYouthProfiles(prev => prev.map(y => {
-      if (y.id === youthProfile.id) {
-        return { ...y, hasReferred: true };
+    const calculatedScore = calculateContentBasedMatchScore(youthProfile, selectedProgramToApply);
+
+    try {
+      const res = await fetch("/api/referrals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          youthId: youthProfile.id,
+          youthName: youthProfile.name,
+          programId: selectedProgramToApply.id,
+          programTitle: selectedProgramToApply.title,
+          matchScore: calculatedScore
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        if (setReferrals) {
+          setReferrals(prev => [data.data, ...prev.filter(r => r.id !== data.data.id)]);
+        }
+        setYouthProfiles(prev => prev.map(y => {
+          if (y.id === youthProfile.id) {
+            return { ...y, hasReferred: true };
+          }
+          return y;
+        }));
+        addToast(`Application for "${selectedProgramToApply.title}" submitted directly to TESDA successfully!`, "success");
+      } else {
+        addToast(data.error || "Failed to submit application", "error");
       }
-      return y;
-    }));
-
-    // Add directly to the application pipeline
-    if (setReferrals) {
-      const newApp: ReferralPipelineItem = {
-        id: `app-${Date.now()}`,
-        youthName: youthProfile.name,
-        purok: youthProfile.purok,
-        barangay: youthProfile.barangay,
-        programTitle: selectedProgramToApply.title,
-        matchScore: calculateContentBasedMatchScore(youthProfile, selectedProgramToApply),
-        referralDate: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-        status: "Pending"
-      };
-      setReferrals(prev => [newApp, ...prev]);
+    } catch (err) {
+      console.error("Application submission error:", err);
+      addToast("Failed to submit application. Please try again.", "error");
+    } finally {
+      setShowApplyModal(false);
+      setViewingProgramModal(null);
+      setSelectedProgramToApply(null);
     }
-
-    addToast(`Application for "${selectedProgramToApply.title}" submitted directly to TESDA successfully!`, "success");
-    setShowApplyModal(false);
   };
 
   return (
@@ -740,12 +971,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   <div className="p-6 divide-y divide-gray-100">
                     {enrolledPrograms.map(({ ref, program }) => {
                       // Fallback info if the program is custom-created without schedule defaults
-                      const scheduleDays = (program?.trainingDays?.join(", ") || "TBA") || "Mondays to Fridays";
-                      const scheduleTime = (program?.startTime ? `${new Date(program?.startTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"})} - ${program?.endTime ? new Date(program?.endTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"}) : "TBA"}` : "TBA") || "8:00 AM - 12:00 PM";
-                      const room = program?.room || "Vocational Workshop Room 3";
-                      const instructor = program?.instructor || "Professor Danilo Santos";
-                      const provider = program?.provider || "TESDA GPSAT (Gonzalo Puyat School of Arts and Trades)";
-                      const location = program?.location || "TESDA PTC, San Fernando, Pampanga";
+                      const scheduleDays = (program?.trainingDays ? (Array.isArray(program.trainingDays) ? program.trainingDays.join(", ") : program.trainingDays) : "Monday to Friday");
+                      const scheduleTime = program?.startTime && program?.endTime
+                        ? `${formatProgramTime(program.startTime)} – ${formatProgramTime(program.endTime)}`
+                        : (program?.startTime ? formatProgramTime(program.startTime) : "8:00 AM – 5:00 PM");
+                      const room = program?.room || "Main Training Facility";
+                      const instructor = program?.instructor || "TESDA Certified Instructor";
+                      const provider = program?.provider || "TESDA Training Center";
+                      const location = program?.location || "San Luis, Pampanga";
 
                       return (
                         <div key={ref.id} className="py-4 first:pt-0 last:pb-0 space-y-4">
@@ -825,22 +1058,34 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </div>
                 ) : (
                   (() => {
-                    const featuredProg = programs[0];
-                    const featuredScore = calculateContentBasedMatchScore(youthProfile, featuredProg);
+                    const topMatchItem = scoredPrograms[0];
+                    const featuredProg = topMatchItem?.program || programs[0];
+                    const featuredScore = topMatchItem?.matchScore ?? calculateContentBasedMatchScore(youthProfile, featuredProg);
                     const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
+                    const isCompleted = isProgramCompleted(featuredProg);
                     const isEnrolled = app?.status === "Enrolled";
                     const isDeclined = app?.status === "Declined";
                     const isPending = app?.status === "Pending";
                     const isFull = !app && (featuredProg.slotsRemaining !== undefined && featuredProg.slotsRemaining <= 0);
                     
                     const overlapWarning = getOverlapWarning(featuredProg);
-                    const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
+                    const isDisabled = isCompleted || !!app || isFull || !!overlapWarning || isUnverified;
 
                     return (
-                      <div className="bg-white border border-[#D1FAE5] rounded-2xl p-6 shadow-xs space-y-4 md:col-span-3">
+                      <div className={`bg-white border rounded-2xl p-6 shadow-xs space-y-4 md:col-span-3 ${isCompleted ? "border-purple-200" : "border-[#D1FAE5]"}`}>
                         <div className="flex justify-between items-start gap-4">
                           <div>
-                            <span className="text-xs uppercase font-bold text-[#D97706] tracking-wider block">Featured AI Match for You</span>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xs uppercase font-bold tracking-wider ${isCompleted ? "text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full border border-purple-200" : "text-[#D97706]"}`}>
+                                {isCompleted ? "Completed Qualification • Top AI Match" : "Featured AI Match for You"}
+                              </span>
+                              {isCompleted && (
+                                <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3 text-purple-600" />
+                                  Certified Graduate
+                                </span>
+                              )}
+                            </div>
                             <h4 className="font-extrabold text-gray-800 text-lg mt-1">{featuredProg.title}</h4>
                             <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-150 inline-block mt-1">
                               {featuredProg.provider || "TESDA Partner Program"}
@@ -909,10 +1154,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             <p>⏱ <strong>Duration:</strong> {featuredProg.trainingHours} hours</p>
                             <p>📍 <strong>Location:</strong> {featuredProg.location}</p>
                           </div>
-                          <div className="flex flex-col items-end gap-2 shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            {isCompleted && (
+                              <span className="text-xs font-extrabold text-purple-800 bg-purple-50 border border-purple-200 px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                                <CheckCircle className="w-4 h-4 text-purple-600" />
+                                Course Completed & Certified
+                              </span>
+                            )}
                             <button
                               onClick={() => setViewingProgramModal({ program: featuredProg, matchScore: featuredScore })}
-                              className="w-full sm:w-auto text-xs font-extrabold px-5 py-2.5 rounded-lg bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              className="text-xs font-extrabold px-5 py-2.5 rounded-lg bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                               <Eye className="w-4 h-4 text-emerald-200" />
                               View Details
@@ -1063,9 +1314,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {programs.map((prog, idx) => {
-                    // dynamic match scores
-                    const score = calculateContentBasedMatchScore(youthProfile, prog);
+                  {scoredPrograms.map(({ program: prog, matchScore: score }) => {
 
                     return (
                       <div key={prog.id} className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-emerald-200 transition-all">
@@ -1121,6 +1370,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           <span>Slots: <strong>{prog.slotsRemaining}/{prog.slotsTotal}</strong> left</span>
                           {(() => {
                             const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+                            const isCompleted = isProgramCompleted(prog);
                             const isEnrolled = app?.status === "Enrolled";
                             const isDeclined = app?.status === "Declined";
                             const isPending = app?.status === "Pending";
@@ -1128,13 +1378,70 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             const isFull = !app && prog.slotsRemaining <= 0;
                             const overlapWarning = getOverlapWarning(prog);
                             
+                            if (isCompleted) {
+                              return (
+                                <button
+                                  disabled
+                                  className="text-xs font-extrabold px-3.5 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                  title="You have already completed this course and earned your certification"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                                  Already Completed ✓
+                                </button>
+                              );
+                            }
+
+                            if (isEnrolled) {
+                              return (
+                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                                  <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  Enrolled
+                                </span>
+                              );
+                            }
+
+                            if (isPending) {
+                              return (
+                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                  Application Pending
+                                </span>
+                              );
+                            }
+
+                            if (isDeclined) {
+                              return (
+                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
+                                  <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                                  Declined
+                                </span>
+                              );
+                            }
+
+                            if (isFull) {
+                              return (
+                                <button
+                                  disabled
+                                  className="text-xs font-bold px-3.5 py-2 rounded-lg bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                >
+                                  Slots Full
+                                </button>
+                              );
+                            }
+
                             return (
                               <button
-                                onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
-                                className="text-xs font-bold px-3.5 py-2 rounded-lg bg-[#0A6B43] hover:bg-[#075332] text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                                onClick={() => handleDirectApply(prog)}
+                                disabled={isUnverified || !!overlapWarning}
+                                className={`text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-xs ${
+                                  isUnverified || !!overlapWarning
+                                    ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                    : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
+                                }`}
+                                title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
                               >
-                                <Eye className="w-3.5 h-3.5 text-emerald-200" />
-                                View Details
+                                <Send className="w-3.5 h-3.5" />
+                                Apply
                               </button>
                             );
                           })()}
@@ -1156,7 +1463,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
 
               {(() => {
-                const userApps = referrals?.filter(r => r.youthName === youthProfile.name) || [];
+                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
                 if (userApps.length === 0) {
                   return (
                     <div className="bg-white border border-[#D1FAE5] p-8 rounded-2xl shadow-xs text-center space-y-4">
@@ -1186,20 +1493,45 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       const isArchived = app.status === "Archived";
                       
                       const program = programs.find(p => p.title === app.programTitle);
-                      const scheduleDays = (program?.trainingDays?.join(", ") || "TBA") || "Mondays to Fridays";
-                      const scheduleTime = (program?.startTime ? `${new Date(program?.startTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"})} - ${program?.endTime ? new Date(program?.endTime).toLocaleTimeString([], {hour: "2-digit", minute:"2-digit"}) : "TBA"}` : "TBA") || "8:00 AM - 12:00 PM";
-                      const room = program?.room || "Vocational Workshop Room 3";
-                      const instructor = program?.instructor || "Professor Danilo Santos";
+                      const provider = program?.provider || "TESDA Partner Training Center";
+                      const location = program?.location || "San Luis, Pampanga";
+                      const scheduleDays = (program?.trainingDays ? (Array.isArray(program.trainingDays) ? program.trainingDays.join(", ") : program.trainingDays) : "Monday to Friday");
+                      
+                      const scheduleTime = program?.startTime && program?.endTime
+                        ? `${formatProgramTime(program.startTime)} – ${formatProgramTime(program.endTime)}`
+                        : (program?.startTime ? formatProgramTime(program.startTime) : "8:00 AM – 5:00 PM");
+
+                      const room = program?.room || "Main Training Facility";
+                      const instructor = program?.instructor || "TESDA Certified Instructor";
+                      const contactPerson = program?.contactPerson || "TESDA Registrar";
+                      const contactNumber = program?.contactNumber || "N/A";
+                      const trainingHours = program?.trainingHours ? `${program.trainingHours} hours` : "Standard Duration";
+                      const dateRange = program?.startDate && program?.endDate
+                        ? ` (${new Date(program.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${new Date(program.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})`
+                        : "";
+                      const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
+                        ? program.requiredDocuments
+                        : [
+                            "Original & Photocopy of Birth Certificate (PSA)",
+                            "2 copies of 2x2 / 1x1 ID Pictures (white background, with name tag)",
+                            "High School Diploma or Form 137 / Report Card",
+                            "Certificate of Barangay Residency (San Luis, Pampanga)"
+                          ];
                       
                       return (
-                        <div key={app.id} className="bg-white border border-[#D1FAE5] p-8 rounded-2xl shadow-xs space-y-6 relative overflow-hidden">
+                        <div key={app.id} className="bg-white border border-[#D1FAE5] p-6 sm:p-8 rounded-2xl shadow-xs space-y-6 relative overflow-hidden">
                           {/* Top Tag indicating Program */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-gray-100">
                             <div>
-                              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md font-semibold">
-                                Dedicated Livelihood Path
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold">
+                                {provider}
                               </span>
-                              <h4 className="font-extrabold text-gray-900 text-sm sm:text-base mt-2">{app.programTitle}</h4>
+                              <h4 className="font-extrabold text-gray-900 text-base sm:text-lg mt-2">{app.programTitle}</h4>
+                              <p className="text-xs text-gray-500 font-medium flex items-center gap-2 mt-0.5">
+                                <span>📍 {location}</span>
+                                <span>•</span>
+                                <span>⏱ {trainingHours}</span>
+                              </p>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-gray-400 font-semibold">Status:</span>
@@ -1239,46 +1571,100 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             </div>
                           </div>
 
-                          <PathwayTimeline currentStep={isArchived ? 4 : isEnrolled ? 3 : 2} isMobile={false} />
+                          {(() => {
+                            const hasSavedPlan = Boolean(generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan());
+                            return (
+                              <PathwayTimeline
+                                currentStep={isArchived ? (hasSavedPlan ? 5 : 4) : isEnrolled ? 3 : 2}
+                                isMobile={false}
+                              />
+                            );
+                          })()}
 
                           {/* Visual Feedback on Application Status with explicit Instructions */}
                           {(() => {
                             if (isPending) {
                               return (
-                                <div className="bg-blue-50/60 border border-blue-200 rounded-lg p-4.5 flex items-start gap-3.5">
-                                  <Sparkles className="w-5 h-5 text-blue-600 shrink-0 mt-0.5 animate-pulse" />
-                                  <div className="space-y-1 flex-1">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-100 pb-2 mb-2">
-                                      <p className="text-xs font-extrabold text-blue-800 uppercase tracking-wider">Application Under Review</p>
-                                      <button
-                                        onClick={() => handleCancelApplication(app.id)}
-                                        className="text-[11px] bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-150 cursor-pointer"
-                                        id={`cancel-pathway-box-${app.id}`}
-                                      >
-                                        <XCircle className="w-3.5 h-3.5" />
-                                        Cancel Application
-                                      </button>
+                                <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-5 space-y-4 shadow-xs">
+                                  <div className="flex items-start justify-between gap-3 border-b border-blue-100/80 pb-3">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                                        <Sparkles className="w-4 h-4 animate-pulse" />
+                                      </div>
+                                      <div>
+                                        <span className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider block">
+                                          Step 2 Status
+                                        </span>
+                                        <h5 className="font-extrabold text-blue-950 text-sm">
+                                          Application Under Review
+                                        </h5>
+                                      </div>
                                     </div>
-                                    <p className="text-[11px] text-blue-700 leading-relaxed font-medium">
-                                      Your application for <strong>{app.programTitle}</strong> has been received by the TESDA representative!
+                                    <button
+                                      onClick={() => handleCancelApplication(app.id)}
+                                      className="text-[11px] bg-white hover:bg-red-50 text-red-700 px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 border border-red-200 shadow-2xs hover:border-red-300 cursor-pointer"
+                                      id={`cancel-pathway-box-${app.id}`}
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      Cancel Application
+                                    </button>
+                                  </div>
+
+                                  <p className="text-xs text-blue-900 leading-relaxed font-medium">
+                                    Your application for <strong className="text-blue-950 font-bold">{app.programTitle}</strong> at <strong className="text-blue-950 font-bold">{provider}</strong> has been received by TESDA. Please review the program details and submit your required documents below to finalize your enrollment:
+                                  </p>
+
+                                  {/* Program Details Overview Card */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white/95 p-4 rounded-xl border border-blue-150 shadow-2xs">
+                                    <div className="space-y-1.5">
+                                      <p className="text-gray-600">
+                                        🏢 <strong>Training Provider:</strong> <span className="text-gray-900 font-bold">{provider}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        📍 <strong>Location / Campus:</strong> <span className="text-gray-900 font-semibold">{location}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        ⏱ <strong>Course Duration:</strong> <span className="text-gray-900 font-semibold">{trainingHours}{dateRange}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        💰 <strong>Program Cost:</strong> <span className="font-bold text-emerald-700">{program?.cost || "100% Free / Subsidized"}</span>
+                                      </p>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <p className="text-gray-600">
+                                        📅 <strong>Class Schedule:</strong> <span className="text-gray-900 font-semibold">{scheduleDays}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        🕒 <strong>Training Hours:</strong> <span className="text-gray-900 font-semibold">{scheduleTime}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        🏢 <strong>Facility / Room:</strong> <span className="text-gray-900 font-semibold">{room}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        👨‍🏫 <strong>Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold">{instructor}</span>
+                                      </p>
+                                      <p className="text-gray-600">
+                                        📞 <strong>Registrar Contact:</strong> <span className="text-gray-900 font-semibold">{contactPerson} ({contactNumber})</span>
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Required: Physical Documents for Verification */}
+                                  <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-4 space-y-2.5 text-xs">
+                                    <p className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
+                                      👉 Action Required to Complete Enrollment Verification:
                                     </p>
-                                    <div className="bg-white/80 border border-blue-100 rounded-xl p-3.5 mt-3 space-y-2 text-[11px] text-blue-900 shadow-2xs">
-                                      <p className="font-extrabold text-blue-950 flex items-center gap-1.5">
-                                        👉 Action Required to Complete Step 2:
-                                      </p>
-                                      <p className="leading-relaxed font-semibold text-blue-900">
-                                        Please proceed to the <strong>TESDA GPSAT (Gonzalo Puyat School of Arts and Trades) Office</strong> to submit your physical requirements so they can verify your qualifications and approve your enrollment:
-                                      </p>
-                                      <ul className="list-disc pl-5 space-y-1 font-semibold text-blue-800">
-                                        <li>Original & Photocopy of Birth Certificate (PSA)</li>
-                                        <li>4 copies of 1x1 Pictures (white background, with name tag)</li>
-                                        <li>High School Diploma or Form 137 (Report Card)</li>
-                                        <li>Certificate of Barangay Residency (San Luis, Pampanga)</li>
-                                      </ul>
-                                      <p className="text-[10px] text-blue-600 italic font-semibold mt-2 pt-1 border-t border-blue-100">
-                                        Once the TESDA officer verifies these documents, they will approve your enrollment inside the partner portal, advancing this pathway to Step 3!
-                                      </p>
-                                    </div>
+                                    <p className="leading-relaxed font-medium text-amber-900">
+                                      Please bring and submit the following physical requirements to the <strong>{provider} Admissions Office ({location})</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
+                                    </p>
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 list-disc text-amber-950 font-semibold">
+                                      {requiredDocs.map((doc: string, dIdx: number) => (
+                                        <li key={dIdx}>{doc}</li>
+                                      ))}
+                                    </ul>
+                                    <p className="text-[10px] text-amber-800 italic pt-1 border-t border-amber-200 font-medium">
+                                      Once your physical documents are verified by the TESDA registrar, your enrollment will be officially approved and this pathway will advance to <strong>Step 3: Officially Enrolled & Active Training</strong>!
+                                    </p>
                                   </div>
                                 </div>
                               );
@@ -1291,7 +1677,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       <p className="text-xs font-extrabold text-red-800 uppercase tracking-wider">Application Declined</p>
                                       <button
                                         onClick={() => handleDeletePathway(app.id)}
-                                        className="text-[11px] bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-200"
+                                        className="text-[11px] bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-200 cursor-pointer"
                                         id={`delete-pathway-box-${app.id}`}
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -1308,24 +1694,236 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </div>
                               );
                             } else if (isArchived) {
+                              // STEP 4 IS UNLOCKED: Step 3 is completed!
+                              const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+                              const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
+
                               return (
-                                <div className="space-y-4 w-full">
-                                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4.5 flex items-start gap-3.5 shadow-2xs">
-                                    <Award className="w-5 h-5 text-purple-600 shrink-0 mt-0.5 animate-bounce" />
-                                    <div>
-                                      <p className="text-xs font-extrabold text-purple-800 uppercase tracking-wider mb-1.5">Program Completed & Archived</p>
-                                      <p className="text-[11px] text-purple-700 leading-relaxed font-semibold">
-                                        Congratulations! You have successfully completed your training for <strong>{app.programTitle}</strong> as the program duration has ended. Your records are now safely archived, and you are ready for <strong>Step 4: Livelihood and Career Placement</strong>!
+                                <div className="space-y-6 w-full">
+                                  {/* Completion & Step 4 Banner */}
+                                  <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start gap-4 shadow-xs">
+                                    <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                      <Award className="w-6 h-6 animate-bounce" />
+                                    </div>
+                                    <div className="space-y-1.5 flex-1">
+                                      <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-100/80 px-2.5 py-0.5 rounded-full border border-purple-200 tracking-wider">
+                                        Step 3 Complete • Step 4 Active
+                                      </span>
+                                      <h5 className="font-extrabold text-purple-950 text-base sm:text-lg">
+                                        Training Completed & NC II Certified!
+                                      </h5>
+                                      <p className="text-xs text-purple-800 leading-relaxed font-medium">
+                                        Congratulations! You have completed your certified training for <strong className="font-bold">{app.programTitle}</strong> at <strong className="font-bold">{provider}</strong>. You have achieved <strong>Step 4: Livelihood Placement & Career Launch</strong>.
                                       </p>
-                                      <div className="bg-white/80 border border-purple-100 rounded-xl p-3.5 mt-3 space-y-1.5 text-[11px] text-purple-900 shadow-2xs">
-                                        <p className="font-extrabold text-purple-950 flex items-center gap-1.5">
-                                          🎓 Next Pathway Milestone:
-                                        </p>
-                                        <p className="leading-relaxed font-medium text-purple-800">
-                                          The Sangguniang Kabataan (SK) and TESDA representatives are preparing placement matching and entrepreneurship support tools for your batch. Stay tuned to announcements for upcoming job fairs, equipment starter toolkits, or micro-grant opportunities!
+                                    </div>
+                                  </div>
+
+                                  {/* Gemini Long-Term Post-Graduation Career Plan Section */}
+                                  <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-6 sm:p-7 shadow-lg border border-emerald-700/60 space-y-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/15 pb-4">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
+                                          <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                                            Google Gemini AI • Step 4 Career Strategy
+                                          </span>
+                                        </div>
+                                        <h4 className="text-lg sm:text-xl font-black text-white">
+                                          {planToShow?.roadmapTitle || `Post-Graduation Career Roadmap`}
+                                        </h4>
+                                        <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
+                                          {planToShow?.summary || `A pragmatic, real-life career action plan tailored for your transition from ${app.programTitle} into employment and entrepreneurship in San Luis, Pampanga.`}
                                         </p>
                                       </div>
+
+                                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                        {isSaved ? (
+                                          <span className="px-4 py-2 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs">
+                                            <BookmarkCheck className="w-4 h-4 text-emerald-300" />
+                                            Saved Official Career Roadmap ✓
+                                          </span>
+                                        ) : planToShow ? (
+                                          <button
+                                            onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
+                                            disabled={isSavingPlan}
+                                            className="px-4 py-2 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                          >
+                                            {isSavingPlan ? (
+                                              <>
+                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                Saving...
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Bookmark className="w-3.5 h-3.5" />
+                                                Save Plan to KK Digital ID Card
+                                              </>
+                                            )}
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleGenerateCareerPlan(program)}
+                                            disabled={isGeneratingPlan}
+                                            className="px-4 py-2 bg-white hover:bg-gray-100 text-slate-900 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                          >
+                                            {isGeneratingPlan ? (
+                                              <>
+                                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
+                                                Gemini is generating plan...
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                                Generate Gemini Post-Graduation Career Plan
+                                              </>
+                                            )}
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
+
+                                    {/* Display Generated Plan Content */}
+                                    {planToShow ? (
+                                      <div className="space-y-5 animate-in fade-in duration-200">
+                                        {/* Phase 1: Immediate 30 Days */}
+                                        <div className="bg-white/10 backdrop-blur-xs rounded-xl p-4.5 border border-white/15 space-y-2.5">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
+                                              Phase 1 • First 30 Days
+                                            </span>
+                                            <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
+                                              Credentialing & Jobseeker Registration
+                                            </h6>
+                                          </div>
+                                          <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                                            {planToShow.immediate30Days.map((stepItem: string, sIdx: number) => (
+                                              <li key={sIdx} className="bg-black/20 p-3 rounded-lg border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2 font-medium">
+                                                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                                  {sIdx + 1}
+                                                </span>
+                                                <span>{stepItem}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+
+                                        {/* Phase 2: Dual Pathways (Wage Employment & Local Entrepreneurship) */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                          {/* Track A: Wage Employment */}
+                                          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
+                                            <div className="space-y-2.5">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md">
+                                                  Track A • Wage Employment
+                                                </span>
+                                                <span className="text-[11px] font-extrabold text-emerald-300">
+                                                  💰 {planToShow.employmentTrack.estimatedSalary}
+                                                </span>
+                                              </div>
+                                              <p className="text-xs text-emerald-100 font-medium leading-relaxed">
+                                                📍 <strong>Target Placement:</strong> {planToShow.employmentTrack.targetLocations}
+                                              </p>
+                                              <div className="space-y-1">
+                                                <span className="text-[10px] font-bold text-gray-300 uppercase block">Recommended Entry Job Roles:</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                  {planToShow.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
+                                                    <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-md text-white border border-white/10">
+                                                      💼 {role}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="pt-2 border-t border-white/10 space-y-1 text-xs text-emerald-100">
+                                              {planToShow.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
+                                                <p key={stIdx} className="flex items-start gap-1.5 text-[11px]">
+                                                  <span className="text-emerald-400 font-bold">✓</span> {step}
+                                                </p>
+                                              ))}
+                                            </div>
+                                          </div>
+
+                                          {/* Track B: Entrepreneurship & Freelancing */}
+                                          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
+                                            <div className="space-y-2.5">
+                                              <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
+                                                  Track B • Self-Employment & Freelance
+                                                </span>
+                                                <span className="text-[11px] font-bold text-amber-200">
+                                                  🛠️ Starter Grants Available
+                                                </span>
+                                              </div>
+                                              <p className="text-xs text-emerald-100 font-medium leading-relaxed">
+                                                🏪 <strong>Business Concept:</strong> {planToShow.entrepreneurshipTrack.businessConcept}
+                                              </p>
+                                              <p className="text-xs text-amber-100 leading-relaxed font-medium">
+                                                🎁 <strong>Funding & Grants:</strong> {planToShow.entrepreneurshipTrack.starterFunding}
+                                              </p>
+                                            </div>
+                                            <div className="pt-2 border-t border-white/10 space-y-1.5">
+                                              <span className="text-[10px] font-bold text-gray-300 uppercase block">Initial Services to Offer:</span>
+                                              {planToShow.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
+                                                <p key={sIdx} className="text-[11px] text-emerald-100 flex items-start gap-1.5 font-medium">
+                                                  <span className="text-amber-400 font-bold">★</span> {srv}
+                                                </p>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Phase 3 & Local Support Grid */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs bg-black/25 p-4 rounded-xl border border-white/10">
+                                          <div className="space-y-1.5">
+                                            <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider block">
+                                              📈 1–2 Year Long-Term Elevation:
+                                            </span>
+                                            {planToShow.longTerm1To2Years.map((milestone: string, mIdx: number) => (
+                                              <p key={mIdx} className="text-emerald-100 flex items-start gap-1.5 leading-relaxed font-medium">
+                                                <span className="text-purple-400">◆</span> {milestone}
+                                              </p>
+                                            ))}
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider block">
+                                              🤝 Local Support Contacts in San Luis:
+                                            </span>
+                                            {planToShow.localSupportContacts.map((contact: string, cIdx: number) => (
+                                              <p key={cIdx} className="text-emerald-100 flex items-start gap-1.5 leading-relaxed font-medium">
+                                                <span className="text-emerald-400">📍</span> {contact}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-8 space-y-3 bg-black/20 rounded-xl border border-dashed border-white/20 p-6">
+                                        <Sparkles className="w-10 h-10 text-amber-400 mx-auto animate-pulse" />
+                                        <h5 className="font-extrabold text-white text-sm sm:text-base">
+                                          Your Training is Certified! Ready to Build Your Post-Graduation Career Plan?
+                                        </h5>
+                                        <p className="text-xs text-emerald-100 max-w-lg mx-auto leading-relaxed font-medium">
+                                          Click the button below to have Google Gemini AI analyze your completed <strong>{app.programTitle}</strong> credentials and build a real-life wage employment & local entrepreneurship plan in San Luis, Pampanga.
+                                        </p>
+                                        <button
+                                          onClick={() => handleGenerateCareerPlan(program)}
+                                          disabled={isGeneratingPlan}
+                                          className="mt-3 px-6 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center gap-2"
+                                        >
+                                          {isGeneratingPlan ? (
+                                            <>
+                                              <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                                              Generating your realistic Gemini plan...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Sparkles className="w-4 h-4 text-slate-950" />
+                                              Generate Gemini Post-Graduation Career Plan
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1337,7 +1935,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     <div>
                                       <p className="text-xs font-bold text-emerald-800">Enrolled and Active</p>
                                       <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5 font-medium">
-                                        Congratulations! Your application has been approved by the TESDA office. You have successfully completed Step 2! You are now officially enrolled in <strong>{app.programTitle}</strong> and on track to complete your training (Step 3).
+                                        Congratulations! Your application has been approved by the TESDA office. You have successfully completed Step 2! You are now officially enrolled in <strong>{app.programTitle}</strong> at <strong>{provider}</strong> and on track to complete your training (Step 3).
                                       </p>
                                     </div>
                                   </div>
@@ -1368,7 +1966,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         <span className="text-base text-amber-500 mt-0.5 shrink-0">📍</span>
                                         <div>
                                           <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Room / Lab</span>
-                                          <span className="text-xs font-bold text-gray-800">{room}</span>
+                                          <span className="text-xs font-bold text-gray-800">{room} ({location})</span>
                                         </div>
                                       </div>
 
@@ -1381,8 +1979,28 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       </div>
                                     </div>
                                     <div className="text-[10px] text-gray-500 italic pt-1 border-t border-slate-100">
-                                      Please report to class in your proper training attire with your trainee ID card.
+                                      Please report to class at {location} in your proper training attire with your trainee ID card.
                                     </div>
+                                  </div>
+
+                                  {/* Locked Step 4 Milestone Notice */}
+                                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-bold shrink-0">
+                                        <Lock className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <span className="font-extrabold text-slate-800 block text-xs">
+                                          Step 4: Livelihood Placement & Gemini Career Plan
+                                        </span>
+                                        <span className="text-[11px] text-slate-500 font-medium">
+                                          This milestone and your Google Gemini Post-Graduation Career Plan will unlock once your Step 3 training is complete and certified.
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-end sm:self-auto">
+                                      Locked Milestone
+                                    </span>
                                   </div>
                                 </div>
                               );
@@ -1790,67 +2408,187 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               )}
 
               {/* Sub-Tab 4: KK Digital Membership ID Card */}
-              {profileActiveTab === "badge" && (
-                <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs max-w-md animate-in fade-in duration-150 space-y-5">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                      Katipunan ng Kabataan Digital Membership Badge
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium mt-1">Official youth organization membership card for San Luis Pampanga</p>
-                  </div>
+              {profileActiveTab === "badge" && (() => {
+                const userCompletedApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Archived") || [];
+                const userEnrolledApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Enrolled") || [];
+                const savedPlan = currentSavedPlan || generatedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
 
-                  {/* Digital ID Card */}
-                  <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-5 shadow-lg border border-emerald-700/50 space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <span className="text-[9px] font-black uppercase text-amber-400 tracking-widest block">Republic of the Philippines</span>
-                        <h4 className="text-sm font-extrabold tracking-tight text-white">Katipunan ng Kabataan Member</h4>
-                        <p className="text-[10px] text-emerald-200 font-bold">{youthProfile.purok} · Barangay {youthProfile.barangay}</p>
+                return (
+                  <div className="space-y-6 max-w-2xl animate-in fade-in duration-150">
+                    <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-5">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                          Katipunan ng Kabataan Digital Membership Badge
+                        </h3>
+                        <p className="text-xs text-gray-400 font-medium mt-1">Official youth organization membership credential for San Luis, Pampanga</p>
                       </div>
-                      <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center font-black text-sm shadow-xs">
-                        KK
+
+                      {/* Official Digital ID Card */}
+                      <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-6 shadow-lg border border-emerald-700/50 space-y-5">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] font-black uppercase text-amber-400 tracking-widest block">Republic of the Philippines</span>
+                            <h4 className="text-base font-extrabold tracking-tight text-white">Katipunan ng Kabataan Member</h4>
+                            <p className="text-[11px] text-emerald-200 font-bold">{youthProfile.purok} · Barangay {youthProfile.barangay}</p>
+                          </div>
+                          <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
+                            KK
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <span className="text-[9px] font-bold text-emerald-300 uppercase block">Member Name</span>
+                            <span className="font-extrabold text-white text-sm">{youthProfile.name}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-emerald-300 uppercase block">KK ID Number</span>
+                            <span className="font-mono text-amber-300 font-bold text-[11px]">KK-SANLUIS-{youthProfile.id.slice(-6).toUpperCase()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-emerald-300 uppercase block">SK Status</span>
+                            <span className="font-bold text-emerald-200 flex items-center gap-1 text-[11px]">
+                              <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> {youthProfile.approvalStatus === "Approved" ? "Verified KK Member" : "Pending Verification"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Completed TESDA Programs Section on ID Card */}
+                        <div className="pt-3 border-t border-white/15 space-y-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 text-amber-400" />
+                            Accredited TVET Qualifications & Completed Programs:
+                          </span>
+
+                          {userCompletedApps.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {userCompletedApps.map((compApp, cIdx) => (
+                                <div key={cIdx} className="bg-black/25 px-3 py-2 rounded-xl border border-emerald-500/40 flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-xs font-bold text-white">{compApp.programTitle}</span>
+                                  </div>
+                                  <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 px-2 py-0.5 rounded-md uppercase">
+                                    Certified NC II Graduate ✓
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : userEnrolledApps.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {userEnrolledApps.map((enrApp, eIdx) => (
+                                <div key={eIdx} className="bg-black/20 px-3 py-2 rounded-xl border border-white/10 flex items-center justify-between gap-2">
+                                  <span className="text-xs font-medium text-emerald-100">{enrApp.programTitle}</span>
+                                  <span className="text-[10px] font-bold bg-blue-500/20 text-blue-200 border border-blue-400/30 px-2 py-0.5 rounded-md">
+                                    Active Trainee
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-emerald-200/80 italic font-medium">
+                              No completed TESDA courses yet. Complete your active training to earn accredited qualification badges on your ID!
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={() => {
+                            const completedStr = userCompletedApps.length > 0 ? `\nCertified Programs: ${userCompletedApps.map(a => a.programTitle).join(", ")}` : "";
+                            navigator.clipboard?.writeText(
+                              `Katipunan ng Kabataan Digital ID:\nName: ${youthProfile.name}\nID: KK-SANLUIS-${youthProfile.id.slice(-6).toUpperCase()}\nBarangay: Barangay ${youthProfile.barangay}\nPurok: ${youthProfile.purok}\nStatus: ${youthProfile.approvalStatus}${completedStr}`
+                            );
+                            addToast("Digital KK ID information copied to clipboard!", "success");
+                          }}
+                          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          Copy Digital ID Info
+                        </button>
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Member Name</span>
-                        <span className="font-extrabold text-white text-sm">{youthProfile.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">KK ID Number</span>
-                        <span className="font-mono text-amber-300 font-bold text-[11px]">KK-SANLUIS-{youthProfile.id.slice(-6).toUpperCase()}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Contact Number</span>
-                        <span className="font-bold text-emerald-100 text-[11px]">{youthProfile.contactNumber}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">SK Verification</span>
-                        <span className="font-bold text-emerald-200 flex items-center gap-1 text-[11px]">
-                          <CheckCircle className="w-3 h-3 text-emerald-400" /> {youthProfile.approvalStatus === "Approved" ? "Verified KK Member" : "Pending Verification"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                    {/* Saved Gemini Career Plan Section under ID Card */}
+                    {savedPlan ? (
+                      <div className="bg-white border border-emerald-150 rounded-2xl p-6 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
+                              <Sparkles className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-black uppercase text-[#0A6B43] tracking-wider block">
+                                Verified Career Roadmap
+                              </span>
+                              <h4 className="font-extrabold text-gray-900 text-sm sm:text-base">
+                                {savedPlan.roadmapTitle}
+                              </h4>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            Saved on: {savedPlan.generatedDate || "Recently"}
+                          </span>
+                        </div>
 
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(
-                          `Katipunan ng Kabataan Digital ID:\nName: ${youthProfile.name}\nID: KK-SANLUIS-${youthProfile.id.slice(-6).toUpperCase()}\nBarangay: Barangay ${youthProfile.barangay}\nPurok: ${youthProfile.purok}\nStatus: ${youthProfile.approvalStatus}`
-                        );
-                        addToast("Digital KK ID copied to clipboard!", "success");
-                      }}
-                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
-                      Copy Digital ID Info
-                    </button>
+                        <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                          {savedPlan.summary}
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 space-y-1.5 text-xs">
+                            <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider block">
+                              💼 Wage Employment Track
+                            </span>
+                            <p className="text-emerald-950 font-bold">
+                              {savedPlan.employmentTrack?.targetRoles?.join(", ")}
+                            </p>
+                            <p className="text-emerald-800 text-[11px]">
+                              Est. Salary: <strong className="text-emerald-900">{savedPlan.employmentTrack?.estimatedSalary}</strong>
+                            </p>
+                          </div>
+
+                          <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-100 space-y-1.5 text-xs">
+                            <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+                              🛠️ Freelance & Enterprise Track
+                            </span>
+                            <p className="text-amber-950 font-bold">
+                              {savedPlan.entrepreneurshipTrack?.businessConcept}
+                            </p>
+                            <p className="text-amber-800 text-[11px]">
+                              {savedPlan.entrepreneurshipTrack?.starterFunding}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-xs">
+                          <button
+                            onClick={() => setActiveTab(YouthScreen.PATHWAY)}
+                            className="text-[#0A6B43] hover:text-[#075332] font-bold text-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>View Full Pathway & Steps</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard?.writeText(
+                                `Career Roadmap: ${savedPlan.roadmapTitle}\nSummary: ${savedPlan.summary}\nTarget Salary: ${savedPlan.employmentTrack?.estimatedSalary}\nRoles: ${savedPlan.employmentTrack?.targetRoles?.join(", ")}`
+                              );
+                              addToast("Career Plan summary copied to clipboard!", "success");
+                            }}
+                            className="text-gray-500 hover:text-gray-700 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy Summary</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
@@ -1887,38 +2625,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           </div>
         )}
 
-        {/* Direct Application Success Modal (Centered Desktop style) */}
-        {showApplyModal && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-6 shadow-2xl text-center space-y-4 max-w-[340px] animate-in zoom-in-95 border border-emerald-100">
-              <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto animate-bounce" />
-              <div>
-                <h4 className="font-bold text-gray-800 text-sm sm:text-base">Apply for training?</h4>
-                <p className="text-xs text-gray-500 leading-relaxed mt-2 font-medium">
-                  This will submit your application directly to TESDA for the <strong className="text-gray-700">{selectedProgramToApply?.title || "selected training program"}</strong>.
-                </p>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={() => setShowApplyModal(false)}
-                  className="flex-1 py-2 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDirectApply}
-                  className="flex-1 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors"
-                >
-                  Apply Now
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Complete Program Details Modal Popup */}
         {viewingProgramModal && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 overflow-y-auto" style={{ zIndex: 50 }}>
             <div className="bg-white w-full max-w-2xl rounded-2xl p-6 sm:p-7 space-y-5 animate-in zoom-in-95 border border-emerald-100 shadow-2xl max-h-[90vh] overflow-y-auto my-auto">
               {/* Modal Top Header */}
               <div className="flex justify-between items-start gap-4 pb-4 border-b border-gray-100">
@@ -1939,7 +2648,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
                   <button
                     onClick={() => setViewingProgramModal(null)}
-                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1965,8 +2674,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {/* Complete Program Details Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-gray-50/80 p-4 rounded-xl border border-gray-150">
                 <div className="space-y-2">
-                  <p className="text-gray-700">📅 <strong>Training Schedule:</strong> {viewingProgramModal.program.trainingDays || "Monday – Friday"}</p>
-                  <p className="text-gray-700">🕒 <strong>Hours:</strong> {viewingProgramModal.program.startTime || "8:00 AM"} – {viewingProgramModal.program.endTime || "5:00 PM"}</p>
+                  <p className="text-gray-700">📅 <strong>Training Schedule:</strong> {Array.isArray(viewingProgramModal.program.trainingDays) ? viewingProgramModal.program.trainingDays.join(", ") : (viewingProgramModal.program.trainingDays || "Monday – Friday")}</p>
+                  <p className="text-gray-700">🕒 <strong>Hours:</strong> {viewingProgramModal.program.startTime ? formatProgramTime(viewingProgramModal.program.startTime) : "8:00 AM"} – {viewingProgramModal.program.endTime ? formatProgramTime(viewingProgramModal.program.endTime) : "5:00 PM"}</p>
                   <p className="text-gray-700">🏢 <strong>Facility / Room:</strong> {viewingProgramModal.program.room || "Main Training Facility"}</p>
                   <p className="text-gray-700">👨‍🏫 <strong>Trainer / Instructor:</strong> {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}</p>
                 </div>
@@ -2012,11 +2721,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {(() => {
                 const prog = viewingProgramModal.program;
                 const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+                const isCompleted = isProgramCompleted(prog);
                 const isEnrolled = app?.status === "Enrolled";
                 const isDeclined = app?.status === "Declined";
                 const isFull = !app && prog.slotsRemaining <= 0;
                 const overlapWarning = getOverlapWarning(prog);
-                const isDisabled = !!app || isFull || !!overlapWarning || isUnverified;
+                const isDisabled = isCompleted || !!app || isFull || !!overlapWarning || isUnverified;
 
                 return (
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
@@ -2027,46 +2737,102 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       Close Details
                     </button>
 
-                    <button
-                      onClick={() => {
-                        const p = viewingProgramModal.program;
-                        setViewingProgramModal(null);
-                        handleDirectApply(p);
-                      }}
-                      disabled={isDisabled}
-                      className={`w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
-                        app
-                          ? isEnrolled
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                            : isDeclined
-                            ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
-                            : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
-                          : isFull
-                          ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                          : overlapWarning
-                          ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
-                          : isUnverified
-                          ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
-                          : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer"
-                      }`}
-                    >
-                      {app
-                        ? isEnrolled
-                          ? "Enrolled in Program ✓"
-                          : isDeclined
-                          ? "Application Declined"
-                          : "Application Pending..."
-                        : isFull
-                        ? "Slots Full"
-                        : overlapWarning
-                        ? "Schedule Overlap"
-                        : isUnverified
-                        ? "Awaiting SK Verification"
-                        : "Apply Directly for Program"}
-                    </button>
+                    {isCompleted ? (
+                      <button
+                        disabled
+                        className="w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center gap-2 cursor-not-allowed shadow-xs"
+                      >
+                        <CheckCircle className="w-4 h-4 text-purple-600" />
+                        Already Completed & Certified ✓
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          handleDirectApply(viewingProgramModal.program);
+                        }}
+                        disabled={isDisabled}
+                        className={`w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
+                          app
+                            ? isEnrolled
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                              : isDeclined
+                              ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
+                              : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
+                            : isFull
+                            ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                            : overlapWarning
+                            ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                            : isUnverified
+                            ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
+                            : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
+                        }`}
+                      >
+                        {app ? (
+                          isEnrolled ? (
+                            <>
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                              Currently Enrolled
+                            </>
+                          ) : isDeclined ? (
+                            <>
+                              <XCircle className="w-4 h-4 text-red-500" />
+                              Application Declined
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-4 h-4 text-blue-600 animate-spin" />
+                              Application Under Review
+                            </>
+                          )
+                        ) : isFull ? (
+                          "Class Slots Full"
+                        ) : overlapWarning ? (
+                          "Schedule Overlap Detected"
+                        ) : isUnverified ? (
+                          "Pending SK Verification"
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 text-white" />
+                            Apply for this Program
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* Direct Application Confirmation Modal (Centered Desktop style) */}
+        {showApplyModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 100 }}>
+            <div className="bg-white rounded-xl p-6 shadow-2xl text-center space-y-4 max-w-[340px] animate-in zoom-in-95 border border-emerald-100">
+              <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto animate-bounce" />
+              <div>
+                <h4 className="font-bold text-gray-800 text-sm sm:text-base">Apply for training?</h4>
+                <p className="text-xs text-gray-500 leading-relaxed mt-2 font-medium">
+                  This will submit your application directly to TESDA for the <strong className="text-gray-700">{selectedProgramToApply?.title || "selected training program"}</strong>.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    setShowApplyModal(false);
+                    setSelectedProgramToApply(null);
+                  }}
+                  className="flex-1 py-2 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDirectApply}
+                  className="flex-1 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Apply Now
+                </button>
+              </div>
             </div>
           </div>
         )}

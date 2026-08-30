@@ -158,7 +158,12 @@ export default function App() {
     approvalStatus: "Approved"
   };
 
-  const activeYouthProfile = youthProfiles.find(y => y.id === loggedInYouthId || y.name === session?.user?.name) || youthProfiles[0] || defaultEmptyYouthProfile;
+  const activeYouthProfile = youthProfiles.find(y => 
+    y.id === loggedInYouthId || 
+    (session?.user?.name && y.name && y.name.toLowerCase().trim() === session.user.name.toLowerCase().trim()) ||
+    (session?.user?.email && y.email && y.email.toLowerCase().trim() === session.user.email.toLowerCase().trim()) ||
+    (y.userId && (session?.user as any)?.id && y.userId === (session?.user as any)?.id)
+  ) || youthProfiles[0] || defaultEmptyYouthProfile;
 
   return (
     <div className="font-sans antialiased" id="sikap-application-root">

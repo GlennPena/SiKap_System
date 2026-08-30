@@ -1800,8 +1800,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {programs.slice(0, 3).map((prog, idx) => {
-                          const matchPoints = calculateContentBasedMatchScore(selectedYouth, prog);
+                        {programs
+                          .map(prog => ({
+                            prog,
+                            matchPoints: calculateContentBasedMatchScore(selectedYouth, prog)
+                          }))
+                          .sort((a, b) => b.matchPoints - a.matchPoints)
+                          .slice(0, 3)
+                          .map(({ prog, matchPoints }, idx) => {
                           const isReferredForThis = selectedYouth.hasReferred && idx === 0;
 
                           return (
@@ -2353,11 +2359,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {programs.map((prog) => (
+                  {programs
+                    .map(prog => ({
+                      prog,
+                      score: calculateContentBasedMatchScore(selectedYouth, prog)
+                    }))
+                    .sort((a, b) => b.score - a.score)
+                    .map(({ prog, score }) => (
                     <OpportunityCard
                       key={prog.id}
                       program={prog}
-                      matchScore={calculateContentBasedMatchScore(selectedYouth, prog)}
+                      matchScore={score}
                       geminiExplanation={getGeminiRationale(prog.id, selectedYouth.name)}
                     />
                   ))}

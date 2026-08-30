@@ -285,7 +285,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   };
 
   // Change application status
-  const handleUpdateReferralStatus = (refId: string, newStatus: "Enrolled" | "Declined") => {
+  const handleUpdateReferralStatus = async (refId: string, newStatus: "Enrolled" | "Declined") => {
     const targetReferral = referrals.find(item => item.id === refId);
     if (!targetReferral) return;
 
@@ -295,32 +295,65 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         addToast(`Cannot accept: "${targetReferral.programTitle}" is already full!`, "error");
         return;
       }
-
-      // Automatically adjust slots (decrement by 1)
-      setPrograms(prev => prev.map(p => {
-        if (p.title === targetReferral.programTitle) {
-          return {
-            ...p,
-            slotsRemaining: Math.max(0, p.slotsRemaining - 1)
-          };
-        }
-        return p;
-      }));
     }
 
-    setReferrals(prev => prev.map(item => {
-      if (item.id === refId) {
-        return { ...item, status: newStatus };
-      }
-      return item;
-    }));
+    try {
+      const res = await fetch("/api/referrals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: refId, status: newStatus })
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setReferrals(prev => prev.map(item => {
+          if (item.id === refId) {
+            return { ...item, status: newStatus };
+          }
+          return item;
+        }));
 
-    addToast(`Application status updated to "${newStatus}"`, "success");
+        if (newStatus === "Enrolled") {
+          setPrograms(prev => prev.map(p => {
+            if (p.title === targetReferral.programTitle) {
+              return {
+                ...p,
+                slotsRemaining: Math.max(0, p.slotsRemaining - 1)
+              };
+            }
+            return p;
+          }));
+        }
+
+        addToast(
+          newStatus === "Enrolled"
+            ? `Accepted & officially enrolled "${targetReferral.youthName}" into "${targetReferral.programTitle}"!`
+            : `Declined application for "${targetReferral.youthName}".`,
+          newStatus === "Enrolled" ? "success" : "info"
+        );
+      } else {
+        addToast(data.error || "Failed to update application status", "error");
+      }
+    } catch (err) {
+      console.error("Error updating referral status:", err);
+      addToast("Network error: Failed to update application status.", "error");
+    }
   };
 
-  const handleDeleteProgram = (progId: string, title: string) => {
-    setPrograms(prev => prev.filter(p => p.id !== progId));
-    addToast(`Program "${title}" has been successfully deleted.`, "success");
+  const handleDeleteProgram = async (progId: string, title: string) => {
+    try {
+      const res = await fetch(`/api/programs?id=${progId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setPrograms(prev => prev.filter(p => p.id !== progId));
+        addToast(`Program "${title}" has been successfully deleted.`, "success");
+      } else {
+        addToast(data.error || "Failed to delete program", "error");
+      }
+    } catch (err) {
+      console.error("Error deleting program:", err);
+      setPrograms(prev => prev.filter(p => p.id !== progId));
+      addToast(`Program "${title}" has been successfully deleted.`, "success");
+    }
   };
 
   const totalSlots = programs.reduce((acc, curr) => acc + curr.slotsRemaining, 0);

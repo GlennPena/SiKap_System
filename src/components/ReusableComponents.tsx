@@ -256,7 +256,7 @@ export const GeminiExplanationBox: React.FC<{
 
 // Pathway Timeline component (Desktop Horizontal & Mobile Vertical)
 export const PathwayTimeline: React.FC<{
-  currentStep: number; // 1, 2, 3, or 4
+  currentStep: number; // 1, 2, 3, 4, or 5 (5 = all steps completed including step 4 plan saved)
   onStepClick?: (step: number) => void;
   isMobile?: boolean;
 }> = ({ currentStep, onStepClick, isMobile = false }) => {
@@ -283,7 +283,7 @@ export const PathwayTimeline: React.FC<{
       num: 4,
       title: "Livelihood Placement",
       desc: "Apprenticeship or starting enterprise",
-      sub: "Long-term goal"
+      sub: "Career Plan Strategy"
     }
   ];
 
@@ -303,20 +303,20 @@ export const PathwayTimeline: React.FC<{
             >
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all relative z-10 ${
                     isCompleted
-                      ? "bg-emerald-600 border-emerald-600 text-white"
+                      ? "bg-[#0A6B43] border-[#0A6B43] text-white"
                       : isActive
-                      ? "bg-white border-[#0A6B43] text-[#0A6B43] shadow-md shadow-emerald-100 ring-4 ring-emerald-50 animate-pulse"
-                      : "bg-white border-gray-200 text-gray-400"
+                      ? "bg-white border-[#0A6B43] text-[#0A6B43] shadow-md ring-4 ring-emerald-100 animate-pulse font-bold"
+                      : "bg-white border-gray-300 text-gray-400"
                   }`}
                 >
                   {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{step.num}</span>}
                 </div>
                 {step.num < 4 && (
                   <div
-                    className={`w-0.5 h-12 transition-all ${
-                      isCompleted ? "bg-emerald-600" : "bg-gray-100"
+                    className={`w-1 h-12 rounded-full transition-all ${
+                      isCompleted ? "bg-[#0A6B43]" : "bg-gray-200"
                     }`}
                   />
                 )}
@@ -327,13 +327,13 @@ export const PathwayTimeline: React.FC<{
                     {step.title}
                   </h4>
                   {isActive && (
-                    <span className="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                    <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] px-2 py-0.5 rounded-full font-bold">
                       {step.sub}
                     </span>
                   )}
                   {isCompleted && (
-                    <span className="text-emerald-600 text-xs font-semibold">
-                      {step.sub}
+                    <span className="text-[#0A6B43] text-xs font-semibold">
+                      {step.num === 4 ? "Plan Saved ✓" : "Done ✓"}
                     </span>
                   )}
                 </div>
@@ -346,15 +346,17 @@ export const PathwayTimeline: React.FC<{
     );
   }
 
+  const progressPercent = currentStep >= 5 ? 100 : Math.max(0, ((Math.min(currentStep, 4) - 1) / 3) * 100);
+
   // Horizontal timeline for desktop view
   return (
-    <div className="w-full" id="pathway-timeline-desktop">
+    <div className="w-full py-2" id="pathway-timeline-desktop">
       <div className="relative flex justify-between items-center w-full">
-        {/* Connecting line */}
-        <div className="absolute top-4 left-0 right-0 h-1 bg-gray-100 -z-10 rounded-full">
+        {/* Connecting track & progress line */}
+        <div className="absolute top-[18px] left-[12%] right-[12%] h-1 bg-gray-200 rounded-full z-0">
           <div
-            className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-            style={{ width: `${((Math.min(currentStep, 4) - 1) / 3) * 100}%` }}
+            className="h-full bg-[#0A6B43] rounded-full transition-all duration-500 shadow-xs"
+            style={{ width: `${progressPercent}%` }}
           />
         </div>
 
@@ -366,31 +368,31 @@ export const PathwayTimeline: React.FC<{
             <div
               key={step.num}
               onClick={() => onStepClick?.(step.num)}
-              className="flex flex-col items-center text-center flex-1 relative cursor-pointer"
+              className="flex flex-col items-center text-center flex-1 relative z-10 cursor-pointer"
             >
               <div
                 className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
                   isCompleted
-                    ? "bg-[#0A6B43] border-[#0A6B43] text-white"
+                    ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
                     : isActive
-                    ? "bg-white border-[#0A6B43] text-[#0A6B43] font-bold shadow-md ring-4 ring-emerald-50"
-                    : "bg-white border-gray-200 text-gray-400"
+                    ? "bg-white border-[#0A6B43] text-[#0A6B43] font-extrabold shadow-md ring-4 ring-emerald-100/80"
+                    : "bg-white border-gray-300 text-gray-400"
                 }`}
               >
                 {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{step.num}</span>}
               </div>
               <div className="mt-2.5 px-2">
-                <span className={`text-xs font-bold block ${isActive ? "text-gray-800" : isCompleted ? "text-gray-600" : "text-gray-400"}`}>
+                <span className={`text-xs font-bold block ${isActive ? "text-gray-900" : isCompleted ? "text-gray-700" : "text-gray-400"}`}>
                   {step.title}
                 </span>
-                <span className={`text-[10px] mt-0.5 inline-block px-1.5 py-0.2 rounded-full ${
+                <span className={`text-[10px] mt-0.5 inline-block px-2 py-0.5 rounded-full ${
                   isActive
-                    ? "bg-red-50 text-red-600 border border-red-100 font-bold"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-extrabold"
                     : isCompleted
-                    ? "text-emerald-600 font-medium"
-                    : "text-gray-400 font-normal"
+                    ? "bg-emerald-50 text-[#0A6B43] font-bold border border-emerald-100"
+                    : "text-gray-400 font-medium"
                 }`}>
-                  {isActive ? step.sub : isCompleted ? "Done" : step.sub}
+                  {isActive ? step.sub : isCompleted ? (step.num === 4 ? "Plan Saved ✓" : "Done ✓") : step.sub}
                 </span>
               </div>
             </div>

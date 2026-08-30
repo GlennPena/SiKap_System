@@ -42,7 +42,8 @@ function mapToClientProfile(y: any) {
     approvalStatus: y.approvalStatus,
     verificationIdType: y.verificationIdType,
     verificationIdNumber: safeDecrypt(y.verificationIdNumberEnc),
-    verificationIdImage: safeDecrypt(y.verificationIdImageEnc)
+    verificationIdImage: safeDecrypt(y.verificationIdImageEnc),
+    savedCareerPlan: y.savedCareerPlan ? (typeof y.savedCareerPlan === "string" && (y.savedCareerPlan.startsWith("{") || y.savedCareerPlan.startsWith("[")) ? JSON.parse(y.savedCareerPlan) : y.savedCareerPlan) : null
   };
 }
 
@@ -62,7 +63,11 @@ export async function GET(request: Request) {
     if (roleStr === "SK_OFFICIAL" || roleStr === "BARANGAY_CAPTAIN") {
       whereClause.barangayId = (session.user as any).barangayId;
     } else if (roleStr === "KK_YOUTH") {
-      whereClause.userId = (session.user as any).id;
+      whereClause.OR = [
+        { userId: (session.user as any).id },
+        { user: { email: (session.user as any).email } },
+        { name: (session.user as any).name }
+      ];
     } else if (roleStr === "TESDA_PARTNER") {
       // Only see youth who have at least one active referral
       whereClause.referrals = { some: {} };
@@ -183,11 +188,33 @@ export async function PUT(request: Request) {
        delete updateData.verificationIdNumber;
     }
 
-    const updated = await db.youthProfile.update({
-      where: { id: body.id },
-      data: updateData,
-      include: { barangay: true }
-    });
+    let planStringToSave: string | null = null;
+    if (body.savedCareerPlan !== undefined) {
+       planStringToSave = typeof body.savedCareerPlan === "object" ? JSON.stringify(body.savedCareerPlan) : body.savedCareerPlan;
+       delete updateData.savedCareerPlan;
+    }
+
+    if (planStringToSave !== null) {
+      await db.$executeRawUnsafe(
+        `UPDATE "YouthProfile" SET "savedCareerPlan" = $1, "updatedAt" = NOW() WHERE "id" = $2`,
+        planStringToSave,
+        body.id
+      );
+    }
+
+    let updated: any = null;
+    if (Object.keys(updateData).length > 0) {
+      updated = await db.youthProfile.update({
+        where: { id: body.id },
+        data: updateData,
+        include: { barangay: true }
+      });
+    } else {
+      updated = await db.youthProfile.findUnique({
+        where: { id: body.id },
+        include: { barangay: true }
+      });
+    }
 
     return NextResponse.json({ success: true, data: mapToClientProfile(updated) });
   } catch (error: any) {

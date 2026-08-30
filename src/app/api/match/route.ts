@@ -11,21 +11,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Invalid parameters" }, { status: 400 });
     }
 
-    const matches = programs.map((program: TESDAProgram) => {
-      const score = calculateContentBasedMatchScore(youth as YouthProfile, program);
-      return {
-        programId: program.id,
-        programTitle: program.title,
-        matchScore: score
-      };
-    });
+    // Rank and sort all programs descending by calculated match score
+    const scoredPrograms = programs
+      .map((program: TESDAProgram) => {
+        const score = calculateContentBasedMatchScore(youth as YouthProfile, program);
+        return {
+          program,
+          score
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const matches = scoredPrograms.map(sp => ({
+      programId: sp.program.id,
+      programTitle: sp.program.title,
+      matchScore: sp.score
+    }));
 
     let advice = "";
     let bulletAdvice: string[] = [];
 
-    if (generateLLMAdvice) {
-      advice = await generateYouthCareerPathway(youth as YouthProfile, programs.slice(0, 3));
-      bulletAdvice = await generateYouthPersonalizedAdviceBullets(youth as YouthProfile, programs.slice(0, 3));
+    if (generateLLMAdvice && scoredPrograms.length > 0) {
+      const topRankedPrograms = scoredPrograms.slice(0, 3).map(sp => sp.program);
+      advice = await generateYouthCareerPathway(youth as YouthProfile, topRankedPrograms);
+      bulletAdvice = await generateYouthPersonalizedAdviceBullets(youth as YouthProfile, topRankedPrograms);
     }
 
     return NextResponse.json({
@@ -35,6 +44,7 @@ export async function POST(request: Request) {
       bulletAdvice
     });
   } catch (error: any) {
+    console.error("Match API error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

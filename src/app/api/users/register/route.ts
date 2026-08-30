@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Role, ApprovalStatus } from "@prisma/client";
 import { encrypt } from "@/lib/encryption";
+import { calculateContentBasedMatchScore } from "@/lib/cbf-matcher";
 
 export async function POST(req: Request) {
   try {
@@ -74,6 +75,21 @@ export async function POST(req: Request) {
         }
       });
 
+      const activePrograms = await prisma.tESDAProgram.findMany({ where: { activeStatus: "Active" } });
+      const tempYouth = {
+        name,
+        skills: Array.isArray(skills) ? skills : (skills ? [skills] : []),
+        interests: Array.isArray(interests) ? interests : (interests ? [interests] : []),
+        sectorPreference: sectorPreference || "",
+        livelihoodGoal: livelihoodGoal || "",
+        educationalAttainment: educationalAttainment || "",
+        currentStatus: currentStatus || "Out-of-school"
+      };
+
+      const calculatedScore = activePrograms.length > 0
+        ? Math.max(...activePrograms.map(p => calculateContentBasedMatchScore(tempYouth as any, p as any)))
+        : 50;
+
       const newProfile = await prisma.youthProfile.create({
         data: {
           userId: newUser.id,
@@ -82,13 +98,13 @@ export async function POST(req: Request) {
           purok,
           barangayId: brgy.id,
           educationalAttainment,
-          currentStatus: "Out-of-school",
+          currentStatus: currentStatus || "Out-of-school",
           skills: Array.isArray(skills) ? skills : (skills ? [skills] : []),
           interests: Array.isArray(interests) ? interests : [interests],
           sectorPreference,
           livelihoodGoal,
           contactNumberEncrypted,
-          matchScore: Math.floor(Math.random() * 20) + 75,
+          matchScore: calculatedScore,
           soloParent: Boolean(soloParent),
           pwd: Boolean(pwd),
           indigenous: Boolean(indigenous),

@@ -65,6 +65,7 @@ export interface YouthProfile {
   verificationIdType?: string;
   verificationIdNumber?: string;
   verificationIdImage?: string;
+  savedCareerPlan?: any;
 }
 
 export interface TESDAProgram {
@@ -114,6 +115,7 @@ export interface ReferralPipelineItem {
   purok: string;
   barangay: string;
   programTitle: string;
+  programId?: string;
   matchScore: number;
   referralDate: string;
   status: "Pending" | "Enrolled" | "Declined" | "Archived";
