@@ -22,9 +22,24 @@ export default function App() {
   const { data: session, status } = useSession();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [viewingLanding, setViewingLanding] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
+      if (typeof window !== "undefined") {
+        const isRemembered = (session.user as any).rememberMe ?? (localStorage.getItem("sikap_remember_me") === "true");
+        const isSessionActive = sessionStorage.getItem("sikap_session_active") === "true";
+
+        // If user did NOT check Remember Me and this is a new browser session (sessionStorage cleared upon browser close):
+        if (!isRemembered && !isSessionActive) {
+          signOut({ redirect: false }).then(() => {
+            setCurrentUserRole(null);
+            setViewingLanding(true);
+          });
+          return;
+        }
+      }
+
       const roleStr = (session.user as any).role;
       if (roleStr === "SUPER_ADMIN") setCurrentUserRole(UserRole.SUPER_ADMIN);
       else if (roleStr === "SK_OFFICIAL") setCurrentUserRole(UserRole.SK_OFFICIAL);
@@ -116,17 +131,31 @@ export default function App() {
     const res = await signIn("credentials", {
       email,
       password,
+      rememberMe: rememberMe ? "true" : "false",
       redirect: false,
     });
 
     if (res?.error) {
       addToast("Invalid credentials", "error");
     } else {
+      if (typeof window !== "undefined") {
+        if (rememberMe) {
+          localStorage.setItem("sikap_remember_me", "true");
+          sessionStorage.removeItem("sikap_session_active");
+        } else {
+          localStorage.removeItem("sikap_remember_me");
+          sessionStorage.setItem("sikap_session_active", "true");
+        }
+      }
       addToast("Successfully logged in!", "success");
     }
   };
 
   const handleLogout = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("sikap_remember_me");
+      sessionStorage.removeItem("sikap_session_active");
+    }
     await signOut({ redirect: false });
     setCurrentUserRole(null);
     setEmail("");
@@ -287,16 +316,30 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
+                  {/* Simple Remember Me Checkbox */}
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <input
+                      id="remember-me-checkbox"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43]"
+                    />
+                    <label htmlFor="remember-me-checkbox" className="text-xs text-gray-600 select-none cursor-pointer">
+                      Remember me
+                    </label>
+                  </div>
+
                   <button
                     type="submit"
-                    className="w-full py-3 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+                    className="w-full py-3 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
                   >
                     Sign In
                   </button>
@@ -393,6 +436,8 @@ export default function App() {
               setYouthProfiles={setYouthProfiles}
               programs={programs}
               councilors={councilors}
+              referrals={referrals}
+              announcements={announcements}
               onLogout={handleLogout}
               addToast={addToast}
             />

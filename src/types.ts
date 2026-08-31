@@ -127,7 +127,7 @@ export interface OfficialAccount {
   email: string;
   role: "SK Chairperson" | "Barangay Captain" | "TESDA Representative";
   barangay?: string; // empty for TESDA Representative
-  status: "Active" | "Inactive";
+  status: "Active" | "Inactive" | "Suspended";
   dateCreated: string;
 }
 

@@ -163,31 +163,52 @@ REQUIREMENTS:
 }
 
 /**
- * Uses Gemini LLM to generate policy & training recommendations for SK Officials
+ * Uses Gemini LLM to generate strategic policy & budget recommendations for SK Officials
  */
 export async function generateSKSkillsGapReport(
   skillsGaps: SkillGapData[],
   barangay: string
 ): Promise<string> {
+  const topGaps = skillsGaps.slice(0, 4);
+  const gapsList = topGaps.map(g => `- ${g.skill}: ${g.count} youth (${g.percentage}%), ${g.availableSlots} available slots. Recommended Action: ${g.recommendedAction}`).join("\n");
+
+  const defaultReport = `Strategic Competency Intervention for Barangay ${barangay}:
+
+1. Priority Skill Intervention:
+The diagnostic data reveals that the most prominent skill deficiency is ${topGaps[0]?.skill || "Technical Literacy"}, affecting ${topGaps[0]?.count || 0} registered Katipunan ng Kabataan members (${topGaps[0]?.percentage || 0}% of the local cohort). Addressing this requires an immediate 3-to-5 day localized community workshop held at the Barangay Hall or Community Center.
+
+2. Budget & Resource Allocation:
+It is recommended that the Sangguniang Kabataan allocate 15% to 20% of its Annual Barangay Youth Investment Program (ABYIP) fund toward training materials, assessment subsidies, and starter toolkits for priority Out-of-School Youth (OSY).
+
+3. Institutional Partnerships & Employment Linkages:
+Formalize an institutional coordination agreement with TESDA GPSAT (Gonzalo Puyat School of Arts and Trades) for mobile training deployment in Barangay ${barangay}. Coordinate with PESO San Luis and local Pampanga business partners to guarantee job placement and apprenticeship opportunities for certified graduates.`;
+
   const apiKey = process.env.GEMINI_API_KEY || "";
   if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY_HERE") {
-    return `Priority recommendation for ${barangay}: Organize mobile welding and food processing NC II workshops to address high youth skill demand.`;
+    return defaultReport;
   }
 
   try {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `
-You are a public policy AI consultant for local youth development in ${barangay}, San Luis, Pampanga.
-Analyze these youth skills gaps and provide a 2-paragraph strategic recommendation for the SK Council budget allocation:
+You are a senior Youth TVET Policy Consultant advising the Sangguniang Kabataan (SK) Council of Barangay ${barangay}, San Luis, Pampanga, Philippines.
 
-${skillsGaps.map(g => `Skill: ${g.skill} | Demand Count: ${g.count} | Action Needed: ${g.recommendedAction}`).join("\n")}
+Analyze the following diagnosed local youth skills gaps:
+${gapsList}
+
+Provide an executive, highly actionable 3-part strategic policy and budget recommendation for the SK Chairperson:
+1. Priority Skill Intervention (explain the top gap and immediate action).
+2. Budget & Resource Allocation (practical advice on using the SK fund/ABYIP).
+3. Institutional Partnerships & Employment Linkages (partnering with TESDA GPSAT and PESO San Luis).
+
+Keep the tone professional, concise, encouraging, and policy-oriented. Output formatted plain text paragraphs.
 `;
 
     const text = await generateContentWithFallback(ai, prompt);
-    return text || `Focus SK funds on top demanded vocational sectors in ${barangay}.`;
+    return text || defaultReport;
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    return `Allocate SK Livelihood funds toward high-demand technical courses in ${barangay}.`;
+    console.error("Gemini Skills Gap Report Error:", error);
+    return defaultReport;
   }
 }
 
@@ -341,4 +362,5 @@ Return a strictly valid, raw JSON object (with NO markdown formatting, NO \`\`\`
     return fallbackPlan;
   }
 }
+
 

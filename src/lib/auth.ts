@@ -9,7 +9,8 @@ export const authOptions: AuthOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        rememberMe: { label: "Remember Me", type: "text" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -25,6 +26,8 @@ export const authOptions: AuthOptions = {
 
         if (!isValid) return null;
 
+        const rememberMe = credentials?.rememberMe === "true" || credentials?.rememberMe === "1";
+
         return {
           id: user.id,
           name: user.name,
@@ -32,6 +35,7 @@ export const authOptions: AuthOptions = {
           role: user.role,
           barangay: user.barangay?.name || undefined,
           barangayId: user.barangayId || undefined,
+          rememberMe: rememberMe,
         };
       }
     })
@@ -43,6 +47,8 @@ export const authOptions: AuthOptions = {
         token.barangay = (user as any).barangay;
         token.barangayId = (user as any).barangayId;
         token.id = user.id;
+        token.rememberMe = Boolean((user as any).rememberMe);
+        token.authTime = Math.floor(Date.now() / 1000);
       }
       return token;
     },
@@ -52,12 +58,14 @@ export const authOptions: AuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).barangay = token.barangay;
         (session.user as any).barangayId = token.barangayId;
+        (session.user as any).rememberMe = token.rememberMe;
       }
       return session;
     }
   },
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60 // 7 days maximum session lifetime
   },
   secret: process.env.NEXTAUTH_SECRET || "sikap_super_secret_jwt_key_2026_san_luis_pampanga_secure"
 };

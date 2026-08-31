@@ -56,12 +56,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [currentScreen, setCurrentScreen] = useState<SKOfficialScreen>(SKOfficialScreen.DASHBOARD);
   const [selectedYouthId, setSelectedYouthId] = useState<string | null>("y-01"); // Default to Juan
   
-  // Search & Filter states
+  // Search & Filter states: Youth Directory
   const [searchQuery, setSearchQuery] = useState("");
   const [eduFilter, setEduFilter] = useState("All");
   const [ageFilter, setAgeFilter] = useState("All");
   const [purokFilter, setPurokFilter] = useState("All");
   const [matchStatusFilter, setMatchStatusFilter] = useState("All");
+
+  // Search & Filter states: TESDA Programs Catalog
+  const [progSearchQuery, setProgSearchQuery] = useState("");
+  const [progSectorFilter, setProgSectorFilter] = useState("All");
 
   // Form states for registering youth
   const [regName, setRegName] = useState("");
@@ -217,19 +221,25 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const localSkillsGaps = useMemo<SkillGapData[]>(() => {
     const totalLocal = localYouthProfiles.length;
 
-    const computerSlots = getSlotsForKeywords(["computer", "it", "digital"]);
-    const foodSlots = getSlotsForKeywords(["food", "processing", "cook"]);
-    const electricalSlots = getSlotsForKeywords(["electr", "wire"]);
-    const weldingSlots = getSlotsForKeywords(["weld", "metal", "smaw"]);
-    const bakingSlots = getSlotsForKeywords(["bread", "pastry", "bake"]);
+    const computerSlots = getSlotsForKeywords(["computer", "it", "digital", "css", "programming", "web"]);
+    const foodSlots = getSlotsForKeywords(["food", "processing", "cook", "culinary"]);
+    const electricalSlots = getSlotsForKeywords(["electr", "wire", "eim", "installation"]);
+    const weldingSlots = getSlotsForKeywords(["weld", "metal", "smaw", "fabrication"]);
+    const bakingSlots = getSlotsForKeywords(["bread", "pastry", "bake", "baking"]);
+    const autoSlots = getSlotsForKeywords(["automotive", "motor", "engine", "mechanic", "vehicle"]);
+    const agriSlots = getSlotsForKeywords(["agri", "crop", "farm", "organic", "poultry"]);
+
+    const brgyClean = designatedBarangay.replace(/^Barangay\s+/i, "");
 
     if (totalLocal === 0) {
       return [
-        { skill: "Computer Literacy", count: 0, percentage: 0, availableSlots: computerSlots, recommendedAction: "Organize Barangay-level digital tools workshop." },
-        { skill: "Food Processing", count: 0, percentage: 0, availableSlots: foodSlots, recommendedAction: "Fund additional localized batch of Food Processing NC II." },
-        { skill: "Electrical Installation", count: 0, percentage: 0, availableSlots: electricalSlots, recommendedAction: "Refer out-of-school youth to training slots at TESDA." },
-        { skill: "Welding / Metal Fab", count: 0, percentage: 0, availableSlots: weldingSlots, recommendedAction: "Utilize SK budget to sponsor SMAW protective gear." },
-        { skill: "Bread and Pastry", count: 0, percentage: 0, availableSlots: bakingSlots, recommendedAction: "Partner with local cooperative bakeries for placement." }
+        { skill: "Computer & Digital Literacy", count: 0, percentage: 0, availableSlots: computerSlots, recommendedAction: `Organize Barangay ${brgyClean} digital tools and basic office suite workshop.` },
+        { skill: "Food Processing & Commercial Cooking", count: 0, percentage: 0, availableSlots: foodSlots, recommendedAction: `Fund additional localized batch of Food Processing NC II in ${brgyClean} community center.` },
+        { skill: "Bread & Pastry Production", count: 0, percentage: 0, availableSlots: bakingSlots, recommendedAction: `Partner with local cooperative bakeries in San Luis for job placement of ${brgyClean} graduates.` },
+        { skill: "Electrical Installation & Maintenance", count: 0, percentage: 0, availableSlots: electricalSlots, recommendedAction: `Refer out-of-school youth in ${brgyClean} to training slots at TESDA GPSAT campus.` },
+        { skill: "Welding / SMAW Fabrication", count: 0, percentage: 0, availableSlots: weldingSlots, recommendedAction: `Utilize ${brgyClean} SK budget to sponsor tools & protective gears for priority SMAW enrollees.` },
+        { skill: "Automotive & Engine Servicing", count: 0, percentage: 0, availableSlots: autoSlots, recommendedAction: `Coordinate with TESDA for mobile mechanical diagnostics training in Barangay ${brgyClean}.` },
+        { skill: "Organic Agriculture & Agribusiness", count: 0, percentage: 0, availableSlots: agriSlots, recommendedAction: `Launch youth urban container gardening and high-value crop production in ${brgyClean}.` }
       ];
     }
 
@@ -238,27 +248,54 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     let electricalCount = 0;
     let weldingCount = 0;
     let bakingCount = 0;
+    let autoCount = 0;
+    let agriCount = 0;
 
     localYouthProfiles.forEach(y => {
-      const skillsLower = y.skills.map(s => s.toLowerCase());
-      const pref = y.sectorPreference.toLowerCase();
+      const skillsLower = (y.skills || []).map(s => s.toLowerCase());
+      const pref = (y.sectorPreference || "").toLowerCase();
+      const goal = (y.livelihoodGoal || "").toLowerCase();
 
-      if (pref.includes("it") || pref.includes("business")) {
-        const hasItSkill = skillsLower.some(s => s.includes("design") || s.includes("office") || s.includes("word") || s.includes("excel") || s.includes("program") || s.includes("network") || s.includes("data"));
-        if (!hasItSkill) computerCount++;
+      // IT & Digital Literacy:
+      const hasItSkill = skillsLower.some(s => s.includes("design") || s.includes("office") || s.includes("word") || s.includes("excel") || s.includes("program") || s.includes("network") || s.includes("data") || s.includes("computer") || s.includes("tech"));
+      if (!hasItSkill && (pref.includes("it") || pref.includes("technology") || pref.includes("business") || goal.includes("it") || goal.includes("computer") || y.educationalAttainment === "High school level" || y.currentStatus === "Out-of-school")) {
+        computerCount++;
       }
-      if (pref.includes("tourism") || pref.includes("food")) {
-        const hasFoodSkill = skillsLower.some(s => s.includes("cook") || s.includes("prep") || s.includes("bake") || s.includes("pastry"));
-        if (!hasFoodSkill) {
-          foodCount++;
-          bakingCount++;
-        }
+
+      // Food & Commercial Cooking:
+      const hasFoodSkill = skillsLower.some(s => s.includes("cook") || s.includes("prep") || s.includes("food") || s.includes("culinary"));
+      if (!hasFoodSkill && (pref.includes("food") || pref.includes("tourism") || pref.includes("culinary") || goal.includes("food") || goal.includes("restaurant") || goal.includes("cook"))) {
+        foodCount++;
       }
-      if (pref.includes("construction") || pref.includes("metal")) {
-        const hasWelding = skillsLower.some(s => s.includes("weld") || s.includes("metal"));
-        if (!hasWelding) weldingCount++;
-        const hasElec = skillsLower.some(s => s.includes("elect") || s.includes("wire"));
-        if (!hasElec) electricalCount++;
+
+      // Bread & Pastry:
+      const hasBakeSkill = skillsLower.some(s => s.includes("bake") || s.includes("pastry") || s.includes("cake") || s.includes("bread"));
+      if (!hasBakeSkill && (pref.includes("food") || pref.includes("tourism") || pref.includes("baking") || goal.includes("baker") || goal.includes("pastry") || goal.includes("cafe"))) {
+        bakingCount++;
+      }
+
+      // Electrical:
+      const hasElecSkill = skillsLower.some(s => s.includes("elect") || s.includes("wire") || s.includes("eim") || s.includes("circuit"));
+      if (!hasElecSkill && (pref.includes("construction") || pref.includes("metal") || pref.includes("electrical") || pref.includes("trade") || goal.includes("electric") || goal.includes("wire"))) {
+        electricalCount++;
+      }
+
+      // Welding:
+      const hasWeldSkill = skillsLower.some(s => s.includes("weld") || s.includes("metal") || s.includes("smaw") || s.includes("fabricat"));
+      if (!hasWeldSkill && (pref.includes("construction") || pref.includes("metal") || pref.includes("welding") || pref.includes("trade") || goal.includes("weld") || goal.includes("fabricat"))) {
+        weldingCount++;
+      }
+
+      // Automotive:
+      const hasAutoSkill = skillsLower.some(s => s.includes("auto") || s.includes("motor") || s.includes("engine") || s.includes("mechanic"));
+      if (!hasAutoSkill && (pref.includes("auto") || pref.includes("transport") || pref.includes("mechanic") || goal.includes("driver") || goal.includes("auto") || goal.includes("mechanic"))) {
+        autoCount++;
+      }
+
+      // Agriculture:
+      const hasAgriSkill = skillsLower.some(s => s.includes("agri") || s.includes("farm") || s.includes("crop") || s.includes("plant"));
+      if (!hasAgriSkill && (pref.includes("agri") || pref.includes("farm") || goal.includes("farm") || goal.includes("agri"))) {
+        agriCount++;
       }
     });
 
@@ -267,31 +304,37 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       return {
         skill,
         count,
-        percentage: pct > 100 ? 100 : pct,
+        percentage: Math.min(100, pct),
         availableSlots,
         recommendedAction: action
       };
     };
 
     return [
-      makeGap("Computer Literacy", computerCount, computerSlots, `Organize Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")} digital tools and basic office suite workshop.`),
-      makeGap("Food Processing", foodCount, foodSlots, `Fund additional localized batch of Food Processing NC II in ${designatedBarangay.replace(/^Barangay\s+/i, "")} community kitchen.`),
-      makeGap("Electrical Installation", electricalCount, electricalSlots, `Refer out-of-school youth in ${designatedBarangay.replace(/^Barangay\s+/i, "")} to empty training slots at TESDA GPSAT campus.`),
-      makeGap("Welding / Metal Fab", weldingCount, weldingSlots, `Utilize ${designatedBarangay.replace(/^Barangay\s+/i, "")} SK budget to sponsor tools & protective gears for priority SMAW enrollees.`),
-      makeGap("Bread and Pastry", bakingCount, bakingSlots, `Partner with local cooperative bakeries in San Luis for job placement of ${designatedBarangay.replace(/^Barangay\s+/i, "")} graduates.`)
+      makeGap("Computer & Digital Literacy", computerCount, computerSlots, `Organize Barangay ${brgyClean} digital tools and basic office suite workshop.`),
+      makeGap("Food Processing & Commercial Cooking", foodCount, foodSlots, `Fund additional localized batch of Food Processing NC II in ${brgyClean} community center.`),
+      makeGap("Bread & Pastry Production", bakingCount, bakingSlots, `Partner with local cooperative bakeries in San Luis for job placement of ${brgyClean} graduates.`),
+      makeGap("Electrical Installation & Maintenance", electricalCount, electricalSlots, `Refer out-of-school youth in ${brgyClean} to training slots at TESDA GPSAT campus.`),
+      makeGap("Welding / SMAW Fabrication", weldingCount, weldingSlots, `Utilize ${brgyClean} SK budget to sponsor tools & protective gears for priority SMAW enrollees.`),
+      makeGap("Automotive & Engine Servicing", autoCount, autoSlots, `Coordinate with TESDA for mobile mechanical diagnostics training in Barangay ${brgyClean}.`),
+      makeGap("Organic Agriculture & Agribusiness", agriCount, agriSlots, `Launch youth urban container gardening and high-value crop production in ${brgyClean}.`)
     ].sort((a, b) => b.count - a.count);
   }, [localYouthProfiles, designatedBarangay, programs]);
 
   const mostCriticalGapItem = useMemo(() => {
-    return localSkillsGaps[0] || { skill: "Computer Literacy", count: 0 };
+    return localSkillsGaps.find(g => g.count > 0) || localSkillsGaps[0] || { skill: "Computer & Digital Literacy", count: 0, percentage: 0 };
   }, [localSkillsGaps]);
 
   const highestSector = useMemo(() => {
+    if (localYouthProfiles.length === 0) {
+      return { name: "None", count: 0 };
+    }
     const sectorCountMap: Record<string, number> = {};
     localYouthProfiles.forEach(y => {
-      sectorCountMap[y.sectorPreference] = (sectorCountMap[y.sectorPreference] || 0) + 1;
+      const sec = y.sectorPreference || "Technical Vocational";
+      sectorCountMap[sec] = (sectorCountMap[sec] || 0) + 1;
     });
-    let highest = "Tourism and Food";
+    let highest = Object.keys(sectorCountMap)[0] || "Technical Vocational";
     let highestCount = 0;
     Object.entries(sectorCountMap).forEach(([sec, cnt]) => {
       if (cnt > highestCount) {
@@ -299,14 +342,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         highestCount = cnt;
       }
     });
-    if (highestCount === 0) {
-      highestCount = Math.max(1, Math.round(localYouthProfiles.length * 0.4));
-    }
     return { name: highest, count: highestCount };
   }, [localYouthProfiles]);
 
   const unmatchedCount = useMemo(() => {
-    return localYouthProfiles.filter(y => y.currentStatus === "Out-of-school" && !y.hasReferred).length || Math.max(1, Math.round(localYouthProfiles.length * 0.3));
+    return localYouthProfiles.filter(y => y.currentStatus === "Out-of-school" && !y.hasReferred).length;
   }, [localYouthProfiles]);
 
   // Pending Approvals Barangay Filter
@@ -862,7 +902,23 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     });
   }, [verifiedYouthProfiles, searchQuery, eduFilter, ageFilter, purokFilter, matchStatusFilter]);
 
-  // Selected profile details helper
+  // Filtered TESDA programs for official catalog view
+  const filteredProgramsForSK = useMemo(() => {
+    return programs.filter(p => {
+      const q = progSearchQuery.toLowerCase();
+      const matchesSearch = !q ||
+        p.title.toLowerCase().includes(q) ||
+        p.provider.toLowerCase().includes(q) ||
+        (p.requiredSkills && p.requiredSkills.some(s => s.toLowerCase().includes(q))) ||
+        (p.type && p.type.toLowerCase().includes(q)) ||
+        (p.eligibility && p.eligibility.toLowerCase().includes(q));
+      
+      const matchesType = progSectorFilter === "All" || (p.type && p.type.toLowerCase().includes(progSectorFilter.toLowerCase()));
+      return matchesSearch && matchesType;
+    });
+  }, [programs, progSearchQuery, progSectorFilter]);
+
+  // Selected profile details helper (used strictly when viewing an individual youth record)
   const selectedYouth = useMemo(() => {
     const found = localYouthProfiles.find(y => y.id === selectedYouthId) || localYouthProfiles[0];
     if (found) return found;
@@ -2335,44 +2391,177 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.TESDA_PROGRAMS && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 tracking-tight">TESDA Programs Database</h2>
-                <p className="text-xs text-gray-500 font-medium">
-                  {programs.length > 0
-                    ? `${programs.length} active training programs · Managed and updated by TESDA GPSAT (Gonzalo Puyat School of Arts and Trades)`
-                    : "Vocational Training Program Registry · San Luis, Pampanga"}
-                </p>
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">TESDA Programs Catalog</h2>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {programs.length > 0
+                      ? `${programs.length} active vocational training programs · Managed and updated by TESDA GPSAT (Gonzalo Puyat School of Arts and Trades)`
+                      : "Vocational Training Program Registry · San Luis, Pampanga"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Search & Sector Filter Toolbar */}
+              <div className="bg-white border border-gray-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex-1 relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    placeholder="Search by program title, provider, or competency skills..."
+                    value={progSearchQuery}
+                    onChange={(e) => setProgSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={progSectorFilter}
+                    onChange={(e) => setProgSectorFilter(e.target.value)}
+                    className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="All">All Sectors ({programs.length})</option>
+                    <option value="IT">IT & Technology</option>
+                    <option value="Tourism">Tourism & Hospitality</option>
+                    <option value="Automotive">Automotive & Transport</option>
+                    <option value="Construction">Construction & Metals</option>
+                    <option value="Agriculture">Agriculture</option>
+                    <option value="Health">Health & Social Care</option>
+                  </select>
+                </div>
               </div>
 
               {/* Grid lists / Empty State */}
-              {programs.length === 0 ? (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+              {filteredProgramsForSK.length === 0 ? (
+                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
                   <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                     <Briefcase className="w-7 h-7" />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="font-extrabold text-gray-800 text-base">No Active TESDA Programs Published Yet</h3>
+                    <h3 className="font-extrabold text-gray-800 text-base">No Matching TESDA Programs Found</h3>
                     <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                      There are currently no active vocational training programs published in the system database. As soon as partner institutions like <strong>TESDA GPSAT (Gonzalo Puyat School of Arts and Trades)</strong> add new courses, they will automatically appear here with real-time AI skill match recommendations.
+                      {programs.length === 0
+                        ? "There are currently no active vocational training programs published in the system database. As soon as partner institutions like TESDA GPSAT add new courses, they will appear here."
+                        : "No training programs match your current search query or sector filter. Try adjusting your filters."}
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {programs
-                    .map(prog => ({
-                      prog,
-                      score: calculateContentBasedMatchScore(selectedYouth, prog)
-                    }))
-                    .sort((a, b) => b.score - a.score)
-                    .map(({ prog, score }) => (
-                    <OpportunityCard
-                      key={prog.id}
-                      program={prog}
-                      matchScore={score}
-                      geminiExplanation={getGeminiRationale(prog.id, selectedYouth.name)}
-                    />
-                  ))}
+                  {filteredProgramsForSK.map((prog) => {
+                    const isFull = (prog.slotsRemaining || 0) <= 0;
+                    // Count how many verified KK members in this local barangay match this program
+                    const matchedYouthInBrgy = localYouthProfiles.filter(y => calculateContentBasedMatchScore(y, prog) >= 60);
+
+                    return (
+                      <div
+                        key={prog.id}
+                        className="bg-white border border-gray-200/90 hover:border-emerald-300 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                      >
+                        <div className="space-y-3">
+                          {/* Header: Provider badge + Sector */}
+                          <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black text-xs shrink-0 border border-emerald-200">
+                                TS
+                              </span>
+                              <div>
+                                <span className="text-[11px] font-bold text-gray-900 block">{prog.provider}</span>
+                                <span className="text-[10px] text-gray-400 font-medium">National Certificate (NC)</span>
+                              </div>
+                            </div>
+
+                            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                              isFull
+                                ? "bg-red-50 text-red-700 border-red-200"
+                                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            }`}>
+                              {isFull ? "Slots Filled" : "Active Offering"}
+                            </span>
+                          </div>
+
+                          {/* Program Title */}
+                          <div>
+                            <h3 className="font-extrabold text-gray-900 text-sm leading-snug">{prog.title}</h3>
+                            {prog.eligibility && (
+                              <p className="text-xs text-gray-500 font-medium mt-1 line-clamp-2 leading-relaxed">
+                                {prog.eligibility}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Key Specs Pills */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
+                              <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate">{prog.trainingHours} Hours</span>
+                            </div>
+                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
+                              <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate">{prog.location.includes("GPSAT") || prog.location.includes("PTC") ? "GPSAT Campus" : "San Luis Hub"}</span>
+                            </div>
+                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
+                              <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate">{prog.cost || "Free / TWSP"}</span>
+                            </div>
+                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
+                              <Briefcase className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate">{prog.type || "Vocational Training"}</span>
+                            </div>
+                          </div>
+
+                          {/* Slots Progress Bar */}
+                          <div>
+                            <div className="flex justify-between text-[11px] font-semibold text-gray-500 mb-1">
+                              <span>Available Slots</span>
+                              <span className={isFull ? "text-red-600 font-bold" : "text-gray-900 font-bold"}>
+                                {isFull ? "FULL" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${isFull ? "bg-red-400" : "bg-[#0A6B43]"}`}
+                                style={{ width: `${Math.min(100, Math.max(0, ((prog.slotsTotal - prog.slotsRemaining) / (prog.slotsTotal || 1)) * 100))}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Competencies / Skills Acquired */}
+                          {prog.requiredSkills && prog.requiredSkills.length > 0 && (
+                            <div>
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">Target Competencies</span>
+                              <div className="flex flex-wrap gap-1">
+                                {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
+                                  <span key={sIdx} className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
+                                    {skill}
+                                  </span>
+                                ))}
+                                {prog.requiredSkills.length > 3 && (
+                                  <span className="text-[10px] text-gray-400 font-bold">+{prog.requiredSkills.length - 3} more</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Footer: Local Barangay Matched Youth Count */}
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 text-xs text-[#0A6B43] font-bold bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-xl w-full justify-between">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5" />
+                              <span>{matchedYouthInBrgy.length} Youth Matched in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</span>
+                            </span>
+                            <span className="text-[10px] font-extrabold bg-white text-emerald-800 px-1.5 py-0.2 rounded-md border border-emerald-200">
+                              {localYouthProfiles.length > 0 ? `${Math.round((matchedYouthInBrgy.length / localYouthProfiles.length) * 100)}%` : "0%"}
+                            </span>
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2387,23 +2576,25 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     Katipunan ng Kabataan competency diagnostic insights · Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={analyticsSectorFilter}
                     onChange={(e) => setAnalyticsSectorFilter(e.target.value)}
-                    className="p-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-700 focus:ring-1 focus:ring-emerald-500"
+                    className="p-2 border border-gray-200 bg-white rounded-xl text-xs font-bold text-gray-700 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
                   >
                     <option value="All">All Sector Categories</option>
-                    <option value="IT">IT & Technology Focus</option>
-                    <option value="Food">Food & Culinary Focus</option>
-                    <option value="Metals">Construction & Trades Focus</option>
+                    <option value="IT">IT & Digital Technologies</option>
+                    <option value="Food">Food, Culinary & Baking</option>
+                    <option value="Trades">Construction, Welding & Electrical</option>
+                    <option value="Automotive">Automotive & Engine Mechanics</option>
+                    <option value="Agriculture">Agriculture & Agribusiness</option>
                   </select>
                   <button
                     onClick={() => {
                       addToast(`Diagnostic report generated for Barangay ${designatedBarangay}! Printing layout...`, "info");
                       window.print();
                     }}
-                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                   >
                     <FileText className="w-4 h-4" />
                     Print Summary
@@ -2412,7 +2603,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {localYouthProfiles.length === 0 ? (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
                   <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                     <BarChart2 className="w-7 h-7" />
                   </div>
@@ -2427,19 +2618,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 <>
                   {/* Insights summaries */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white border border-[#D1FAE5] p-5 rounded-xl shadow-xs flex items-start gap-4">
-                      <div className="p-3 rounded-lg bg-amber-50 text-amber-700 shrink-0 border border-amber-100">
+                    <div className="bg-white border border-[#D1FAE5] p-5 rounded-2xl shadow-xs flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-amber-50 text-amber-700 shrink-0 border border-amber-100">
                         <AlertTriangle className="w-5 h-5" />
                       </div>
                       <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Most Critical Gap</span>
                         <h4 className="font-extrabold text-gray-800 text-sm mt-0.5">{mostCriticalGapItem.skill}</h4>
-                        <p className="text-xs text-gray-500 mt-1">{mostCriticalGapItem.count} registered youth identified with this core competency deficiency</p>
+                        <p className="text-xs text-gray-500 mt-1">{mostCriticalGapItem.count} registered youth identified with this competency deficiency ({mostCriticalGapItem.percentage}%)</p>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-[#D1FAE5] p-5 rounded-xl shadow-xs flex items-start gap-4">
-                      <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 shrink-0 border border-emerald-100">
+                    <div className="bg-white border border-[#D1FAE5] p-5 rounded-2xl shadow-xs flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 border border-emerald-100">
                         <TrendingUp className="w-5 h-5" />
                       </div>
                       <div>
@@ -2449,21 +2640,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-white border border-[#D1FAE5] p-5 rounded-xl shadow-xs flex items-start gap-4">
-                      <div className="p-3 rounded-lg bg-red-50 text-red-600 shrink-0 border border-red-100">
+                    <div className="bg-white border border-[#D1FAE5] p-5 rounded-2xl shadow-xs flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-red-50 text-red-600 shrink-0 border border-red-100">
                         <Users2 className="w-5 h-5" />
                       </div>
                       <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Unmatched Out-of-School Youth</span>
                         <h4 className="font-extrabold text-gray-800 text-sm mt-0.5">{unmatchedCount} KK Members</h4>
-                        <p className="text-xs text-gray-500 mt-1">Requiring targeted skill training matching & referral support</p>
+                        <p className="text-xs text-gray-500 mt-1">Requiring targeted TVET scholarship matching & referral support</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Chart and Recommendation Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                    <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-5 lg:col-span-3">
+                    <div className="bg-white border border-[#D1FAE5] rounded-2xl shadow-xs p-5 lg:col-span-3">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-gray-800 text-sm">Competency Deficiency Analysis</h3>
                         <span className="text-[10px] font-bold text-gray-400 uppercase">
@@ -2474,9 +2665,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         {localSkillsGaps
                           .filter(g => {
                             if (analyticsSectorFilter === "All") return true;
-                            if (analyticsSectorFilter === "IT") return g.skill.includes("Computer");
-                            if (analyticsSectorFilter === "Food") return g.skill.includes("Food") || g.skill.includes("Bread");
-                            if (analyticsSectorFilter === "Metals") return g.skill.includes("Welding") || g.skill.includes("Electrical");
+                            if (analyticsSectorFilter === "IT") return g.skill.toLowerCase().includes("computer") || g.skill.toLowerCase().includes("digital");
+                            if (analyticsSectorFilter === "Food") return g.skill.toLowerCase().includes("food") || g.skill.toLowerCase().includes("bread") || g.skill.toLowerCase().includes("pastry");
+                            if (analyticsSectorFilter === "Trades") return g.skill.toLowerCase().includes("welding") || g.skill.toLowerCase().includes("electrical") || g.skill.toLowerCase().includes("smaw");
+                            if (analyticsSectorFilter === "Automotive") return g.skill.toLowerCase().includes("automotive") || g.skill.toLowerCase().includes("engine");
+                            if (analyticsSectorFilter === "Agriculture") return g.skill.toLowerCase().includes("agriculture") || g.skill.toLowerCase().includes("agri");
                             return true;
                           })
                           .map((gap) => {
@@ -2507,13 +2700,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-5 lg:col-span-2 space-y-4">
+                    <div className="bg-white border border-[#D1FAE5] rounded-2xl shadow-xs p-5 lg:col-span-2 space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-gray-800 text-sm">AI Strategic Policy Recommendations</h3>
                         <button
                           onClick={handleGenerateAiPolicyReport}
                           disabled={isGeneratingAiReport}
-                          className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                          className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
                         >
                           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                           {isGeneratingAiReport ? "Analyzing..." : "Ask Gemini AI"}
@@ -2521,7 +2714,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
 
                       {aiPolicyReport && (
-                        <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-200 text-xs text-emerald-950 leading-relaxed font-medium space-y-2 animate-in fade-in duration-200">
+                        <div className="bg-emerald-50/80 p-4 rounded-2xl border border-emerald-200 text-xs text-emerald-950 leading-relaxed font-medium space-y-2 animate-in fade-in duration-200">
                           <div className="flex items-center gap-1.5 text-[#0A6B43] font-extrabold uppercase text-[10px] tracking-wider">
                             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                             Live Google Gemini Policy Synthesis
@@ -2533,16 +2726,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <div className="space-y-3">
                         {[
                           {
-                            title: `Fund TESDA ${highestSector.name === "Tourism and Food" ? "Food Processing" : highestSector.name === "IT and Business Services" ? "Computer Literacy" : "Construction Trades"} Batch`,
-                            desc: `${highestSector.count} registered youth in Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")} match ${highestSector.name}. Requesting a dedicated localized training batch is highly advised.`,
+                            title: `Fund Priority Training Batch: ${highestSector.name !== "None" ? highestSector.name : "Technical Vocational"}`,
+                            desc: `${highestSector.count} registered youth in Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")} express key interest in ${highestSector.name}. Requesting a dedicated mobile training batch from TESDA GPSAT is strongly advised.`,
                           },
                           {
-                            title: `Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")} Digital Productivity Initiative`,
-                            desc: `${mostCriticalGapItem.count} youth lack core computer literacy. Hosting a 3-day basic office productivity seminar at the barangay hall will bridge this gap.`,
+                            title: `Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")} Digital & Practical Skills Initiative`,
+                            desc: `${mostCriticalGapItem.count} youth lack core ${mostCriticalGapItem.skill.toLowerCase()}. Hosting localized workshops at the barangay hall will directly bridge this gap.`,
                           },
                           {
-                            title: "DTI & TESDA Entrepreneur Partnership",
-                            desc: `Partner with local business centers to mentor ${Math.max(1, Math.round(localYouthProfiles.length * 0.25))} youth interested in self-employment and micro-business.`
+                            title: "LGU & DTI Micro-Enterprise Partnership",
+                            desc: `Partner with local business development centers to mentor youth interested in self-employment, freelance trade work, and micro-business.`
                           }
                         ].map((rec, index) => (
                           <div key={index} className="flex gap-3 p-3 bg-gray-50/70 border border-gray-100 rounded-xl">

@@ -11,6 +11,9 @@ export async function GET() {
     }
 
     const programs = await db.tESDAProgram.findMany({
+      where: {
+        activeStatus: { not: "Closed" }
+      },
       orderBy: { createdAt: "desc" }
     });
 
@@ -135,9 +138,32 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
-    await db.tESDAProgram.delete({ where: { id } });
-    return NextResponse.json({ success: true, message: "Program deleted" });
+    const prog = await db.tESDAProgram.findUnique({ where: { id } });
+    if (!prog) return NextResponse.json({ success: false, error: "Program not found" }, { status: 404 });
+
+    // 1. Soft delete / archive program
+    const updated = await db.tESDAProgram.update({
+      where: { id },
+      data: { activeStatus: "Closed" }
+    });
+
+    // 2. Archive all enrolled students/referrals in this program
+    const archivedRefs = await db.referral.updateMany({
+      where: {
+        programId: id,
+        status: "Enrolled"
+      },
+      data: { status: "Archived" }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Program "${prog.title}" and ${archivedRefs.count} enrolled student record(s) have been archived.`,
+      data: updated,
+      archivedStudentsCount: archivedRefs.count
+    });
   } catch (error: any) {
+    console.error("Programs DELETE Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }

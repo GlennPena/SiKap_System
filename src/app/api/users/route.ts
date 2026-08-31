@@ -105,8 +105,61 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
-    const { name, email, currentPassword, newPassword } = await req.json();
+    const currentUserId = (session.user as any).id;
+    const isSuperAdmin = (session.user as any).role === "SUPER_ADMIN";
+    const body = await req.json();
+
+    // 1. Super Admin Administrative Actions on another user account
+    if (body.targetUserId && isSuperAdmin) {
+      const targetUser = await db.user.findUnique({ where: { id: body.targetUserId } });
+      if (!targetUser) {
+        return NextResponse.json({ success: false, message: "Target user not found" }, { status: 404 });
+      }
+
+      let adminUpdateData: any = {};
+
+      // Status toggle (Active vs Suspended)
+      if (body.status !== undefined) {
+        adminUpdateData.status = body.status;
+      }
+
+      // Password Reset to new temporary password
+      if (body.newTempPassword) {
+        adminUpdateData.passwordHash = await bcrypt.hash(body.newTempPassword, 10);
+      }
+
+      const updated = await db.user.update({
+        where: { id: body.targetUserId },
+        data: adminUpdateData,
+        include: { barangay: true }
+      });
+
+      // Also update officialAccount status if exists
+      if (body.status !== undefined) {
+        await db.officialAccount.updateMany({
+          where: { userId: body.targetUserId },
+          data: { status: body.status }
+        }).catch(() => {});
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          status: updated.status,
+          barangay: updated.barangay?.name
+        },
+        message: body.newTempPassword 
+          ? `Password for ${updated.name} reset successfully!` 
+          : `Account status for ${updated.name} set to ${updated.status}.`
+      });
+    }
+
+    // 2. Standard User Self-Update
+    const userId = currentUserId;
+    const { name, email, currentPassword, newPassword } = body;
 
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -148,5 +201,27 @@ export async function PUT(req: Request) {
   } catch (error: any) {
     console.error("Error updating user profile:", error);
     return NextResponse.json({ success: false, message: error.message || "Failed to update profile" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || (session.user as any).role !== "SUPER_ADMIN") {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return NextResponse.json({ success: false, message: "Missing user ID" }, { status: 400 });
+
+    await db.user.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true, message: "Official account deleted successfully from database" });
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    return NextResponse.json({ success: false, message: error.message || "Failed to delete user" }, { status: 500 });
   }
 }

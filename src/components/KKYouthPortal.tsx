@@ -105,32 +105,31 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return null;
   };
 
-  const getCachedPlan = () => {
-    if (typeof window === "undefined") return null;
-    const byId = youthProfile.id ? localStorage.getItem(`sikap_career_plan_${youthProfile.id}`) : null;
-    const byName = youthProfile.name ? localStorage.getItem(`sikap_career_plan_${youthProfile.name}`) : null;
-    return parseCareerPlan(byId) || parseCareerPlan(byName);
-  };
-
   // Step 4 Gemini Long-Term Career Plan states
-  const currentSavedPlan = parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+  const currentSavedPlan = parseCareerPlan(youthProfile.savedCareerPlan);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeminiLongTermCareerPlan | null>(currentSavedPlan);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
 
   useEffect(() => {
-    const parsed = parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+    const parsed = parseCareerPlan(youthProfile.savedCareerPlan);
     if (parsed) {
       setGeneratedPlan(parsed);
       if (typeof window !== "undefined" && youthProfile.name) {
         localStorage.setItem(`sikap_career_plan_${youthProfile.name}`, JSON.stringify(parsed));
         if (youthProfile.id) localStorage.setItem(`sikap_career_plan_${youthProfile.id}`, JSON.stringify(parsed));
       }
+    } else {
+      setGeneratedPlan(null);
+      if (typeof window !== "undefined") {
+        if (youthProfile.name) localStorage.removeItem(`sikap_career_plan_${youthProfile.name}`);
+        if (youthProfile.id) localStorage.removeItem(`sikap_career_plan_${youthProfile.id}`);
+      }
     }
   }, [youthProfile.savedCareerPlan, youthProfile.name, youthProfile.id]);
 
   const handleGenerateCareerPlan = async (prog?: TESDAProgram | null) => {
-    const existing = currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+    const existing = currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || generatedPlan;
     if (existing?.roadmapTitle) {
       addToast("Your official career plan is already generated and saved to your account.", "info");
       return;
@@ -1572,7 +1571,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           </div>
 
                           {(() => {
-                            const hasSavedPlan = Boolean(generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan());
+                            const hasSavedPlan = Boolean(generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan));
                             return (
                               <PathwayTimeline
                                 currentStep={isArchived ? (hasSavedPlan ? 5 : 4) : isEnrolled ? 3 : 2}
@@ -1695,7 +1694,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               );
                             } else if (isArchived) {
                               // STEP 4 IS UNLOCKED: Step 3 is completed!
-                              const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || getCachedPlan();
+                              const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
                               const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
 
                               return (
