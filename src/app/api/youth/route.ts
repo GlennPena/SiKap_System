@@ -187,24 +187,58 @@ export async function PUT(request: Request) {
     const updateData: any = { ...body };
     delete updateData.id;
     delete updateData.barangay; // Ignore relation string update
+    delete updateData.user;
+    delete updateData.email;
+    delete updateData.referrals;
+    delete updateData.registeredDate;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+    delete updateData.skillsNormalized;
+    delete updateData.preferencesNormalized;
+    delete updateData.experiencesNormalized;
+    delete updateData.goalNormalized;
 
-    if (body.contactNumber) {
+    if (body.age !== undefined) {
+      updateData.age = parseInt(String(body.age), 10) || 18;
+    }
+
+    if (body.soloParent !== undefined) {
+      updateData.soloParent = Boolean(body.soloParent);
+    }
+
+    if (body.pwd !== undefined) {
+      updateData.pwd = Boolean(body.pwd);
+    }
+
+    if (body.indigenous !== undefined) {
+      updateData.indigenous = Boolean(body.indigenous);
+    }
+
+    if (body.matchScore !== undefined) {
+      updateData.matchScore = parseFloat(String(body.matchScore)) || 0;
+    }
+
+    if (body.contactNumber !== undefined) {
        updateData.contactNumberEncrypted = encrypt(body.contactNumber);
        delete updateData.contactNumber;
     }
-    if (body.verificationIdNumber) {
+    if (body.verificationIdNumber !== undefined) {
        updateData.verificationIdNumberEnc = encrypt(body.verificationIdNumber);
        delete updateData.verificationIdNumber;
     }
+    if (body.verificationIdImage !== undefined) {
+       updateData.verificationIdImageEnc = encrypt(body.verificationIdImage);
+       delete updateData.verificationIdImage;
+    }
 
-    if (body.skillsRaw || body.skills) {
+    if (body.skillsRaw !== undefined || body.skills !== undefined) {
       const sRaw = Array.isArray(body.skillsRaw) ? body.skillsRaw : (Array.isArray(body.skills) ? body.skills : []);
       updateData.skillsRaw = sRaw;
       updateData.skills = sRaw;
       updateData.skillsNormalized = normalizeSkills(sRaw) as any;
     }
 
-    if (body.preferencesRaw || body.interests) {
+    if (body.preferencesRaw !== undefined || body.interests !== undefined) {
       const pRaw = Array.isArray(body.preferencesRaw) ? body.preferencesRaw : (Array.isArray(body.interests) ? body.interests : []);
       updateData.preferencesRaw = pRaw;
       updateData.interests = pRaw;
@@ -243,12 +277,12 @@ export async function PUT(request: Request) {
       updated = await db.youthProfile.update({
         where: { id: body.id },
         data: updateData,
-        include: { barangay: true }
+        include: { barangay: true, user: true }
       });
     } else {
       updated = await db.youthProfile.findUnique({
         where: { id: body.id },
-        include: { barangay: true }
+        include: { barangay: true, user: true }
       });
     }
 

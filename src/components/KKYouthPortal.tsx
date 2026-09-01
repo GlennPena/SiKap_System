@@ -5,7 +5,8 @@ import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
-  BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark
+  BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
+  Tag, Compass, FileText, Layers, Activity
 } from "lucide-react";
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
@@ -48,18 +49,47 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
   // Profile sub-tabs & editable states
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "skills" | "security" | "badge">("profile");
-  const [editGoal, setEditGoal] = useState(youthProfile.livelihoodGoal || "");
-  const [editSector, setEditSector] = useState(youthProfile.sectorPreference || "IT & Technology");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editAge, setEditAge] = useState<number | string>(youthProfile.age || 20);
+  const [editPurok, setEditPurok] = useState(youthProfile.purok || "Purok 1");
+  const [editGoal, setEditGoal] = useState(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
+  const [editSector, setEditSector] = useState(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
   const [editPhone, setEditPhone] = useState(youthProfile.contactNumber || "+63 9");
-  const [editEdu, setEditEdu] = useState(youthProfile.educationalAttainment || "High School Level");
-  const [editStatus, setEditStatus] = useState(youthProfile.currentStatus || "Out-of-School Youth");
+  const [editEdu, setEditEdu] = useState(youthProfile.educationalAttainment || "College level");
+  const [editStatus, setEditStatus] = useState(youthProfile.currentStatus || "Out-of-school");
+  const [editSoloParent, setEditSoloParent] = useState(Boolean(youthProfile.soloParent));
+  const [editPwd, setEditPwd] = useState(Boolean(youthProfile.pwd));
+  const [editIndigenous, setEditIndigenous] = useState(Boolean(youthProfile.indigenous));
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Interests & Prior Experiences input state & ID Photo Modal
+  const [newPrefInput, setNewPrefInput] = useState("");
+  const [newExpInput, setNewExpInput] = useState("");
+  const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
+
+  // Re-synchronize edit states whenever youthProfile prop updates (e.g. async fetch from DB)
+  useEffect(() => {
+    if (youthProfile) {
+      setEditAge(youthProfile.age || 20);
+      setEditPurok(youthProfile.purok || "Purok 1");
+      setEditGoal(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
+      setEditSector(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
+      setEditPhone(youthProfile.contactNumber || "+63 9");
+      setEditEdu(youthProfile.educationalAttainment || "College level");
+      setEditStatus(youthProfile.currentStatus || "Out-of-school");
+      setEditSoloParent(Boolean(youthProfile.soloParent));
+      setEditPwd(Boolean(youthProfile.pwd));
+      setEditIndigenous(Boolean(youthProfile.indigenous));
+    }
+  }, [youthProfile]);
 
   // Security password states
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Helper to reliably parse career plan whether object or JSON string
   const parseCareerPlan = (plan: any): GeminiLongTermCareerPlan | null => {
@@ -211,8 +241,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       setIsSavingPlan(false);
     }
   };
-  const [showNewPass, setShowNewPass] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Filter announcements to only show active, unexpired ones matching member's barangay
   const localAnnouncements = useMemo(() => {
@@ -470,13 +498,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return;
     }
 
-    const tempYouth = {
+    const ageNum = parseInt(String(editAge), 10) || youthProfile.age || 20;
+
+    const tempYouth: YouthProfile = {
       ...youthProfile,
+      age: ageNum,
+      purok: editPurok,
       livelihoodGoal: editGoal,
+      goalRaw: editGoal,
       sectorPreference: editSector,
+      contactNumber: editPhone,
       educationalAttainment: editEdu,
-      currentStatus: editStatus
+      currentStatus: editStatus,
+      soloParent: editSoloParent,
+      pwd: editPwd,
+      indigenous: editIndigenous
     };
+
     const updatedMatchScore = programs && programs.length > 0
       ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
       : youthProfile.matchScore;
@@ -488,11 +526,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: youthProfile.id,
+          age: ageNum,
+          purok: editPurok,
           livelihoodGoal: editGoal,
+          goalRaw: editGoal,
           sectorPreference: editSector,
           contactNumber: editPhone,
           educationalAttainment: editEdu,
           currentStatus: editStatus,
+          soloParent: editSoloParent,
+          pwd: editPwd,
+          indigenous: editIndigenous,
           matchScore: updatedMatchScore
         })
       });
@@ -500,14 +544,117 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       if (data.success) {
         setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, ...data.data, matchScore: updatedMatchScore } : y));
         addToast("Profile details updated in PostgreSQL database!", "success");
+        setIsEditingProfile(false);
       } else {
         addToast(data.error || "Failed to update profile", "error");
       }
     } catch (err) {
       console.error("Error updating profile:", err);
-      addToast("Profile details updated successfully!", "success");
+      addToast("Failed to save profile changes.", "error");
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditAge(youthProfile.age || 20);
+    setEditPurok(youthProfile.purok || "Purok 1");
+    setEditGoal(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
+    setEditSector(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
+    setEditPhone(youthProfile.contactNumber || "+63 9");
+    setEditEdu(youthProfile.educationalAttainment || "College level");
+    setEditStatus(youthProfile.currentStatus || "Out-of-school");
+    setEditSoloParent(Boolean(youthProfile.soloParent));
+    setEditPwd(Boolean(youthProfile.pwd));
+    setEditIndigenous(Boolean(youthProfile.indigenous));
+    setIsEditingProfile(false);
+  };
+
+  const handleAddPreference = async (pref: string) => {
+    const trimmed = pref.trim();
+    if (!trimmed) return;
+    const currentPrefs = youthProfile.preferencesRaw || youthProfile.interests || [];
+    if (currentPrefs.includes(trimmed)) return;
+    const updatedPrefs = [...currentPrefs, trimmed];
+
+    setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, preferencesRaw: updatedPrefs, interests: updatedPrefs } : y));
+    setNewPrefInput("");
+    addToast(`Added vocational interest "${trimmed}"`, "success");
+
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: youthProfile.id, preferencesRaw: updatedPrefs })
+      });
+    } catch (err) {
+      console.error("Failed to add preference:", err);
+    }
+  };
+
+  const handleRemovePreference = async (pref: string) => {
+    if (isUnverified) {
+      addToast("Cannot edit preferences in View-Only Mode", "error");
+      return;
+    }
+    const currentPrefs = youthProfile.preferencesRaw || youthProfile.interests || [];
+    const updatedPrefs = currentPrefs.filter(p => p !== pref);
+
+    setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, preferencesRaw: updatedPrefs, interests: updatedPrefs } : y));
+    addToast(`Removed vocational interest "${pref}"`, "info");
+
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: youthProfile.id, preferencesRaw: updatedPrefs })
+      });
+    } catch (err) {
+      console.error("Failed to remove preference:", err);
+    }
+  };
+
+  const handleAddExperience = async (exp: string) => {
+    const trimmed = exp.trim();
+    if (!trimmed) return;
+    const currentExps = youthProfile.experiencesRaw || [];
+    if (currentExps.includes(trimmed)) return;
+    const updatedExps = [...currentExps, trimmed];
+
+    setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, experiencesRaw: updatedExps } : y));
+    setNewExpInput("");
+    addToast(`Added prior work/practical experience "${trimmed}"`, "success");
+
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: youthProfile.id, experiencesRaw: updatedExps })
+      });
+    } catch (err) {
+      console.error("Failed to add experience:", err);
+    }
+  };
+
+  const handleRemoveExperience = async (exp: string) => {
+    if (isUnverified) {
+      addToast("Cannot edit experiences in View-Only Mode", "error");
+      return;
+    }
+    const currentExps = youthProfile.experiencesRaw || [];
+    const updatedExps = currentExps.filter(e => e !== exp);
+
+    setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, experiencesRaw: updatedExps } : y));
+    addToast(`Removed prior experience "${exp}"`, "info");
+
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: youthProfile.id, experiencesRaw: updatedExps })
+      });
+    } catch (err) {
+      console.error("Failed to remove experience:", err);
     }
   };
 
@@ -2060,210 +2207,603 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
                   <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6 space-y-6 shadow-xs">
                     <form onSubmit={handleSaveProfileDetails} className="space-y-5">
-                      <div>
-                        <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
+                      <div className="border-b border-gray-100 pb-3">
+                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
                           <User className="w-4 h-4 text-[#0A6B43]" />
                           Personal Demographics & Career Goals
                         </h3>
-                        <p className="text-xs text-gray-400 font-medium mt-1">Keep your contact and livelihood targets updated for optimal matchmaking</p>
                       </div>
 
+                      {/* Row 1: Full Name & Account Email */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name</label>
-                          <input type="text" disabled value={youthProfile.name} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-600 font-bold rounded-lg text-xs" />
+                          <input type="text" disabled value={youthProfile.name} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-700 font-bold rounded-lg text-xs" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Account Login Email</label>
-                          <input type="email" disabled value={currentUser?.email || youthProfile.email || "Registered Email"} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-600 font-bold rounded-lg text-xs" />
+                          <input type="email" disabled value={currentUser?.email || youthProfile.email || "Registered Email"} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-700 font-bold rounded-lg text-xs" />
                         </div>
                       </div>
 
+                      {/* Row 2: Age & Contact Phone */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Age (Years Old) *</label>
+                          <input
+                            type="number"
+                            min={15}
+                            max={35}
+                            required
+                            disabled={!isEditingProfile || isUnverified}
+                            value={editAge}
+                            onChange={(e) => setEditAge(e.target.value)}
+                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
+                              isEditingProfile
+                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                            }`}
+                          />
+                        </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Phone Number *</label>
                           <input
                             type="text"
                             required
-                            disabled={isUnverified}
+                            disabled={!isEditingProfile || isUnverified}
                             value={editPhone}
                             onChange={(e) => setEditPhone(formatContactNumber(e.target.value))}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
+                              isEditingProfile
+                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                            }`}
                           />
                         </div>
+                      </div>
+
+                      {/* Row 3: Barangay (Fixed) & Purok (Selectable) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Vocational Sector *</label>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Registered Barangay</label>
+                          <input type="text" disabled value={`Barangay ${youthProfile.barangay || "San Luis"}`} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-700 font-bold rounded-lg text-xs" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Purok / Zone *</label>
                           <select
-                            disabled={isUnverified}
-                            value={editSector}
-                            onChange={(e) => setEditSector(e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            disabled={!isEditingProfile || isUnverified}
+                            value={editPurok}
+                            onChange={(e) => setEditPurok(e.target.value)}
+                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
+                              isEditingProfile
+                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                            }`}
                           >
-                            <option value="IT & Technology">IT & Technology</option>
-                            <option value="Food & Culinary">Food & Culinary</option>
-                            <option value="Construction & Trades">Construction & Trades</option>
-                            <option value="Automotive & Transport">Automotive & Transport</option>
-                            <option value="Health & Beauty Care">Health & Beauty Care</option>
-                            <option value="Agriculture & Farming">Agriculture & Farming</option>
+                            {["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"].map(p => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                            {editPurok && !["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"].includes(editPurok) && (
+                              <option value={editPurok}>{editPurok}</option>
+                            )}
                           </select>
                         </div>
                       </div>
 
+                      {/* Row 4: Educational Attainment & Current Status */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Educational Attainment *</label>
                           <select
-                            disabled={isUnverified}
+                            disabled={!isEditingProfile || isUnverified}
                             value={editEdu}
                             onChange={(e) => setEditEdu(e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
+                              isEditingProfile
+                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                            }`}
                           >
-                            <option value="Elementary Level">Elementary Level</option>
-                            <option value="Elementary Graduate">Elementary Graduate</option>
-                            <option value="High School Level">High School Level</option>
-                            <option value="High School Graduate">High School Graduate</option>
-                            <option value="Senior High School">Senior High School</option>
-                            <option value="College Level">College Level</option>
+                            {[
+                              "College Graduate",
+                              "College Level",
+                              "College level",
+                              "Senior High School Graduate",
+                              "Senior High School",
+                              "High School Graduate",
+                              "High School Level",
+                              "Elementary Graduate",
+                              "Elementary Level",
+                              "Elementary level",
+                              "Tech-Voc / TVET Graduate"
+                            ].filter((v, i, a) => a.indexOf(v) === i).map(edu => (
+                              <option key={edu} value={edu}>{edu}</option>
+                            ))}
                           </select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Current Status *</label>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Current Youth Status *</label>
                           <select
-                            disabled={isUnverified}
+                            disabled={!isEditingProfile || isUnverified}
                             value={editStatus}
                             onChange={(e) => setEditStatus(e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
+                              isEditingProfile
+                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                            }`}
                           >
-                            <option value="Out-of-School Youth">Out-of-School Youth (OSY)</option>
-                            <option value="In-School Youth">In-School Youth</option>
+                            <option value="Out-of-school">Out-of-School Youth (OSY)</option>
+                            <option value="In-school">In-School Youth</option>
+                            <option value="Employed">Employed</option>
+                            <option value="Self-employed">Self-Employed / Freelance</option>
+                            <option value="Unemployed">Unemployed Jobseeker</option>
                             <option value="Working Student">Working Student</option>
-                            <option value="Unemployed">Unemployed</option>
+                            <option value="Graduate">TVET / College Graduate</option>
                           </select>
                         </div>
                       </div>
 
+                      {/* Row 5: Preferred Vocational Sector */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Vocational Sector *</label>
+                        <select
+                          disabled={!isEditingProfile || isUnverified}
+                          value={editSector}
+                          onChange={(e) => setEditSector(e.target.value)}
+                          className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
+                            isEditingProfile
+                              ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                              : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                          }`}
+                        >
+                          {[
+                            "Information & Communications Technology (ICT)",
+                            "IT & Digital",
+                            "Agriculture, Forestry and Fishery",
+                            "Automotive and Land Transportation",
+                            "Construction",
+                            "Electrical and Electronics",
+                            "Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)",
+                            "Heavy Equipment Operation",
+                            "Metals and Engineering / Welding",
+                            "Process Food and Beverages / Culinary",
+                            "Tourism / Hotel and Restaurant Services",
+                            "Social, Community Development and other Services / Caregiving",
+                            "Human Health / Health Care",
+                            "Visual and Performing Arts / Creative",
+                            "Garments and Textiles",
+                            "Wholesale and Retail / Sales",
+                            "Logistics and Warehousing",
+                            "Maritime",
+                            "Utilities / Solar Power",
+                            "Language and Culture",
+                            "Entrepreneurship & Management",
+                            "General / Multi-Sector"
+                          ].filter((v, i, a) => a.indexOf(v) === i).map(sec => (
+                            <option key={sec} value={sec}>{sec}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Row 6: Livelihood & Career Goal */}
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-400 uppercase block">Livelihood & Career Goal *</label>
                         <textarea
                           rows={3}
                           required
-                          disabled={isUnverified}
+                          disabled={!isEditingProfile || isUnverified}
                           value={editGoal}
                           onChange={(e) => setEditGoal(e.target.value)}
                           placeholder="Describe your career aspiration or livelihood goal..."
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                          className={`w-full p-2.5 border rounded-lg text-xs font-medium ${
+                            isEditingProfile
+                              ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
+                              : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
+                          }`}
                         />
                       </div>
 
-                      <div className="pt-2 flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isSavingProfile || isUnverified}
-                          className={`px-5 py-2.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${
-                            isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
-                          }`}
-                        >
-                          {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                          Save Profile Changes
-                        </button>
+                      {/* Row 7: Special Demographic Classifications / Sectoral Inclusivity */}
+                      <div className="pt-2 border-t border-gray-100 space-y-2">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Special Inclusivity & Priority Classifications</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                            !isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            editSoloParent ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold" : "bg-gray-50/80 border-gray-200 text-gray-600 font-medium"
+                          }`}>
+                            <input
+                              type="checkbox"
+                              disabled={!isEditingProfile || isUnverified}
+                              checked={editSoloParent}
+                              onChange={(e) => setEditSoloParent(e.target.checked)}
+                              className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
+                            />
+                            <span className="text-xs">Solo Parent</span>
+                          </label>
+
+                          <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                            !isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            editPwd ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold" : "bg-gray-50/80 border-gray-200 text-gray-600 font-medium"
+                          }`}>
+                            <input
+                              type="checkbox"
+                              disabled={!isEditingProfile || isUnverified}
+                              checked={editPwd}
+                              onChange={(e) => setEditPwd(e.target.checked)}
+                              className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
+                            />
+                            <span className="text-xs">PWD (Disability)</span>
+                          </label>
+
+                          <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                            !isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            editIndigenous ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold" : "bg-gray-50/80 border-gray-200 text-gray-600 font-medium"
+                          }`}>
+                            <input
+                              type="checkbox"
+                              disabled={!isEditingProfile || isUnverified}
+                              checked={editIndigenous}
+                              onChange={(e) => setEditIndigenous(e.target.checked)}
+                              className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
+                            />
+                            <span className="text-xs">Indigenous (IP)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex justify-end gap-2.5">
+                        {isEditingProfile ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleCancelEdit}
+                              disabled={isSavingProfile}
+                              className="px-4 py-2.5 rounded-lg text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSavingProfile || isUnverified}
+                              className={`px-5 py-2.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${
+                                isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
+                              }`}
+                            >
+                              {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                              Save Profile Changes
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isUnverified) {
+                                addToast("Cannot edit profile details while awaiting SK Verification", "error");
+                                return;
+                              }
+                              setIsEditingProfile(true);
+                            }}
+                            disabled={isUnverified}
+                            className={`px-5 py-2.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${
+                              isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
+                            }`}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            Edit Profile Details
+                          </button>
+                        )}
                       </div>
                     </form>
                   </div>
 
-                  {/* Summary Card */}
+                  {/* Summary & Verification Card */}
                   <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-3 text-xs">
-                      <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2">Verification & Membership</h4>
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-gray-400 font-medium">Barangay:</span>
-                        <span className="font-extrabold text-gray-800">Barangay {youthProfile.barangay}</span>
+                    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4 text-xs">
+                      <div>
+                        <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                          Membership & Verification Status
+                        </h4>
                       </div>
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-gray-400 font-medium">Purok Zone:</span>
-                        <span className="font-bold text-gray-800">{youthProfile.purok}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-gray-400 font-medium">KK Status:</span>
-                        <span className={`font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border ${
-                          youthProfile.approvalStatus === "Approved"
-                            ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                            : youthProfile.approvalStatus === "Rejected"
-                            ? "bg-red-50 text-red-700 border-red-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
-                        }`}>
-                          {youthProfile.approvalStatus === "Approved" ? "Verified KK Member ✓" : youthProfile.approvalStatus === "Rejected" ? "Declined" : "Pending Verification"}
-                        </span>
+
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">SK Verification:</span>
+                          <span className={`font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border ${
+                            youthProfile.approvalStatus === "Approved"
+                              ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                              : youthProfile.approvalStatus === "Rejected"
+                              ? "bg-red-50 text-red-700 border-red-200"
+                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          }`}>
+                            {youthProfile.approvalStatus === "Approved" ? "Verified KK Member ✓" : youthProfile.approvalStatus === "Rejected" ? "Declined" : "Pending Verification"}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Barangay & Purok:</span>
+                          <span className="font-extrabold text-gray-800">{youthProfile.purok}, Brgy. {youthProfile.barangay}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Age & Category:</span>
+                          <span className="font-bold text-gray-800">{youthProfile.age} yrs · {youthProfile.currentStatus}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Registered Date:</span>
+                          <span className="font-medium text-gray-700">{youthProfile.registeredDate || "Registered"}</span>
+                        </div>
+
+                        {/* Special Badges */}
+                        {(youthProfile.soloParent || youthProfile.pwd || youthProfile.indigenous) && (
+                          <div className="pt-1">
+                            <span className="text-gray-400 font-medium block mb-1.5">Priority Classification:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {youthProfile.soloParent && (
+                                <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                                  Solo Parent
+                                </span>
+                              )}
+                              {youthProfile.pwd && (
+                                <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                                  PWD
+                                </span>
+                              )}
+                              {youthProfile.indigenous && (
+                                <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                                  Indigenous (IP)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Submitted Government ID Details */}
+                        <div className="pt-2 border-t border-gray-100 space-y-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Submitted Verification ID</span>
+                          <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500 font-medium">ID Type:</span>
+                              <span className="font-bold text-gray-800">{youthProfile.verificationIdType || "Government / Student ID"}</span>
+                            </div>
+
+                            {youthProfile.verificationIdNumber && (
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-gray-500 font-medium">ID Number:</span>
+                                <span className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded-md border border-gray-200 text-[11px]">
+                                  {youthProfile.verificationIdNumber}
+                                </span>
+                              </div>
+                            )}
+
+                            {youthProfile.verificationIdImage && (
+                              <div className="pt-1 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-10 h-10 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shrink-0">
+                                    <img
+                                      src={youthProfile.verificationIdImage}
+                                      alt="ID Preview"
+                                      className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
+                                      onClick={() => setShowIdPhotoModal(true)}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-medium text-gray-600">ID Photo Attached</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowIdPhotoModal(true)}
+                                  className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer flex items-center gap-1"
+                                >
+                                  <Eye className="w-3 h-3" /> View ID
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Sub-Tab 2: Skills & Competencies */}
+              {/* Sub-Tab 2: Skills, Interests & Prior Experiences */}
               {profileActiveTab === "skills" && (
-                <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-6 animate-in fade-in duration-150">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                        <Award className="w-4 h-4 text-amber-500" />
-                        Manage Competency Skills & Qualifications
-                      </h3>
-                      <p className="text-xs text-gray-400 font-medium mt-0.5">Skills in your profile increase your match percentage with active TESDA programs</p>
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* 1. Competency Skills & Qualifications Card */}
+                  <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                          <Award className="w-4 h-4 text-amber-500" />
+                          Competency Skills & Technical Qualifications
+                        </h3>
+                        <p className="text-xs text-gray-400 font-medium mt-0.5">Skills listed here are directly scored by the CBF matching engine (50% weight)</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (isUnverified) {
+                            addToast("Cannot add skills in View-Only Mode", "error");
+                            return;
+                          }
+                          setShowAddSkillModal(true);
+                        }}
+                        disabled={isUnverified}
+                        className={`px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer ${
+                          isUnverified ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Custom Skill
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        if (isUnverified) {
-                          addToast("Cannot add skills in View-Only Mode", "error");
-                          return;
-                        }
-                        setShowAddSkillModal(true);
-                      }}
-                      disabled={isUnverified}
-                      className={`px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer ${
-                        isUnverified ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Custom Skill
-                    </button>
+
+                    {/* Active Registered Skills Tags */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                          Registered Competencies ({youthProfile.skills?.length || 0})
+                        </h4>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                          youthProfile.skills.map((s) => (
+                            <span key={s} className="bg-amber-50 text-amber-900 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-amber-200 flex items-center gap-2 shadow-2xs">
+                              <Award className="w-3.5 h-3.5 text-amber-600" />
+                              {s}
+                              <button
+                                onClick={() => {
+                                  if (isUnverified) {
+                                    addToast("Cannot remove skills in View-Only Mode", "error");
+                                    return;
+                                  }
+                                  handleRemoveSkillLocal(s);
+                                }}
+                                disabled={isUnverified}
+                                className="font-bold text-xs text-amber-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer"
+                                title="Remove skill"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-400 italic font-medium py-2">No competency skills added yet. Click "+ Add Custom Skill" or choose from the recommended skills below.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Active Registered Skills Tags */}
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Your Registered Skills</h4>
-                    <div className="flex flex-wrap gap-2.5">
-                      {youthProfile.skills && youthProfile.skills.length > 0 ? (
-                        youthProfile.skills.map((s) => (
-                          <span key={s} className="bg-amber-50 text-amber-900 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-amber-200 flex items-center gap-2 shadow-2xs">
-                            {s}
-                            <button
-                              onClick={() => {
-                                if (isUnverified) {
-                                  addToast("Cannot remove skills in View-Only Mode", "error");
-                                  return;
-                                }
-                                handleRemoveSkillLocal(s);
-                              }}
-                              disabled={isUnverified}
-                              className="font-bold text-xs text-amber-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer"
-                              title="Remove skill"
-                            >
-                              &times;
-                            </button>
-                          </span>
-                        ))
-                      ) : (
-                        <p className="text-xs text-gray-400 italic font-medium py-2">No skills added yet. Select from suggestions below or click "+ Add Custom Skill".</p>
+                  {/* 2. Vocational Interests & Sector Preferences Card */}
+                  <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-5">
+                    <div className="border-b border-gray-100 pb-3">
+                      <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                        <Compass className="w-4 h-4 text-[#0A6B43]" />
+                        Vocational Interests & Sector Preferences
+                      </h3>
+                      <p className="text-xs text-gray-400 font-medium mt-0.5">Fields and industries you are passionate about (20% weight in matchmaking)</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2.5">
+                        {(youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).length > 0 ? (
+                          (youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).map((pref) => (
+                            <span key={pref} className="bg-emerald-50 text-emerald-950 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2 shadow-2xs">
+                              <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                              {pref}
+                              <button
+                                onClick={() => handleRemovePreference(pref)}
+                                disabled={isUnverified}
+                                className="font-bold text-xs text-emerald-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer"
+                                title="Remove interest"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-400 italic font-medium py-1">No vocational interests listed. Add below to refine your matches.</p>
+                        )}
+                      </div>
+
+                      {/* Add Preference Inline Input */}
+                      {!isUnverified && (
+                        <div className="flex items-center gap-2 pt-2 max-w-md">
+                          <input
+                            type="text"
+                            placeholder="Add interest (e.g. Graphic Design, Web Development, Cooking)..."
+                            value={newPrefInput}
+                            onChange={(e) => setNewPrefInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddPreference(newPrefInput);
+                              }
+                            }}
+                            className="flex-1 p-2 border border-gray-200 rounded-lg text-xs font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddPreference(newPrefInput)}
+                            className="px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+                          >
+                            + Add Interest
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Dynamic Personalized Vocational Skill Suggestions */}
-                  <div className="space-y-3 pt-4 border-t border-gray-100">
-                    <div className="flex items-center justify-between">
+                  {/* 3. Prior Work & Practical Experiences Card */}
+                  <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-5">
+                    <div className="border-b border-gray-100 pb-3">
+                      <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                        <Briefcase className="w-4 h-4 text-blue-600" />
+                        Prior Work & Practical Experiences
+                      </h3>
+                      <p className="text-xs text-gray-400 font-medium mt-0.5">Informal gigs, past employment, hands-on hobbies, or volunteer work (15% weight)</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2.5">
+                        {youthProfile.experiencesRaw && youthProfile.experiencesRaw.length > 0 ? (
+                          youthProfile.experiencesRaw.map((exp) => (
+                            <span key={exp} className="bg-blue-50 text-blue-950 text-xs font-bold px-3.5 py-1.5 rounded-xl border border-blue-200 flex items-center gap-2 shadow-2xs">
+                              <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+                              {exp}
+                              <button
+                                onClick={() => handleRemoveExperience(exp)}
+                                disabled={isUnverified}
+                                className="font-bold text-xs text-blue-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer"
+                                title="Remove experience"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-400 italic font-medium py-1">No prior work experiences listed. Add below to boost practical experience scoring.</p>
+                        )}
+                      </div>
+
+                      {/* Add Experience Inline Input */}
+                      {!isUnverified && (
+                        <div className="flex items-center gap-2 pt-2 max-w-md">
+                          <input
+                            type="text"
+                            placeholder="Add prior experience (e.g. Phone Repair, Store Assistant, Cooking Helper)..."
+                            value={newExpInput}
+                            onChange={(e) => setNewExpInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddExperience(newExpInput);
+                              }
+                            }}
+                            className="flex-1 p-2 border border-gray-200 rounded-lg text-xs font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddExperience(newExpInput)}
+                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+                          >
+                            + Add Experience
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 4. Dynamic Personalized Vocational Skill Suggestions */}
+                  <div className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                       <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-4 h-4 text-amber-500" />
-                        Recommended Skills for Your Profile
+                        AI Recommended Skills for Your Profile
                       </h4>
                       {youthProfile.sectorPreference && (
                         <span className="text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wide">
@@ -2272,18 +2812,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       )}
                     </div>
                     <p className="text-xs text-gray-500 font-medium">
-                      Tailored vocational skills matching your sector preference ({youthProfile.sectorPreference || "General"}) and available TESDA programs. Click to add and boost your match score:
+                      Tailored vocational skills matching your sector preference ({youthProfile.sectorPreference || "General"}) and active TESDA training programs in San Luis. Click to add and boost your match score:
                     </p>
                     <div className="flex flex-wrap gap-2 pt-1">
                       {getSuggestedSkillsForYouth(youthProfile, programs).map((item) => {
-                        const hasSkill = youthProfile.skills.includes(item.skill);
+                        const hasSkill = youthProfile.skills?.includes(item.skill);
                         return (
                           <button
                             key={item.skill}
                             disabled={hasSkill || isUnverified}
                             onClick={async () => {
                               if (isUnverified) return;
-                              const updatedSkills = [...youthProfile.skills, item.skill];
+                              const updatedSkills = [...(youthProfile.skills || []), item.skill];
                               const tempYouth = { ...youthProfile, skills: updatedSkills };
                               const updatedMatchScore = programs && programs.length > 0
                                 ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
@@ -2878,6 +3418,51 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   className="flex-1 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
                 >
                   Apply Now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Verification ID Full Photo Modal */}
+        {showIdPhotoModal && youthProfile.verificationIdImage && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 110 }}>
+            <div className="bg-white rounded-2xl p-6 shadow-2xl space-y-4 max-w-lg w-full animate-in zoom-in-95 border border-gray-200 max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
+                  <div>
+                    <h4 className="font-extrabold text-gray-900 text-sm">{youthProfile.verificationIdType || "Government ID"} Attached</h4>
+                    <p className="text-[11px] text-gray-500 font-medium">Uploaded for SK Verification</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowIdPhotoModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center p-2 min-h-[260px]">
+                <img
+                  src={youthProfile.verificationIdImage}
+                  alt="Full Government ID"
+                  className="max-h-[65vh] w-auto object-contain rounded-lg shadow-sm"
+                />
+              </div>
+
+              <div className="flex justify-between items-center pt-2 text-xs">
+                <span className="font-mono text-gray-600 font-bold">
+                  {youthProfile.verificationIdNumber ? `ID No: ${youthProfile.verificationIdNumber}` : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowIdPhotoModal(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Close Preview
                 </button>
               </div>
             </div>
