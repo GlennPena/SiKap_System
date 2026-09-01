@@ -33,6 +33,50 @@ export enum TESDAPartnerScreen {
   EDIT_PROGRAM = "Edit Program"
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+}
+
+export interface Alias {
+  id: string;
+  alias: string;
+  normalizedValue: string;
+  categoryId: string;
+}
+
+export interface NormalizedInput {
+  raw: string;
+  value: string | null;
+  categoryId: string | null;
+  isUnresolved: boolean;
+}
+
+export type NormalizedInputs = NormalizedInput[];
+export type NormalizedGoal = NormalizedInput | null;
+
+export interface CBFScoreBreakdown {
+  programId: string;
+  programTitle: string;
+  categoryId: string;
+  categoryName?: string;
+  skillMatch: number;
+  preferenceMatch: number;
+  experienceMatch: number;
+  goalMatch: number;
+  skillPoints: number;
+  preferencePoints: number;
+  experiencePoints: number;
+  goalPoints: number;
+  finalScore: number;
+  passedSkillGate: boolean;
+  excluded: boolean;
+  matchedSkills?: string[];
+  totalResolvedSkills?: number;
+}
+
 export interface SkillGapData {
   skill: string;
   count: number;
@@ -54,6 +98,19 @@ export interface YouthProfile {
   interests: string[]; // "Employment" | "Entrepreneurship" | "Further Education" | "Vocational Training"
   sectorPreference: string;
   livelihoodGoal: string;
+  
+  // CBF Raw inputs
+  skillsRaw?: string[];
+  preferencesRaw?: string[];
+  experiencesRaw?: string[];
+  goalRaw?: string;
+
+  // CBF Normalized JSON data
+  skillsNormalized?: NormalizedInputs;
+  preferencesNormalized?: NormalizedInputs;
+  experiencesNormalized?: NormalizedInputs;
+  goalNormalized?: NormalizedGoal;
+
   contactNumber: string;
   registeredDate: string;
   matchScore: number; // Percentage
@@ -83,6 +140,8 @@ export interface TESDAProgram {
   contactPerson: string;
   contactNumber: string;
   activeStatus: "Active" | "Full" | "Closed";
+  categoryId?: string;
+  category?: string | Category;
   requiredDocuments?: string[];
   requiredSkills?: string[];
   trainingDays?: string[];

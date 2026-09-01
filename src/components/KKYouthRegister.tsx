@@ -56,9 +56,16 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regStatus, setRegStatus] = useState("Out-of-school");
   
   const [skillInput, setSkillInput] = useState("");
-  const [regSkills, setRegSkills] = useState<string[]>([]);
-  const [regSector, setRegSector] = useState("IT & Technology");
-  const [regGoal, setRegGoal] = useState("");
+  const [regSkills, setRegSkills] = useState<string[]>(["Computer"]);
+  
+  const [prefInput, setPrefInput] = useState("");
+  const [regPreferences, setRegPreferences] = useState<string[]>(["Technology"]);
+  const [regSector, setRegSector] = useState("IT & Digital");
+
+  const [expInput, setExpInput] = useState("");
+  const [regExperiences, setRegExperiences] = useState<string[]>([]);
+
+  const [regGoal, setRegGoal] = useState("I want to become an IT professional");
   
   const [regSolo, setRegSolo] = useState(false);
   const [regPwd, setRegPwd] = useState(false);
@@ -78,7 +85,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     { label: "Location", desc: "Barangay Select", icon: <MapPin className="w-4 h-4" /> },
     { label: "Personal", desc: "Contact & Info", icon: <User className="w-4 h-4" /> },
     { label: "Background", desc: "Edu & Demographics", icon: <GraduationCap className="w-4 h-4" /> },
-    { label: "Interests", desc: "Skills & Goals", icon: <Award className="w-4 h-4" /> },
+    { label: "CBF Signals", desc: "Skills, Prefs & Goal", icon: <Award className="w-4 h-4" /> },
     { label: "Verification", desc: "ID & Declaration", icon: <FileCheck className="w-4 h-4" /> }
   ];
 
@@ -95,6 +102,36 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
   const handleRemoveSkill = (skill: string) => {
     setRegSkills(regSkills.filter(s => s !== skill));
+  };
+
+  const handleAddPreference = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const trimmed = prefInput.trim();
+      if (trimmed && !regPreferences.includes(trimmed)) {
+        setRegPreferences([...regPreferences, trimmed]);
+        setPrefInput("");
+      }
+    }
+  };
+
+  const handleRemovePreference = (pref: string) => {
+    setRegPreferences(regPreferences.filter(p => p !== pref));
+  };
+
+  const handleAddExperience = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const trimmed = expInput.trim();
+      if (trimmed && !regExperiences.includes(trimmed)) {
+        setRegExperiences([...regExperiences, trimmed]);
+        setExpInput("");
+      }
+    }
+  };
+
+  const handleRemoveExperience = (exp: string) => {
+    setRegExperiences(regExperiences.filter(e => e !== exp));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,9 +193,13 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       educationalAttainment: regEdu,
       currentStatus: regStatus,
       skills: regSkills,
-      interests: [regSector, "Vocational Training"],
+      interests: regPreferences.length > 0 ? regPreferences : [regSector],
       sectorPreference: regSector,
       livelihoodGoal: regGoal,
+      skillsRaw: regSkills,
+      preferencesRaw: regPreferences.length > 0 ? regPreferences : [regSector],
+      experiencesRaw: regExperiences,
+      goalRaw: regGoal,
       contactNumber: regContact,
       soloParent: regSolo,
       pwd: regPwd,
@@ -632,59 +673,153 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
             </div>
 
             <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 md:p-8 space-y-6">
-              {/* Skill input */}
+              
+              {/* 1. Skills (Multi-entry tags) */}
               <div className="space-y-1.5 text-xs font-semibold">
-                <label className="text-[11px] font-bold text-gray-400 uppercase block">
-                  Add Your Technical Skills (Press Enter to Add)
+                <label className="text-[11px] font-bold text-gray-700 uppercase flex items-center justify-between">
+                  <span>1. Technical & Practical Skills (Press Enter to Add)</span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-extrabold">Skill Factor (50%)</span>
                 </label>
-                <input
-                  type="text"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyDown={handleAddSkill}
-                  placeholder="Type a skill (e.g. Cooking, Wiring, Photoshop) and press Enter"
-                  className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                />
-                <div className="flex flex-wrap gap-1.5 mt-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={skillInput}
+                    onChange={(e) => setSkillInput(e.target.value)}
+                    onKeyDown={handleAddSkill}
+                    placeholder="Type a skill (e.g. Computer, Programming, Welding, Cooking) and press Enter"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = skillInput.trim();
+                      if (trimmed && !regSkills.includes(trimmed)) {
+                        setRegSkills([...regSkills, trimmed]);
+                        setSkillInput("");
+                      }
+                    }}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
                   {regSkills.map((s) => (
-                    <span key={s} className="bg-emerald-50 text-[#0A6B43] border border-emerald-100 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <span key={s} className="bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
                       {s}
-                      <button type="button" onClick={() => handleRemoveSkill(s)} className="hover:text-red-600 p-0.5">
+                      <button type="button" onClick={() => handleRemoveSkill(s)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
                         &times;
                       </button>
                     </span>
                   ))}
+                  {regSkills.length === 0 && (
+                    <span className="text-gray-400 italic text-[11px]">No skills added yet. Type a skill above and press Enter.</span>
+                  )}
                 </div>
               </div>
 
-              {/* Livelihood Preference & Goals */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-semibold">
-                <div className="sm:col-span-1 space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase block">Preferred Sector</label>
-                  <select
-                    value={regSector}
-                    onChange={(e) => setRegSector(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="IT & Technology">IT & Technology</option>
-                    <option value="Tourism & Food">Tourism & Food</option>
-                    <option value="Construction & Metals">Construction & Metals</option>
-                    <option value="Electrical & Electronics">Electrical & Electronics</option>
-                    <option value="Tourism & Hospitality">Tourism & Hospitality</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2 space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase block">What is your primary livelihood milestone or goal? *</label>
+              {/* 2. Preferences (Multi-entry tags) */}
+              <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
+                <label className="text-[11px] font-bold text-gray-700 uppercase flex items-center justify-between">
+                  <span>2. Interests & Vocational Preferences (Press Enter to Add)</span>
+                  <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-extrabold">Preference Factor (25%)</span>
+                </label>
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    required
-                    value={regGoal}
-                    onChange={(e) => setRegGoal(e.target.value)}
-                    placeholder="e.g. Set up computer repair shop, enroll in Welding NC II"
+                    value={prefInput}
+                    onChange={(e) => setPrefInput(e.target.value)}
+                    onKeyDown={handleAddPreference}
+                    placeholder="Type an interest/preference (e.g. Technology, Culinary, Electronics) and press Enter"
                     className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = prefInput.trim();
+                      if (trimmed && !regPreferences.includes(trimmed)) {
+                        setRegPreferences([...regPreferences, trimmed]);
+                        setPrefInput("");
+                      }
+                    }}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
+                  >
+                    Add
+                  </button>
                 </div>
+                <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
+                  {regPreferences.map((p) => (
+                    <span key={p} className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                      {p}
+                      <button type="button" onClick={() => handleRemovePreference(p)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                  {regPreferences.length === 0 && (
+                    <span className="text-gray-400 italic text-[11px]">No preferences added yet.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Experiences (Multi-entry tags) */}
+              <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
+                <label className="text-[11px] font-bold text-gray-700 uppercase flex items-center justify-between">
+                  <span>3. Past Work / Practical Experiences (Press Enter to Add)</span>
+                  <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-extrabold">Experience Factor (15%)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={expInput}
+                    onChange={(e) => setExpInput(e.target.value)}
+                    onKeyDown={handleAddExperience}
+                    placeholder="e.g. Computer Shop Helper, Worked in a bakery, Talyer assistant"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = expInput.trim();
+                      if (trimmed && !regExperiences.includes(trimmed)) {
+                        setRegExperiences([...regExperiences, trimmed]);
+                        setExpInput("");
+                      }
+                    }}
+                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
+                  {regExperiences.map((exp) => (
+                    <span key={exp} className="bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                      {exp}
+                      <button type="button" onClick={() => handleRemoveExperience(exp)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                  {regExperiences.length === 0 && (
+                    <span className="text-gray-400 italic text-[11px]">Optional: Add past jobs, gigs, or informal assisting experience.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. Primary Livelihood / Career Goal */}
+              <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
+                <label className="text-[11px] font-bold text-gray-700 uppercase flex items-center justify-between">
+                  <span>4. Primary Career / Livelihood Goal *</span>
+                  <span className="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-extrabold">Goal Factor (10%)</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={regGoal}
+                  onChange={(e) => setRegGoal(e.target.value)}
+                  placeholder="e.g. I want to become an IT professional / Set up a welding shop"
+                  className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden font-medium"
+                />
               </div>
 
               <div className="flex justify-between pt-4 border-t border-gray-100">

@@ -14,6 +14,9 @@ export async function GET() {
       where: {
         activeStatus: { not: "Closed" }
       },
+      include: {
+        category: true
+      },
       orderBy: { createdAt: "desc" }
     });
 
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
         contactPerson: body.contactPerson || "TESDA Registrar",
         contactNumber: body.contactNumber || "+63 917 000 1122",
         activeStatus: "Active",
+        categoryId: body.categoryId || undefined,
         requiredDocuments: body.requiredDocuments || ["Birth Certificate", "2x2 Picture"],
         requiredSkills: body.requiredSkills || [],
         trainingDays: body.trainingDays,
@@ -68,6 +72,9 @@ export async function POST(request: Request) {
         instructor: body.instructor,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined
+      },
+      include: {
+        category: true
       }
     });
 
@@ -116,7 +123,10 @@ export async function PUT(request: Request) {
 
     const updated = await db.tESDAProgram.update({
       where: { id: body.id },
-      data: updateData
+      data: updateData,
+      include: {
+        category: true
+      }
     });
 
     return NextResponse.json({ success: true, data: updated });

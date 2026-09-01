@@ -4,6 +4,7 @@ import { decryptAES256 } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 
 function safeDecrypt(enc: string | null | undefined): string {
   if (!enc) return "";
@@ -25,15 +26,23 @@ function mapToClientProfile(y: any) {
     email: y.user?.email || y.email || "",
     age: y.age,
     purok: y.purok,
-    barangay: y.barangay.name,
+    barangay: y.barangay?.name || "",
     educationalAttainment: y.educationalAttainment,
     currentStatus: y.currentStatus,
-    skills: y.skills,
-    interests: y.interests,
+    skills: y.skillsRaw && y.skillsRaw.length > 0 ? y.skillsRaw : y.skills,
+    interests: y.preferencesRaw && y.preferencesRaw.length > 0 ? y.preferencesRaw : y.interests,
     sectorPreference: y.sectorPreference,
-    livelihoodGoal: y.livelihoodGoal,
+    livelihoodGoal: y.goalRaw || y.livelihoodGoal,
+    skillsRaw: y.skillsRaw || y.skills || [],
+    preferencesRaw: y.preferencesRaw || y.interests || [],
+    experiencesRaw: y.experiencesRaw || [],
+    goalRaw: y.goalRaw || y.livelihoodGoal || "",
+    skillsNormalized: y.skillsNormalized || [],
+    preferencesNormalized: y.preferencesNormalized || [],
+    experiencesNormalized: y.experiencesNormalized || [],
+    goalNormalized: y.goalNormalized || null,
     contactNumber: safeDecrypt(y.contactNumberEncrypted),
-    registeredDate: y.registeredDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+    registeredDate: y.registeredDate ? y.registeredDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "",
     matchScore: y.matchScore,
     soloParent: y.soloParent,
     pwd: y.pwd,
@@ -186,6 +195,33 @@ export async function PUT(request: Request) {
     if (body.verificationIdNumber) {
        updateData.verificationIdNumberEnc = encrypt(body.verificationIdNumber);
        delete updateData.verificationIdNumber;
+    }
+
+    if (body.skillsRaw || body.skills) {
+      const sRaw = Array.isArray(body.skillsRaw) ? body.skillsRaw : (Array.isArray(body.skills) ? body.skills : []);
+      updateData.skillsRaw = sRaw;
+      updateData.skills = sRaw;
+      updateData.skillsNormalized = normalizeSkills(sRaw) as any;
+    }
+
+    if (body.preferencesRaw || body.interests) {
+      const pRaw = Array.isArray(body.preferencesRaw) ? body.preferencesRaw : (Array.isArray(body.interests) ? body.interests : []);
+      updateData.preferencesRaw = pRaw;
+      updateData.interests = pRaw;
+      updateData.preferencesNormalized = normalizePreferences(pRaw) as any;
+    }
+
+    if (body.experiencesRaw !== undefined) {
+      const eRaw = Array.isArray(body.experiencesRaw) ? body.experiencesRaw : [];
+      updateData.experiencesRaw = eRaw;
+      updateData.experiencesNormalized = normalizeExperiences(eRaw) as any;
+    }
+
+    if (body.goalRaw !== undefined || body.livelihoodGoal !== undefined) {
+      const gRaw = body.goalRaw || body.livelihoodGoal || "";
+      updateData.goalRaw = gRaw;
+      updateData.livelihoodGoal = gRaw;
+      updateData.goalNormalized = normalizeGoal(gRaw) as any;
     }
 
     let planStringToSave: string | null = null;

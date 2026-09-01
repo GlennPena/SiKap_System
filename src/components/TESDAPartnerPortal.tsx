@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 
 interface TESDAPartnerPortalProps {
   programs: TESDAProgram[];
@@ -137,6 +138,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [progInstructor, setProgInstructor] = useState("");
   const [progStartDate, setProgStartDate] = useState("");
   const [progEndDate, setProgEndDate] = useState("");
+  const [progCategoryId, setProgCategoryId] = useState<string>("1");
 
   // Editing program ID state
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
@@ -145,6 +147,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setEditingProgramId(null);
     setProgTitle("");
     setProgLevel("NC II");
+    setProgCategoryId("1");
     setProgTrainingHours("");
     setProgLocation("");
     setProgCost("Free");
@@ -166,6 +169,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   const handleOpenEditModal = (prog: TESDAProgram) => {
     setEditingProgramId(prog.id);
+    setProgCategoryId(prog.categoryId || "1");
     
     // Parse title & level (e.g. "Food Processing NC II" -> "Food Processing" & "NC II")
     const match = prog.title.match(/(.*)\s+(NC\s+I|NC\s+II|NC\s+III)$/i);
@@ -246,6 +250,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     
     const payload = {
       title: fullTitle,
+      categoryId: progCategoryId,
       location: progLocation,
       trainingHours: Number(progTrainingHours),
       cost: progCost,
@@ -318,6 +323,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     
     const payload = {
       title: fullTitle,
+      categoryId: progCategoryId,
       location: progLocation,
       trainingHours: Number(progTrainingHours),
       cost: progCost,
@@ -1525,7 +1531,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Basic Course Identity</h4>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div className="sm:col-span-2 space-y-1">
                           <label className="text-[11px] font-bold text-slate-600 uppercase">Training Course Title *</label>
                           <input
@@ -1548,6 +1554,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             <option value="NC I">NC I</option>
                             <option value="NC II">NC II</option>
                             <option value="NC III">NC III</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-emerald-700 uppercase">Vocational Category *</label>
+                          <select
+                            value={progCategoryId}
+                            onChange={(e) => setProgCategoryId(e.target.value)}
+                            className="w-full p-2.5 border border-emerald-300 bg-emerald-50/60 font-bold rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                          >
+                            {CATEGORIES.map(cat => (
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
+                            ))}
                           </select>
                         </div>
                       </div>
@@ -2179,7 +2198,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Basic Course Identity</h4>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div className="sm:col-span-2 space-y-1">
                       <label className="text-[11px] font-bold text-slate-600 uppercase">Training Course Title *</label>
                       <input
@@ -2202,6 +2221,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <option value="NC I">NC I</option>
                         <option value="NC II">NC II</option>
                         <option value="NC III">NC III</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-emerald-700 uppercase">Vocational Category *</label>
+                      <select
+                        value={progCategoryId}
+                        onChange={(e) => setProgCategoryId(e.target.value)}
+                        className="w-full p-2.5 border border-emerald-300 bg-emerald-50/60 font-bold rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                      >
+                        {CATEGORIES.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
                       </select>
                     </div>
                   </div>

@@ -105,9 +105,10 @@ export default function App() {
 
   // Simple toast system
   const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error" | "info" }[]>([]);
+  const toastCounterRef = React.useRef(0);
   
   const addToast = (message: string, type: "success" | "error" | "info") => {
-    const id = Date.now().toString();
+    const id = `${Date.now()}-${++toastCounterRef.current}`;
     setToasts(prev => [...prev, { id, message, type }]);
   };
 

@@ -1,440 +1,251 @@
-import { YouthProfile, TESDAProgram } from "../types";
+import { YouthProfile, TESDAProgram, CBFScoreBreakdown, NormalizedInputs, NormalizedGoal } from "../types";
+import { CATEGORIES, CATEGORY_MAP } from "./cbf-taxonomy-data";
+import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "./cbf-normalization";
 
 /**
- * Common non-domain TVET and conversational stopwords
- * These words must NOT trigger domain skill matches between unrelated fields (e.g., "Basic" should not match "Basic welding" to "Basic computer")
+ * Resolves or extracts the program's primary categoryId
  */
-const STOP_WORDS = new Set([
-  "basic", "level", "skills", "skill", "training", "knowledge", "nc", "ii", "i", "iii", "iv", "v",
-  "and", "of", "the", "to", "for", "with", "at", "in", "on", "by", "an", "a", "or", "is",
-  "course", "program", "servicing", "operation", "operations", "work", "standard",
-  "competency", "competencies", "certificate", "national", "qualification", "able", "can",
-  "perform", "general", "practical", "overview", "introduction", "intro", "oriented",
-  "holder", "practitioner", "assistant", "associate", "worker", "entry"
-]);
-
-/**
- * Comprehensive TVET Sector Taxonomy Mapping
- * Maps industry sectors to keyword stems, skill variations, and aliases
- */
-export const TVET_SECTOR_TAXONOMY: Record<string, { aliases: string[]; keywords: string[] }> = {
-  "Information Technology & Digital": {
-    aliases: [
-      "information technology", "it", "ict", "it & technology", "computer", "computing",
-      "digital", "software", "tech", "web", "data", "cyber", "hardware", "network",
-      "programming", "coding", "systems", "information and communication", "it & digital"
-    ],
-    keywords: [
-      "comput", "pc", "laptop", "softwar", "hardwar", "network", "system", "program",
-      "code", "codin", "web", "design", "graphic", "excel", "data", "encod", "typing",
-      "media", "cyber", "tech", "digit", "server", "troubleshoot", "app", "offic",
-      "database", "frontend", "backend", "developer", "technician", "it", "ict", "css"
-    ]
-  },
-  "Metals & Engineering": {
-    aliases: [
-      "metals & engineering", "metals", "metal", "welding", "smaw", "gmaw", "gtaw",
-      "mig", "tig", "machining", "fabrication", "iron", "steel", "pipefitting"
-    ],
-    keywords: [
-      "weld", "weldi", "smaw", "gmaw", "gtaw", "mig", "tig", "machin", "fabricat",
-      "lathe", "pipe", "metal", "sheet", "iron", "steel", "cut", "grind", "fit",
-      "solder", "flux", "electrode", "joint", "arc", "torch", "shielded"
-    ]
-  },
-  "Construction & Building Services": {
-    aliases: [
-      "construction & building services", "construction", "building", "electrical",
-      "plumbing", "carpentry", "masonry", "wiring", "refrigeration", "aircon", "hvac"
-    ],
-    keywords: [
-      "carpent", "mason", "electr", "plumb", "draft", "piping", "paint",
-      "tile", "scaffold", "concret", "rebar", "wir", "solar", "hvch", "aircon",
-      "refrigerat", "rac", "breaker", "structure", "panel"
-    ]
-  },
-  "Tourism, Food & Hospitality": {
-    aliases: [
-      "tourism, food & hospitality", "tourism", "food", "hospitality", "cookery",
-      "culinary", "baking", "pastry", "kitchen", "hotel", "restaurant", "barista", "f&b"
-    ],
-    keywords: [
-      "cook", "cooki", "cooker", "bak", "bakin", "pastri", "food", "kitchen",
-      "barista", "beverag", "housekeep", "waiter", "bartend", "culinari", "cater",
-      "restaur", "hotel", "dish", "chef", "dining", "cocktail", "espresso"
-    ]
-  },
-  "Automotive & Land Transport": {
-    aliases: [
-      "automotive & land transport", "automotive", "transport", "driving",
-      "mechanic", "motorcycle", "vehicle", "diesel"
-    ],
-    keywords: [
-      "auto", "engin", "mechan", "motor", "brake", "vehicl", "driv", "drivin",
-      "diesel", "transmission", "troubleshoot", "tire", "align", "tune", "motorcycle",
-      "chassis", "clutch", "suspension"
-    ]
-  },
-  "Health, Social & Care Services": {
-    aliases: [
-      "health, social & care services", "health", "caregiving", "nursing",
-      "elderly care", "caregiver", "social work", "patient care"
-    ],
-    keywords: [
-      "care", "caregiv", "nurs", "elder", "first aid", "health", "therap", "physio",
-      "patient", "babysit", "disabl", "sanitat", "hygien", "assist", "clinic", "hospital"
-    ]
-  },
-  "Beauty, Wellness & Personal Care": {
-    aliases: [
-      "beauty, wellness & personal care", "beauty", "wellness", "personal care",
-      "hairdressing", "cosmetology", "nail care", "spa", "massage", "barber"
-    ],
-    keywords: [
-      "hair", "makeup", "nail", "salon", "spa", "cosmet", "wellness",
-      "massage", "therapi", "skincare", "barber", "aesthetic", "manicur", "pedicur", "facial"
-    ]
-  },
-  "Agriculture, Fishery & Forestry": {
-    aliases: [
-      "agriculture, fishery & forestry", "agriculture", "farming", "crop",
-      "fishery", "livestock", "poultry", "forestry", "aquaculture", "agri"
-    ],
-    keywords: [
-      "farm", "crop", "poult", "livestock", "fish", "organ", "plant",
-      "garden", "soil", "harvest", "fertiliz", "horticultur", "agri", "aquacultur", "animal"
-    ]
-  },
-  "Garments, Textiles & Fashion": {
-    aliases: [
-      "garments, textiles & fashion", "garments", "textiles", "fashion",
-      "dressmaking", "tailoring", "sewing", "sew", "apparel"
-    ],
-    keywords: [
-      "sew", "tailor", "dress", "textil", "fabric", "pattern", "embroider",
-      "garment", "fashion", "alter", "needle", "stitch", "cloth"
-    ]
-  },
-  "Business, Finance & Sales": {
-    aliases: [
-      "business, finance & sales", "business", "finance", "sales", "bookkeeping",
-      "accounting", "e-commerce", "retail", "entrepreneurship", "management"
-    ],
-    keywords: [
-      "bookkeep", "account", "sal", "market", "store", "cashier", "inventory",
-      "entrepreneur", "retail", "customer", "admin", "e-com", "manag", "ledger", "selling"
-    ]
+export function getProgramCategoryId(program: TESDAProgram): string | null {
+  if (program.categoryId) {
+    return program.categoryId;
   }
-};
+  if (typeof program.category === "string") {
+    const matchedCategory = CATEGORIES.find(
+      c => c.name.toLowerCase() === (program.category as string).toLowerCase() ||
+           c.slug.toLowerCase() === (program.category as string).toLowerCase() ||
+           c.id === program.category
+    );
+    if (matchedCategory) return matchedCategory.id;
+  } else if (program.category && typeof program.category === "object" && (program.category as any).id) {
+    return (program.category as any).id;
+  }
+
+  // If a program cannot be confidently classified, return null for review
+  return null;
+}
 
 /**
- * Tagalog / English & Colloquial Vocational Synonym Alias Dictionaries
+ * Extracts and ensures normalized data is available for a YouthProfile.
+ * If raw inputs are provided without pre-computed normalized JSON, runs normalization on the fly.
  */
-const SYNONYM_ALIAS_MAP: Record<string, string[]> = {
-  "pagluluto": ["cooking", "cookery", "food prep", "culinary", "kitchen"],
-  "pagtahi": ["sewing", "tailoring", "dressmaking", "garment"],
-  "pag-welding": ["welding", "smaw", "metalwork", "fabrication"],
-  "pagmamaneho": ["driving", "automotive", "transportation"],
-  "kuryente": ["electrical", "wiring", "electrician"],
-  "pag-aayos ng motor": ["motorcycle", "engine repair", "mechanic"],
-  "pag-aalaga": ["caregiving", "nursing", "elderly care"],
-  "pagtatanim": ["farming", "agriculture", "crop production"],
-  "pag-aayos ng cellphone": ["electronics", "mobile repair", "servicing"],
-  "pag-aayos ng kompyuter": ["computer repair", "it support", "hardware", "computer systems"],
-  "pag-picture": ["photography", "digital media", "video editing"],
-  "encoding": ["data entry", "ms office", "typing", "computer", "information technology"],
-  "selling": ["sales", "retail", "customer service", "e-commerce"],
-  "baking": ["pastry", "bread", "food prep"],
-  "mechanic": ["automotive", "engine repair", "troubleshooting"],
-  "professional it": ["information technology", "computer systems", "software", "network", "it support"]
-};
+export function resolveYouthNormalizedData(youth: YouthProfile): {
+  skills: NormalizedInputs;
+  preferences: NormalizedInputs;
+  experiences: NormalizedInputs;
+  goal: NormalizedGoal;
+} {
+  // 1. Skills
+  let skills: NormalizedInputs = [];
+  if (youth.skillsNormalized && Array.isArray(youth.skillsNormalized) && youth.skillsNormalized.length > 0) {
+    skills = youth.skillsNormalized;
+  } else {
+    const rawSkills = youth.skillsRaw && youth.skillsRaw.length > 0 ? youth.skillsRaw : (youth.skills || []);
+    skills = normalizeSkills(rawSkills);
+  }
+
+  // 2. Preferences
+  let preferences: NormalizedInputs = [];
+  if (youth.preferencesNormalized && Array.isArray(youth.preferencesNormalized) && youth.preferencesNormalized.length > 0) {
+    preferences = youth.preferencesNormalized;
+  } else {
+    const rawPrefs = youth.preferencesRaw && youth.preferencesRaw.length > 0 
+      ? youth.preferencesRaw 
+      : (youth.interests || [youth.sectorPreference].filter(Boolean));
+    preferences = normalizePreferences(rawPrefs);
+  }
+
+  // 3. Experiences
+  let experiences: NormalizedInputs = [];
+  if (youth.experiencesNormalized && Array.isArray(youth.experiencesNormalized) && youth.experiencesNormalized.length > 0) {
+    experiences = youth.experiencesNormalized;
+  } else {
+    const rawExp = youth.experiencesRaw && youth.experiencesRaw.length > 0 ? youth.experiencesRaw : [];
+    experiences = normalizeExperiences(rawExp);
+  }
+
+  // 4. Primary Goal
+  let goal: NormalizedGoal = null;
+  if (youth.goalNormalized !== undefined && youth.goalNormalized !== null) {
+    goal = youth.goalNormalized;
+  } else {
+    const rawG = youth.goalRaw || youth.livelihoodGoal;
+    goal = normalizeGoal(rawG);
+  }
+
+  return { skills, preferences, experiences, goal };
+}
 
 /**
- * Levenshtein Edit Distance for Fuzzy Typo & Spelling Variation Recognition
+ * Calculates full 4-factor detailed score breakdown for a youth and TESDA program
  */
-export function levenshteinSimilarity(a: string, b: string): number {
-  if (a === b) return 1.0;
-  if (!a || !b) return 0.0;
+export function calculateDetailedCBFMatch(
+  youth: YouthProfile,
+  program: TESDAProgram
+): CBFScoreBreakdown {
+  const programCategoryId = getProgramCategoryId(program);
   
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
+  if (!programCategoryId) {
+    return {
+      programId: program.id,
+      programTitle: program.title,
+      categoryId: null,
+      categoryName: "Uncategorized",
+      skillMatch: 0,
+      skillPoints: 0,
+      preferenceMatch: 0,
+      preferencePoints: 0,
+      experienceMatch: 0,
+      experiencePoints: 0,
+      goalMatch: 0,
+      goalPoints: 0,
+      finalScore: 0,
+      passedSkillGate: false,
+      excluded: true
+    };
   }
 
-  const maxLength = Math.max(a.length, b.length);
-  return 1.0 - matrix[b.length][a.length] / maxLength;
+  const categoryObj = CATEGORY_MAP[programCategoryId];
+  const categoryName = categoryObj ? categoryObj.name : "Unspecified";
+
+  const { skills, preferences, experiences, goal } = resolveYouthNormalizedData(youth);
+
+  // 1. Skill Match (Weight: 50%)
+  // Denominator: Total number of unique resolved canonical skills
+  const resolvedSkills = skills.filter(s => !s.isUnresolved && s.categoryId !== null);
+  const totalUniqueResolvedSkills = resolvedSkills.length;
+  
+  const matchingSkills = resolvedSkills.filter(s => s.categoryId === programCategoryId);
+  const matchingUniqueSkillsCount = matchingSkills.length;
+
+  const skillMatch = totalUniqueResolvedSkills > 0 
+    ? Math.round((matchingUniqueSkillsCount / totalUniqueResolvedSkills) * 100)
+    : 0;
+
+  const skillPoints = Number((skillMatch * 0.50).toFixed(2));
+
+  // Skill Relevance Gate:
+  // IF skillMatch > 0% -> PASS; IF skillMatch == 0% -> EXCLUDE
+  const passedSkillGate = skillMatch > 0;
+  const excluded = !passedSkillGate;
+
+  // 2. Preference Match (Weight: 25%)
+  const resolvedPreferences = preferences.filter(p => !p.isUnresolved && p.categoryId !== null);
+  const hasMatchingPreference = resolvedPreferences.some(p => p.categoryId === programCategoryId);
+  const preferenceMatch = hasMatchingPreference ? 100 : 0;
+  const preferencePoints = Number((preferenceMatch * 0.25).toFixed(2));
+
+  // 3. Experience Match (Weight: 15%)
+  const resolvedExperiences = experiences.filter(e => !e.isUnresolved && e.categoryId !== null);
+  const hasMatchingExperience = resolvedExperiences.some(e => e.categoryId === programCategoryId);
+  const experienceMatch = hasMatchingExperience ? 100 : 0;
+  const experiencePoints = Number((experienceMatch * 0.15).toFixed(2));
+
+  // 4. Primary Goal Match (Weight: 10%)
+  const hasMatchingGoal = goal !== null && !goal.isUnresolved && goal.categoryId === programCategoryId;
+  const goalMatch = hasMatchingGoal ? 100 : 0;
+  const goalPoints = Number((goalMatch * 0.10).toFixed(2));
+
+  // Final Score: (Skill x 0.50) + (Pref x 0.25) + (Exp x 0.15) + (Goal x 0.10)
+  // If excluded, finalScore is calculated for debugging but recommendation engines filter excluded items
+  const rawSum = skillPoints + preferencePoints + experiencePoints + goalPoints;
+  const finalScore = Math.round(rawSum);
+
+  return {
+    programId: program.id,
+    programTitle: program.title,
+    categoryId: programCategoryId,
+    categoryName,
+    skillMatch,
+    preferenceMatch,
+    experienceMatch,
+    goalMatch,
+    skillPoints,
+    preferencePoints,
+    experiencePoints,
+    goalPoints,
+    finalScore,
+    passedSkillGate,
+    excluded,
+    matchedSkills: matchingSkills.map(s => s.value || s.raw),
+    totalResolvedSkills: totalUniqueResolvedSkills
+  };
 }
 
 /**
- * Normalizes a word into a clean root stem for fuzzy token comparison
- */
-export function toStemToken(word: string): string {
-  return word
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]/g, "")
-    .slice(0, 6);
-}
-
-/**
- * Cleans string, strips stopwords, and extracts meaningful tokens
- */
-export function cleanAndTokenize(text: string): string[] {
-  if (!text) return [];
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .map(w => w.trim())
-    .filter(w => w.length >= 2 && !STOP_WORDS.has(w));
-}
-
-/**
- * Splits compound or multi-word user skill inputs into individual sub-skills
- * e.g., "Welding, Driving and Coding" -> ["welding", "driving", "coding"]
- */
-export function extractSubSkills(skillsArray: string[]): string[] {
-  const result: string[] = [];
-  skillsArray.forEach(skill => {
-    if (!skill) return;
-    const parts = skill.split(/[,;&/]|\band\b/gi).map(s => s.trim()).filter(Boolean);
-    if (parts.length > 0) {
-      result.push(...parts);
-    } else {
-      result.push(skill.trim());
-    }
-  });
-  return Array.from(new Set(result));
-}
-
-/**
- * Identifies TVET sectors corresponding to any given text phrase
- */
-export function identifySectors(text: string): string[] {
-  if (!text) return [];
-  const lower = text.toLowerCase();
-  const tokens = cleanAndTokenize(text).map(toStemToken);
-  const matchedSectors: string[] = [];
-
-  for (const [sectorName, config] of Object.entries(TVET_SECTOR_TAXONOMY)) {
-    const aliasMatch = config.aliases.some(alias => lower.includes(alias) || alias.includes(lower));
-    const keywordMatch = config.keywords.some(kw => tokens.some(t => t.startsWith(kw) || kw.startsWith(t)));
-    if (aliasMatch || keywordMatch) {
-      matchedSectors.push(sectorName);
-    }
-  }
-
-  return Array.from(new Set(matchedSectors));
-}
-
-/**
- * Enhanced Content-Based Filtering Recommendation Algorithm
- * Accurately aligns Youth competencies, TVET sector preference, livelihood goals, and interests with TESDA programs.
- * Returns percentage score (15% to 99%)
+ * Returns the final percentage match score (0 to 100) for a youth and program.
+ * Note: If the program fails the Skill Gate, returns 0 for downstream simple displays.
  */
 export function calculateContentBasedMatchScore(
   youth: YouthProfile,
   program: TESDAProgram
 ): number {
-  const rawSkills = youth.skills || [];
-  const parsedYouthSkills = extractSubSkills(rawSkills);
-  const programRequiredSkills = program.requiredSkills || [];
-
-  const programText = `${program.title} ${programRequiredSkills.join(" ")} ${program.provider || ""}`;
-  const programSectors = identifySectors(programText);
-  const programMeaningfulWords = cleanAndTokenize(programText);
-  const programTokens = new Set(programMeaningfulWords.map(toStemToken));
-
-  // 1. Skill Alignment Score (Weight: 40%)
-  let skillScore = 15;
-  let matchingSkillsCount = 0;
-
-  parsedYouthSkills.forEach(skill => {
-    const sLower = skill.toLowerCase().trim();
-    if (!sLower) return;
-
-    const aliases = SYNONYM_ALIAS_MAP[sLower] || [sLower];
-    const skillWords = cleanAndTokenize(aliases.join(" "));
-    const skillTokens = skillWords.map(toStemToken);
-    const skillSectors = identifySectors(aliases.join(" "));
-
-    const hasDirectTokenOverlap = skillTokens.some(st => 
-      programTokens.has(st) || Array.from(programTokens).some(pt => pt.startsWith(st) || st.startsWith(pt))
-    );
-
-    const hasSectorOverlap = skillSectors.some(ss => programSectors.includes(ss));
-
-    if (hasDirectTokenOverlap) {
-      matchingSkillsCount += 1.0;
-    } else if (hasSectorOverlap) {
-      matchingSkillsCount += 0.7;
-    }
-  });
-
-  if (parsedYouthSkills.length > 0) {
-    if (matchingSkillsCount > 0) {
-      skillScore = Math.min(100, Math.round(55 + matchingSkillsCount * 22));
-    } else {
-      // Skills listed but NONE match this program domain
-      skillScore = 10;
-    }
+  const breakdown = calculateDetailedCBFMatch(youth, program);
+  if (breakdown.excluded) {
+    return 0;
   }
-
-  // 2. Sector Preference Match (Weight: 25%)
-  let sectorScore = 30;
-  const youthSector = youth.sectorPreference || "";
-  if (youthSector) {
-    const youthSectors = identifySectors(youthSector);
-    const hasOverlap = youthSectors.some(ys => programSectors.includes(ys));
-    if (hasOverlap) {
-      sectorScore = 100;
-    } else if (programSectors.length > 0) {
-      // Youth explicitly chose a different sector from this program
-      sectorScore = 15;
-    }
-  }
-
-  // 3. Livelihood & Career Goal Alignment (Weight: 20%)
-  let goalScore = 35;
-  const livelihoodGoal = youth.livelihoodGoal || "";
-  if (livelihoodGoal) {
-    const goalAliases = SYNONYM_ALIAS_MAP[livelihoodGoal.toLowerCase().trim()] || [livelihoodGoal];
-    const goalText = goalAliases.join(" ");
-    const goalSectors = identifySectors(goalText);
-    const goalTokens = cleanAndTokenize(goalText).map(toStemToken);
-
-    const hasDirectGoalToken = goalTokens.some(gt => 
-      programTokens.has(gt) || Array.from(programTokens).some(pt => pt.startsWith(gt) || gt.startsWith(pt))
-    );
-    const hasGoalSector = goalSectors.some(gs => programSectors.includes(gs));
-
-    if (hasDirectGoalToken) {
-      goalScore = 100;
-    } else if (hasGoalSector) {
-      goalScore = 90;
-    } else if (programSectors.length > 0) {
-      goalScore = 15;
-    }
-  }
-
-  // 4. Interest Alignment (Weight: 10%)
-  let interestScore = 40;
-  const interests = youth.interests || [];
-  if (interests.length > 0) {
-    const interestText = interests.join(" ");
-    const interestSectors = identifySectors(interestText);
-    const hasSectorInterest = interestSectors.some(is => programSectors.includes(is));
-    const hasTypeInterest = interests.some((i: string) => {
-      const iLower = i.toLowerCase();
-      if (iLower.includes("training") || iLower.includes("vocational")) return program.type === "Training";
-      if (iLower.includes("employment")) return program.type === "Employment";
-      if (iLower.includes("entrepreneurship")) return program.type === "Entrepreneurship";
-      return false;
-    });
-
-    if (hasSectorInterest && hasTypeInterest) {
-      interestScore = 100;
-    } else if (hasSectorInterest || hasTypeInterest) {
-      interestScore = 80;
-    } else {
-      interestScore = 35;
-    }
-  }
-
-  // 5. Educational Eligibility (Weight: 5%)
-  let eduScore = 80;
-  const edu = (youth.educationalAttainment || "").toLowerCase();
-  const elig = (program.eligibility || "").toLowerCase();
-  if (elig.includes("open to all") || elig.includes("at least 15") || elig.includes("at least 18")) {
-    eduScore = 100;
-  } else if (elig.includes("shs") || elig.includes("high school")) {
-    if (edu.includes("shs") || edu.includes("hs graduate") || edu.includes("college") || edu.includes("vocational")) {
-      eduScore = 100;
-    } else {
-      eduScore = 50;
-    }
-  }
-
-  const finalScore = Math.round(
-    skillScore * 0.40 +
-    sectorScore * 0.25 +
-    goalScore * 0.20 +
-    interestScore * 0.10 +
-    eduScore * 0.05
-  );
-
-  return Math.min(99, Math.max(15, finalScore));
+  return breakdown.finalScore;
 }
 
 /**
- * Dynamically generates personalized vocational skill suggestions for a Youth Member
- * based on their sectorPreference, livelihoodGoal, interests, and active TESDA programs.
+ * Ranks all TESDA programs for a youth, applying the Skill Relevance Gate
+ * and sorting passing programs descending by finalScore.
+ */
+export function rankProgramsForYouth(
+  youth: YouthProfile,
+  programs: TESDAProgram[]
+): { program: TESDAProgram; breakdown: CBFScoreBreakdown }[] {
+  if (!Array.isArray(programs)) return [];
+
+  return programs
+    .map(program => ({
+      program,
+      breakdown: calculateDetailedCBFMatch(youth, program)
+    }))
+    .filter(item => item.breakdown.passedSkillGate)
+    .sort((a, b) => b.breakdown.finalScore - a.breakdown.finalScore);
+}
+
+/**
+ * Generates personalized skill suggestions from the 10 categories matching
+ * the youth's primary goal, preferences, and experiences.
  */
 export function getSuggestedSkillsForYouth(
   youth: YouthProfile,
-  programs: TESDAProgram[]
+  programs: TESDAProgram[] = []
 ): { skill: string; tag: string; isHighMatch: boolean }[] {
-  const existingSkills = new Set((youth.skills || []).map(s => s.toLowerCase().trim()));
+  const { skills, preferences, experiences, goal } = resolveYouthNormalizedData(youth);
+  const existingValues = new Set(skills.map(s => (s.value || s.raw).toLowerCase().trim()));
+
+  const targetCategoryIds = new Set<string>();
+  if (goal && !goal.isUnresolved && goal.categoryId) targetCategoryIds.add(goal.categoryId);
+  preferences.forEach(p => { if (!p.isUnresolved && p.categoryId) targetCategoryIds.add(p.categoryId); });
+  experiences.forEach(e => { if (!e.isUnresolved && e.categoryId) targetCategoryIds.add(e.categoryId); });
+
   const suggestions: { skill: string; tag: string; isHighMatch: boolean }[] = [];
-  const addedSkillsLower = new Set<string>();
+  const added = new Set<string>();
 
-  const youthProfileText = `${youth.sectorPreference || ""} ${youth.livelihoodGoal || ""} ${(youth.interests || []).join(" ")}`;
-  const youthTargetSectors = identifySectors(youthProfileText);
-
-  // Helper to split and clean long concatenated skill strings into concise skill names
-  const sanitizeSkillString = (raw: string): string[] => {
-    if (!raw || typeof raw !== "string") return [];
-    const trimmed = raw.trim();
-    if (trimmed.length === 0) return [];
-
-    if (trimmed.length > 35) {
-      const parts = trimmed
-        .split(/(?=\b(?:Basic|Ability|Knowledge|Computer|Customer|Food|Electrical|Safety)\b)|[,;.\n]/g)
-        .map(s => s.trim().replace(/^[-*•\s]+/, ""))
-        .filter(s => s.length >= 3 && s.length <= 35);
-      
-      if (parts.length > 0) return Array.from(new Set(parts));
-      return [trimmed.slice(0, 32) + "..."];
-    }
-
-    return [trimmed];
+  const categoryPopularSkills: Record<string, string[]> = {
+    "1": ["Computer Programming", "Web Design & Frontend", "Microsoft Excel & Data Entry", "Computer Systems Servicing", "Graphic Design"],
+    "2": ["Commercial Cooking", "Bread & Pastry Production", "Culinary Arts", "Food Safety & Preparation"],
+    "3": ["Motorcycle Engine Repair", "Automotive Servicing", "Defensive Driving", "Small Engine Troubleshooting"],
+    "4": ["Shielded Metal Arc Welding (SMAW)", "TIG/MIG Welding", "Metal Fabrication & Pipefitting"],
+    "5": ["Electrical Installation & Maintenance", "Residential Building Wiring", "Mobile Phone Repair"],
+    "6": ["Carpentry & Woodworking", "Plumbing & Pipe Installation", "Masonry & Tile Setting"],
+    "7": ["Housekeeping Operations", "Barista & Beverage Crafting", "Food & Beverage Service"],
+    "8": ["Organic Agriculture Production", "Hydroponics & Urban Farming", "Poultry & Livestock Raising"],
+    "9": ["Hairdressing & Styling", "Nail Care Services", "Hilot Wellness Massage Therapy"],
+    "10": ["Dressmaking & Tailoring", "Garments Pattern Making", "Fashion Design"]
   };
 
-  const sectorSkillsMap: Record<string, string[]> = {
-    "Metals & Engineering": ["SMAW Shielded Metal Arc Welding", "Metal Fitting & Cutting", "TIG/MIG Welding Essentials", "Blueprint Reading"],
-    "Construction & Building Services": ["Electrical Wiring & Installation", "Plumbing & Pipefitting", "Carpentry & Framing", "Masonry & Tiling"],
-    "Tourism, Food & Hospitality": ["Bread & Pastry Baking", "Commercial Cookery & Food Prep", "Barista & Beverage Crafting", "Food Safety & Sanitation"],
-    "Information Technology & Digital": ["Computer Office & MS Excel", "Basic Graphic Design & Canva", "Computer Systems Troubleshooting", "Data Entry & Bookkeeping", "Network Setup & Maintenance"],
-    "Automotive & Land Transport": ["Small Engine Troubleshooting", "Automotive Electrical Servicing", "Motorcycle Engine Tuning", "Defensive Driving"],
-    "Health, Social & Care Services": ["Elderly Caregiving Essentials", "First Aid & Basic Life Support", "Patient Care Assisting", "Sanitation Protocols"],
-    "Beauty, Wellness & Personal Care": ["Hairdressing & Hair Care", "Nail Care & Manicure/Pedicure", "Basic Facial & Skincare", "Body Massage Therapy"],
-    "Agriculture, Fishery & Forestry": ["Organic Crop Production", "Hydroponics & Urban Farming", "Poultry Raising & Care", "Aquaculture Management"],
-    "Garments, Textiles & Fashion": ["Garment Sewing & Tailoring", "Pattern Making & Alteration", "Textile Maintenance", "Fashion Design Basics"],
-    "Business, Finance & Sales": ["Bookkeeping & Basic Accounting", "Store Inventory & Cashiering", "Customer Relations Management", "E-commerce Selling"]
-  };
-
-  // 1. Sector-specific skills from TVET taxonomy based on youth's sectorPreference or goal
-  youthTargetSectors.forEach(sectorName => {
-    const recommended = sectorSkillsMap[sectorName] || [];
-    recommended.forEach(skill => {
-      const sLower = skill.toLowerCase().trim();
-      if (!existingSkills.has(sLower) && !addedSkillsLower.has(sLower)) {
-        addedSkillsLower.add(sLower);
+  // 1. Target categories matching youth preferences/goal
+  targetCategoryIds.forEach(catId => {
+    const list = categoryPopularSkills[catId] || [];
+    list.forEach(skillName => {
+      const sLower = skillName.toLowerCase();
+      if (!existingValues.has(sLower) && !added.has(sLower)) {
+        added.add(sLower);
         suggestions.push({
-          skill,
+          skill: skillName,
           tag: "Recommended for You",
           isHighMatch: true
         });
@@ -442,44 +253,21 @@ export function getSuggestedSkillsForYouth(
     });
   });
 
-  // 2. Next, extract and sanitize skills from active TESDA programs matching the youth's sector
-  programs.forEach(prog => {
-    const progSectors = identifySectors(`${prog.title} ${(prog.requiredSkills || []).join(" ")}`);
-    const isSectorMatch = progSectors.some(ps => youthTargetSectors.includes(ps));
-    const reqSkills = prog.requiredSkills || [];
-
-    reqSkills.forEach(rawSkill => {
-      const cleanSkills = sanitizeSkillString(rawSkill);
-      cleanSkills.forEach(skill => {
-        const sLower = skill.toLowerCase().trim();
-        if (!existingSkills.has(sLower) && !addedSkillsLower.has(sLower)) {
-          addedSkillsLower.add(sLower);
-          suggestions.push({
-            skill,
-            tag: isSectorMatch ? "Program Match" : "Active Course",
-            isHighMatch: isSectorMatch
-          });
-        }
-      });
-    });
-  });
-
-  // 3. Fallback popular skills if suggestions are under 6
-  const fallbackPopular = [
-    { skill: "Basic Computer Typing & MS Office", tag: "Popular" },
-    { skill: "Customer Service & Communications", tag: "Popular" },
-    { skill: "Food Sanitation & Preparation", tag: "Popular" },
-    { skill: "Electrical Installation & Safety", tag: "Popular" },
-    { skill: "Small Business & Entrepreneurship", tag: "Popular" }
+  // 2. Fallbacks
+  const generalFallbacks = [
+    "Computer Programming",
+    "Commercial Cooking",
+    "Electrical Installation",
+    "SMAW Welding",
+    "Motorcycle Repair"
   ];
-
-  fallbackPopular.forEach(item => {
-    const sLower = item.skill.toLowerCase().trim();
-    if (!existingSkills.has(sLower) && !addedSkillsLower.has(sLower)) {
-      addedSkillsLower.add(sLower);
+  generalFallbacks.forEach(skillName => {
+    const sLower = skillName.toLowerCase();
+    if (!existingValues.has(sLower) && !added.has(sLower)) {
+      added.add(sLower);
       suggestions.push({
-        skill: item.skill,
-        tag: item.tag,
+        skill: skillName,
+        tag: "Popular Skill",
         isHighMatch: false
       });
     }
@@ -489,8 +277,7 @@ export function getSuggestedSkillsForYouth(
 }
 
 /**
- * Accurately formats database stored program time strings (e.g. 1970-01-01T08:00:00.000Z or 08:00)
- * into human-readable 12-hour format without timezone skew (e.g. "8:00 AM")
+ * Formats ISO/database time strings into human-readable 12-hour format
  */
 export function formatProgramTime(t?: string | null): string {
   if (!t) return "";
@@ -521,4 +308,3 @@ export function formatProgramTime(t?: string | null): string {
   }
   return t;
 }
-

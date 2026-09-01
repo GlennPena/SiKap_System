@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { Role, ApprovalStatus } from "@prisma/client";
 import { encrypt } from "@/lib/encryption";
 import { calculateContentBasedMatchScore } from "@/lib/cbf-matcher";
+import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 
 export async function POST(req: Request) {
   try {
@@ -21,6 +22,10 @@ export async function POST(req: Request) {
       interests, 
       sectorPreference, 
       livelihoodGoal, 
+      skillsRaw,
+      preferencesRaw,
+      experiencesRaw,
+      goalRaw,
       contactNumber, 
       soloParent, 
       pwd, 
@@ -62,6 +67,24 @@ export async function POST(req: Request) {
     const verificationIdNumberEnc = verificationIdNumber ? encrypt(verificationIdNumber) : null;
     const verificationIdImageEnc = verificationIdImage ? encrypt(verificationIdImage) : null;
 
+    // Process raw inputs for CBF
+    const finalSkillsRaw: string[] = Array.isArray(skillsRaw) && skillsRaw.length > 0 
+      ? skillsRaw 
+      : (Array.isArray(skills) ? skills : (skills ? [skills] : []));
+
+    const finalPreferencesRaw: string[] = Array.isArray(preferencesRaw) && preferencesRaw.length > 0
+      ? preferencesRaw
+      : (Array.isArray(interests) && interests.length > 0 ? interests : [sectorPreference].filter(Boolean));
+
+    const finalExperiencesRaw: string[] = Array.isArray(experiencesRaw) ? experiencesRaw : [];
+    const finalGoalRaw: string = goalRaw || livelihoodGoal || "";
+
+    // Backend normalization
+    const normalizedSkills = normalizeSkills(finalSkillsRaw);
+    const normalizedPreferences = normalizePreferences(finalPreferencesRaw);
+    const normalizedExperiences = normalizeExperiences(finalExperiencesRaw);
+    const normalizedGoal = normalizeGoal(finalGoalRaw);
+
     // Use transaction to create both User and YouthProfile
     const result = await db.$transaction(async (prisma) => {
       const newUser = await prisma.user.create({
@@ -78,10 +101,18 @@ export async function POST(req: Request) {
       const activePrograms = await prisma.tESDAProgram.findMany({ where: { activeStatus: "Active" } });
       const tempYouth = {
         name,
-        skills: Array.isArray(skills) ? skills : (skills ? [skills] : []),
-        interests: Array.isArray(interests) ? interests : (interests ? [interests] : []),
-        sectorPreference: sectorPreference || "",
-        livelihoodGoal: livelihoodGoal || "",
+        skills: finalSkillsRaw,
+        interests: finalPreferencesRaw,
+        sectorPreference: sectorPreference || (finalPreferencesRaw[0] || ""),
+        livelihoodGoal: finalGoalRaw,
+        skillsRaw: finalSkillsRaw,
+        preferencesRaw: finalPreferencesRaw,
+        experiencesRaw: finalExperiencesRaw,
+        goalRaw: finalGoalRaw,
+        skillsNormalized: normalizedSkills,
+        preferencesNormalized: normalizedPreferences,
+        experiencesNormalized: normalizedExperiences,
+        goalNormalized: normalizedGoal,
         educationalAttainment: educationalAttainment || "",
         currentStatus: currentStatus || "Out-of-school"
       };
@@ -99,10 +130,18 @@ export async function POST(req: Request) {
           barangayId: brgy.id,
           educationalAttainment,
           currentStatus: currentStatus || "Out-of-school",
-          skills: Array.isArray(skills) ? skills : (skills ? [skills] : []),
-          interests: Array.isArray(interests) ? interests : [interests],
-          sectorPreference,
-          livelihoodGoal,
+          skills: finalSkillsRaw,
+          interests: finalPreferencesRaw,
+          sectorPreference: sectorPreference || (finalPreferencesRaw[0] || ""),
+          livelihoodGoal: finalGoalRaw,
+          skillsRaw: finalSkillsRaw,
+          preferencesRaw: finalPreferencesRaw,
+          experiencesRaw: finalExperiencesRaw,
+          goalRaw: finalGoalRaw,
+          skillsNormalized: normalizedSkills as any,
+          preferencesNormalized: normalizedPreferences as any,
+          experiencesNormalized: normalizedExperiences as any,
+          goalNormalized: normalizedGoal as any,
           contactNumberEncrypted,
           matchScore: calculatedScore,
           soloParent: Boolean(soloParent),
@@ -134,6 +173,14 @@ export async function POST(req: Request) {
         interests: result.newProfile.interests,
         sectorPreference: result.newProfile.sectorPreference,
         livelihoodGoal: result.newProfile.livelihoodGoal,
+        skillsRaw: result.newProfile.skillsRaw,
+        preferencesRaw: result.newProfile.preferencesRaw,
+        experiencesRaw: result.newProfile.experiencesRaw,
+        goalRaw: result.newProfile.goalRaw,
+        skillsNormalized: result.newProfile.skillsNormalized,
+        preferencesNormalized: result.newProfile.preferencesNormalized,
+        experiencesNormalized: result.newProfile.experiencesNormalized,
+        goalNormalized: result.newProfile.goalNormalized,
         contactNumber: contactNumber,
         registeredDate: result.newProfile.registeredDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
         matchScore: result.newProfile.matchScore,

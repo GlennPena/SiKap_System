@@ -72,6 +72,27 @@ model Barangay {
   councilors       Councilor[]
 }
 
+model Category {
+  id          String         @id
+  name        String         @unique
+  slug        String         @unique
+  description String?
+  aliases     Alias[]
+  programs    TESDAProgram[]
+}
+
+model Alias {
+  id              String   @id @default(cuid())
+  alias           String
+  normalizedValue String
+  categoryId      String
+
+  category        Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([alias, categoryId])
+  @@index([alias])
+}
+
 model YouthProfile {
   id                      String         @id @default(cuid())
   userId                  String?        @unique
@@ -83,10 +104,25 @@ model YouthProfile {
   barangay                Barangay       @relation(fields: [barangayId], references: [id])
   educationalAttainment   String
   currentStatus           String         // "Out-of-school" | "In-school" | "Employed" | "Self-employed" | "Graduate"
+  
+  // Legacy / Compatibility fields
   skills                  String[]       // Array of skill strings
   interests               String[]       // Array of interest strings
   sectorPreference        String
   livelihoodGoal          String
+  
+  // CBF Raw inputs
+  skillsRaw               String[]       @default([])
+  preferencesRaw          String[]       @default([])
+  experiencesRaw          String[]       @default([])
+  goalRaw                 String?
+
+  // CBF Normalized JSON data
+  skillsNormalized        Json           @default("[]")
+  preferencesNormalized   Json           @default("[]")
+  experiencesNormalized   Json           @default("[]")
+  goalNormalized          Json?
+
   contactNumberEncrypted   String         // AES-256-GCM Encrypted
   registeredDate          DateTime       @default(now())
   matchScore              Float          @default(0)
@@ -128,6 +164,11 @@ model TESDAProgram {
   instructor         String?
   startDate          DateTime?
   endDate            DateTime?
+  
+  // Category relation
+  categoryId         String?
+  category           Category?     @relation(fields: [categoryId], references: [id])
+  
   referrals          Referral[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt

@@ -10,7 +10,7 @@ import {
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
-import { calculateContentBasedMatchScore, getSuggestedSkillsForYouth, formatProgramTime } from "../lib/cbf-matcher";
+import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime } from "../lib/cbf-matcher";
 import { GeminiLongTermCareerPlan } from "../lib/gemini";
 
 interface KKYouthPortalProps {
@@ -2653,6 +2653,54 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* 4-Factor Transparent CBF Score Breakdown */}
+              {(() => {
+                const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
+                return (
+                  <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5" />
+                        Transparent CBF Match Breakdown
+                      </span>
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                        breakdown.passedSkillGate
+                          ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                          : "bg-red-950/80 text-red-300 border-red-500/40"
+                      }`}>
+                        {breakdown.passedSkillGate ? "Passed Skill Gate ✓" : "Skill Gate Excluded ✗"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Skill (50%)</p>
+                        <p className="text-sm font-black text-emerald-400 mt-0.5">{breakdown.skillPoints} pts</p>
+                        <p className="text-[9px] text-gray-400">{breakdown.skillMatch}% Match</p>
+                      </div>
+                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Pref (25%)</p>
+                        <p className="text-sm font-black text-blue-400 mt-0.5">{breakdown.preferencePoints} pts</p>
+                        <p className="text-[9px] text-gray-400">{breakdown.preferenceMatch}% Match</p>
+                      </div>
+                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Exp (15%)</p>
+                        <p className="text-sm font-black text-amber-400 mt-0.5">{breakdown.experiencePoints} pts</p>
+                        <p className="text-[9px] text-gray-400">{breakdown.experienceMatch}% Match</p>
+                      </div>
+                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Goal (10%)</p>
+                        <p className="text-sm font-black text-purple-400 mt-0.5">{breakdown.goalPoints} pts</p>
+                        <p className="text-[9px] text-gray-400">{breakdown.goalMatch}% Match</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs pt-1 border-t border-slate-800 gap-1">
+                      <span className="text-gray-400 font-medium">Program Category: <strong className="text-slate-200">{breakdown.categoryName}</strong></span>
+                      <span className="font-extrabold text-emerald-400 text-sm">Overall Fit: {breakdown.finalScore}%</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Gemini AI Compatibility Analysis */}
               <div className="bg-emerald-50/90 p-4 rounded-xl border border-emerald-200/80 space-y-2">
