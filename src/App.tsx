@@ -188,12 +188,25 @@ export default function App() {
     approvalStatus: "Approved"
   };
 
-  const activeYouthProfile = youthProfiles.find(y => 
-    y.id === loggedInYouthId || 
-    (session?.user?.name && y.name && y.name.toLowerCase().trim() === session.user.name.toLowerCase().trim()) ||
-    (session?.user?.email && y.email && y.email.toLowerCase().trim() === session.user.email.toLowerCase().trim()) ||
-    (y.userId && (session?.user as any)?.id && y.userId === (session?.user as any)?.id)
-  ) || youthProfiles[0] || defaultEmptyYouthProfile;
+  const activeYouthProfile = useMemo(() => {
+    const found = youthProfiles.find(y => 
+      (loggedInYouthId && y.id === loggedInYouthId) || 
+      (y.userId && (session?.user as any)?.id && y.userId === (session?.user as any)?.id) ||
+      (session?.user?.email && y.email && y.email.toLowerCase().trim() === session.user.email.toLowerCase().trim()) ||
+      (session?.user?.name && y.name && y.name.toLowerCase().trim() === session.user.name.toLowerCase().trim())
+    );
+
+    if (found) return found;
+
+    if (!session?.user && youthProfiles.length > 0) {
+      return youthProfiles[0];
+    }
+
+    return {
+      ...defaultEmptyYouthProfile,
+      name: session?.user?.name || "Youth Member"
+    };
+  }, [youthProfiles, loggedInYouthId, session?.user]);
 
   return (
     <div className="font-sans antialiased" id="sikap-application-root">

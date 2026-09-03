@@ -12,6 +12,7 @@ import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime } from "../lib/cbf-matcher";
+import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan } from "../lib/gemini";
 
 interface KKYouthPortalProps {
@@ -454,17 +455,25 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
 
     const updatedSkills = [...youthProfile.skills, newSkillInput.trim()];
-    const tempYouth = { ...youthProfile, skills: updatedSkills };
+    const updatedNormalized = normalizeSkills(updatedSkills);
+    const tempYouth = {
+      ...youthProfile,
+      skills: updatedSkills,
+      skillsRaw: updatedSkills,
+      skillsNormalized: updatedNormalized
+    };
     const updatedMatchScore = programs && programs.length > 0
       ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
       : Math.min(99, youthProfile.matchScore + 3);
     
-    // update global profiles
+    // update global profiles immediately with normalized skills
     setYouthProfiles(prev => prev.map(y => {
       if (y.id === youthProfile.id) {
         return {
           ...y,
           skills: updatedSkills,
+          skillsRaw: updatedSkills,
+          skillsNormalized: updatedNormalized,
           matchScore: updatedMatchScore
         };
       }
@@ -473,20 +482,27 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
     // Persist skill addition to PostgreSQL
     try {
-      await fetch("/api/youth", {
+      const res = await fetch("/api/youth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: youthProfile.id,
           skills: updatedSkills,
+          skillsRaw: updatedSkills,
+          skillsNormalized: updatedNormalized,
           matchScore: updatedMatchScore
         })
       });
-    } catch (err) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save skill");
+      }
+      addToast(`Added "${newSkillInput.trim()}" to your skills. Matches refreshed!`, "success");
+    } catch (err: any) {
       console.error("Error persisting skill addition:", err);
+      addToast("Failed to save skill: " + (err.message || "Network error"), "error");
     }
 
-    addToast(`Added "${newSkillInput.trim()}" to your skills. Matches refreshed!`, "success");
     setNewSkillInput("");
     setShowAddSkillModal(false);
   };
@@ -706,29 +722,52 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return;
     }
     const updatedSkills = youthProfile.skills.filter(s => s !== skill);
+    const updatedNormalized = normalizeSkills(updatedSkills);
+    const tempYouth = {
+      ...youthProfile,
+      skills: updatedSkills,
+      skillsRaw: updatedSkills,
+      skillsNormalized: updatedNormalized
+    };
+    const updatedMatchScore = programs && programs.length > 0
+      ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
+      : youthProfile.matchScore;
 
     setYouthProfiles(prev => prev.map(y => {
       if (y.id === youthProfile.id) {
-        return { ...y, skills: updatedSkills };
+        return {
+          ...y,
+          skills: updatedSkills,
+          skillsRaw: updatedSkills,
+          skillsNormalized: updatedNormalized,
+          matchScore: updatedMatchScore
+        };
       }
       return y;
     }));
 
     // Persist skill removal to PostgreSQL
     try {
-      await fetch("/api/youth", {
+      const res = await fetch("/api/youth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: youthProfile.id,
-          skills: updatedSkills
+          skills: updatedSkills,
+          skillsRaw: updatedSkills,
+          skillsNormalized: updatedNormalized,
+          matchScore: updatedMatchScore
         })
       });
-    } catch (err) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to remove skill");
+      }
+      addToast(`Skill "${skill}" removed`, "info");
+    } catch (err: any) {
       console.error("Error persisting skill removal:", err);
+      addToast("Failed to remove skill: " + (err.message || "Network error"), "error");
     }
-
-    addToast(`Skill "${skill}" removed`, "info");
   };
 
   // Direct Apply to TESDA
@@ -2824,20 +2863,43 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             onClick={async () => {
                               if (isUnverified) return;
                               const updatedSkills = [...(youthProfile.skills || []), item.skill];
-                              const tempYouth = { ...youthProfile, skills: updatedSkills };
+                              const updatedNormalized = normalizeSkills(updatedSkills);
+                              const tempYouth = {
+                                ...youthProfile,
+                                skills: updatedSkills,
+                                skillsRaw: updatedSkills,
+                                skillsNormalized: updatedNormalized
+                              };
                               const updatedMatchScore = programs && programs.length > 0
                                 ? Math.max(...programs.map(p => calculateContentBasedMatchScore(tempYouth, p)))
                                 : Math.min(99, youthProfile.matchScore + 3);
-                              setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, skills: updatedSkills, matchScore: updatedMatchScore } : y));
-                              addToast(`Added "${item.skill}" to your profile!`, "success");
+                              setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? {
+                                ...y,
+                                skills: updatedSkills,
+                                skillsRaw: updatedSkills,
+                                skillsNormalized: updatedNormalized,
+                                matchScore: updatedMatchScore
+                              } : y));
                               try {
-                                await fetch("/api/youth", {
+                                const res = await fetch("/api/youth", {
                                   method: "PUT",
                                   headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ id: youthProfile.id, skills: updatedSkills, matchScore: updatedMatchScore })
+                                  body: JSON.stringify({
+                                    id: youthProfile.id,
+                                    skills: updatedSkills,
+                                    skillsRaw: updatedSkills,
+                                    skillsNormalized: updatedNormalized,
+                                    matchScore: updatedMatchScore
+                                  })
                                 });
-                              } catch (err) {
+                                const data = await res.json();
+                                if (!res.ok || !data.success) {
+                                  throw new Error(data.error || "Failed to save skill");
+                                }
+                                addToast(`Added "${item.skill}" to your profile!`, "success");
+                              } catch (err: any) {
                                 console.error(err);
+                                addToast("Failed to save skill: " + (err.message || "Network error"), "error");
                               }
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${

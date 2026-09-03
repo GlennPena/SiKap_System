@@ -20,8 +20,13 @@ function safeDecrypt(enc: string | null | undefined): string {
 }
 
 function mapToClientProfile(y: any) {
+  const currentSkills = (y.skills && y.skills.length > 0) ? y.skills : (y.skillsRaw || []);
+  const currentInterests = (y.interests && y.interests.length > 0) ? y.interests : (y.preferencesRaw || []);
+  const currentGoal = y.livelihoodGoal || y.goalRaw || "";
+
   return {
     id: y.id,
+    userId: y.userId,
     name: y.name,
     email: y.user?.email || y.email || "",
     age: y.age,
@@ -29,14 +34,14 @@ function mapToClientProfile(y: any) {
     barangay: y.barangay?.name || "",
     educationalAttainment: y.educationalAttainment,
     currentStatus: y.currentStatus,
-    skills: y.skillsRaw && y.skillsRaw.length > 0 ? y.skillsRaw : y.skills,
-    interests: y.preferencesRaw && y.preferencesRaw.length > 0 ? y.preferencesRaw : y.interests,
+    skills: currentSkills,
+    interests: currentInterests,
     sectorPreference: y.sectorPreference,
-    livelihoodGoal: y.goalRaw || y.livelihoodGoal,
-    skillsRaw: y.skillsRaw || y.skills || [],
-    preferencesRaw: y.preferencesRaw || y.interests || [],
+    livelihoodGoal: currentGoal,
+    skillsRaw: y.skillsRaw && y.skillsRaw.length > 0 ? y.skillsRaw : currentSkills,
+    preferencesRaw: y.preferencesRaw && y.preferencesRaw.length > 0 ? y.preferencesRaw : currentInterests,
     experiencesRaw: y.experiencesRaw || [],
-    goalRaw: y.goalRaw || y.livelihoodGoal || "",
+    goalRaw: y.goalRaw || currentGoal,
     skillsNormalized: y.skillsNormalized || [],
     preferencesNormalized: y.preferencesNormalized || [],
     experiencesNormalized: y.experiencesNormalized || [],
@@ -231,31 +236,47 @@ export async function PUT(request: Request) {
        delete updateData.verificationIdImage;
     }
 
+    let rawSkillsToSave: string[] | null = null;
+    let normalizedSkillsToSave: string | null = null;
     if (body.skillsRaw !== undefined || body.skills !== undefined) {
       const sRaw = Array.isArray(body.skillsRaw) ? body.skillsRaw : (Array.isArray(body.skills) ? body.skills : []);
-      updateData.skillsRaw = sRaw;
       updateData.skills = sRaw;
-      updateData.skillsNormalized = normalizeSkills(sRaw) as any;
+      rawSkillsToSave = sRaw;
+      normalizedSkillsToSave = JSON.stringify(normalizeSkills(sRaw));
+      delete updateData.skillsRaw;
+      delete updateData.skillsNormalized;
     }
 
+    let rawPrefsToSave: string[] | null = null;
+    let normalizedPrefsToSave: string | null = null;
     if (body.preferencesRaw !== undefined || body.interests !== undefined) {
       const pRaw = Array.isArray(body.preferencesRaw) ? body.preferencesRaw : (Array.isArray(body.interests) ? body.interests : []);
-      updateData.preferencesRaw = pRaw;
       updateData.interests = pRaw;
-      updateData.preferencesNormalized = normalizePreferences(pRaw) as any;
+      rawPrefsToSave = pRaw;
+      normalizedPrefsToSave = JSON.stringify(normalizePreferences(pRaw));
+      delete updateData.preferencesRaw;
+      delete updateData.preferencesNormalized;
     }
 
+    let rawExpToSave: string[] | null = null;
+    let normalizedExpToSave: string | null = null;
     if (body.experiencesRaw !== undefined) {
       const eRaw = Array.isArray(body.experiencesRaw) ? body.experiencesRaw : [];
-      updateData.experiencesRaw = eRaw;
-      updateData.experiencesNormalized = normalizeExperiences(eRaw) as any;
+      rawExpToSave = eRaw;
+      normalizedExpToSave = JSON.stringify(normalizeExperiences(eRaw));
+      delete updateData.experiencesRaw;
+      delete updateData.experiencesNormalized;
     }
 
+    let rawGoalToSave: string | null = null;
+    let normalizedGoalToSave: string | null = null;
     if (body.goalRaw !== undefined || body.livelihoodGoal !== undefined) {
       const gRaw = body.goalRaw || body.livelihoodGoal || "";
-      updateData.goalRaw = gRaw;
       updateData.livelihoodGoal = gRaw;
-      updateData.goalNormalized = normalizeGoal(gRaw) as any;
+      rawGoalToSave = gRaw;
+      normalizedGoalToSave = JSON.stringify(normalizeGoal(gRaw));
+      delete updateData.goalRaw;
+      delete updateData.goalNormalized;
     }
 
     let planStringToSave: string | null = null;
@@ -284,6 +305,44 @@ export async function PUT(request: Request) {
         where: { id: body.id },
         include: { barangay: true, user: true }
       });
+    }
+
+    // Safely update CBF raw and normalized columns in PostgreSQL
+    try {
+      if (rawSkillsToSave !== null) {
+        await db.$executeRawUnsafe(
+          `UPDATE "YouthProfile" SET "skillsRaw" = $1, "skillsNormalized" = $2::jsonb WHERE "id" = $3`,
+          rawSkillsToSave,
+          normalizedSkillsToSave,
+          body.id
+        );
+      }
+      if (rawPrefsToSave !== null) {
+        await db.$executeRawUnsafe(
+          `UPDATE "YouthProfile" SET "preferencesRaw" = $1, "preferencesNormalized" = $2::jsonb WHERE "id" = $3`,
+          rawPrefsToSave,
+          normalizedPrefsToSave,
+          body.id
+        );
+      }
+      if (rawExpToSave !== null) {
+        await db.$executeRawUnsafe(
+          `UPDATE "YouthProfile" SET "experiencesRaw" = $1, "experiencesNormalized" = $2::jsonb WHERE "id" = $3`,
+          rawExpToSave,
+          normalizedExpToSave,
+          body.id
+        );
+      }
+      if (rawGoalToSave !== null) {
+        await db.$executeRawUnsafe(
+          `UPDATE "YouthProfile" SET "goalRaw" = $1, "goalNormalized" = $2::jsonb WHERE "id" = $3`,
+          rawGoalToSave,
+          normalizedGoalToSave,
+          body.id
+        );
+      }
+    } catch (cbfSyncErr) {
+      console.warn("CBF raw columns update note:", cbfSyncErr);
     }
 
     return NextResponse.json({ success: true, data: mapToClientProfile(updated) });

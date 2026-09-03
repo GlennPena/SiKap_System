@@ -188,6 +188,24 @@ export async function PUT(req: Request) {
       include: { barangay: true }
     });
 
+    if (name || email) {
+      await db.councilor.updateMany({
+        where: { userId: userId },
+        data: {
+          ...(name ? { name } : {}),
+          ...(email ? { email: email.toLowerCase() } : {})
+        }
+      }).catch(() => {});
+
+      await db.officialAccount.updateMany({
+        where: { userId: userId },
+        data: {
+          ...(name ? { name } : {}),
+          ...(email ? { email: email.toLowerCase() } : {})
+        }
+      }).catch(() => {});
+    }
+
     return NextResponse.json({
       success: true,
       data: {

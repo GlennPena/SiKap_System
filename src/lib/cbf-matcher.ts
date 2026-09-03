@@ -36,30 +36,45 @@ export function resolveYouthNormalizedData(youth: YouthProfile): {
 } {
   // 1. Skills
   let skills: NormalizedInputs = [];
-  if (youth.skillsNormalized && Array.isArray(youth.skillsNormalized) && youth.skillsNormalized.length > 0) {
+  const rawSkills = (youth.skills && youth.skills.length > 0) ? youth.skills : (youth.skillsRaw || []);
+  if (
+    youth.skillsNormalized &&
+    Array.isArray(youth.skillsNormalized) &&
+    youth.skillsNormalized.length === rawSkills.length &&
+    rawSkills.length > 0
+  ) {
     skills = youth.skillsNormalized;
   } else {
-    const rawSkills = youth.skillsRaw && youth.skillsRaw.length > 0 ? youth.skillsRaw : (youth.skills || []);
     skills = normalizeSkills(rawSkills);
   }
 
   // 2. Preferences
   let preferences: NormalizedInputs = [];
-  if (youth.preferencesNormalized && Array.isArray(youth.preferencesNormalized) && youth.preferencesNormalized.length > 0) {
+  const rawPrefs = youth.preferencesRaw && youth.preferencesRaw.length > 0 
+    ? youth.preferencesRaw 
+    : (youth.interests || [youth.sectorPreference].filter(Boolean));
+  if (
+    youth.preferencesNormalized &&
+    Array.isArray(youth.preferencesNormalized) &&
+    youth.preferencesNormalized.length === rawPrefs.length &&
+    rawPrefs.length > 0
+  ) {
     preferences = youth.preferencesNormalized;
   } else {
-    const rawPrefs = youth.preferencesRaw && youth.preferencesRaw.length > 0 
-      ? youth.preferencesRaw 
-      : (youth.interests || [youth.sectorPreference].filter(Boolean));
     preferences = normalizePreferences(rawPrefs);
   }
 
   // 3. Experiences
   let experiences: NormalizedInputs = [];
-  if (youth.experiencesNormalized && Array.isArray(youth.experiencesNormalized) && youth.experiencesNormalized.length > 0) {
+  const rawExp = youth.experiencesRaw && youth.experiencesRaw.length > 0 ? youth.experiencesRaw : [];
+  if (
+    youth.experiencesNormalized &&
+    Array.isArray(youth.experiencesNormalized) &&
+    youth.experiencesNormalized.length === rawExp.length &&
+    rawExp.length > 0
+  ) {
     experiences = youth.experiencesNormalized;
   } else {
-    const rawExp = youth.experiencesRaw && youth.experiencesRaw.length > 0 ? youth.experiencesRaw : [];
     experiences = normalizeExperiences(rawExp);
   }
 

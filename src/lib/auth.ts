@@ -2,6 +2,7 @@ import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { Role } from "@prisma/client";
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -17,7 +18,7 @@ export const authOptions: AuthOptions = {
 
         const user = await db.user.findUnique({
           where: { email: credentials.email },
-          include: { barangay: true }
+          include: { barangay: true, councilor: true, officialAcc: true }
         });
 
         if (!user || user.status !== "Active") return null;
@@ -28,6 +29,22 @@ export const authOptions: AuthOptions = {
 
         const rememberMe = credentials?.rememberMe === "true" || credentials?.rememberMe === "1";
 
+        let officialPosition: string | undefined = undefined;
+        if (user.councilor?.role) {
+          const r = user.councilor.role.trim();
+          officialPosition = r.toLowerCase().includes("secretary") ? "SK Secretary" : r.toLowerCase().includes("treasurer") ? "SK Treasurer" : "SK Councilor";
+        } else if (user.officialAcc?.role) {
+          officialPosition = user.officialAcc.role;
+        } else if (user.role === Role.SK_OFFICIAL) {
+          const c = await db.councilor.findFirst({ where: { email: user.email } });
+          if (c) {
+            const r = c.role.trim();
+            officialPosition = r.toLowerCase().includes("secretary") ? "SK Secretary" : r.toLowerCase().includes("treasurer") ? "SK Treasurer" : "SK Councilor";
+          } else {
+            officialPosition = "SK Chairperson";
+          }
+        }
+
         return {
           id: user.id,
           name: user.name,
@@ -35,6 +52,7 @@ export const authOptions: AuthOptions = {
           role: user.role,
           barangay: user.barangay?.name || undefined,
           barangayId: user.barangayId || undefined,
+          officialPosition,
           rememberMe: rememberMe,
         };
       }
@@ -46,6 +64,7 @@ export const authOptions: AuthOptions = {
         token.role = (user as any).role;
         token.barangay = (user as any).barangay;
         token.barangayId = (user as any).barangayId;
+        token.officialPosition = (user as any).officialPosition;
         token.id = user.id;
         token.rememberMe = Boolean((user as any).rememberMe);
         token.authTime = Math.floor(Date.now() / 1000);
@@ -58,6 +77,7 @@ export const authOptions: AuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).barangay = token.barangay;
         (session.user as any).barangayId = token.barangayId;
+        (session.user as any).officialPosition = token.officialPosition;
         (session.user as any).rememberMe = token.rememberMe;
       }
       return session;

@@ -60,7 +60,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   
   const [prefInput, setPrefInput] = useState("");
   const [regPreferences, setRegPreferences] = useState<string[]>(["Technology"]);
-  const [regSector, setRegSector] = useState("IT & Digital");
+  const [regSector, setRegSector] = useState("Information & Communications Technology (ICT)");
 
   const [expInput, setExpInput] = useState("");
   const [regExperiences, setRegExperiences] = useState<string[]>([]);
@@ -244,7 +244,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       case 2:
         return true; // Dropdowns and checkboxes have default values
       case 3:
-        return !!regGoal.trim();
+        return !!regGoal.trim() && !!regSector.trim();
       case 4:
         return !!regIdNumber.trim() && !!regIdFileName && certifyAge && certifyResidency;
       default:
@@ -674,8 +674,43 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
             <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 md:p-8 space-y-6">
               
-              {/* 1. Skills (Multi-entry tags) */}
+              {/* Preferred Vocational Sector */}
               <div className="space-y-1.5 text-xs font-semibold">
+                <label className="text-[11px] font-bold text-gray-700 uppercase flex items-center justify-between">
+                  <span>Preferred Vocational Sector *</span>
+                  <span className="text-[10px] text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded font-extrabold">Primary Field</span>
+                </label>
+                <select
+                  value={regSector}
+                  onChange={(e) => setRegSector(e.target.value)}
+                  className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="Information & Communications Technology (ICT)">Information & Communications Technology (ICT)</option>
+                  <option value="Agriculture, Forestry and Fishery">Agriculture, Forestry and Fishery</option>
+                  <option value="Automotive and Land Transportation">Automotive and Land Transportation</option>
+                  <option value="Construction">Construction</option>
+                  <option value="Electrical and Electronics">Electrical and Electronics</option>
+                  <option value="Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)">Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)</option>
+                  <option value="Heavy Equipment Operation">Heavy Equipment Operation</option>
+                  <option value="Metals and Engineering / Welding">Metals and Engineering / Welding</option>
+                  <option value="Process Food and Beverages / Culinary">Process Food and Beverages / Culinary</option>
+                  <option value="Tourism / Hotel and Restaurant Services">Tourism / Hotel and Restaurant Services</option>
+                  <option value="Social, Community Development and other Services / Caregiving">Social, Community Development and other Services / Caregiving</option>
+                  <option value="Human Health / Health Care">Human Health / Health Care</option>
+                  <option value="Visual and Performing Arts / Creative">Visual and Performing Arts / Creative</option>
+                  <option value="Garments and Textiles">Garments and Textiles</option>
+                  <option value="Wholesale and Retail / Sales">Wholesale and Retail / Sales</option>
+                  <option value="Logistics and Warehousing">Logistics and Warehousing</option>
+                  <option value="Maritime">Maritime</option>
+                  <option value="Utilities / Solar Power">Utilities / Solar Power</option>
+                  <option value="Language and Culture">Language and Culture</option>
+                  <option value="Entrepreneurship & Management">Entrepreneurship & Management</option>
+                </select>
+                <p className="text-[10px] text-gray-400 font-medium">Select your primary technical-vocational trade or industry interest for automated TESDA program matching.</p>
+              </div>
+
+              {/* 1. Skills (Multi-entry tags) */}
+              <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
                 <label className="text-[11px] font-bold text-gray-700 uppercase flex items-center justify-between">
                   <span>1. Technical & Practical Skills (Press Enter to Add)</span>
                   <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-extrabold">Skill Factor (50%)</span>

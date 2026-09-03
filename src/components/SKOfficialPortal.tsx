@@ -125,16 +125,53 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // Synchronize settings with current SK Chairperson of designatedBarangay
+  // Check if current logged-in official is an SK Councilor, Secretary, or Treasurer
+  const currentCouncilorRecord = useMemo(() => {
+    if (!currentUser?.email && !currentUser?.name) return null;
+    return councilors.find(c => 
+      (currentUser.email && c.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+      (currentUser.name && c.name && c.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
+    ) || null;
+  }, [councilors, currentUser]);
+
+  const officialPosition = useMemo(() => {
+    if (currentCouncilorRecord?.role) {
+      const r = currentCouncilorRecord.role.trim();
+      if (r.toLowerCase().includes("secretary")) return "SK Secretary";
+      if (r.toLowerCase().includes("treasurer")) return "SK Treasurer";
+      return "SK Councilor";
+    }
+    if ((currentUser as any)?.officialPosition) {
+      const p = ((currentUser as any).officialPosition as string).trim();
+      if (p.toLowerCase().includes("secretary")) return "SK Secretary";
+      if (p.toLowerCase().includes("treasurer")) return "SK Treasurer";
+      if (p.toLowerCase().includes("councilor")) return "SK Councilor";
+      return p;
+    }
+    return "SK Chairperson";
+  }, [currentCouncilorRecord, currentUser]);
+
+  const isChairperson = officialPosition === "SK Chairperson";
+
+  // Synchronize settings with current logged-in SK Official
   useEffect(() => {
     if (currentUser) {
       setSettingsName(currentUser.name);
       setSettingsEmail(currentUser.email);
+      setSettingsPos(officialPosition);
       return;
     }
     setSettingsName("SK Chairperson");
     setSettingsEmail("chairperson@sanluispampanga.gov.ph");
-  }, [designatedBarangay, currentUser]);
+    setSettingsPos("SK Chairperson");
+  }, [designatedBarangay, currentUser, officialPosition]);
+
+  // Protect My Team screen: if not Chairperson, automatically redirect to Dashboard
+  useEffect(() => {
+    if (!isChairperson && currentScreen === SKOfficialScreen.COUNCILORS) {
+      setCurrentScreen(SKOfficialScreen.DASHBOARD);
+    }
+  }, [isChairperson, currentScreen]);
 
   // Councilor management states
   const [councilorName, setCouncilorName] = useState("");
@@ -152,6 +189,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [editCouncilorContact, setEditCouncilorContact] = useState("+63 9");
   const [editCouncilorRole, setEditCouncilorRole] = useState<"SK Councilor" | "Secretary" | "Treasurer">("SK Councilor");
   const [isEditCouncilorOpen, setIsEditCouncilorOpen] = useState(false);
+  const [isUpdatingCouncilor, setIsUpdatingCouncilor] = useState(false);
 
   // ID Verification state
   const [verifyingYouth, setVerifyingYouth] = useState<YouthProfile | null>(null);
@@ -762,27 +800,103 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     }
   };
 
-  const handleEditCouncilorSubmit = (e: React.FormEvent) => {
+  const handleEditCouncilorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editCouncilorName.trim() || !editCouncilorEmail.trim()) {
       addToast("Please fill in all fields", "error");
       return;
     }
-    setCouncilors(prev => prev.map(c => c.id === editingCouncilorId ? { ...c, name: editCouncilorName, email: editCouncilorEmail, role: editCouncilorRole } : c));
-    addToast("Councilor details updated successfully!", "success");
-    setIsEditCouncilorOpen(false);
-    setEditingCouncilorId(null);
+
+    setIsUpdatingCouncilor(true);
+    try {
+      const res = await fetch("/api/councilors", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingCouncilorId,
+          name: editCouncilorName.trim(),
+          email: editCouncilorEmail.trim(),
+          role: editCouncilorRole,
+          contactNumber: editCouncilorContact
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || "Failed to update councilor details");
+      }
+
+      setCouncilors(prev => prev.map(c => 
+        c.id === editingCouncilorId 
+          ? { 
+              ...c, 
+              name: editCouncilorName.trim(), 
+              email: editCouncilorEmail.trim(), 
+              role: editCouncilorRole,
+              contactNumber: editCouncilorContact 
+            } 
+          : c
+      ));
+
+      addToast("Councilor details saved to database successfully!", "success");
+      setIsEditCouncilorOpen(false);
+      setEditingCouncilorId(null);
+    } catch (err: any) {
+      console.error("Error updating councilor:", err);
+      addToast("Failed to update councilor: " + (err.message || "Network error"), "error");
+    } finally {
+      setIsUpdatingCouncilor(false);
+    }
   };
 
-  const handleToggleCouncilorStatus = (id: string) => {
-    setCouncilors(prev => prev.map(c => {
-      if (c.id === id) {
-        const nextStatus = c.status === "Active" ? "Inactive" : "Active";
-        addToast(`Councilor is now ${nextStatus}`, "info");
-        return { ...c, status: nextStatus };
+  const handleToggleCouncilorStatus = async (id: string) => {
+    const target = councilors.find(c => c.id === id);
+    if (!target) return;
+    const nextStatus = target.status === "Active" ? "Inactive" : "Active";
+
+    try {
+      const res = await fetch("/api/councilors", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: target.id,
+          name: target.name,
+          email: target.email,
+          role: target.role,
+          contactNumber: target.contactNumber,
+          status: nextStatus
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || "Failed to update status");
       }
-      return c;
-    }));
+
+      setCouncilors(prev => prev.map(c => c.id === id ? { ...c, status: nextStatus } : c));
+      addToast(`Councilor is now ${nextStatus}`, "info");
+    } catch (err: any) {
+      console.error("Error toggling status:", err);
+      addToast("Failed to update status: " + (err.message || "Network error"), "error");
+    }
+  };
+
+  const handleDeleteCouncilor = async (id: string) => {
+    if (!window.confirm("Are you sure you want to remove this official from your team? Their login account will also be deleted.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/councilors?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || "Failed to remove official");
+      }
+      setCouncilors(prev => prev.filter(c => c.id !== id));
+      addToast("Official removed from team successfully", "info");
+    } catch (err: any) {
+      console.error("Error deleting councilor:", err);
+      addToast("Failed to remove official: " + (err.message || "Network error"), "error");
+    }
   };
   const handleSaveProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -803,6 +917,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        if (currentCouncilorRecord) {
+          setCouncilors(prev => prev.map(c => 
+            c.id === currentCouncilorRecord.id 
+              ? { ...c, name: settingsName.trim(), email: settingsEmail.trim(), contactNumber: settingsPhone }
+              : c
+          ));
+        }
         addToast(data.message || "Profile updated in database!", "success");
       } else {
         addToast(data.message || "Failed to update profile", "error");
@@ -1077,7 +1198,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               { id: SKOfficialScreen.DASHBOARD, label: "Dashboard", icon: <Users className="w-4.5 h-4.5" /> },
               { id: SKOfficialScreen.YOUTH_PROFILES, label: "Youth Profiles", icon: <Plus className="w-4.5 h-4.5" /> },
               { id: SKOfficialScreen.PENDING_APPROVALS, label: "Pending Approvals", icon: <Bell className="w-4.5 h-4.5" />, badge: pendingCount },
-              { id: SKOfficialScreen.COUNCILORS, label: "My Team", icon: <Users2 className="w-4.5 h-4.5" /> },
+              ...(isChairperson ? [{ id: SKOfficialScreen.COUNCILORS, label: "My Team", icon: <Users2 className="w-4.5 h-4.5" /> }] : []),
               { id: SKOfficialScreen.TESDA_PROGRAMS, label: "TESDA Programs", icon: <Briefcase className="w-4.5 h-4.5" /> },
               { id: SKOfficialScreen.SKILLS_GAP, label: "Skills Gap Analytics", icon: <BarChart2 className="w-4.5 h-4.5" /> },
               { id: SKOfficialScreen.ANNOUNCEMENTS, label: "Announcements", icon: <Megaphone className="w-4.5 h-4.5" /> },
@@ -1838,10 +1959,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <div className="flex items-center justify-between border-b border-gray-100 pb-3.5 mb-4">
                       <div>
                         <h3 className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
-                          <Sparkles className="w-4.5 h-4.5 text-emerald-600 animate-pulse" />
-                          AI-Matched Opportunities
+                          <Target className="w-4.5 h-4.5 text-emerald-600" />
+                          Matched Opportunities
                         </h3>
-                        <p className="text-[10px] text-gray-400">Powered by Content-Based Filtering & Google Gemini</p>
+                        <p className="text-[10px] text-gray-400">Content-Based Compatibility Alignment</p>
                       </div>
                       <FlameMatchScore score={selectedYouth.matchScore} hasPrograms={programs.length > 0} />
                     </div>
@@ -1851,7 +1972,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <Target className="w-8 h-8 text-emerald-700 mx-auto opacity-80" />
                         <p className="text-xs font-bold text-gray-800">No Published Training Programs</p>
                         <p className="text-[11px] text-gray-500 font-medium leading-relaxed max-w-sm mx-auto">
-                          There are currently 0 active training programs in the system database. Once TESDA partners publish new courses, Google Gemini will evaluate and display matching scores here.
+                          There are currently 0 active training programs in the system database. Once TESDA partners publish new courses, compatibility scores will appear here.
                         </p>
                       </div>
                     ) : (
@@ -1869,9 +1990,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           return (
                             <div
                               key={prog.id}
-                              className="bg-gray-50 border border-gray-100 rounded-xl p-4 transition-all hover:border-emerald-200"
+                              className="bg-gray-50 border border-gray-100 rounded-xl p-4 transition-all hover:border-emerald-200 space-y-3"
                             >
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div>
                                   <h4 className="font-bold text-gray-800 text-xs sm:text-sm">{prog.title}</h4>
                                   <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mt-0.5">{prog.provider}</p>
@@ -1879,13 +2000,30 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 <FlameMatchScore score={matchPoints} hasPrograms={programs.length > 0} className="self-start sm:self-auto" />
                               </div>
 
-                              <p className="text-xs text-gray-500 leading-relaxed italic bg-emerald-50/50 p-3 rounded-lg border border-emerald-100/60 text-[#1C2B20]">
-                                "{getGeminiRationale(prog.id, selectedYouth.name)}"
-                              </p>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-gray-600 bg-white p-2.5 rounded-lg border border-gray-150">
+                                <div>
+                                  <span className="text-gray-400 block text-[10px] uppercase font-bold">Location</span>
+                                  <span className="font-semibold text-gray-800 truncate block" title={prog.location}>{prog.location}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block text-[10px] uppercase font-bold">Duration</span>
+                                  <span className="font-semibold text-gray-800">{prog.trainingHours} hrs</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block text-[10px] uppercase font-bold">Cost</span>
+                                  <span className="font-semibold text-gray-800">{prog.cost}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block text-[10px] uppercase font-bold">Slots Left</span>
+                                  <span className="font-semibold text-gray-800">{prog.slotsRemaining}/{prog.slotsTotal}</span>
+                                </div>
+                              </div>
 
-                              <div className="mt-3 flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-100/50 pt-2.5">
-                                <span>⏱ {`${prog.trainingHours} hours`} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""} · Slots: {prog.slotsRemaining}/{prog.slotsTotal}</span>
-                                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${
+                              <div className="flex items-center justify-between text-[11px] text-gray-400 border-t border-gray-100/60 pt-2.5">
+                                <span className="truncate max-w-[280px]" title={prog.eligibility || ""}>
+                                  🎓 {prog.eligibility ? `Eligibility: ${prog.eligibility}` : "Open to all qualified youth"}
+                                </span>
+                                <span className={`text-xs font-bold px-3 py-1 rounded-lg border shrink-0 ${
                                   isReferredForThis
                                     ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
                                     : "bg-gray-50 text-gray-400 border-gray-150"
@@ -2276,18 +2414,32 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-1 space-y-1">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase block">Preferred Sector *</label>
+                        <label className="text-[11px] font-bold text-gray-500 uppercase block">Preferred Vocational Sector *</label>
                         <select
                           value={regSector}
                           onChange={(e) => setRegSector(e.target.value)}
-                          className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                          className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500"
                         >
-                          <option value="IT & Technology">IT & Technology</option>
-                          <option value="Tourism & Food">Tourism & Food</option>
-                          <option value="Construction & Metals">Construction & Metals</option>
-                          <option value="Electrical & Electronics">Electrical & Electronics</option>
-                          <option value="Tourism & Hospitality">Tourism & Hospitality</option>
-                          <option value="Agriculture & Automotive">Agriculture & Automotive</option>
+                          <option value="Information & Communications Technology (ICT)">Information & Communications Technology (ICT)</option>
+                          <option value="Agriculture, Forestry and Fishery">Agriculture, Forestry and Fishery</option>
+                          <option value="Automotive and Land Transportation">Automotive and Land Transportation</option>
+                          <option value="Construction">Construction</option>
+                          <option value="Electrical and Electronics">Electrical and Electronics</option>
+                          <option value="Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)">Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)</option>
+                          <option value="Heavy Equipment Operation">Heavy Equipment Operation</option>
+                          <option value="Metals and Engineering / Welding">Metals and Engineering / Welding</option>
+                          <option value="Process Food and Beverages / Culinary">Process Food and Beverages / Culinary</option>
+                          <option value="Tourism / Hotel and Restaurant Services">Tourism / Hotel and Restaurant Services</option>
+                          <option value="Social, Community Development and other Services / Caregiving">Social, Community Development and other Services / Caregiving</option>
+                          <option value="Human Health / Health Care">Human Health / Health Care</option>
+                          <option value="Visual and Performing Arts / Creative">Visual and Performing Arts / Creative</option>
+                          <option value="Garments and Textiles">Garments and Textiles</option>
+                          <option value="Wholesale and Retail / Sales">Wholesale and Retail / Sales</option>
+                          <option value="Logistics and Warehousing">Logistics and Warehousing</option>
+                          <option value="Maritime">Maritime</option>
+                          <option value="Utilities / Solar Power">Utilities / Solar Power</option>
+                          <option value="Language and Culture">Language and Culture</option>
+                          <option value="Entrepreneurship & Management">Entrepreneurship & Management</option>
                         </select>
                       </div>
 
@@ -2926,17 +3078,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Position *</label>
-                        <select
-                          value={settingsPos}
-                          onChange={(e) => setSettingsPos(e.target.value)}
-                          className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
-                        >
-                          <option value="SK Chairperson">SK Chairperson</option>
-                          <option value="SK Councilor">SK Councilor</option>
-                          <option value="SK Secretary">SK Secretary</option>
-                          <option value="SK Treasurer">SK Treasurer</option>
-                        </select>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Position</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            disabled
+                            value={settingsPos}
+                            className="w-full p-2.5 border border-gray-200 bg-gray-50 text-emerald-950 font-bold rounded-lg text-xs cursor-not-allowed"
+                          />
+                          <span className="absolute right-2.5 top-2.5 text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded">
+                            Verified Role
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-400">Designated administrative appointment in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</p>
                       </div>
                     </div>
 
@@ -3220,7 +3374,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             </div>
           )}
 
-          {currentScreen === SKOfficialScreen.COUNCILORS && (
+          {currentScreen === SKOfficialScreen.COUNCILORS && isChairperson && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
@@ -3311,23 +3465,31 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     setEditingCouncilorId(c.id);
                                     setEditCouncilorName(c.name);
                                     setEditCouncilorEmail(c.email);
+                                    setEditCouncilorContact(c.contactNumber || "+63 9");
                                     setEditCouncilorRole(c.role || "SK Councilor");
                                     setIsEditCouncilorOpen(true);
                                   }}
-                                  className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-gray-400 hover:border-amber-200 rounded border border-gray-150 transition-colors"
-                                  title="Edit Name/Email"
+                                  className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-gray-400 hover:border-amber-200 rounded border border-gray-150 transition-colors cursor-pointer"
+                                  title="Edit Official Details"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleToggleCouncilorStatus(c.id)}
-                                  className={`px-2.5 py-1 font-bold text-[10px] rounded border transition-colors uppercase ${
+                                  className={`px-2.5 py-1 font-bold text-[10px] rounded border transition-colors uppercase cursor-pointer ${
                                     c.status === "Active"
                                       ? "border-red-200 text-red-600 bg-red-50/50 hover:bg-red-50 hover:text-red-700"
                                       : "border-emerald-200 text-emerald-600 bg-emerald-50/50 hover:bg-emerald-50 hover:text-emerald-700"
                                   }`}
                                 >
                                   {c.status === "Active" ? "Deactivate" : "Activate"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCouncilor(c.id)}
+                                  className="p-1.5 hover:bg-red-50 hover:text-red-600 text-gray-400 hover:border-red-200 rounded border border-gray-150 transition-colors cursor-pointer"
+                                  title="Remove from Team"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </td>
@@ -3800,6 +3962,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Phone Number</label>
+                <input
+                  type="text"
+                  value={editCouncilorContact}
+                  onChange={(e) => setEditCouncilorContact(formatContactNumber(e.target.value))}
+                  placeholder="+63 9xx xxx xxxx"
+                  className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase block">Assigned Role *</label>
                 <select
                   value={editCouncilorRole}
@@ -3815,16 +3988,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="pt-3 border-t border-gray-100 flex justify-end gap-2.5">
                 <button
                   type="button"
+                  disabled={isUpdatingCouncilor}
                   onClick={() => setIsEditCouncilorOpen(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-lg transition-colors"
+                  className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold rounded-lg shadow-xs transition-colors"
+                  disabled={isUpdatingCouncilor}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  Save Changes
+                  {isUpdatingCouncilor && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  {isUpdatingCouncilor ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

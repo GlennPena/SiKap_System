@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 export async function GET() {
   try {
     const totalYouth = await db.youthProfile.count();
-    const totalPrograms = await db.tESDAProgram.count();
+    const totalPrograms = await db.tESDAProgram.count({
+      where: { activeStatus: { not: "Closed" } }
+    });
     const totalApplications = await db.referral.count();
     const enrolledApplications = await db.referral.count({ where: { status: "Enrolled" } });
     

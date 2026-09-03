@@ -33,13 +33,16 @@ export async function POST(request: Request) {
     let advice = "";
     let bulletAdvice: string[] = [];
 
-    // Filter to passing programs for LLM advice
+    // Filter to passing programs for LLM advice, or fall back to available scored programs
     const passingPrograms = scoredPrograms
       .filter(sp => sp.breakdown.passedSkillGate)
       .map(sp => sp.program);
 
-    if (generateLLMAdvice && passingPrograms.length > 0) {
-      const topRankedPrograms = passingPrograms.slice(0, 3);
+    if (generateLLMAdvice && scoredPrograms.length > 0) {
+      const topRankedPrograms = passingPrograms.length > 0
+        ? passingPrograms.slice(0, 3)
+        : scoredPrograms.slice(0, 3).map(sp => sp.program);
+
       advice = await generateYouthCareerPathway(youth as YouthProfile, topRankedPrograms);
       bulletAdvice = await generateYouthPersonalizedAdviceBullets(youth as YouthProfile, topRankedPrograms);
     }
