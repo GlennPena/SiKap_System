@@ -70,3 +70,36 @@ export function formatTime12Hour(time24: string): string {
   return `${h}:${mStr} ${ampm}`;
 }
 
+/**
+ * Calculates age based on a birth date string (YYYY-MM-DD).
+ * Returns the integer age, or "" if invalid, empty, or a future date.
+ */
+export function calculateAge(dobString: string): number | "" {
+  if (!dobString) return "";
+  const parts = dobString.split("-");
+  if (parts.length !== 3) return "";
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return "";
+
+  const birthDate = new Date(year, month, day);
+  if (
+    birthDate.getFullYear() !== year ||
+    birthDate.getMonth() !== month ||
+    birthDate.getDate() !== day
+  ) {
+    return "";
+  }
+
+  const today = new Date();
+  if (birthDate.getTime() > today.getTime()) return "";
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : "";
+}
+

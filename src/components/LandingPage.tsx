@@ -64,7 +64,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     },
     {
       q: "How does the AI-Integrated Matching work?",
-      a: "Our system uses Google Gemini models to compare a youth's current skills, interests, and barangay location with the entry requirements and curriculum of available TESDA programs. It generates a personalized match score and a clear, natural-language explanation explaining exactly why a specific program is a great fit for their career goals."
+      a: "Our system uses Content-Based Filtering (CBF) algorithms to compare a youth's current skills, interests, and barangay location with the entry requirements and curriculum of available TESDA programs to calculate a precise compatibility score. Google Gemini is then utilized to generate a clear, natural-language explanation explaining exactly why a specific program is a great fit for their career goals."
     },
     {
       q: "How do I apply for a program?",

@@ -561,10 +561,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9] flex font-sans text-slate-800 antialiased" id="tesda-portal-container">
+    <div className="h-screen overflow-hidden bg-[#F8FAF9] flex font-sans text-slate-800 antialiased" id="tesda-portal-container">
       {/* Sidebar Navigation */}
-      <aside className="w-64 bg-[#112F24] text-white flex flex-col justify-between shadow-xl shrink-0 z-20">
-        <div>
+      <aside className="w-64 h-screen shrink-0 sticky top-0 bg-[#112F24] text-white flex flex-col justify-between shadow-xl z-20 select-none overflow-hidden">
+        <div className="overflow-y-auto min-h-0 flex-1">
           {/* Brand Header */}
           <div className="p-6 border-b border-emerald-900/50">
             <div className="flex items-center gap-2.5">
@@ -634,7 +634,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         </div>
 
         {/* User Info & Logout Footer */}
-        <div className="p-4 border-t border-emerald-900/50 bg-[#0c241b]">
+        <div className="p-4 border-t border-emerald-900/50 bg-[#0c241b] shrink-0">
           <div className="flex items-center gap-3 mb-3 p-2 rounded-xl bg-emerald-950/40 border border-emerald-800/30">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-black text-sm shadow-sm">
               {currentUser?.name?.charAt(0).toUpperCase() || "T"}
@@ -656,7 +656,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       </aside>
 
       {/* Main Viewport */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
         {/* Sticky Header */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 z-30 px-8 py-4 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">

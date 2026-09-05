@@ -492,7 +492,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
   const auditLogs = useMemo(() => {
     const events: {
       id: string;
-      category: "User Provisioning" | "Youth Registration" | "Referral & Enrollment" | "Program Update" | "Announcement";
+      category: "User Provisioning" | "Youth Registration" | "Application & Enrollment" | "Program Update" | "Announcement";
       actor: string;
       action: string;
       target: string;
@@ -529,17 +529,18 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
       });
     });
 
-    // Referrals & Admissions
+    // Applications & Admissions
     referrals.forEach(r => {
+      const appDate = r.applicationDate || r.referralDate;
       events.push({
         id: `ref-${r.id}`,
-        category: "Referral & Enrollment",
+        category: "Application & Enrollment",
         actor: r.youthName,
         action: `Application status: ${r.status} for ${r.programTitle}`,
         target: `${r.youthName} · Match Score ${r.matchScore}%`,
         barangay: r.barangay || "San Luis",
-        timestamp: r.referralDate ? new Date(r.referralDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recently",
-        rawDate: r.referralDate ? new Date(r.referralDate) : new Date()
+        timestamp: appDate ? new Date(appDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recently",
+        rawDate: appDate ? new Date(appDate) : new Date()
       });
     });
 
@@ -656,13 +657,13 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800" id="super-admin-portal-root">
+    <div className="h-screen overflow-hidden bg-slate-50 flex font-sans text-slate-800" id="super-admin-portal-root">
       
       {/* ============================================================ */}
       {/* SIDEBAR - Signature SiKap Emerald Theme (#112F24 / #164132) */}
       {/* ============================================================ */}
-      <aside className="w-68 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-xl shrink-0 z-20">
-        <div className="p-6">
+      <aside className="w-68 h-screen shrink-0 sticky top-0 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-xl z-20 select-none overflow-hidden">
+        <div className="p-6 overflow-y-auto min-h-0 flex-1">
           {/* Header Brand */}
           <div className="flex items-center gap-3 mb-8 pb-5 border-b border-emerald-800/40">
             <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
@@ -717,7 +718,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
         </div>
 
         {/* User Info & Logout */}
-        <div className="p-5 border-t border-emerald-800/40 bg-[#0B1E16]">
+        <div className="p-5 border-t border-emerald-800/40 bg-[#0B1E16] shrink-0">
           <div className="flex items-center gap-3 mb-4 p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/30">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs shrink-0">
               ADM
@@ -740,7 +741,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
       {/* ============================================================ */}
       {/* MAIN CONTENT AREA */}
       {/* ============================================================ */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50/70 overflow-y-auto">
+      <main className="flex-1 h-screen flex flex-col min-w-0 bg-slate-50/70 overflow-y-auto">
         
         {/* Sticky Top Header */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-8 py-4 flex items-center justify-between z-10 shadow-xs">
@@ -1030,7 +1031,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                         <span>AI Inference Engine</span>
                       </div>
                       <p className="text-slate-600 text-[11px] leading-relaxed">
-                        Google Gemini 2.5 Flash alignment matrix active with zero queue latency for youth matching.
+                        Content-Based Filtering (CBF) engine active with zero queue latency, coupled with Gemini LLM for personalized insights.
                       </p>
                     </div>
                   </div>
@@ -2046,7 +2047,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     <option value="All">All Event Categories ({auditLogs.length})</option>
                     <option value="User Provisioning">User Provisioning</option>
                     <option value="Youth Registration">Youth Registration</option>
-                    <option value="Referral & Enrollment">Referral & Enrollment</option>
+                    <option value="Application & Enrollment">Application & Enrollment</option>
                     <option value="Program Update">Program Updates</option>
                     <option value="Announcement">Announcements</option>
                   </select>
@@ -2061,7 +2062,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                       <History className="w-4 h-4 text-[#0A6B43]" />
                       Municipal Activity Stream & Audit Trail
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Chronological record of account provisions, youth registrations, and program referrals</p>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">Chronological record of account provisions, youth registrations, and program applications</p>
                   </div>
                   <span className="text-xs font-bold text-slate-500">
                     {auditLogs.length} Log Entries
@@ -2075,12 +2076,12 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                         <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                           log.category === "User Provisioning" ? "bg-amber-50 text-amber-700 border border-amber-200" :
                           log.category === "Youth Registration" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                          log.category === "Referral & Enrollment" ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                          log.category === "Application & Enrollment" ? "bg-blue-50 text-blue-700 border border-blue-200" :
                           "bg-purple-50 text-purple-700 border border-purple-200"
                         }`}>
                           {log.category === "User Provisioning" && <Key className="w-4 h-4" />}
                           {log.category === "Youth Registration" && <Users className="w-4 h-4" />}
-                          {log.category === "Referral & Enrollment" && <Award className="w-4 h-4" />}
+                          {log.category === "Application & Enrollment" && <FileText className="w-4 h-4" />}
                           {log.category === "Program Update" && <Briefcase className="w-4 h-4" />}
                           {log.category === "Announcement" && <Bell className="w-4 h-4" />}
                         </div>

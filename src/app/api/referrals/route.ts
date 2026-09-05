@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 function mapToPipelineItem(r: any) {
+  const formattedDate = r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
   return {
     id: r.id,
     youthName: r.youth?.name || "Youth Member",
@@ -12,7 +13,8 @@ function mapToPipelineItem(r: any) {
     programTitle: r.program?.title || "",
     programId: r.programId || r.program?.id || "",
     matchScore: r.matchScore,
-    referralDate: r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
+    applicationDate: formattedDate,
+    referralDate: formattedDate,
     status: r.status
   };
 }

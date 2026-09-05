@@ -842,11 +842,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] flex" id="youth-portal-container">
+    <div className="h-screen overflow-hidden bg-[#FAFAF8] flex" id="youth-portal-container">
       
       {/* Sidebar Navigation */}
-      <aside className="w-64 bg-[#1C2B20] text-white flex flex-col justify-between shadow-lg shrink-0">
-        <div className="p-6">
+      <aside className="w-64 h-screen shrink-0 sticky top-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-lg z-20 select-none overflow-hidden">
+        <div className="p-6 overflow-y-auto min-h-0 flex-1">
           <div className="flex items-center gap-2 mb-8">
             <SikapLogo size={32} variant="white" showText={true} />
             <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
@@ -883,7 +883,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           </nav>
         </div>
 
-        <div className="p-6 border-t border-emerald-900/40">
+        <div className="p-6 border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
           <div
             onClick={() => setActiveTab(YouthScreen.PROFILE)}
             className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
@@ -908,7 +908,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       </aside>
 
       {/* Main viewport */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
         <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-8 py-4 flex items-center justify-between shadow-2xs">
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-tight">Welcome, {youthProfile.name}! 👋</h1>
@@ -1175,7 +1175,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               </p>
                             </div>
                             <span className="text-[10px] bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-1 rounded-md font-bold uppercase">
-                              Enrolled on {ref.referralDate || "Recently"}
+                              Enrolled on {ref.applicationDate || ref.referralDate || "Recently"}
                             </span>
                           </div>
 
@@ -1238,7 +1238,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
                     <h4 className="font-extrabold text-gray-800 text-base">No Active TESDA Programs Published Yet</h4>
                     <p className="text-xs text-gray-500 max-w-md leading-relaxed font-medium">
-                      There are currently no active training courses published in the system database. As soon as TESDA partners publish new training programs, our Gemini AI engine will automatically evaluate your registered skills and display your top match here.
+                      There are currently no active training courses published in the system database. As soon as TESDA partners publish new training programs, our Content-Based Filtering (CBF) engine will automatically evaluate your registered skills and display your top match here.
                     </p>
                   </div>
                 ) : (
@@ -1309,7 +1309,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             {(liveGeminiBullets && liveGeminiBullets.length === 3 ? liveGeminiBullets : [
                               `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early course modules.`,
                               `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
-                              `Utilize local SK Livelihood referrals in Barangay ${youthProfile.barangay || "San Luis"} to achieve "${youthProfile.livelihoodGoal || "certified employment"}".`
+                              `Utilize direct TESDA program applications in Barangay ${youthProfile.barangay || "San Luis"} to achieve "${youthProfile.livelihoodGoal || "certified employment"}".`
                             ]).map((bullet, bIdx) => (
                               <li key={bIdx} className="flex items-start gap-2.5 bg-white/80 p-2.5 rounded-lg border border-emerald-100/80 shadow-2xs">
                                 <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-extrabold text-[10px] shrink-0 mt-0.5 shadow-2xs">
@@ -1494,7 +1494,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </div>
                   <h4 className="font-extrabold text-gray-800 text-base">No Matching TESDA Programs Available Yet</h4>
                   <p className="text-xs text-gray-500 max-w-md font-medium leading-relaxed">
-                    There are currently no active training programs published in the system. As soon as TESDA partners publish new courses, Google Gemini will automatically analyze your profile and display your personalized matches here.
+                    There are currently no active training programs published in the system. As soon as TESDA partners publish new courses, the Content-Based Filtering (CBF) system will automatically analyze your profile and display your personalized matches here.
                   </p>
                 </div>
               ) : (
@@ -1514,7 +1514,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                           <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
                             <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                              Google Gemini identified a {score}% compatibility score between your technical competencies and this local program.
+                              Content-Based Filtering (CBF) identified a {score}% compatibility score between your technical competencies and this local program.
                             </p>
                           </div>
 
@@ -3304,15 +3304,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 );
               })()}
 
-              {/* Gemini AI Compatibility Analysis */}
+              {/* Gemini AI Match Rationale */}
               <div className="bg-emerald-50/90 p-4 rounded-xl border border-emerald-200/80 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                    Google Gemini AI Compatibility Analysis
+                    Gemini AI Match Rationale
                   </span>
                   <span className="text-[10px] font-bold text-emerald-700">
-                    {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% Match Fit
+                    {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% CBF Match Fit
                   </span>
                 </div>
                 <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">

@@ -33,6 +33,15 @@ export enum TESDAPartnerScreen {
   EDIT_PROGRAM = "Edit Program"
 }
 
+export enum BarangayCaptainScreen {
+  DASHBOARD = "Executive Dashboard",
+  YOUTH_DIRECTORY = "KK Youth Directory",
+  SK_COUNCIL = "SK Council Oversight",
+  APPLICATIONS = "Program Applications",
+  TESDA_PROGRAMS = "TESDA Listings",
+  PROFILE = "Executive Profile"
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -168,7 +177,7 @@ export interface SKAnnouncement {
   expiryDate?: string;
 }
 
-export interface ReferralPipelineItem {
+export interface ProgramApplication {
   id: string;
   youthName: string;
   purok: string;
@@ -176,9 +185,13 @@ export interface ReferralPipelineItem {
   programTitle: string;
   programId?: string;
   matchScore: number;
-  referralDate: string;
+  applicationDate?: string;
+  referralDate?: string; // backwards compatibility alias
   status: "Pending" | "Enrolled" | "Declined" | "Archived";
 }
+
+// Backwards compatibility alias
+export type ReferralPipelineItem = ProgramApplication;
 
 export interface OfficialAccount {
   id: string;

@@ -9,7 +9,8 @@ import { authOptions } from "@/lib/auth";
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== "SUPER_ADMIN") {
+    const userRole = (session?.user as any)?.role;
+    if (!session || (userRole !== "SUPER_ADMIN" && userRole !== "BARANGAY_CAPTAIN")) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
@@ -17,19 +18,23 @@ export async function GET() {
       where: {
         role: { in: ["SK_OFFICIAL", "BARANGAY_CAPTAIN", "TESDA_PARTNER"] }
       },
-      include: { barangay: true },
+      include: { barangay: true, councilor: true },
       orderBy: { createdAt: "desc" }
     });
 
-    const formatted = users.map(u => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role === "SK_OFFICIAL" ? "SK Chairperson" : u.role === "BARANGAY_CAPTAIN" ? "Barangay Captain" : "TESDA Representative",
-      barangay: u.barangay?.name,
-      status: u.status,
-      dateCreated: u.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-    }));
+    // Only include executive officials (SK Chairperson, Barangay Captain, TESDA Representative).
+    // Appointed councilors, secretaries, and treasurers are managed separately via /api/councilors.
+    const formatted = users
+      .filter(u => !u.councilor)
+      .map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role === "SK_OFFICIAL" ? "SK Chairperson" : u.role === "BARANGAY_CAPTAIN" ? "Barangay Captain" : "TESDA Representative",
+        barangay: u.barangay?.name,
+        status: u.status,
+        dateCreated: u.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      }));
 
     return NextResponse.json({ success: true, data: formatted });
   } catch (error) {

@@ -5,7 +5,8 @@ import {
   Users, Target, Briefcase, BarChart2, Bell, LogOut, Search, Plus, Filter,
   FileText, Megaphone, Settings, ArrowLeft, Mail, Phone, Calendar, Award,
   CheckCircle, ShieldAlert, Sparkles, AlertTriangle, TrendingUp, Users2, Trash2, Edit, X, RefreshCw,
-  ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield
+  ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
+  LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
@@ -15,7 +16,7 @@ import {
   MetricCard, FlameMatchScore, PathwayTimeline,
   OpportunityCard, EmptyState, Toast, ConfirmationModal, SikapLogo
 } from "./ReusableComponents";
-import { formatContactNumber, isValidContactNumber, formatTime12Hour } from "../lib/utils";
+import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge } from "../lib/utils";
 import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
 
 interface SKOfficialPortalProps {
@@ -191,6 +192,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [isEditCouncilorOpen, setIsEditCouncilorOpen] = useState(false);
   const [isUpdatingCouncilor, setIsUpdatingCouncilor] = useState(false);
 
+  // Councilor UI filters & view mode
+  const [councilorSearch, setCouncilorSearch] = useState("");
+  const [councilorRoleFilter, setCouncilorRoleFilter] = useState<string>("All");
+  const [councilorStatusFilter, setCouncilorStatusFilter] = useState<string>("All");
+  const [councilorViewMode, setCouncilorViewMode] = useState<"grid" | "table">("grid");
+  const [deletingCouncilor, setDeletingCouncilor] = useState<Councilor | null>(null);
+
   // ID Verification state
   const [verifyingYouth, setVerifyingYouth] = useState<YouthProfile | null>(null);
 
@@ -239,6 +247,37 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       return cBrgy === dbBrgy;
     });
   }, [councilors, designatedBarangay]);
+
+  const filteredCouncilors = useMemo(() => {
+    return localCouncilors.filter(c => {
+      const q = councilorSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        (c.contactNumber && c.contactNumber.toLowerCase().includes(q)) ||
+        c.role.toLowerCase().includes(q);
+
+      const matchesRole =
+        councilorRoleFilter === "All" || c.role === councilorRoleFilter;
+
+      const matchesStatus =
+        councilorStatusFilter === "All" || c.status === councilorStatusFilter;
+
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [localCouncilors, councilorSearch, councilorRoleFilter, councilorStatusFilter]);
+
+  const activeCouncilorCount = useMemo(() => {
+    return localCouncilors.filter(c => c.status === "Active").length;
+  }, [localCouncilors]);
+
+  const roleCounts = useMemo(() => {
+    const councilorsCount = localCouncilors.filter(c => c.role === "SK Councilor").length;
+    const secretariesCount = localCouncilors.filter(c => c.role === "Secretary").length;
+    const treasurersCount = localCouncilors.filter(c => c.role === "Treasurer").length;
+    return { councilorsCount, secretariesCount, treasurersCount };
+  }, [localCouncilors]);
 
   const localAnnouncements = useMemo(() => {
     return announcements.filter(ann => {
@@ -881,21 +920,29 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     }
   };
 
-  const handleDeleteCouncilor = async (id: string) => {
-    if (!window.confirm("Are you sure you want to remove this official from your team? Their login account will also be deleted.")) {
-      return;
+  const handleDeleteCouncilor = (id: string) => {
+    const target = councilors.find(c => c.id === id);
+    if (target) {
+      setDeletingCouncilor(target);
     }
+  };
+
+  const confirmDeleteCouncilor = async () => {
+    if (!deletingCouncilor) return;
+    const target = deletingCouncilor;
     try {
-      const res = await fetch(`/api/councilors?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/councilors?id=${target.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || data.message || "Failed to remove official");
       }
-      setCouncilors(prev => prev.filter(c => c.id !== id));
-      addToast("Official removed from team successfully", "info");
+      setCouncilors(prev => prev.filter(c => c.id !== target.id));
+      addToast(`${target.name} removed from team successfully`, "info");
     } catch (err: any) {
       console.error("Error deleting councilor:", err);
       addToast("Failed to remove official: " + (err.message || "Network error"), "error");
+    } finally {
+      setDeletingCouncilor(null);
     }
   };
   const handleSaveProfileSubmit = async (e: React.FormEvent) => {
@@ -1120,7 +1167,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         return "Your profile indicates solid physical stamina and basic familiarity with mechanical tools. Electrical installation is an outstanding high-demand trade in San Luis. With some coaching, your background matches this pathway strongly (82% match).";
       }
     }
-    return `Google Gemini matched this training based on the skills background of ${youthName}. This opportunity aligns with their focus on ${selectedYouth.sectorPreference || "Technical Vocational programs"}.`;
+    return `Content-Based Filtering (CBF) matched this training based on the skills background of ${youthName}. This opportunity aligns with their focus on ${selectedYouth.sectorPreference || "Technical Vocational programs"}.`;
   };
 
   // System Notifications Memo
@@ -1179,10 +1226,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   }, [pendingCount, localAnnouncements, mostCriticalGapItem, programs, designatedBarangay]);
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] flex" id="sk-portal-container">
+    <div className="h-screen overflow-hidden bg-[#FAFAF8] flex" id="sk-portal-container">
       {/* Sidebar Navigation */}
-      <aside className="w-64 bg-[#1C2B20] text-white flex flex-col justify-between shadow-lg shrink-0">
-        <div className="p-6">
+      <aside className="w-64 h-screen shrink-0 sticky top-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-lg z-20 select-none overflow-hidden">
+        <div className="p-6 overflow-y-auto min-h-0 flex-1">
           <div className="flex items-center gap-2 mb-8">
             <SikapLogo size={32} variant="white" showText={true} />
             <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
@@ -1235,7 +1282,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           </nav>
         </div>
 
-        <div className="p-6 border-t border-emerald-900/40">
+        <div className="p-6 border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
           <div
             onClick={() => setCurrentScreen(SKOfficialScreen.SETTINGS)}
             className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
@@ -1260,7 +1307,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
         {/* Sticky Topbar */}
         <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-8 py-4 flex items-center justify-between shadow-2xs">
           <div>
@@ -2287,11 +2334,24 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase">Date of Birth</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-gray-500 uppercase">Date of Birth</label>
+                          {regDOB && calculateAge(regDOB) !== "" && (
+                            <span className="text-[9px] text-emerald-600 font-bold uppercase">Auto-calculates age</span>
+                          )}
+                        </div>
                         <input
                           type="date"
                           value={regDOB}
-                          onChange={(e) => setRegDOB(e.target.value)}
+                          max={new Date().toISOString().split("T")[0]}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setRegDOB(val);
+                            if (val) {
+                              const age = calculateAge(val);
+                              if (age !== "") setRegAge(age);
+                            }
+                          }}
                           className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-gray-600"
                         />
                       </div>
@@ -2799,7 +2859,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Unmatched Out-of-School Youth</span>
                         <h4 className="font-extrabold text-gray-800 text-sm mt-0.5">{unmatchedCount} KK Members</h4>
-                        <p className="text-xs text-gray-500 mt-1">Requiring targeted TVET scholarship matching & referral support</p>
+                        <p className="text-xs text-gray-500 mt-1">Requiring targeted TVET scholarship matching & direct application support</p>
                       </div>
                     </div>
                   </div>
@@ -3375,39 +3435,291 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           )}
 
           {currentScreen === SKOfficialScreen.COUNCILORS && isChairperson && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div className="space-y-6" id="sk-my-team-container">
+              {/* Header with Title and Primary Actions */}
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-150 shadow-xs">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">My Team — SK Councilors</h2>
-                  <p className="text-xs text-gray-500 font-medium">
-                    Manage councilors and official personnel assigned to Barangay {designatedBarangay}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                      Barangay Governance
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400">
+                      • Barangay {designatedBarangay}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                    <Users2 className="w-6 h-6 text-[#0A6B43]" />
+                    My Team — Sangguniang Kabataan Council
+                  </h2>
+                  <p className="text-xs text-gray-500 font-medium mt-1">
+                    Manage council members, executive appointees, and access permissions for Barangay {designatedBarangay}.
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setCouncilorName("");
-                    setCouncilorEmail("");
-                    setCouncilorRole("SK Councilor");
-                    generateCouncilorPassword();
-                    setIsAddCouncilorOpen(true);
-                  }}
-                  className="bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all self-start sm:self-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Councilor
-                </button>
+                
+                <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+                  {/* View Mode Switcher */}
+                  <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-bold">
+                    <button
+                      onClick={() => setCouncilorViewMode("grid")}
+                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                        councilorViewMode === "grid"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-800"
+                      }`}
+                      title="Grid Cards View"
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                      <span className="hidden md:inline">Grid</span>
+                    </button>
+                    <button
+                      onClick={() => setCouncilorViewMode("table")}
+                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                        councilorViewMode === "table"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-800"
+                      }`}
+                      title="Table View"
+                    >
+                      <Table className="w-4 h-4" />
+                      <span className="hidden md:inline">Table</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setCouncilorName("");
+                      setCouncilorEmail("");
+                      setCouncilorRole("SK Councilor");
+                      generateCouncilorPassword();
+                      setIsAddCouncilorOpen(true);
+                    }}
+                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Council Member</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Councilors Table / Empty State */}
-              {localCouncilors.length === 0 ? (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
-                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
-                    <Users2 className="w-7 h-7" />
+              {/* Newly Created Councilor Credentials Callout Banner */}
+              {createdCouncilorAccount && (
+                <div className="bg-gradient-to-r from-emerald-950 via-[#164132] to-[#0D2E22] rounded-2xl p-5 text-white shadow-md border border-emerald-500/40 relative animate-in fade-in slide-in-from-top-3 duration-200">
+                  <button
+                    onClick={() => setCreatedCouncilorAccount(null)}
+                    className="absolute top-4 right-4 text-emerald-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="space-y-1.5 max-w-2xl">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-900/80 px-2.5 py-0.5 rounded-md border border-emerald-600/40">
+                          Account Provisioned & Ready
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-white">
+                        {createdCouncilorAccount.role}: {createdCouncilorAccount.name}
+                      </h3>
+                      <p className="text-xs text-emerald-100/80 leading-relaxed">
+                        Official login credentials have been configured. Provide these details to the member to allow them to access the Barangay {designatedBarangay} official portal.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2.5 pt-1.5 text-xs">
+                        <span className="bg-black/35 px-3 py-1.5 rounded-lg border border-white/10 text-emerald-200 font-mono">
+                          Email: <strong className="text-white">{createdCouncilorAccount.email}</strong>
+                        </span>
+                        <span className="bg-black/35 px-3 py-1.5 rounded-lg border border-white/10 text-emerald-200 font-mono">
+                          Temp Password: <strong className="text-amber-300">{createdCouncilorAccount.password}</strong>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          const text = `Sangguniang Kabataan Portal Access Credentials\nBarangay: Barangay ${designatedBarangay}\nName: ${createdCouncilorAccount.name}\nRole: ${createdCouncilorAccount.role}\nLogin Email: ${createdCouncilorAccount.email}\nTemporary Password: ${createdCouncilorAccount.password}\nPortal Link: ${window.location.origin}`;
+                          navigator.clipboard?.writeText(text);
+                          addToast("Credentials copied to clipboard!", "success");
+                        }}
+                        className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <Copy className="w-4 h-4" />
+                        Copy Full Credentials
+                      </button>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="font-extrabold text-gray-800 text-base">No SK Councilors Added Yet</h3>
+                </div>
+              )}
+
+              {/* Executive Stat Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Stat 1: Total Members */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Council Roster</span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100">
+                      <Users2 className="w-4.5 h-4.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-gray-900">{localCouncilors.length}</span>
+                      <span className="text-xs font-bold text-gray-400">/ 9 Capacity</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 font-medium mt-1">
+                      7 Councilors • Sec • Treas
+                    </p>
+                  </div>
+                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-[#0A6B43] h-full transition-all duration-300 rounded-full"
+                      style={{ width: `${Math.min((localCouncilors.length / 9) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Stat 2: Active Officials */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Officials</span>
+                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100">
+                      <UserCheck className="w-4.5 h-4.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-gray-900">{activeCouncilorCount}</span>
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                        {localCouncilors.length > 0 ? Math.round((activeCouncilorCount / localCouncilors.length) * 100) : 0}% Active
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 font-medium mt-1 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      Authorized Portal Access
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stat 3: Appointees */}
+                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Core Appointees</span>
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100">
+                      <Shield className="w-4.5 h-4.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-gray-900">
+                        {roleCounts.secretariesCount + roleCounts.treasurersCount}
+                      </span>
+                      <span className="text-xs font-bold text-gray-400">/ 2 Officers</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 font-medium mt-1">
+                      {roleCounts.secretariesCount > 0 ? "Secretary ✓" : "No Sec"} • {roleCounts.treasurersCount > 0 ? "Treasurer ✓" : "No Treas"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stat 4: Presiding Officer */}
+                <div className="bg-linear-to-br from-emerald-950 to-[#1C2B20] text-white rounded-2xl p-5 shadow-xs space-y-3 border border-emerald-800/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Presiding Officer</span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-800/60 text-amber-400 flex items-center justify-center border border-emerald-700/50">
+                      <Award className="w-4.5 h-4.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-base font-extrabold text-white truncate" title={settingsName}>
+                      {settingsName}
+                    </h4>
+                    <p className="text-[11px] text-amber-400 font-bold uppercase tracking-wider mt-0.5">
+                      SK Chairperson
+                    </p>
+                    <p className="text-[10px] text-emerald-300 font-medium mt-1 truncate">
+                      Barangay {designatedBarangay}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-xs space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  {/* Search Bar */}
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      value={councilorSearch}
+                      onChange={(e) => setCouncilorSearch(e.target.value)}
+                      placeholder="Search by name, email, or contact number..."
+                      className="w-full pl-9.5 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden transition-all"
+                    />
+                    {councilorSearch && (
+                      <button
+                        onClick={() => setCouncilorSearch("")}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex items-center gap-1.5 self-start md:self-auto">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase mr-1">Status:</span>
+                    {["All", "Active", "Inactive"].map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setCouncilorStatusFilter(st)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          councilorStatusFilter === st
+                            ? "bg-emerald-900 text-white shadow-2xs"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Role Filter Pills */}
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100 overflow-x-auto pb-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase shrink-0">Role Filter:</span>
+                  {[
+                    { id: "All", label: `All Members (${localCouncilors.length})` },
+                    { id: "SK Councilor", label: `Councilors (${roleCounts.councilorsCount})` },
+                    { id: "Secretary", label: `Secretaries (${roleCounts.secretariesCount})` },
+                    { id: "Treasurer", label: `Treasurers (${roleCounts.treasurersCount})` }
+                  ].map((rf) => (
+                    <button
+                      key={rf.id}
+                      onClick={() => setCouncilorRoleFilter(rf.id)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                        councilorRoleFilter === rf.id
+                          ? "bg-[#0A6B43] text-white shadow-2xs font-bold"
+                          : "bg-gray-50 text-gray-600 hover:bg-gray-150 border border-gray-200"
+                      }`}
+                    >
+                      {rf.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Councilors Roster View / Empty States */}
+              {localCouncilors.length === 0 ? (
+                /* Primary Empty State */
+                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+                  <div className="w-16 h-16 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto shadow-2xs">
+                    <Users2 className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="font-extrabold text-gray-900 text-lg">Build Your Barangay SK Council</h3>
                     <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                      There are currently no registered councilors or official personnel recorded for <strong>Barangay {designatedBarangay}</strong>. Click below to add your first SK Councilor, Secretary, or Treasurer.
+                      No councilors, secretaries, or treasurers are registered for <strong>Barangay {designatedBarangay}</strong> yet. Provision accounts to empower your team with administrative portal access.
                     </p>
                   </div>
                   <button
@@ -3418,83 +3730,291 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       generateCouncilorPassword();
                       setIsAddCouncilorOpen(true);
                     }}
-                    className="inline-flex items-center gap-2 bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    className="inline-flex items-center gap-2 bg-[#0A6B43] hover:bg-[#075332] text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
-                    Add First Councilor
+                    Add First Council Member
                   </button>
                 </div>
+              ) : filteredCouncilors.length === 0 ? (
+                /* Filter Result Empty State */
+                <div className="bg-white border border-gray-150 rounded-2xl p-10 text-center max-w-md mx-auto space-y-3 shadow-xs">
+                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 mx-auto">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-gray-800 text-sm">No Matching Council Members</h4>
+                  <p className="text-xs text-gray-500 font-medium">
+                    No officials matched your search criteria or role filters.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setCouncilorSearch("");
+                      setCouncilorRoleFilter("All");
+                      setCouncilorStatusFilter("All");
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              ) : councilorViewMode === "grid" ? (
+                /* GRID CARDS VIEW */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredCouncilors.map((c) => {
+                    const initials = c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+                    const isSecretary = c.role.toLowerCase().includes("secretary");
+                    const isTreasurer = c.role.toLowerCase().includes("treasurer");
+
+                    const roleBadgeClass = isSecretary
+                      ? "bg-amber-50 text-amber-900 border-amber-200"
+                      : isTreasurer
+                      ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                      : "bg-emerald-50 text-emerald-900 border-emerald-200";
+
+                    const avatarGradient = isSecretary
+                      ? "from-amber-500 to-orange-600"
+                      : isTreasurer
+                      ? "from-indigo-500 to-blue-700"
+                      : "from-emerald-600 to-teal-800";
+
+                    return (
+                      <div 
+                        key={c.id} 
+                        className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-4 group"
+                      >
+                        <div className="space-y-3">
+                          {/* Card Header: Role Badge + Status Indicator */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${roleBadgeClass}`}>
+                              {c.role}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                              c.status === "Active"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-red-50 text-red-700 border-red-200"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
+                              {c.status}
+                            </span>
+                          </div>
+
+                          {/* Member Avatar & Identity */}
+                          <div className="flex items-center gap-3 pt-1">
+                            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0 ring-2 ring-white`}>
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-extrabold text-gray-900 text-sm truncate group-hover:text-[#0A6B43] transition-colors" title={c.name}>
+                                {c.name}
+                              </h3>
+                              <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                                Barangay {designatedBarangay}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Contact Details Information */}
+                          <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-150 space-y-2 text-xs font-semibold text-gray-700">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-gray-400" /> Email:
+                              </span>
+                              <span 
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(c.email);
+                                  addToast("Email copied to clipboard!", "success");
+                                }}
+                                className="font-mono text-[11px] text-gray-800 hover:text-[#0A6B43] hover:underline cursor-pointer truncate max-w-[180px]"
+                                title="Click to copy email"
+                              >
+                                {c.email}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                                <Phone className="w-3 h-3 text-gray-400" /> Contact:
+                              </span>
+                              <span 
+                                onClick={() => {
+                                  if (c.contactNumber && c.contactNumber !== "N/A") {
+                                    navigator.clipboard?.writeText(c.contactNumber);
+                                    addToast("Contact number copied to clipboard!", "success");
+                                  }
+                                }}
+                                className="font-semibold text-[11px] text-gray-800 hover:text-[#0A6B43] cursor-pointer"
+                                title="Click to copy contact"
+                              >
+                                {c.contactNumber || "N/A"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/60 text-[10px] text-gray-400 font-medium">
+                              <span>Date Appointed:</span>
+                              <span className="font-bold text-gray-600">{c.dateCreated || "Active Term"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons Toolbar */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                          <button
+                            onClick={() => handleToggleCouncilorStatus(c.id)}
+                            className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg border transition-all uppercase cursor-pointer ${
+                              c.status === "Active"
+                                ? "border-amber-200 text-amber-700 bg-amber-50/60 hover:bg-amber-100/70"
+                                : "border-emerald-200 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/70"
+                            }`}
+                          >
+                            {c.status === "Active" ? "Deactivate" : "Activate"}
+                          </button>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => {
+                                setEditingCouncilorId(c.id);
+                                setEditCouncilorName(c.name);
+                                setEditCouncilorEmail(c.email);
+                                setEditCouncilorContact(c.contactNumber || "+63 9");
+                                setEditCouncilorRole(c.role || "SK Councilor");
+                                setIsEditCouncilorOpen(true);
+                              }}
+                              className="p-1.5 text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 border border-gray-200 rounded-lg transition-colors cursor-pointer"
+                              title="Edit Member Details"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCouncilor(c.id)}
+                              className="p-1.5 text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors cursor-pointer"
+                              title="Remove Official from Team"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl overflow-hidden shadow-xs">
+                /* TABLE VIEW */
+                <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-150 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-                          <th className="p-4">Name</th>
+                          <th className="p-4">Official Member</th>
+                          <th className="p-4">Official Role</th>
                           <th className="p-4">Login Email</th>
                           <th className="p-4">Contact Number</th>
-                          <th className="p-4">Official Role</th>
                           <th className="p-4 text-center">Status</th>
-                          <th className="p-4 text-right">Date Created</th>
+                          <th className="p-4 text-right">Appointed Date</th>
                           <th className="p-4 text-center">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                        {localCouncilors.map((c) => (
-                          <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="p-4 font-bold text-gray-900">{c.name}</td>
-                            <td className="p-4 text-gray-800 font-bold text-[11px]">{c.email}</td>
-                            <td className="p-4 text-gray-600 font-semibold text-[11px]">{c.contactNumber || "N/A"}</td>
-                            <td className="p-4">
-                              <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded text-[10px] font-extrabold uppercase">
-                                {c.role}
-                              </span>
-                            </td>
-                            <td className="p-4 text-center">
-                              <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded ${
-                                c.status === "Active" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-700 border border-red-100"
-                              }`}>
-                                {c.status}
-                              </span>
-                            </td>
-                            <td className="p-4 text-right text-gray-400 font-medium">{c.dateCreated}</td>
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
+                        {filteredCouncilors.map((c) => {
+                          const initials = c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+                          const isSecretary = c.role.toLowerCase().includes("secretary");
+                          const isTreasurer = c.role.toLowerCase().includes("treasurer");
+
+                          const roleBadgeClass = isSecretary
+                            ? "bg-amber-50 text-amber-900 border-amber-200"
+                            : isTreasurer
+                            ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                            : "bg-emerald-50 text-emerald-900 border-emerald-200";
+
+                          const avatarGradient = isSecretary
+                            ? "from-amber-500 to-orange-600"
+                            : isTreasurer
+                            ? "from-indigo-500 to-blue-700"
+                            : "from-emerald-600 to-teal-800";
+
+                          return (
+                            <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-bold text-xs shrink-0`}>
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <span className="font-extrabold text-gray-900 block">{c.name}</span>
+                                    <span className="text-[10px] text-gray-400">Barangay {designatedBarangay}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2.5 py-0.5 border rounded-md text-[10px] font-black uppercase ${roleBadgeClass}`}>
+                                  {c.role}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <span 
                                   onClick={() => {
-                                    setEditingCouncilorId(c.id);
-                                    setEditCouncilorName(c.name);
-                                    setEditCouncilorEmail(c.email);
-                                    setEditCouncilorContact(c.contactNumber || "+63 9");
-                                    setEditCouncilorRole(c.role || "SK Councilor");
-                                    setIsEditCouncilorOpen(true);
+                                    navigator.clipboard?.writeText(c.email);
+                                    addToast("Email copied to clipboard!", "success");
                                   }}
-                                  className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-gray-400 hover:border-amber-200 rounded border border-gray-150 transition-colors cursor-pointer"
-                                  title="Edit Official Details"
+                                  className="text-gray-800 font-mono text-[11px] font-bold hover:text-[#0A6B43] hover:underline cursor-pointer"
+                                  title="Click to copy email"
                                 >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleToggleCouncilorStatus(c.id)}
-                                  className={`px-2.5 py-1 font-bold text-[10px] rounded border transition-colors uppercase cursor-pointer ${
-                                    c.status === "Active"
-                                      ? "border-red-200 text-red-600 bg-red-50/50 hover:bg-red-50 hover:text-red-700"
-                                      : "border-emerald-200 text-emerald-600 bg-emerald-50/50 hover:bg-emerald-50 hover:text-emerald-700"
-                                  }`}
-                                >
-                                  {c.status === "Active" ? "Deactivate" : "Activate"}
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteCouncilor(c.id)}
-                                  className="p-1.5 hover:bg-red-50 hover:text-red-600 text-gray-400 hover:border-red-200 rounded border border-gray-150 transition-colors cursor-pointer"
-                                  title="Remove from Team"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                  {c.email}
+                                </span>
+                              </td>
+                              <td className="p-4 text-gray-600 font-semibold text-[11px]">
+                                {c.contactNumber || "N/A"}
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                                  c.status === "Active"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-red-50 text-red-700 border-red-200"
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
+                                  {c.status}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right text-gray-400 font-medium text-[11px]">
+                                {c.dateCreated || "Active Term"}
+                              </td>
+                              <td className="p-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => handleToggleCouncilorStatus(c.id)}
+                                    className={`px-2 py-1 font-bold text-[10px] rounded border transition-colors uppercase cursor-pointer ${
+                                      c.status === "Active"
+                                        ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                                        : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                                    }`}
+                                  >
+                                    {c.status === "Active" ? "Deactivate" : "Activate"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingCouncilorId(c.id);
+                                      setEditCouncilorName(c.name);
+                                      setEditCouncilorEmail(c.email);
+                                      setEditCouncilorContact(c.contactNumber || "+63 9");
+                                      setEditCouncilorRole(c.role || "SK Councilor");
+                                      setIsEditCouncilorOpen(true);
+                                    }}
+                                    className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-gray-400 hover:border-amber-200 rounded-lg border border-gray-150 transition-colors cursor-pointer"
+                                    title="Edit Official Details"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteCouncilor(c.id)}
+                                    className="p-1.5 hover:bg-red-50 hover:text-red-600 text-gray-400 hover:border-red-200 rounded-lg border border-gray-150 transition-colors cursor-pointer"
+                                    title="Remove from Team"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -4007,6 +4527,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Councilor Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(deletingCouncilor)}
+        title="Remove Council Member"
+        description={
+          deletingCouncilor
+            ? `Are you sure you want to remove ${deletingCouncilor.name} (${deletingCouncilor.role}) from the Barangay ${designatedBarangay} council team? Their portal access will be permanently revoked.`
+            : ""
+        }
+        confirmText="Remove Official"
+        cancelText="Cancel"
+        confirmVariant="red"
+        onConfirm={confirmDeleteCouncilor}
+        onCancel={() => setDeletingCouncilor(null)}
+      />
 
       {/* KK Member ID Verification Modal */}
       {verifyingYouth && (

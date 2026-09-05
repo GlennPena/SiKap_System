@@ -93,7 +93,7 @@ export default function App() {
         .then(res => { if (res.success && res.data) setCouncilors(res.data); })
         .catch(err => console.log("Error fetching councilors", err));
         
-      if ((session?.user as any)?.role === "SUPER_ADMIN") {
+      if ((session?.user as any)?.role === "SUPER_ADMIN" || (session?.user as any)?.role === "BARANGAY_CAPTAIN") {
         fetch("/api/users")
           .then(res => res.json())
           .then(res => { if (res.success && res.data) setOfficialAccounts(res.data); })
@@ -436,6 +436,9 @@ export default function App() {
               referrals={referrals}
               officialAccounts={officialAccounts}
               programs={programs}
+              announcements={announcements}
+              councilors={councilors}
+              addToast={addToast}
             />
           )}
 

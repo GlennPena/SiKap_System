@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { YouthProfile, UserRole } from "../types";
 import { SikapLogo } from "./ReusableComponents";
-import { formatContactNumber, isValidContactNumber } from "../lib/utils";
+import { formatContactNumber, isValidContactNumber, calculateAge } from "../lib/utils";
 
 interface KKYouthRegisterProps {
   onRegisterComplete: (newProfile: YouthProfile) => void;
@@ -47,10 +47,22 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
-  const [regAge, setRegAge] = useState<number | string>(20);
   const [regDOB, setRegDOB] = useState("2006-05-15");
+  const [regAge, setRegAge] = useState<number | string>(() => calculateAge("2006-05-15") || 20);
   const [regContact, setRegContact] = useState("+63 9");
   const [regPurok, setRegPurok] = useState("Purok 2");
+
+  const handleDOBChange = (dob: string) => {
+    setRegDOB(dob);
+    if (dob) {
+      const calculated = calculateAge(dob);
+      if (calculated !== "") {
+        setRegAge(calculated);
+      }
+    } else {
+      setRegAge("");
+    }
+  };
   
   const [regEdu, setRegEdu] = useState("College level");
   const [regStatus, setRegStatus] = useState("Out-of-school");
@@ -291,48 +303,49 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
             </div>
 
             {/* Desktop View Stepper */}
-            <div className="hidden md:flex items-center justify-between relative px-2">
+            <div className="hidden md:flex items-start justify-between relative px-2">
               {STEPS.map((step, idx) => {
                 const isCompleted = idx < currentStep;
                 const isActive = idx === currentStep;
                 return (
-                  <React.Fragment key={idx}>
-                    {/* Step Node */}
-                    <div className="flex flex-col items-center flex-1 relative z-10">
-                      <button
-                        type="button"
-                        disabled={idx > currentStep && !isStepValid(currentStep)}
-                        onClick={() => idx <= currentStep && setCurrentStep(idx)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-200 focus:outline-hidden ${
-                          isCompleted
-                            ? "bg-[#0A6B43] border-[#0A6B43] text-white cursor-pointer"
-                            : isActive
-                            ? "bg-white border-[#0A6B43] text-[#0A6B43] ring-4 ring-emerald-50 cursor-default"
-                            : "bg-white border-gray-200 text-gray-400 cursor-not-allowed"
-                        }`}
-                      >
-                        {isCompleted ? <Check className="w-5 h-5" /> : step.icon}
-                      </button>
-                      <span className={`text-[11px] font-bold mt-2 transition-colors ${
-                        isActive ? "text-[#0A6B43]" : isCompleted ? "text-gray-700" : "text-gray-400"
-                      }`}>
-                        {step.label}
-                      </span>
-                      <span className="text-[9px] text-gray-400 font-medium">
-                        {step.desc}
-                      </span>
-                    </div>
-
-                    {/* Connector Line */}
+                  <div key={idx} className="flex-1 relative flex flex-col items-center">
+                    {/* Connector Line between step icons */}
                     {idx < STEPS.length - 1 && (
-                      <div className="flex-1 h-0.5 bg-gray-150 relative -mt-5">
+                      <div className="absolute top-[18px] left-[50%] w-full h-[2px] bg-gray-200 -translate-y-1/2 z-0">
                         <div 
-                          className="bg-[#0A6B43] h-full transition-all duration-300"
+                          className="bg-[#0A6B43] h-full transition-all duration-300 ease-out"
                           style={{ width: idx < currentStep ? "100%" : "0%" }}
                         />
                       </div>
                     )}
-                  </React.Fragment>
+
+                    {/* Step Node Icon Button */}
+                    <button
+                      type="button"
+                      disabled={idx > currentStep && !isStepValid(currentStep)}
+                      onClick={() => idx <= currentStep && setCurrentStep(idx)}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-200 focus:outline-hidden relative z-10 ${
+                        isCompleted
+                          ? "bg-[#0A6B43] border-[#0A6B43] text-white cursor-pointer hover:bg-[#075332] shadow-xs"
+                          : isActive
+                          ? "bg-white border-[#0A6B43] text-[#0A6B43] ring-4 ring-emerald-50 cursor-default"
+                          : "bg-white border-gray-200 text-gray-400 cursor-not-allowed"
+                      }`}
+                      title={step.label}
+                    >
+                      {isCompleted ? <Check className="w-4 h-4 stroke-[2.5]" /> : step.icon}
+                    </button>
+
+                    {/* Step Labels */}
+                    <span className={`text-[11px] font-bold mt-2 transition-colors text-center px-1 ${
+                      isActive ? "text-[#0A6B43]" : isCompleted ? "text-gray-800" : "text-gray-400"
+                    }`}>
+                      {step.label}
+                    </span>
+                    <span className="text-[9px] text-gray-400 font-medium text-center leading-tight mt-0.5 px-1">
+                      {step.desc}
+                    </span>
+                  </div>
                 );
               })}
             </div>
@@ -446,20 +459,26 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase block">Password *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block">Date of Birth</label>
+                  </div>
                   <input
-                    type="password"
-                    required
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Min 6 characters"
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    type="date"
+                    value={regDOB}
+                    max={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => handleDOBChange(e.target.value)}
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-gray-700 font-medium"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-gray-400 uppercase block">Age * (15-30)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-gray-400 uppercase block">Age * (15-30)</label>
+                      {regDOB && calculateAge(regDOB) !== "" && (
+                        <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">Auto</span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       required
@@ -467,6 +486,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                       max={30}
                       value={regAge}
                       onChange={(e) => setRegAge(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="e.g. 20"
                       className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                     />
                   </div>
@@ -486,14 +506,22 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 </div>
               </div>
 
+              {regAge !== "" && (Number(regAge) < 15 || Number(regAge) > 30) && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-medium">
+                  Note: Katipunan ng Kabataan (KK) membership requires an age between 15 and 30 years old.
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase block">Date of Birth</label>
+                  <label className="text-[11px] font-bold text-gray-400 uppercase block">Password *</label>
                   <input
-                    type="date"
-                    value={regDOB}
-                    onChange={(e) => setRegDOB(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-gray-600 font-medium"
+                    type="password"
+                    required
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                   />
                 </div>
                 <div className="space-y-1">
