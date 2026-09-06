@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Briefcase, Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
-  Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive
+  Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive, Calculator
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
+import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
 
 interface TESDAPartnerPortalProps {
   programs: TESDAProgram[];
@@ -35,7 +36,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
   
   // Dashboard Sub-tabs
-  const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs">("all");
+  const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs" | "archived">("all");
 
   // Notifications state
   const [showNotifications, setShowNotifications] = useState(false);
@@ -56,50 +57,45 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   // Program archive confirmation modal state
   const [programToArchive, setProgramToArchive] = useState<TESDAProgram | null>(null);
 
+  // Archived records state for the Archived History tab
+  const [archivedProgramsList, setArchivedProgramsList] = useState<TESDAProgram[]>([]);
+  const [archivedReferralsList, setArchivedReferralsList] = useState<ReferralPipelineItem[]>([]);
+  const [loadingArchived, setLoadingArchived] = useState(false);
+
+  // Helper to fetch archived records on demand
+  const fetchArchivedData = async () => {
+    setLoadingArchived(true);
+    try {
+      const [progRes, refRes] = await Promise.all([
+        fetch("/api/programs?archived=true"),
+        fetch("/api/referrals?archived=true")
+      ]);
+      const progData = await progRes.json();
+      const refData = await refRes.json();
+      if (progData.success && progData.data) {
+        setArchivedProgramsList(progData.data);
+      }
+      if (refData.success && refData.data) {
+        setArchivedReferralsList(refData.data);
+      }
+    } catch (err) {
+      console.error("Error loading archived data:", err);
+    } finally {
+      setLoadingArchived(false);
+    }
+  };
+
   // Helper to detect if program term / duration is concluded
   const isProgramDurationDone = (prog?: TESDAProgram | null) => {
     if (!prog || !prog.endDate) return false;
     try {
       const end = new Date(prog.endDate);
-      return !isNaN(end.getTime()) && end < new Date();
+      end.setHours(23, 59, 59, 999);
+      return !isNaN(end.getTime()) && end.getTime() < Date.now();
     } catch {
       return false;
     }
   };
-
-  // Automatic archiving on component mount/load
-  const archiveChecked = React.useRef(false);
-  React.useEffect(() => {
-    if (archiveChecked.current) return;
-    
-    let updated = false;
-    const now = new Date();
-    
-    const nextReferrals = referrals.map(item => {
-      if (item.status === "Enrolled") {
-        const prog = programs.find(p => p.title === item.programTitle);
-        if (prog && prog.endDate) {
-          try {
-            const end = new Date(prog.endDate);
-            if (!isNaN(end.getTime()) && end < now) {
-              updated = true;
-              return { ...item, status: "Archived" as const };
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-      }
-      return item;
-    });
-
-    if (updated) {
-      archiveChecked.current = true;
-      setReferrals(nextReferrals);
-      const archivedCount = nextReferrals.filter((item, idx) => item.status === "Archived" && referrals[idx].status !== "Archived").length;
-      addToast(`Automatically archived ${archivedCount} enrolled KK member(s) from completed training programs.`, "info");
-    }
-  }, [referrals, programs, setReferrals, addToast]);
 
   // Pipeline Search & Filter states
   const [pipelineSearch, setPipelineSearch] = useState("");
@@ -167,6 +163,58 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setCurrentScreen(TESDAPartnerScreen.ADD_PROGRAM);
   };
 
+  // Helper to safely format time for <input type="time"> (HH:MM)
+  const parseTimeForInput = (t?: string | null): string => {
+    if (!t) return "";
+    let str = String(t).trim();
+    if (str.includes("T")) {
+      const afterT = str.split("T")[1]?.replace("Z", "");
+      if (afterT) str = afterT;
+    }
+    if (str.includes(":")) {
+      const parts = str.split(":");
+      const h = parts[0].padStart(2, "0");
+      const m = (parts[1] || "00").padStart(2, "0");
+      return `${h}:${m}`;
+    }
+    return str;
+  };
+
+  // Quick preset helper for configuring timeslots
+  const applyTimeslotPreset = (preset: "morning" | "afternoon" | "fullday" | "evening") => {
+    if (preset === "morning") {
+      setProgStartTime("08:00");
+      setProgEndTime("12:00");
+    } else if (preset === "afternoon") {
+      setProgStartTime("13:00");
+      setProgEndTime("17:00");
+    } else if (preset === "fullday") {
+      setProgStartTime("08:00");
+      setProgEndTime("17:00");
+    } else if (preset === "evening") {
+      setProgStartTime("17:30");
+      setProgEndTime("20:30");
+    }
+  };
+
+  // Auto-compute training hours from schedule parameters
+  const computedTrainingHours = useMemo(() => {
+    return computeProgramTrainingHours({
+      startDate: progStartDate,
+      endDate: progEndDate,
+      startTime: progStartTime,
+      endTime: progEndTime,
+      trainingDays: progTrainingDays
+    });
+  }, [progStartDate, progEndDate, progStartTime, progEndTime, progTrainingDays]);
+
+  // If training hours field is empty, auto-populate when computed hours become available
+  useEffect(() => {
+    if (computedTrainingHours && (progTrainingHours === "" || progTrainingHours === 0)) {
+      setProgTrainingHours(computedTrainingHours.totalHours);
+    }
+  }, [computedTrainingHours]);
+
   const handleOpenEditModal = (prog: TESDAProgram) => {
     setEditingProgramId(prog.id);
     setProgCategoryId(prog.categoryId || "1");
@@ -192,16 +240,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setProgContactPhone(prog.contactNumber || "");
     setProgTrainingDays(prog.trainingDays || []);
     
-    // Format times
-    if (prog.startTime) {
-      const d = new Date(prog.startTime);
-      setProgStartTime(!isNaN(d.getTime()) ? `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}` : prog.startTime);
-    } else setProgStartTime("");
-    
-    if (prog.endTime) {
-      const d = new Date(prog.endTime);
-      setProgEndTime(!isNaN(d.getTime()) ? `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}` : prog.endTime);
-    } else setProgEndTime("");
+    // Format times cleanly without timezone shift
+    setProgStartTime(parseTimeForInput(prog.startTime));
+    setProgEndTime(parseTimeForInput(prog.endTime));
 
     setProgRoom(prog.room || "");
     setProgInstructor(prog.instructor || "");
@@ -425,14 +466,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       const data = await res.json();
       if (data.success) {
         setPrograms(prev => prev.filter(p => p.id !== progId));
-        setReferrals(prev => prev.map(r => (r.programTitle === title && r.status === "Enrolled") ? { ...r, status: "Archived" } : r));
-        addToast(data.message || `Program "${title}" and enrolled students archived in database.`, "success");
+        setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
+        addToast(data.message || `Program "${title}" and its enrollees removed from active dashboard and archived in database.`, "success");
       } else {
         addToast(data.error || "Failed to delete program", "error");
       }
     } catch (err) {
       console.error("Error deleting program:", err);
       setPrograms(prev => prev.filter(p => p.id !== progId));
+      setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
       addToast(`Program "${title}" has been archived.`, "success");
     }
   };
@@ -443,7 +485,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       const data = await res.json();
       if (data.success) {
         setPrograms(prev => prev.filter(p => p.id !== progId));
-        setReferrals(prev => prev.map(r => (r.programTitle === title && r.status === "Enrolled") ? { ...r, status: "Archived" } : r));
+        setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
         addToast(data.message || `Program "${title}" and enrolled students have been concluded & archived. Ready for a new term!`, "success");
       } else {
         addToast(data.error || "Failed to archive program term", "error");
@@ -454,21 +496,40 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
-  // Computed Metrics
-  const totalSlotsRemaining = useMemo(() => programs.reduce((acc, curr) => acc + curr.slotsRemaining, 0), [programs]);
-  const totalSlotsAllocated = useMemo(() => programs.reduce((acc, curr) => acc + (curr.slotsTotal || 30), 0), [programs]);
-  const pendingReferralsCount = useMemo(() => referrals.filter(r => r.status === "Pending").length, [referrals]);
-  const enrolledReferralsCount = useMemo(() => referrals.filter(r => r.status === "Enrolled").length, [referrals]);
+  // Only active, non-closed programs should appear on the dashboard
+  const activePrograms = useMemo(() => {
+    return programs.filter(p => p.activeStatus !== "Closed");
+  }, [programs]);
 
-  // Unique Barangays from referrals
+  // Programs whose duration has completed
+  const completedPrograms = useMemo(() => {
+    return activePrograms.filter(p => isProgramDurationDone(p));
+  }, [activePrograms]);
+
+  // Active referrals: only non-archived referrals belonging to active programs
+  const activeReferrals = useMemo(() => {
+    return referrals.filter(item => {
+      if (item.status === "Archived") return false;
+      const prog = activePrograms.find(p => p.title === item.programTitle || p.id === item.programId);
+      return !!prog;
+    });
+  }, [referrals, activePrograms]);
+
+  // Computed Metrics based on active catalog
+  const totalSlotsRemaining = useMemo(() => activePrograms.reduce((acc, curr) => acc + curr.slotsRemaining, 0), [activePrograms]);
+  const totalSlotsAllocated = useMemo(() => activePrograms.reduce((acc, curr) => acc + (curr.slotsTotal || 30), 0), [activePrograms]);
+  const pendingReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Pending").length, [activeReferrals]);
+  const enrolledReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Enrolled").length, [activeReferrals]);
+
+  // Unique Barangays from active referrals
   const uniqueBarangays = useMemo(() => {
-    const set = new Set(referrals.map(r => r.barangay).filter(Boolean));
+    const set = new Set(activeReferrals.map(r => r.barangay).filter(Boolean));
     return Array.from(set).sort();
-  }, [referrals]);
+  }, [activeReferrals]);
 
   // Filter referrals based on search, status, program, barangay, and dashboardTab
   const filteredReferrals = useMemo(() => {
-    return referrals.filter(item => {
+    return activeReferrals.filter(item => {
       const matchesSearch = 
         item.youthName.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
         item.barangay.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
@@ -484,15 +545,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       return matchesSearch && matchesStatus && matchesProgram && matchesBarangay;
     });
-  }, [referrals, pipelineSearch, pipelineStatusFilter, pipelineProgramFilter, pipelineBarangayFilter, dashboardTab]);
+  }, [activeReferrals, pipelineSearch, pipelineStatusFilter, pipelineProgramFilter, pipelineBarangayFilter, dashboardTab]);
 
-  // Get all unique program titles from active programs and existing referrals
-  const allProgramTitles = useMemo(() => Array.from(new Set([
-    ...programs.map(p => p.title),
-    ...referrals.map(r => r.programTitle)
-  ])), [programs, referrals]);
+  // Active program titles ONLY (never display closed or deleted program titles)
+  const allProgramTitles = useMemo(() => {
+    return activePrograms.map(p => p.title);
+  }, [activePrograms]);
 
-  // Group the filtered referrals by program title
+  // Group the filtered referrals by active program title
   const groupedReferrals: Record<string, ReferralPipelineItem[]> = useMemo(() => {
     const grouped: Record<string, ReferralPipelineItem[]> = {};
     allProgramTitles.forEach(title => {
@@ -500,15 +560,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     });
 
     filteredReferrals.forEach(item => {
-      if (!grouped[item.programTitle]) {
-        grouped[item.programTitle] = [];
+      if (grouped[item.programTitle]) {
+        grouped[item.programTitle].push(item);
       }
-      grouped[item.programTitle].push(item);
     });
     return grouped;
   }, [allProgramTitles, filteredReferrals]);
 
-  const isSearchActive = pipelineSearch !== "" || pipelineStatusFilter !== "All" || pipelineProgramFilter !== "All" || pipelineBarangayFilter !== "All" || dashboardTab !== "all";
+  const isSearchActive = pipelineSearch !== "" || pipelineStatusFilter !== "All" || pipelineProgramFilter !== "All" || pipelineBarangayFilter !== "All" || (dashboardTab !== "all" && dashboardTab !== "archived");
 
   // Filter program titles to display in pipeline list
   const programTitlesToDisplay = useMemo(() => {
@@ -523,14 +582,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Filter for Programs Screen
   const filteredProgramsList = useMemo(() => {
-    return programs.filter(prog => {
+    return activePrograms.filter(prog => {
       const matchesSearch = prog.title.toLowerCase().includes(programSearchQuery.toLowerCase()) ||
                             (prog.location && prog.location.toLowerCase().includes(programSearchQuery.toLowerCase())) ||
                             (prog.instructor && prog.instructor.toLowerCase().includes(programSearchQuery.toLowerCase()));
       const matchesLevel = programLevelFilter === "All" || prog.title.toUpperCase().includes(programLevelFilter);
       return matchesSearch && matchesLevel;
     });
-  }, [programs, programSearchQuery, programLevelFilter]);
+  }, [activePrograms, programSearchQuery, programLevelFilter]);
 
   // Helper to open applicant modal
   const openApplicantModal = (item: ReferralPipelineItem) => {
@@ -615,7 +674,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <span>Published Courses</span>
               </div>
               <span className="text-[10px] font-bold text-emerald-300/80 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800/40">
-                {programs.length}
+                {activePrograms.length}
               </span>
             </button>
 
@@ -756,7 +815,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <BookOpen className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 text-xs">Active Training Programs ({programs.length})</p>
+                          <p className="font-bold text-slate-900 text-xs">Active Training Programs ({activePrograms.length})</p>
                           <p className="text-[11px] text-slate-600 font-medium mt-0.5">{totalSlotsRemaining} open training slots available across courses.</p>
                         </div>
                       </div>
@@ -777,6 +836,52 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {currentScreen === TESDAPartnerScreen.DASHBOARD && (
             <div className="space-y-6">
               
+              {/* Alert Banner if Programs have reached end date */}
+              {completedPrograms.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-500/10 via-purple-50 to-indigo-50 border border-purple-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-purple-950 uppercase tracking-wider">
+                          Training Term Concluded ({completedPrograms.length})
+                        </h4>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
+                          Ready to Archive
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 font-medium mt-0.5">
+                        {completedPrograms.length === 1 ? (
+                          <>
+                            <strong>"{completedPrograms[0].title}"</strong> training schedule has ended. Click below to archive the course and graduate its enrollees.
+                          </>
+                        ) : (
+                          <>
+                            {completedPrograms.length} training courses have concluded their schedules. You can archive them to graduate their enrollees.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    {completedPrograms.map(prog => (
+                      <button
+                        key={prog.id}
+                        type="button"
+                        onClick={() => setProgramToArchive(prog)}
+                        className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                        title="Archive course and record enrollees as completed/graduated"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                        <span>Archive {completedPrograms.length > 1 ? prog.title.slice(0, 15) + '...' : 'Term & Enrollees'}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Alert Banner if Pending Applicants */}
               {pendingReferralsCount > 0 && (
                 <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-emerald-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
@@ -804,8 +909,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <MetricCard
                   title="Published Courses"
-                  value={programs.length}
-                  subtitle={`${programs.filter(p => p.slotsRemaining > 0).length} active · ${programs.filter(p => p.slotsRemaining === 0).length} full`}
+                  value={activePrograms.length}
+                  subtitle={`${activePrograms.filter(p => p.slotsRemaining > 0).length} active · ${activePrograms.filter(p => p.slotsRemaining === 0).length} full`}
                   icon={<BookOpen className="w-5 h-5" />}
                   accent="teal"
                 />
@@ -817,8 +922,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   accent="green"
                 />
                 <MetricCard
-                  title="Total Pipeline"
-                  value={referrals.length}
+                  title="Active Pipeline"
+                  value={activeReferrals.length}
                   subtitle="registered applicants"
                   icon={<Users className="w-5 h-5" />}
                   accent="gold"
@@ -836,7 +941,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   {/* Segment Tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl flex-wrap">
                     <button
                       onClick={() => setDashboardTab("all")}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -845,7 +950,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      All Candidates ({referrals.length})
+                      All Active ({activeReferrals.length})
                     </button>
                     <button
                       onClick={() => setDashboardTab("pending")}
@@ -880,7 +985,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Course Roster ({programs.length})
+                      Course Roster ({activePrograms.length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDashboardTab("archived");
+                        fetchArchivedData();
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        dashboardTab === "archived"
+                          ? "bg-white text-emerald-800 shadow-xs font-extrabold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Archived History</span>
                     </button>
                   </div>
 
@@ -918,7 +1037,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer truncate"
                     >
                       <option value="All">All Training Programs</option>
-                      {programs.map(p => (
+                      {activePrograms.map(p => (
                         <option key={p.id} value={p.title}>{p.title}</option>
                       ))}
                     </select>
@@ -982,7 +1101,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {/* ============================================================ */}
               {/* TAB 1, 2, 3: Grouped Pipeline Lists */}
               {/* ============================================================ */}
-              {dashboardTab !== "programs" && (
+              {dashboardTab !== "programs" && dashboardTab !== "archived" && (
                 <div className="space-y-4">
                   {programTitlesToDisplay.length === 0 ? (
                     <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
@@ -998,7 +1117,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     programTitlesToDisplay.map((title) => {
                       const programApplicants = groupedReferrals[title] || [];
                       const isExpanded = expandedPrograms[title] !== false;
-                      const originalProgram = programs.find(p => p.title === title);
+                      const originalProgram = activePrograms.find(p => p.title === title);
                       const slotsRemaining = originalProgram?.slotsRemaining;
                       const slotsTotal = originalProgram?.slotsTotal || 30;
 
@@ -1027,12 +1146,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-3 text-xs text-emerald-200/80 mt-0.5 flex-wrap font-medium">
+                                <div className="flex items-center gap-2.5 text-xs text-emerald-200/80 mt-1 flex-wrap font-medium">
                                   {originalProgram?.trainingHours && (
-                                    <span>⏱ {originalProgram.trainingHours} Hours</span>
+                                    <span className="bg-emerald-950/70 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-700/40">
+                                      ⏱ {originalProgram.trainingHours} Hours
+                                    </span>
+                                  )}
+                                  {originalProgram && (
+                                    <span className="bg-emerald-950/80 text-emerald-200 px-2.5 py-0.5 rounded-md border border-emerald-700/50 flex items-center gap-1.5 font-bold">
+                                      <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                      <span>{getProgramFullSchedule(originalProgram)}</span>
+                                    </span>
                                   )}
                                   {originalProgram?.location && (
-                                    <span>📍 {originalProgram.location}</span>
+                                    <span className="truncate">📍 {originalProgram.location}</span>
                                   )}
                                 </div>
                               </div>
@@ -1040,17 +1167,22 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                             {/* Right Capacity Indicator & Actions */}
                             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                              {originalProgram && isProgramDurationDone(originalProgram) && (
+                              {originalProgram && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setProgramToArchive(originalProgram);
                                   }}
-                                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                                  title="Conclude Term and Archive Student Records"
+                                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                                    isProgramDurationDone(originalProgram)
+                                      ? "bg-amber-500 hover:bg-amber-600 text-white animate-pulse"
+                                      : "bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/40"
+                                  }`}
+                                  title={isProgramDurationDone(originalProgram) ? "Training Concluded: Archive Term & Enrollees" : "Conclude & Archive Program Term"}
                                 >
-                                  <Archive className="w-3.5 h-3.5" /> Archive Term
+                                  <Archive className="w-3.5 h-3.5" />
+                                  <span>{isProgramDurationDone(originalProgram) ? "Archive Term & Enrollees" : "Archive"}</span>
                                 </button>
                               )}
 
@@ -1212,7 +1344,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {/* ============================================================ */}
               {dashboardTab === "programs" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {programs.map((prog) => (
+                  {activePrograms.map((prog) => (
                     <div key={prog.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
                       <div className="p-5">
                         <div className="flex justify-between items-start gap-2 mb-3">
@@ -1237,7 +1369,33 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           {prog.title}
                         </h3>
 
-                        <div className="space-y-1.5 text-xs text-slate-600 mb-4">
+                        <div className="space-y-2 text-xs text-slate-600 mb-4">
+                          {/* Schedule & Timeslot Badge */}
+                          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule & Timeslot</p>
+                                <p className="text-xs font-black text-slate-900 truncate">
+                                  {getProgramFullSchedule(prog)}
+                                </p>
+                              </div>
+                            </div>
+                            {(() => {
+                              const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
+                              return ts.sessionType !== "Custom" ? (
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
+                                  ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                  "bg-purple-100 text-purple-900 border border-purple-200"
+                                }`}>
+                                  {ts.sessionType}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+
                           <div className="flex items-center gap-2">
                             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span className="truncate">{prog.location || "San Luis Municipal Center"}</span>
@@ -1248,10 +1406,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               <span className="truncate">Trainer: {prog.instructor}</span>
                             </div>
                           )}
-                          {prog.startDate && (
+                          {(prog.startDate || prog.endDate) && (
                             <div className="flex items-center gap-2">
                               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate">{prog.startDate} to {prog.endDate || "Ongoing"}</span>
+                              <span className="truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
                             </div>
                           )}
                         </div>
@@ -1283,10 +1441,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           {isProgramDurationDone(prog) ? (
                             <button
                               onClick={() => setProgramToArchive(prog)}
-                              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
                               title="Conclude Term & Archive Students"
                             >
-                              <Archive className="w-3 h-3" /> Archive
+                              <Archive className="w-3 h-3" /> Archive Term
                             </button>
                           ) : (
                             <button
@@ -1315,6 +1473,138 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* ============================================================ */}
+              {/* TAB 5: Archived History (Closed/Concluded Courses & Trainees) */}
+              {/* ============================================================ */}
+              {dashboardTab === "archived" && (
+                <div className="space-y-6">
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <Archive className="w-4 h-4 text-emerald-700" />
+                        Archived Training Programs & Graduated Trainees
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        Historical repository of concluded and deleted training terms. The active dashboard remains uncluttered while graduate records and audit trails remain safely preserved.
+                      </p>
+                    </div>
+                    <button
+                      onClick={fetchArchivedData}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0"
+                    >
+                      Refresh Archive
+                    </button>
+                  </div>
+
+                  {loadingArchived ? (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
+                      <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <p className="text-xs text-slate-500 font-bold">Loading archived records from database...</p>
+                    </div>
+                  ) : archivedProgramsList.length === 0 && archivedReferralsList.length === 0 ? (
+                    <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
+                      <Archive className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <h4 className="text-sm font-bold text-slate-900">No Archived Programs or Enrollees</h4>
+                      <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                        When you archive a program or conclude a training term whose duration is done, it will be safely filed here and hidden from your active dashboard.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Archived Courses Grid */}
+                      {archivedProgramsList.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">
+                            Concluded & Archived Programs ({archivedProgramsList.length})
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {archivedProgramsList.map(prog => {
+                              const programArchivedEnrollees = archivedReferralsList.filter(r => r.programTitle === prog.title || r.programId === prog.id);
+                              return (
+                                <div key={prog.id} className="bg-slate-50/90 border border-slate-200 rounded-2xl p-5 shadow-xs">
+                                  <div className="flex justify-between items-start gap-2 mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded-md">
+                                      Archived Term
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-500">
+                                      {prog.trainingHours}h · {prog.cost}
+                                    </span>
+                                  </div>
+                                  <h4 className="font-extrabold text-sm text-slate-900 mb-2">{prog.title}</h4>
+                                  <div className="space-y-1 text-xs text-slate-500 mb-3">
+                                    {prog.location && <p className="truncate">📍 {prog.location}</p>}
+                                    {prog.endDate && <p className="truncate">⏱ Concluded on: {formatProgramDate(prog.endDate)}</p>}
+                                  </div>
+                                  <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
+                                    <span className="text-slate-500 font-medium">Archived Enrollees</span>
+                                    <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                      {programArchivedEnrollees.length} Trainees
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Archived Enrollees Table */}
+                      <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                            Archived Enrollees & Graduates Record ({archivedReferralsList.length})
+                          </h4>
+                        </div>
+                        {archivedReferralsList.length === 0 ? (
+                          <div className="p-8 text-center text-xs text-slate-400 font-medium">
+                            No student records currently marked as archived.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50 text-slate-400 font-bold text-[10px] uppercase tracking-wider border-b border-slate-100">
+                                  <th className="py-3 px-4">Candidate Name</th>
+                                  <th className="py-3 px-4">Barangay & Purok</th>
+                                  <th className="py-3 px-4">Archived Program</th>
+                                  <th className="py-3 px-4">Match Score</th>
+                                  <th className="py-3 px-4">Record Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {archivedReferralsList.map(item => (
+                                  <tr key={item.id} className="hover:bg-slate-50/80">
+                                    <td className="py-3 px-4 font-bold text-slate-900">
+                                      {item.youthName}
+                                    </td>
+                                    <td className="py-3 px-4 text-slate-600">
+                                      Purok {item.purok}, Brgy. {item.barangay}
+                                    </td>
+                                    <td className="py-3 px-4 font-medium text-slate-700">
+                                      {item.programTitle}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                        {item.matchScore}% Match
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <span className="inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300">
+                                        Archived
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1411,6 +1701,32 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           </p>
 
                           <div className="space-y-2 text-xs text-slate-600 mb-5">
+                            {/* Schedule & Timeslot Badge */}
+                            <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule & Timeslot</p>
+                                  <p className="text-xs font-black text-slate-900 truncate">
+                                    {getProgramFullSchedule(prog)}
+                                  </p>
+                                </div>
+                              </div>
+                              {(() => {
+                                const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
+                                return ts.sessionType !== "Custom" ? (
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
+                                    ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                    ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                    ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                    "bg-purple-100 text-purple-900 border border-purple-200"
+                                  }`}>
+                                    {ts.sessionType}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
+
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
                               <span className="truncate">{prog.location || "San Luis Municipal Hub"}</span>
@@ -1421,10 +1737,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 <span className="truncate">Instructor: {prog.instructor}</span>
                               </div>
                             )}
-                            {prog.startDate && (
+                            {(prog.startDate || prog.endDate) && (
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-                                <span className="truncate">{prog.startDate} to {prog.endDate || "Ongoing"}</span>
+                                <span className="truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
                               </div>
                             )}
                           </div>
@@ -1573,7 +1889,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Training Hours *</label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-slate-600 uppercase">Training Hours *</label>
+                            {computedTrainingHours && (
+                              <button
+                                type="button"
+                                onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
+                                className="text-[10px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+                                title="Click to auto-apply computed hours"
+                              >
+                                ⚡ Auto: {computedTrainingHours.totalHours}h
+                              </button>
+                            )}
+                          </div>
                           <input
                             type="number"
                             min="1"
@@ -1670,25 +1998,107 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Start Time</label>
-                          <input
-                            type="time"
-                            value={progStartTime}
-                            onChange={(e) => setProgStartTime(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                          />
+                      {/* Timeslot Configuration */}
+                      <div className="space-y-3 bg-slate-50/60 p-3.5 rounded-2xl border border-slate-200/80">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-700 uppercase">Training Timeslot</label>
+                          <span className="text-[10px] text-slate-400 font-medium">Select preset or set custom hours</span>
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">End Time</label>
-                          <input
-                            type="time"
-                            value={progEndTime}
-                            onChange={(e) => setProgEndTime(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                          />
+                        {/* Presets */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => applyTimeslotPreset("morning")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                              progStartTime === "08:00" && progEndTime === "12:00"
+                                ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            🌅 Morning (8 AM – 12 PM)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyTimeslotPreset("afternoon")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                              progStartTime === "13:00" && progEndTime === "17:00"
+                                ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            ☀️ Afternoon (1 PM – 5 PM)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyTimeslotPreset("fullday")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                              progStartTime === "08:00" && progEndTime === "17:00"
+                                ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            🏢 Full Day (8 AM – 5 PM)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyTimeslotPreset("evening")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                              progStartTime === "17:30" && progEndTime === "20:30"
+                                ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            🌙 Evening (5:30 PM – 8:30 PM)
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Start Time</label>
+                            <input
+                              type="time"
+                              value={progStartTime}
+                              onChange={(e) => setProgStartTime(e.target.value)}
+                              className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">End Time</label>
+                            <input
+                              type="time"
+                              value={progEndTime}
+                              onChange={(e) => setProgEndTime(e.target.value)}
+                              className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Live Schedule Preview */}
+                        <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preview Display</p>
+                              <p className="text-xs font-black text-slate-900">
+                                {formatTrainingDays(progTrainingDays)} · {formatProgramTimeslot(progStartTime, progEndTime).formattedRange}
+                              </p>
+                            </div>
+                          </div>
+                          {(() => {
+                            const ts = formatProgramTimeslot(progStartTime, progEndTime);
+                            return ts.sessionType !== "Custom" ? (
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
+                                ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                "bg-purple-100 text-purple-900 border border-purple-200"
+                              }`}>
+                                {ts.sessionType}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                       </div>
 
@@ -1724,6 +2134,42 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           />
                         </div>
                       </div>
+
+                      {/* Auto-Calculated Duration Summary Card */}
+                      {computedTrainingHours && (
+                        <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
+                              <Calculator className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                                  Auto-Calculated Total: {computedTrainingHours.totalHours} Hours
+                                </span>
+                                <span className="text-[9px] bg-white text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
+                                  {computedTrainingHours.dailyHours} hrs/day
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 font-medium mt-0.5 truncate">
+                                {computedTrainingHours.sessionCount} class days scheduled between {formatProgramDateRange(progStartDate, progEndDate)}
+                                {computedTrainingHours.deductedLunch ? " (excl. 1h lunch)" : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                              progTrainingHours === computedTrainingHours.totalHours
+                                ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
+                                : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
+                            }`}
+                          >
+                            {progTrainingHours === computedTrainingHours.totalHours ? "✓ Applied" : "Apply to Hours"}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Section 3: Requirements & Contacts */}
@@ -2062,8 +2508,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <Clock className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Duration</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Duration & Term</p>
                     <p className="text-sm font-black text-slate-900">{viewingProgram.trainingHours} Hours</p>
+                    {(viewingProgram.startDate || viewingProgram.endDate) && (
+                      <p className="text-[10px] font-bold text-emerald-800 mt-0.5">
+                        {formatProgramDateRange(viewingProgram.startDate, viewingProgram.endDate)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
@@ -2086,11 +2537,28 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700">
                   <div>
                     <p className="font-bold text-slate-400 text-[10px] uppercase">Training Days</p>
-                    <p className="font-bold text-slate-900">{viewingProgram.trainingDays?.length ? viewingProgram.trainingDays.join(', ') : 'Mon - Fri'}</p>
+                    <p className="font-bold text-slate-900">{formatTrainingDays(viewingProgram.trainingDays)}</p>
                   </div>
                   <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">Time Slot</p>
-                    <p className="font-bold text-slate-900">{viewingProgram.startTime || "08:00"} - {viewingProgram.endTime || "17:00"}</p>
+                    <p className="font-bold text-slate-400 text-[10px] uppercase">Time Slot & Session</p>
+                    {(() => {
+                      const ts = formatProgramTimeslot(viewingProgram.startTime, viewingProgram.endTime);
+                      return (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="font-bold text-slate-900">{ts.formattedRange}</p>
+                          {ts.sessionType !== "Custom" && (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                              ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                              ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                              ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                              "bg-purple-100 text-purple-900 border border-purple-200"
+                            }`}>
+                              {ts.sessionType}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div>
                     <p className="font-bold text-slate-400 text-[10px] uppercase">Venue / Room</p>
@@ -2100,6 +2568,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <p className="font-bold text-slate-400 text-[10px] uppercase">Instructor</p>
                     <p className="font-bold text-slate-900">{viewingProgram.instructor || "Assigned TESDA Trainer"}</p>
                   </div>
+                  {(viewingProgram.startDate || viewingProgram.endDate) && (
+                    <div className="col-span-1 sm:col-span-2">
+                      <p className="font-bold text-slate-400 text-[10px] uppercase">Program Term Dates</p>
+                      <p className="font-bold text-slate-900">{formatProgramDateRange(viewingProgram.startDate, viewingProgram.endDate)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2240,7 +2714,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Training Hours *</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-600 uppercase">Training Hours *</label>
+                        {computedTrainingHours && (
+                          <button
+                            type="button"
+                            onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
+                            className="text-[10px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+                            title="Click to auto-apply computed hours"
+                          >
+                            ⚡ Auto: {computedTrainingHours.totalHours}h
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="number"
                         min="1"
@@ -2337,25 +2823,107 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Start Time</label>
-                      <input
-                        type="time"
-                        value={progStartTime}
-                        onChange={(e) => setProgStartTime(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                      />
+                  {/* Timeslot Configuration */}
+                  <div className="space-y-3 bg-slate-50/60 p-3.5 rounded-2xl border border-slate-200/80">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">Training Timeslot</label>
+                      <span className="text-[10px] text-slate-400 font-medium">Select preset or set custom hours</span>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">End Time</label>
-                      <input
-                        type="time"
-                        value={progEndTime}
-                        onChange={(e) => setProgEndTime(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                      />
+                    {/* Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => applyTimeslotPreset("morning")}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                          progStartTime === "08:00" && progEndTime === "12:00"
+                            ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        🌅 Morning (8 AM – 12 PM)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyTimeslotPreset("afternoon")}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                          progStartTime === "13:00" && progEndTime === "17:00"
+                            ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        ☀️ Afternoon (1 PM – 5 PM)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyTimeslotPreset("fullday")}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                          progStartTime === "08:00" && progEndTime === "17:00"
+                            ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        🏢 Full Day (8 AM – 5 PM)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyTimeslotPreset("evening")}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
+                          progStartTime === "17:30" && progEndTime === "20:30"
+                            ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        🌙 Evening (5:30 PM – 8:30 PM)
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Start Time</label>
+                        <input
+                          type="time"
+                          value={progStartTime}
+                          onChange={(e) => setProgStartTime(e.target.value)}
+                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">End Time</label>
+                        <input
+                          type="time"
+                          value={progEndTime}
+                          onChange={(e) => setProgEndTime(e.target.value)}
+                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live Schedule Preview */}
+                    <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preview Display</p>
+                          <p className="text-xs font-black text-slate-900">
+                            {formatTrainingDays(progTrainingDays)} · {formatProgramTimeslot(progStartTime, progEndTime).formattedRange}
+                          </p>
+                        </div>
+                      </div>
+                      {(() => {
+                        const ts = formatProgramTimeslot(progStartTime, progEndTime);
+                        return ts.sessionType !== "Custom" ? (
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
+                            ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                            ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                            ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                            "bg-purple-100 text-purple-900 border border-purple-200"
+                          }`}>
+                            {ts.sessionType}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
 
@@ -2391,6 +2959,42 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* Auto-Calculated Duration Summary Card */}
+                  {computedTrainingHours && (
+                    <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
+                          <Calculator className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                              Auto-Calculated Total: {computedTrainingHours.totalHours} Hours
+                            </span>
+                            <span className="text-[9px] bg-white text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
+                              {computedTrainingHours.dailyHours} hrs/day
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 font-medium mt-0.5 truncate">
+                            {computedTrainingHours.sessionCount} class days scheduled between {formatProgramDateRange(progStartDate, progEndDate)}
+                            {computedTrainingHours.deductedLunch ? " (excl. 1h lunch)" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                          progTrainingHours === computedTrainingHours.totalHours
+                            ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
+                            : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
+                        }`}
+                      >
+                        {progTrainingHours === computedTrainingHours.totalHours ? "✓ Applied" : "Apply to Hours"}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 3: Requirements & Contacts */}
@@ -2493,7 +3097,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       <ConfirmationModal
         isOpen={!!programToArchive}
         title={`Conclude & Archive Program Term: "${programToArchive?.title}"?`}
-        description={`The training duration for "${programToArchive?.title}" has completed. Archiving will remove it from the active course catalog to open a new term, and safely archive all enrolled student records as "Completed / Graduated" in the database. Their training records and certificates will remain preserved in the system.`}
+        description={`Archiving will remove "${programToArchive?.title}" and its enrollees from this active dashboard to make way for future terms, and safely preserve all student records in the database. You can review them anytime under Archived History.`}
         confirmText="Conclude & Archive Term"
         confirmVariant="green"
         onConfirm={() => {
@@ -2511,7 +3115,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       <ConfirmationModal
         isOpen={!!programToDelete}
         title={`Delete Course "${programToDelete?.title}"?`}
-        description={`Are you sure you want to delete "${programToDelete?.title}"? This will archive the training course and its student records in the database.`}
+        description={`Are you sure you want to delete "${programToDelete?.title}"? This will close the course and remove it together with its applicant records from the active dashboard.`}
         confirmText="Delete Program"
         confirmVariant="red"
         onConfirm={() => {

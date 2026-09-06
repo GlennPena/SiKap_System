@@ -11,7 +11,7 @@ import {
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
-import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime } from "../lib/cbf-matcher";
+import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan } from "../lib/gemini";
 
@@ -1156,10 +1156,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   <div className="p-6 divide-y divide-gray-100">
                     {enrolledPrograms.map(({ ref, program }) => {
                       // Fallback info if the program is custom-created without schedule defaults
-                      const scheduleDays = (program?.trainingDays ? (Array.isArray(program.trainingDays) ? program.trainingDays.join(", ") : program.trainingDays) : "Monday to Friday");
-                      const scheduleTime = program?.startTime && program?.endTime
-                        ? `${formatProgramTime(program.startTime)} – ${formatProgramTime(program.endTime)}`
-                        : (program?.startTime ? formatProgramTime(program.startTime) : "8:00 AM – 5:00 PM");
+                      const scheduleDays = formatTrainingDays(program?.trainingDays);
+                      const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
                       const room = program?.room || "Main Training Facility";
                       const instructor = program?.instructor || "TESDA Certified Instructor";
                       const provider = program?.provider || "TESDA Training Center";
@@ -1189,10 +1187,22 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             </div>
 
                             <div className="space-y-1">
-                              <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Class Time / Hours</span>
-                              <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-amber-600" /> {scheduleTime}
-                              </p>
+                              <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Class Time & Session</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600" /> {timeslot.formattedRange}
+                                </p>
+                                {timeslot.sessionType !== "Custom" && (
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                    timeslot.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                    timeslot.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                    timeslot.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                    "bg-purple-100 text-purple-900 border border-purple-200"
+                                  }`}>
+                                    {timeslot.sessionType}
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             <div className="space-y-1">
@@ -1520,7 +1530,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                           <div className="space-y-1.5 text-xs text-gray-600">
                             <p>📍 <strong>Location:</strong> {prog.location}</p>
-                            <p>⏱ <strong>Duration:</strong> {`${prog.trainingHours} hours`} {prog.startDate && prog.endDate ? `(${prog.startDate} – ${prog.endDate})` : ""}</p>
+                            <p>⏱ <strong>Duration:</strong> {`${prog.trainingHours} hours`} {(prog.startDate || prog.endDate) ? `(${formatProgramDateRange(prog.startDate, prog.endDate)})` : ""}</p>
                             <p>💰 <strong>Cost:</strong> {prog.cost}</p>
                             <p>🎓 <strong>Eligibility:</strong> {prog.eligibility}</p>
                           </div>
@@ -1680,19 +1690,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       const program = programs.find(p => p.title === app.programTitle);
                       const provider = program?.provider || "TESDA Partner Training Center";
                       const location = program?.location || "San Luis, Pampanga";
-                      const scheduleDays = (program?.trainingDays ? (Array.isArray(program.trainingDays) ? program.trainingDays.join(", ") : program.trainingDays) : "Monday to Friday");
-                      
-                      const scheduleTime = program?.startTime && program?.endTime
-                        ? `${formatProgramTime(program.startTime)} – ${formatProgramTime(program.endTime)}`
-                        : (program?.startTime ? formatProgramTime(program.startTime) : "8:00 AM – 5:00 PM");
+                      const scheduleDays = formatTrainingDays(program?.trainingDays);
+                      const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
 
                       const room = program?.room || "Main Training Facility";
                       const instructor = program?.instructor || "TESDA Certified Instructor";
                       const contactPerson = program?.contactPerson || "TESDA Registrar";
                       const contactNumber = program?.contactNumber || "N/A";
                       const trainingHours = program?.trainingHours ? `${program.trainingHours} hours` : "Standard Duration";
-                      const dateRange = program?.startDate && program?.endDate
-                        ? ` (${new Date(program.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${new Date(program.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})`
+                      const dateRange = (program?.startDate || program?.endDate)
+                        ? ` (${formatProgramDateRange(program.startDate, program.endDate)})`
                         : "";
                       const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
                         ? program.requiredDocuments
@@ -1820,7 +1827,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         📅 <strong>Class Schedule:</strong> <span className="text-gray-900 font-semibold">{scheduleDays}</span>
                                       </p>
                                       <p className="text-gray-600">
-                                        🕒 <strong>Training Hours:</strong> <span className="text-gray-900 font-semibold">{scheduleTime}</span>
+                                        🕒 <strong>Training Hours:</strong> <span className="text-gray-900 font-semibold">{timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}</span>
                                       </p>
                                       <p className="text-gray-600">
                                         🏢 <strong>Facility / Room:</strong> <span className="text-gray-900 font-semibold">{room}</span>
@@ -2142,8 +2149,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
                                         <Clock className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
                                         <div>
-                                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Hours/Time</span>
-                                          <span className="text-xs font-bold text-gray-800">{scheduleTime}</span>
+                                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Hours & Session</span>
+                                          <span className="text-xs font-bold text-gray-800">
+                                            {timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
+                                          </span>
                                         </div>
                                       </div>
 
@@ -3323,8 +3332,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {/* Complete Program Details Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-gray-50/80 p-4 rounded-xl border border-gray-150">
                 <div className="space-y-2">
-                  <p className="text-gray-700">📅 <strong>Training Schedule:</strong> {Array.isArray(viewingProgramModal.program.trainingDays) ? viewingProgramModal.program.trainingDays.join(", ") : (viewingProgramModal.program.trainingDays || "Monday – Friday")}</p>
-                  <p className="text-gray-700">🕒 <strong>Hours:</strong> {viewingProgramModal.program.startTime ? formatProgramTime(viewingProgramModal.program.startTime) : "8:00 AM"} – {viewingProgramModal.program.endTime ? formatProgramTime(viewingProgramModal.program.endTime) : "5:00 PM"}</p>
+                  <p className="text-gray-700">⏱ <strong>Course Duration:</strong> {viewingProgramModal.program.trainingHours} Hours {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) ? `(${formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate)})` : ""}</p>
+                  <p className="text-gray-700">📅 <strong>Training Schedule:</strong> {formatTrainingDays(viewingProgramModal.program.trainingDays)}</p>
+                  <p className="text-gray-700">🕒 <strong>Timeslot & Session:</strong> {(() => {
+                    const ts = formatProgramTimeslot(viewingProgramModal.program.startTime, viewingProgramModal.program.endTime);
+                    return `${ts.formattedRange}${ts.sessionType !== "Custom" ? ` (${ts.sessionType})` : ""}`;
+                  })()}</p>
                   <p className="text-gray-700">🏢 <strong>Facility / Room:</strong> {viewingProgramModal.program.room || "Main Training Facility"}</p>
                   <p className="text-gray-700">👨‍🏫 <strong>Trainer / Instructor:</strong> {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}</p>
                 </div>

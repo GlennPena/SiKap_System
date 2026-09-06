@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Flame, Check, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { Flame, Check, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { TESDAProgram } from "../types";
+import { getProgramFullSchedule, formatProgramDateRange } from "../lib/cbf-matcher";
 
 // Flame match score component
 export const FlameMatchScore: React.FC<{ score: number; className?: string; hasPrograms?: boolean }> = ({ score, className = "", hasPrograms = true }) => {
@@ -442,10 +443,13 @@ export const OpportunityCard: React.FC<{
             {program.type}
           </span>
           <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            📍 {program.location.includes("PTC") ? "TESDA GPSAT Campus" : "San Luis Satellite"}
+            📍 {program.location?.includes("PTC") ? "TESDA GPSAT Campus" : (program.location || "San Luis Satellite")}
+          </span>
+          <span className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+            <Clock className="w-3 h-3 text-[#0A6B43]" /> {getProgramFullSchedule(program)}
           </span>
           <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            ⏱ {( (program.trainingHours) + " hours" )} {program.startDate && program.endDate ? `(${program.startDate} – ${program.endDate})` : ""}
+            ⏱ {program.trainingHours} hours {(program.startDate || program.endDate) ? `(${formatProgramDateRange(program.startDate, program.endDate)})` : ""}
           </span>
           <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
             💰 {program.cost}

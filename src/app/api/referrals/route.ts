@@ -28,24 +28,37 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const filterBarangay = searchParams.get("barangay");
+    const archived = searchParams.get("archived") === "true";
     const roleStr = (session.user as any).role;
     
     let whereClause: any = {};
 
-    if (roleStr === "SK_OFFICIAL" || roleStr === "BARANGAY_CAPTAIN") {
-       whereClause.youth = { barangayId: (session.user as any).barangayId };
-    } else if (roleStr === "KK_YOUTH") {
+    if (roleStr === "KK_YOUTH") {
        whereClause.youth = {
          OR: [
            { userId: (session.user as any).id },
            { name: (session.user as any).name }
          ]
        };
-    }
-    
-    if (filterBarangay && filterBarangay !== "All") {
-      if (roleStr === "SUPER_ADMIN" || roleStr === "TESDA_PARTNER") {
-        whereClause.youth = { barangay: { name: filterBarangay } };
+    } else {
+      if (roleStr === "SK_OFFICIAL" || roleStr === "BARANGAY_CAPTAIN") {
+         whereClause.youth = { barangayId: (session.user as any).barangayId };
+      }
+      
+      if (filterBarangay && filterBarangay !== "All") {
+        if (roleStr === "SUPER_ADMIN" || roleStr === "TESDA_PARTNER") {
+          whereClause.youth = { barangay: { name: filterBarangay } };
+        }
+      }
+
+      if (archived) {
+        whereClause.OR = [
+          { status: "Archived" },
+          { program: { activeStatus: "Closed" } }
+        ];
+      } else {
+        whereClause.program = { activeStatus: { not: "Closed" } };
+        whereClause.status = { not: "Archived" };
       }
     }
 

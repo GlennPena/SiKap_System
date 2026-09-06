@@ -3,17 +3,20 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const archived = searchParams.get("archived") === "true";
+
     const programs = await db.tESDAProgram.findMany({
-      where: {
-        activeStatus: { not: "Closed" }
-      },
+      where: archived
+        ? { activeStatus: "Closed" }
+        : { activeStatus: { not: "Closed" } },
       include: {
         category: true
       },
@@ -157,18 +160,18 @@ export async function DELETE(request: Request) {
       data: { activeStatus: "Closed" }
     });
 
-    // 2. Archive all enrolled students/referrals in this program
+    // 2. Archive all enrolled and pending students/referrals in this program
     const archivedRefs = await db.referral.updateMany({
       where: {
         programId: id,
-        status: "Enrolled"
+        status: { in: ["Enrolled", "Pending"] }
       },
       data: { status: "Archived" }
     });
 
     return NextResponse.json({
       success: true,
-      message: `Program "${prog.title}" and ${archivedRefs.count} enrolled student record(s) have been archived.`,
+      message: `Program "${prog.title}" and ${archivedRefs.count} enrollee record(s) archived successfully.`,
       data: updated,
       archivedStudentsCount: archivedRefs.count
     });

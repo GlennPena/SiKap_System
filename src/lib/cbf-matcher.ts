@@ -292,28 +292,19 @@ export function getSuggestedSkillsForYouth(
 }
 
 /**
- * Formats ISO/database time strings into human-readable 12-hour format
+ * Formats ISO/database time strings into human-readable 12-hour format (e.g., "8:00 AM")
  */
 export function formatProgramTime(t?: string | null): string {
   if (!t) return "";
-  if (t.includes("T")) {
-    const timePart = t.split("T")[1]?.replace("Z", "");
-    if (timePart) {
-      const [hStr, mStr] = timePart.split(":");
-      const h = parseInt(hStr, 10);
-      const m = parseInt(mStr || "0", 10);
-      if (!isNaN(h)) {
-        const period = h >= 12 ? "PM" : "AM";
-        const displayH = h % 12 === 0 ? 12 : h % 12;
-        const displayM = m < 10 ? `0${m}` : `${m}`;
-        return `${displayH}:${displayM} ${period}`;
-      }
-    }
+  let timeStr = String(t).trim();
+  if (timeStr.includes("T")) {
+    const afterT = timeStr.split("T")[1]?.replace("Z", "");
+    if (afterT) timeStr = afterT;
   }
-  if (t.includes(":")) {
-    const [hStr, mStr] = t.split(":");
-    const h = parseInt(hStr, 10);
-    const m = parseInt(mStr || "0", 10);
+  if (timeStr.includes(":")) {
+    const parts = timeStr.split(":");
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1] || "0", 10);
     if (!isNaN(h)) {
       const period = h >= 12 ? "PM" : "AM";
       const displayH = h % 12 === 0 ? 12 : h % 12;
@@ -321,5 +312,298 @@ export function formatProgramTime(t?: string | null): string {
       return `${displayH}:${displayM} ${period}`;
     }
   }
-  return t;
+  return timeStr;
 }
+
+/**
+ * Extracts hour integer (0-23) from time string
+ */
+function getHourFromTime(t?: string | null): number | null {
+  if (!t) return null;
+  let timeStr = String(t).trim();
+  if (timeStr.includes("T")) {
+    const afterT = timeStr.split("T")[1]?.replace("Z", "");
+    if (afterT) timeStr = afterT;
+  }
+  if (timeStr.includes(":")) {
+    const h = parseInt(timeStr.split(":")[0], 10);
+    return isNaN(h) ? null : h;
+  }
+  return null;
+}
+
+/**
+ * Formats an ISO date string or Date object into a readable date (e.g. "Sep 1, 2026")
+ * Parses calendar YYYY-MM-DD directly to prevent off-by-one day timezone shifts.
+ */
+export function formatProgramDate(d?: string | Date | null): string {
+  if (!d) return "";
+  try {
+    let dateObj: Date;
+    if (d instanceof Date) {
+      dateObj = d;
+    } else {
+      const str = String(d).trim();
+      if (!str) return "";
+      const datePart = str.split("T")[0];
+      const match = datePart.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (match) {
+        dateObj = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+      } else {
+        dateObj = new Date(str);
+      }
+    }
+    if (isNaN(dateObj.getTime())) return String(d);
+    return dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return String(d);
+  }
+}
+
+/**
+ * Formats a start and end date range into a clean human-readable string:
+ * e.g. "Sep 1 – Oct 1, 2026" or "Sep 1, 2026 to Ongoing"
+ */
+export function formatProgramDateRange(startDate?: string | Date | null, endDate?: string | Date | null): string {
+  if (!startDate && !endDate) return "";
+  const start = formatProgramDate(startDate);
+  const end = formatProgramDate(endDate);
+
+  if (start && end) {
+    if (start === end) return start;
+    const startParts = start.split(", ");
+    const endParts = end.split(", ");
+    if (startParts.length === 2 && endParts.length === 2 && startParts[1] === endParts[1]) {
+      return `${startParts[0]} – ${endParts[0]}, ${endParts[1]}`;
+    }
+    return `${start} – ${end}`;
+  }
+
+  if (start && !end) {
+    return `${start} to Ongoing`;
+  }
+
+  if (!start && end) {
+    return `Until ${end}`;
+  }
+
+  return "";
+}
+
+/**
+ * Returns a clean, concise training days representation (e.g. "Mon – Fri", "Sat – Sun (Weekends)", "Mon, Wed, Fri")
+ */
+export function formatTrainingDays(days?: string[] | string | null): string {
+  if (!days) return "Mon – Fri";
+  let dayList: string[] = [];
+  if (Array.isArray(days)) {
+    dayList = days;
+  } else if (typeof days === "string") {
+    dayList = days.split(",").map(s => s.trim()).filter(Boolean);
+  }
+  if (dayList.length === 0) return "Mon – Fri";
+
+  const dayAbbrMap: Record<string, string> = {
+    monday: "Mon", mon: "Mon",
+    tuesday: "Tue", tue: "Tue",
+    wednesday: "Wed", wed: "Wed",
+    thursday: "Thu", thu: "Thu",
+    friday: "Fri", fri: "Fri",
+    saturday: "Sat", sat: "Sat",
+    sunday: "Sun", sun: "Sun"
+  };
+
+  const normalized = dayList.map(d => dayAbbrMap[d.toLowerCase()] || d);
+
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const weekend = ["Sat", "Sun"];
+  const allDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  if (allDays.every(d => normalized.includes(d))) return "Daily (Mon – Sun)";
+  if (weekdays.length === normalized.length && weekdays.every(d => normalized.includes(d))) return "Mon – Fri";
+  if (weekend.length === normalized.length && weekend.every(d => normalized.includes(d))) return "Sat – Sun (Weekends)";
+
+  if (normalized.length > 2) {
+    const startIdx = weekdays.indexOf(normalized[0]);
+    const endIdx = weekdays.indexOf(normalized[normalized.length - 1]);
+    if (startIdx !== -1 && endIdx !== -1 && endIdx - startIdx === normalized.length - 1) {
+      return `${normalized[0]} – ${normalized[normalized.length - 1]}`;
+    }
+  }
+
+  return normalized.join(", ");
+}
+
+/**
+ * Formats a timeslot into human-readable 12-hour format with session classification
+ * Example: { formattedRange: "8:00 AM – 12:00 PM", sessionType: "Morning", label: "Morning (8:00 AM – 12:00 PM)" }
+ */
+export function formatProgramTimeslot(
+  startTime?: string | null,
+  endTime?: string | null
+): {
+  formattedRange: string;
+  sessionType: "Morning" | "Afternoon" | "Full Day" | "Evening" | "Custom";
+  label: string;
+} {
+  const startFmt = formatProgramTime(startTime);
+  const endFmt = formatProgramTime(endTime);
+
+  if (!startFmt && !endFmt) {
+    return {
+      formattedRange: "Flexible / TBA",
+      sessionType: "Custom",
+      label: "Flexible Schedule"
+    };
+  }
+
+  const formattedRange = startFmt && endFmt ? `${startFmt} – ${endFmt}` : startFmt || endFmt;
+
+  const startH = getHourFromTime(startTime);
+  const endH = getHourFromTime(endTime);
+
+  let sessionType: "Morning" | "Afternoon" | "Full Day" | "Evening" | "Custom" = "Custom";
+  if (startH !== null && endH !== null) {
+    if (startH <= 9 && endH >= 16) {
+      sessionType = "Full Day";
+    } else if (startH < 12 && endH <= 13) {
+      sessionType = "Morning";
+    } else if (startH >= 12 && endH <= 18) {
+      sessionType = "Afternoon";
+    } else if (startH >= 17) {
+      sessionType = "Evening";
+    }
+  } else if (startH !== null) {
+    if (startH < 12) sessionType = "Morning";
+    else if (startH < 17) sessionType = "Afternoon";
+    else sessionType = "Evening";
+  }
+
+  const sessionLabel = sessionType !== "Custom" ? `${sessionType} (${formattedRange})` : formattedRange;
+
+  return {
+    formattedRange,
+    sessionType,
+    label: sessionLabel
+  };
+}
+
+/**
+ * Returns a complete, user-friendly schedule string combining days, timeslot, and session.
+ * Example: "Mon – Fri · 8:00 AM – 12:00 PM (Morning)"
+ */
+export function getProgramFullSchedule(program?: {
+  trainingDays?: string[] | null;
+  startTime?: string | null;
+  endTime?: string | null;
+} | null): string {
+  if (!program) return "Schedule TBA";
+  const days = formatTrainingDays(program.trainingDays);
+  const { formattedRange, sessionType } = formatProgramTimeslot(program.startTime, program.endTime);
+  if (formattedRange.includes("Flexible") || formattedRange.includes("TBA")) {
+    return `${days} · Flexible Hours`;
+  }
+  return sessionType !== "Custom"
+    ? `${days} · ${formattedRange} (${sessionType})`
+    : `${days} · ${formattedRange}`;
+}
+
+export interface ComputedTrainingHoursResult {
+  totalHours: number;
+  sessionCount: number;
+  dailyHours: number;
+  deductedLunch: boolean;
+}
+
+/**
+ * Automatically computes total training hours based on:
+ * - Start & End Date (calendar count of class sessions)
+ * - Selected Training Days (Mon, Tue, etc.)
+ * - Start & End Time (daily hours, excluding standard 1h lunch for full-day sessions >= 5h)
+ */
+export function computeProgramTrainingHours(params: {
+  startDate?: string | null;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  trainingDays?: string[] | null;
+}): ComputedTrainingHoursResult | null {
+  const { startDate, endDate, startTime, endTime, trainingDays } = params;
+
+  if (!startDate || !endDate || !startTime || !endTime) return null;
+
+  // 1. Calculate daily hours
+  let startStr = String(startTime).trim();
+  if (startStr.includes("T")) startStr = startStr.split("T")[1]?.replace("Z", "") || "";
+  let endStr = String(endTime).trim();
+  if (endStr.includes("T")) endStr = endStr.split("T")[1]?.replace("Z", "") || "";
+
+  const startParts = startStr.split(":");
+  const endParts = endStr.split(":");
+  if (startParts.length < 2 || endParts.length < 2) return null;
+
+  const startMins = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+  const endMins = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
+  if (isNaN(startMins) || isNaN(endMins) || endMins <= startMins) return null;
+
+  const rawMins = endMins - startMins;
+  // Deduct 1h lunch if >= 5 hours
+  const deductedLunch = rawMins >= 300;
+  const effectiveMins = deductedLunch ? rawMins - 60 : rawMins;
+  const dailyHours = Math.round((effectiveMins / 60) * 10) / 10;
+  if (dailyHours <= 0) return null;
+
+  // 2. Calculate session days between startDate and endDate
+  const cleanStart = String(startDate).split("T")[0];
+  const cleanEnd = String(endDate).split("T")[0];
+  const sParts = cleanStart.split("-").map(Number);
+  const eParts = cleanEnd.split("-").map(Number);
+  if (sParts.length !== 3 || eParts.length !== 3) return null;
+
+  const curr = new Date(sParts[0], sParts[1] - 1, sParts[2]);
+  const end = new Date(eParts[0], eParts[1] - 1, eParts[2]);
+  if (isNaN(curr.getTime()) || isNaN(end.getTime()) || curr > end) return null;
+
+  // Day of week mapping (0=Sun, 1=Mon, ..., 6=Sat)
+  const dayNameToIndex: Record<string, number> = {
+    sun: 0, sunday: 0,
+    mon: 1, monday: 1,
+    tue: 2, tuesday: 2,
+    wed: 3, wednesday: 3,
+    thu: 4, thursday: 4,
+    fri: 5, friday: 5,
+    sat: 6, saturday: 6
+  };
+
+  let targetDayIndices: number[] = [];
+  if (trainingDays && trainingDays.length > 0) {
+    targetDayIndices = trainingDays
+      .map(d => dayNameToIndex[d.toLowerCase().trim()])
+      .filter((idx): idx is number => idx !== undefined);
+  }
+  // Default to Mon-Fri if no days chosen
+  if (targetDayIndices.length === 0) {
+    targetDayIndices = [1, 2, 3, 4, 5];
+  }
+
+  let sessionCount = 0;
+  let loopCount = 0;
+  while (curr <= end && loopCount < 400) {
+    if (targetDayIndices.includes(curr.getDay())) {
+      sessionCount++;
+    }
+    curr.setDate(curr.getDate() + 1);
+    loopCount++;
+  }
+
+  if (sessionCount === 0) return null;
+
+  const totalHours = Math.round(sessionCount * dailyHours);
+  return {
+    totalHours,
+    sessionCount,
+    dailyHours,
+    deductedLunch
+  };
+}
+
