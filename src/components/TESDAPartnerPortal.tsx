@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
 
@@ -433,12 +434,25 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           return item;
         }));
 
-        if (newStatus === "Enrolled") {
+        const wasHoldingSlot = targetReferral.status === "Pending" || targetReferral.status === "Enrolled";
+        const willHoldSlot = newStatus === "Enrolled";
+
+        if (!wasHoldingSlot && willHoldSlot) {
           setPrograms(prev => prev.map(p => {
-            if (p.title === targetReferral.programTitle) {
+            if (p.title === targetReferral.programTitle || p.id === targetReferral.programId) {
               return {
                 ...p,
                 slotsRemaining: Math.max(0, p.slotsRemaining - 1)
+              };
+            }
+            return p;
+          }));
+        } else if (wasHoldingSlot && !willHoldSlot) {
+          setPrograms(prev => prev.map(p => {
+            if (p.title === targetReferral.programTitle || p.id === targetReferral.programId) {
+              return {
+                ...p,
+                slotsRemaining: Math.min(p.slotsTotal, p.slotsRemaining + 1)
               };
             }
             return p;
@@ -689,12 +703,28 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <Plus className="w-4 h-4 text-emerald-400" />
               <span>Post New Course</span>
             </button>
+
+            <button
+              onClick={() => setCurrentScreen(TESDAPartnerScreen.SETTINGS)}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                currentScreen === TESDAPartnerScreen.SETTINGS
+                  ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
+                  : "text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
+              }`}
+            >
+              <Bell className="w-4 h-4 text-emerald-400" />
+              <span>Partner Profile & Alerts</span>
+            </button>
           </div>
         </div>
 
         {/* User Info & Logout Footer */}
         <div className="p-4 border-t border-emerald-900/50 bg-[#0c241b] shrink-0">
-          <div className="flex items-center gap-3 mb-3 p-2 rounded-xl bg-emerald-950/40 border border-emerald-800/30">
+          <div
+            onClick={() => setCurrentScreen(TESDAPartnerScreen.SETTINGS)}
+            className="flex items-center gap-3 mb-3 p-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/30 cursor-pointer transition-all"
+            title="Click to view Profile & Notification Preferences"
+          >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-black text-sm shadow-sm">
               {currentUser?.name?.charAt(0).toUpperCase() || "T"}
             </div>
@@ -782,6 +812,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       >
                         Mark read
                       </button>
+                    </div>
+
+                    <div className="p-3 border-b border-slate-100 bg-white">
+                      <NotificationSettingsCard compact userRole="TESDA_PARTNER" addToast={addToast} />
                     </div>
 
                     <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
@@ -2261,6 +2295,51 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </form>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* SCREEN 5: PARTNER PROFILE & NOTIFICATION SETTINGS */}
+          {currentScreen === TESDAPartnerScreen.SETTINGS && (
+            <div className="space-y-6 max-w-3xl animate-in fade-in duration-200">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <Building className="w-5 h-5 text-[#0A6B43]" />
+                  TESDA Partner Profile & Alerts Center
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Configure official technical-vocational institution settings, off-site alerts, and communication preferences.
+                </p>
+              </div>
+
+              {/* Profile Card */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-xl shadow-md border-2 border-emerald-600">
+                    {currentUser?.name?.charAt(0).toUpperCase() || "T"}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900">{currentUser?.name || "TESDA Partner Representative"}</h3>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        Verified Institution Partner
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Technical Education and Skills Development Authority · Guagua / San Luis Center
+                    </p>
+                    <p className="text-xs font-mono text-slate-600 mt-1">
+                      {currentUser?.email || "tesda.gpsat@gov.ph"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Notification Settings Card */}
+              <NotificationSettingsCard
+                userRole="TESDA_PARTNER"
+                userEmail={currentUser?.email}
+                addToast={addToast}
+              />
             </div>
           )}
 

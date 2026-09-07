@@ -406,6 +406,7 @@ export default function App() {
               youthProfile={activeYouthProfile}
               setYouthProfiles={setYouthProfiles}
               programs={programs}
+              setPrograms={setPrograms}
               announcements={announcements}
               onLogout={handleLogout}
               addToast={addToast}

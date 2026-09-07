@@ -16,6 +16,7 @@ import {
   MetricCard, FlameMatchScore, PathwayTimeline,
   OpportunityCard, EmptyState, Toast, ConfirmationModal, SikapLogo
 } from "./ReusableComponents";
+import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge } from "../lib/utils";
 import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
 
@@ -3302,70 +3303,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Tab 3: System Notifications */}
               {activeSettingsTab === "preferences" && (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                      <Bell className="w-4 h-4 text-[#0A6B43]" />
-                      System Notifications & Alerts
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium mt-1">Configure automated system notifications and municipal updates</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="flex items-start justify-between p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors">
-                      <div className="pr-4">
-                        <p className="text-xs font-bold text-gray-800">New KK Self-Registration Alerts</p>
-                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mt-0.5">
-                          Receive instant notifications when Katipunan ng Kabataan members in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} submit self-registrations.
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={prefMatchAlerts}
-                        onChange={(e) => {
-                          setPrefMatchAlerts(e.target.checked);
-                          addToast(`Self-registration alerts ${e.target.checked ? 'enabled' : 'disabled'}`, "info");
-                        }}
-                        className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-1 cursor-pointer"
-                      />
-                    </label>
-
-                    <label className="flex items-start justify-between p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors">
-                      <div className="pr-4">
-                        <p className="text-xs font-bold text-gray-800">TESDA Slots Updates</p>
-                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mt-0.5">
-                          Notification when TESDA training slot availability changes or new programs are published.
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={prefSlots}
-                        onChange={(e) => {
-                          setPrefSlots(e.target.checked);
-                          addToast(`TESDA slot updates ${e.target.checked ? 'enabled' : 'disabled'}`, "info");
-                        }}
-                        className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-1 cursor-pointer"
-                      />
-                    </label>
-
-                    <label className="flex items-start justify-between p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors">
-                      <div className="pr-4">
-                        <p className="text-xs font-bold text-gray-800">Skills Gap Diagnostic Reports</p>
-                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mt-0.5">
-                          Receive automated weekly competency deficiency digests for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={prefWeekly}
-                        onChange={(e) => {
-                          setPrefWeekly(e.target.checked);
-                          addToast(`Weekly gap reports ${e.target.checked ? 'enabled' : 'disabled'}`, "info");
-                        }}
-                        className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-1 cursor-pointer"
-                      />
-                    </label>
-                  </div>
+                <div className="max-w-xl animate-in fade-in duration-150">
+                  <NotificationSettingsCard
+                    userRole="SK_OFFICIAL"
+                    userEmail={settingsEmail || (currentUser as any)?.email}
+                    addToast={addToast}
+                  />
                 </div>
               )}
 

@@ -5,6 +5,7 @@ import { Role, ApprovalStatus } from "@prisma/client";
 import { encrypt } from "@/lib/encryption";
 import { calculateContentBasedMatchScore } from "@/lib/cbf-matcher";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
+import { notifyNewYouthRegistered } from "@/lib/notifications";
 
 export async function POST(req: Request) {
   try {
@@ -156,6 +157,14 @@ export async function POST(req: Request) {
 
       return { newUser, newProfile };
     });
+
+    // Send email/push notification to SK Officials & Barangay Captain
+    notifyNewYouthRegistered({
+      youthName: result.newProfile.name,
+      barangayId: brgy.id,
+      age: result.newProfile.age,
+      currentStatus: result.newProfile.currentStatus
+    }).catch((err) => console.error("[Registration Notification Error]:", err));
 
     return NextResponse.json({
       success: true,

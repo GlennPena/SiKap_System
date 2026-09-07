@@ -30,7 +30,8 @@ export enum TESDAPartnerScreen {
   DASHBOARD = "TESDA Dashboard",
   PROGRAMS = "Programs",
   ADD_PROGRAM = "Add New Program",
-  EDIT_PROGRAM = "Edit Program"
+  EDIT_PROGRAM = "Edit Program",
+  SETTINGS = "Partner Profile & Settings"
 }
 
 export enum BarangayCaptainScreen {

@@ -57,9 +57,11 @@ model User {
   status        String           @default("Active")
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
-  youthProfile  YouthProfile?
-  officialAcc   OfficialAccount?
-  councilor     Councilor?
+  youthProfile           YouthProfile?
+  officialAcc            OfficialAccount?
+  councilor              Councilor?
+  pushSubscriptions      PushSubscription[]
+  notificationPreference NotificationPreference?
 }
 
 model Barangay {
@@ -226,4 +228,30 @@ model Councilor {
   barangayId    String
   barangay      Barangay @relation(fields: [barangayId], references: [id])
   createdAt     DateTime @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushEnabled               Boolean  @default(true)
+  emailEnabled              Boolean  @default(true)
+  notifyOnApplicationStatus Boolean  @default(true)
+  notifyOnAnnouncements     Boolean  @default(true)
+  notifyOnNewRegistrations  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }

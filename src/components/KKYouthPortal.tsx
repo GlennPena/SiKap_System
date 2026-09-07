@@ -11,6 +11,7 @@ import {
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
+import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan } from "../lib/gemini";
@@ -19,6 +20,7 @@ interface KKYouthPortalProps {
   youthProfile: YouthProfile;
   setYouthProfiles: React.Dispatch<React.SetStateAction<YouthProfile[]>>;
   programs: TESDAProgram[];
+  setPrograms?: React.Dispatch<React.SetStateAction<TESDAProgram[]>>;
   announcements: SKAnnouncement[];
   onLogout: () => void;
   addToast: (msg: string, type: "success" | "error" | "info") => void;
@@ -31,6 +33,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   youthProfile,
   setYouthProfiles,
   programs,
+  setPrograms,
   announcements,
   onLogout,
   addToast,
@@ -49,7 +52,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Profile sub-tabs & editable states
-  const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "skills" | "security" | "badge">("profile");
+  const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "skills" | "security" | "notifications" | "badge">("profile");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editAge, setEditAge] = useState<number | string>(youthProfile.age || 20);
   const [editPurok, setEditPurok] = useState(youthProfile.purok || "Purok 1");
@@ -384,10 +387,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   };
 
   const handleDeletePathway = async (referralId: string) => {
+    const targetRef = referrals?.find(r => r.id === referralId);
     try {
       await fetch(`/api/referrals?id=${referralId}`, { method: "DELETE" });
     } catch (err) {
       console.error("Error deleting referral:", err);
+    }
+    if (targetRef && (targetRef.status === "Pending" || targetRef.status === "Enrolled") && setPrograms) {
+      setPrograms(prev => prev.map(p => {
+        if (p.title === targetRef.programTitle || p.id === targetRef.programId) {
+          return { ...p, slotsRemaining: Math.min(p.slotsTotal, p.slotsRemaining + 1) };
+        }
+        return p;
+      }));
     }
     if (setReferrals) {
       setReferrals(prev => {
@@ -412,6 +424,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       addToast("Cannot cancel applications in View-Only Mode (Awaiting SK Verification)", "error");
       return;
     }
+    const targetRef = referrals?.find(r => r.id === referralId);
     try {
       const res = await fetch(`/api/referrals?id=${referralId}`, { method: "DELETE" });
       const data = await res.json();
@@ -421,6 +434,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       }
     } catch (err) {
       console.error("Error cancelling referral:", err);
+    }
+    if (targetRef && (targetRef.status === "Pending" || targetRef.status === "Enrolled") && setPrograms) {
+      setPrograms(prev => prev.map(p => {
+        if (p.title === targetRef.programTitle || p.id === targetRef.programId) {
+          return { ...p, slotsRemaining: Math.min(p.slotsTotal, p.slotsRemaining + 1) };
+        }
+        return p;
+      }));
     }
     if (setReferrals) {
       setReferrals(prev => {
@@ -821,6 +842,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         if (setReferrals) {
           setReferrals(prev => [data.data, ...prev.filter(r => r.id !== data.data.id)]);
         }
+        if (setPrograms) {
+          setPrograms(prev => prev.map(p => {
+            if (p.id === selectedProgramToApply.id || p.title === selectedProgramToApply.title) {
+              return { ...p, slotsRemaining: Math.max(0, p.slotsRemaining - 1) };
+            }
+            return p;
+          }));
+        }
         setYouthProfiles(prev => prev.map(y => {
           if (y.id === youthProfile.id) {
             return { ...y, hasReferred: true };
@@ -949,6 +978,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       >
                         Mark all as read
                       </button>
+                    </div>
+
+                    <div className="p-3 border-b border-gray-100 bg-white">
+                      <NotificationSettingsCard compact userRole="KK_YOUTH" addToast={addToast} />
                     </div>
 
                     <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
@@ -2232,6 +2265,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     { id: "profile", label: "Personal Details", icon: <User className="w-3.5 h-3.5" /> },
                     { id: "skills", label: "Skills & Competencies", icon: <Award className="w-3.5 h-3.5" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5" /> },
+                    { id: "notifications", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5" /> },
                     { id: "badge", label: "KK Digital ID Card", icon: <ShieldCheck className="w-3.5 h-3.5" /> }
                   ].map(tab => (
                     <button
@@ -3014,6 +3048,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       </button>
                     </div>
                   </form>
+                </div>
+              )}
+
+              {/* Sub-Tab: Notifications & Alerts Preferences */}
+              {profileActiveTab === "notifications" && (
+                <div className="max-w-2xl">
+                  <NotificationSettingsCard
+                    userRole="KK_YOUTH"
+                    userEmail={currentUser?.email}
+                    addToast={addToast}
+                  />
                 </div>
               )}
 

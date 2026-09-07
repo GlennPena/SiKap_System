@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { notifyReferralStatusChanged, notifyNewApplicationReceived } from "@/lib/notifications";
 
 function mapToPipelineItem(r: any) {
   const formattedDate = r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
@@ -139,6 +140,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, data: mapToPipelineItem(existing) });
     }
 
+    // Check program availability
+    const program = await db.tESDAProgram.findUnique({
+      where: { id: programId }
+    });
+
+    if (!program) {
+      return NextResponse.json({ success: false, error: "Training program not found" }, { status: 404 });
+    }
+
+    if (program.slotsRemaining <= 0) {
+      return NextResponse.json({ success: false, error: `Cannot apply: "${program.title}" is already at full capacity!` }, { status: 400 });
+    }
+
     const newReferral = await db.referral.create({
       data: {
         youthId,
@@ -152,11 +166,25 @@ export async function POST(request: Request) {
       }
     });
 
+    // Reserve 1 slot upon application
+    await db.tESDAProgram.update({
+      where: { id: programId },
+      data: { slotsRemaining: Math.max(0, program.slotsRemaining - 1) }
+    });
+
     // Update hasReferred flag on youth profile
     await db.youthProfile.update({
       where: { id: youthId },
       data: { hasReferred: true }
     });
+
+    // Notify TESDA partners of new applicant
+    notifyNewApplicationReceived({
+      referralId: newReferral.id,
+      youthName: newReferral.youth?.name || "Youth Applicant",
+      barangayName: newReferral.youth?.barangay?.name || "San Luis",
+      programTitle: newReferral.program?.title || "TESDA Course"
+    }).catch((err) => console.error("[New Application Notification Error]:", err));
 
     return NextResponse.json({ success: true, data: mapToPipelineItem(newReferral) }, { status: 201 });
   } catch (error: any) {
@@ -191,20 +219,22 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: "Referral not found" }, { status: 404 });
     }
 
-    // When accepting into program, decrement slotsRemaining
-    if (body.status === "Enrolled" && currentRef.status !== "Enrolled") {
-      if (currentRef.program && currentRef.program.slotsRemaining <= 0) {
-        return NextResponse.json({ success: false, error: `Cannot accept: "${currentRef.program.title}" has no available slots left!` }, { status: 400 });
-      }
-      if (currentRef.program) {
+    // Manage slotsRemaining based on status transition
+    if (currentRef.program) {
+      const wasHoldingSlot = currentRef.status === "Pending" || currentRef.status === "Enrolled";
+      const willHoldSlot = body.status === "Pending" || body.status === "Enrolled";
+
+      if (!wasHoldingSlot && willHoldSlot) {
+        // Switching from Declined to Pending/Enrolled: reserve 1 slot if available
+        if (currentRef.program.slotsRemaining <= 0) {
+          return NextResponse.json({ success: false, error: `Cannot update: "${currentRef.program.title}" has no available slots left!` }, { status: 400 });
+        }
         await db.tESDAProgram.update({
           where: { id: currentRef.programId },
           data: { slotsRemaining: Math.max(0, currentRef.program.slotsRemaining - 1) }
         });
-      }
-    } else if (body.status !== "Enrolled" && currentRef.status === "Enrolled") {
-      // If changing from Enrolled to Declined or Pending, restore the slot
-      if (currentRef.program) {
+      } else if (wasHoldingSlot && !willHoldSlot) {
+        // Switching from Pending/Enrolled to Declined: restore 1 slot
         await db.tESDAProgram.update({
           where: { id: currentRef.programId },
           data: { slotsRemaining: Math.min(currentRef.program.slotsTotal, currentRef.program.slotsRemaining + 1) }
@@ -220,6 +250,14 @@ export async function PATCH(request: Request) {
         program: true
       }
     });
+
+    // Trigger off-site push & email notifications asynchronously
+    notifyReferralStatusChanged({
+      referralId: updated.id,
+      youthProfileId: updated.youthId,
+      status: updated.status,
+      programTitle: updated.program?.title || "TESDA Program"
+    }).catch((err) => console.error("[Referral Notification Error]:", err));
 
     return NextResponse.json({ success: true, data: mapToPipelineItem(updated) });
   } catch (error: any) {
@@ -242,13 +280,24 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: "Missing referral ID" }, { status: 400 });
     }
 
-    const referral = await db.referral.findUnique({ where: { id } });
+    const referral = await db.referral.findUnique({
+      where: { id },
+      include: { program: true }
+    });
     if (!referral) {
       return NextResponse.json({ success: true, message: "Referral already removed" });
     }
 
     const youthId = referral.youthId;
     await db.referral.delete({ where: { id } });
+
+    // Restore slot if the cancelled/deleted referral was currently holding a slot (Pending or Enrolled)
+    if ((referral.status === "Pending" || referral.status === "Enrolled") && referral.program) {
+      await db.tESDAProgram.update({
+        where: { id: referral.programId },
+        data: { slotsRemaining: Math.min(referral.program.slotsTotal, referral.program.slotsRemaining + 1) }
+      });
+    }
 
     // Check if youth has any other referrals left
     const remaining = await db.referral.count({ where: { youthId } });

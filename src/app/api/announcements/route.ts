@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { notifyNewAnnouncement } from "@/lib/notifications";
 
 function mapToAnnouncement(a: any) {
   return {
@@ -134,6 +135,15 @@ export async function POST(request: Request) {
       },
       include: { barangay: true }
     });
+
+    // Send push notification to youth in targeted barangay
+    notifyNewAnnouncement({
+      title: newAnnouncement.title,
+      body: newAnnouncement.body,
+      category: newAnnouncement.category,
+      audience: newAnnouncement.audience,
+      barangayId: newAnnouncement.barangayId
+    }).catch((err) => console.error("[Announcement Notification Error]:", err));
 
     return NextResponse.json({ success: true, data: mapToAnnouncement(newAnnouncement) }, { status: 201 });
   } catch (error: any) {

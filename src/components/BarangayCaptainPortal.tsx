@@ -45,6 +45,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
+import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import {
   YouthProfile,
   ReferralPipelineItem,
@@ -560,6 +561,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       >
                         Mark all as read
                       </button>
+                    </div>
+
+                    <div className="p-3 border-b border-gray-100 bg-white">
+                      <NotificationSettingsCard compact userRole="BARANGAY_CAPTAIN" addToast={showToast} />
                     </div>
 
                     <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
@@ -1922,6 +1927,15 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     Sign Out of Official Portal
                   </button>
                 </div>
+              </div>
+
+              {/* Notification Preferences & Alerts */}
+              <div className="space-y-2">
+                <NotificationSettingsCard
+                  userRole="BARANGAY_CAPTAIN"
+                  userEmail={captainInfo.email}
+                  addToast={showToast}
+                />
               </div>
 
             </div>
