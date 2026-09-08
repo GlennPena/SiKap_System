@@ -253,37 +253,37 @@ export const ConfirmationModal: React.FC<{
   onConfirm,
   onCancel
 }) => {
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
-  const buttonColors = {
-    green: "bg-[#0A6B43] hover:bg-[#075332] text-white focus:ring-emerald-500",
-    red: "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500",
-    teal: "bg-[#0F6E56] hover:bg-[#0b513f] text-white focus:ring-teal-500"
-  };
+    const buttonColors = {
+      green: "bg-[#0A6B43] hover:bg-[#075332] text-white focus:ring-emerald-500",
+      red: "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500",
+      teal: "bg-[#0F6E56] hover:bg-[#0b513f] text-white focus:ring-teal-500"
+    };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs" id="confirmation-modal">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150 border border-emerald-50">
-        <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-500 mb-6 leading-relaxed">{description}</p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all"
-          >
-            {cancelText}
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium rounded-lg shadow-xs transition-all focus:outline-hidden focus:ring-2 focus:ring-offset-2 ${buttonColors[confirmVariant]}`}
-          >
-            {confirmText}
-          </button>
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs" id="confirmation-modal">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150 border border-emerald-50">
+          <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+          <p className="text-sm text-gray-500 mb-6 leading-relaxed">{description}</p>
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={onConfirm}
+              className={`px-4 py-2 text-sm font-medium rounded-lg shadow-xs transition-all focus:outline-hidden focus:ring-2 focus:ring-offset-2 ${buttonColors[confirmVariant]}`}
+            >
+              {confirmText}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 // Empty State component
 export const EmptyState: React.FC<{
@@ -330,7 +330,7 @@ export const GeminiExplanationBox: React.FC<{
           {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
         </button>
       </div>
-      
+
       {!isCollapsed && (
         <div>
           <p className="text-xs italic text-[#1C2B20] leading-relaxed mb-2">
@@ -396,21 +396,19 @@ export const PathwayTimeline: React.FC<{
             >
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all relative z-10 ${
-                    isCompleted
-                      ? "bg-[#0A6B43] border-[#0A6B43] text-white"
-                      : isActive
+                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all relative z-10 ${isCompleted
+                    ? "bg-[#0A6B43] border-[#0A6B43] text-white"
+                    : isActive
                       ? "bg-white border-[#0A6B43] text-[#0A6B43] shadow-md ring-4 ring-emerald-100 animate-pulse font-bold"
                       : "bg-white border-gray-300 text-gray-400"
-                  }`}
+                    }`}
                 >
                   {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{step.num}</span>}
                 </div>
                 {step.num < 4 && (
                   <div
-                    className={`w-1 h-12 rounded-full transition-all ${
-                      isCompleted ? "bg-[#0A6B43]" : "bg-gray-200"
-                    }`}
+                    className={`w-1 h-12 rounded-full transition-all ${isCompleted ? "bg-[#0A6B43]" : "bg-gray-200"
+                      }`}
                   />
                 )}
               </div>
@@ -464,13 +462,12 @@ export const PathwayTimeline: React.FC<{
               className="flex flex-col items-center text-center flex-1 relative z-10 cursor-pointer"
             >
               <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
-                  isCompleted
-                    ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
-                    : isActive
+                className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${isCompleted
+                  ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
+                  : isActive
                     ? "bg-white border-[#0A6B43] text-[#0A6B43] font-extrabold shadow-md ring-4 ring-emerald-100/80"
                     : "bg-white border-gray-300 text-gray-400"
-                }`}
+                  }`}
               >
                 {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{step.num}</span>}
               </div>
@@ -478,13 +475,12 @@ export const PathwayTimeline: React.FC<{
                 <span className={`text-xs font-bold block ${isActive ? "text-gray-900" : isCompleted ? "text-gray-700" : "text-gray-400"}`}>
                   {step.title}
                 </span>
-                <span className={`text-[10px] mt-0.5 inline-block px-2 py-0.5 rounded-full ${
-                  isActive
-                    ? "bg-blue-50 text-blue-700 border border-blue-200 font-extrabold"
-                    : isCompleted
+                <span className={`text-[10px] mt-0.5 inline-block px-2 py-0.5 rounded-full ${isActive
+                  ? "bg-blue-50 text-blue-700 border border-blue-200 font-extrabold"
+                  : isCompleted
                     ? "bg-emerald-50 text-[#0A6B43] font-bold border border-emerald-100"
                     : "text-gray-400 font-medium"
-                }`}>
+                  }`}>
                   {isActive ? step.sub : isCompleted ? (step.num === 4 ? "Plan Saved ✓" : "Done ✓") : step.sub}
                 </span>
               </div>
@@ -523,15 +519,14 @@ export const OpportunityCard: React.FC<{
         </div>
 
         <h4 className="font-bold text-gray-800 text-sm leading-snug mb-1.5">{program.title}</h4>
-        
+
         <div className="flex flex-wrap gap-2 mb-3.5">
-          <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full uppercase tracking-wider ${
-            program.type === "Training"
-              ? "bg-blue-50 text-blue-700 border border-blue-100"
-              : program.type === "Employment"
+          <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full uppercase tracking-wider ${program.type === "Training"
+            ? "bg-blue-50 text-blue-700 border border-blue-100"
+            : program.type === "Employment"
               ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
               : "bg-amber-50 text-amber-700 border border-amber-100"
-          }`}>
+            }`}>
             {program.type}
           </span>
           <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
@@ -580,11 +575,10 @@ export const OpportunityCard: React.FC<{
           <button
             disabled={isFull}
             onClick={() => onAction(program)}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
-              isFull
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                : "bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs"
-            }`}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${isFull
+              ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+              : "bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs"
+              }`}
           >
             {isFull ? "Slots Filled" : actionLabel}
           </button>
@@ -597,48 +591,60 @@ export const OpportunityCard: React.FC<{
 // Reusable logo component representing the official uploaded SiKap logo
 export const SikapLogo: React.FC<{
   size?: number;
+  logoSize?: number;
+  textSize?: number;
   showText?: boolean;
   showSubtext?: boolean;
   variant?: "light" | "dark" | "white";
   className?: string;
+  textClassName?: string;
+  gap?: string;
+  textScale?: number;
 }> = ({
   size = 40,
+  logoSize,
+  textSize,
   showText = true,
   showSubtext = false,
   variant = "light",
-  className = ""
+  className = "",
+  textClassName = "pt-2",
+  gap = "gap-2",
+  textScale = 0.85
 }) => {
-  const siColorClass = variant === "white" || variant === "dark" ? "text-white" : "text-[#0D6C43]";
-  const kapColorClass = variant === "white" ? "text-[#F5A623]" : "text-[#D99427]";
-  const subtextColorClass = variant === "dark" ? "text-gray-300" : variant === "white" ? "text-white/80" : "text-gray-500";
+    const effectiveLogoSize = logoSize ?? size;
+    const effectiveTextSize = textSize ?? (size * textScale);
+    const siColorClass = variant === "white" || variant === "dark" ? "text-white" : "text-[#0D6C43]";
+    const kapColorClass = variant === "white" ? "text-[#F5A623]" : "text-[#D99427]";
+    const subtextColorClass = variant === "dark" ? "text-gray-300" : variant === "white" ? "text-white/80" : "text-gray-500";
 
-  return (
-    <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* Official SiKap Emblem Logo */}
-      <img
-        src="/sikap-logo.png"
-        alt="SiKap System Logo"
-        style={{ width: `${size}px`, height: `${size}px` }}
-        className="shrink-0 object-contain filter drop-shadow-xs transition-transform duration-200 hover:scale-105"
-      />
+    return (
+      <div className={`flex items-center ${gap} select-none group cursor-pointer transition-transform duration-200 hover:scale-105 ${className}`}>
+        {/* Official SiKap Emblem Logo */}
+        <img
+          src="/sikap-logo.png"
+          alt="SiKap System Logo"
+          style={{ width: `${effectiveLogoSize}px`, height: `${effectiveLogoSize}px` }}
+          className="shrink-0 object-contain filter drop-shadow-xs transition-transform duration-200"
+        />
 
-      {showText && (
-        <div className="flex flex-col justify-center leading-none">
-          <div className="flex items-baseline font-sans">
-            <span className={`${siColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${size * 0.7}px` }}>Si</span>
-            <span className={`${kapColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${size * 0.7}px` }}>Kap</span>
+        {showText && (
+          <div className={`flex flex-col justify-center leading-none transition-transform duration-200 ${textClassName}`}>
+            <div className="flex items-baseline font-sans">
+              <span className={`${siColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${effectiveTextSize}px` }}>Si</span>
+              <span className={`${kapColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${effectiveTextSize}px` }}>Kap</span>
+            </div>
+            {showSubtext && (
+              <span
+                className={`font-bold tracking-[0.12em] uppercase mt-1 ${subtextColorClass}`}
+                style={{ fontSize: `${size * 0.22}px` }}
+              >
+                Youth Skills & Livelihood Matching
+              </span>
+            )}
           </div>
-          {showSubtext && (
-            <span
-              className={`font-bold tracking-[0.12em] uppercase mt-1 ${subtextColorClass}`}
-              style={{ fontSize: `${size * 0.22}px` }}
-            >
-              Youth Skills & Livelihood Matching
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+        )}
+      </div>
+    );
+  };
 
