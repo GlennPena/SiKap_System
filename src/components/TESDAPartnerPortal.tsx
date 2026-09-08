@@ -5,7 +5,8 @@ import {
   Briefcase, Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
-  Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive, Calculator
+  Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive, Calculator,
+  Lock, EyeOff, Edit, ShieldAlert, Copy
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
@@ -39,9 +40,204 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   // Dashboard Sub-tabs
   const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs" | "archived">("all");
 
+  // Profile & Settings Sub-tabs
+  const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [repName, setRepName] = useState(currentUser?.name || "TESDA Partner Representative");
+  const [repEmail, setRepEmail] = useState(currentUser?.email || "tesda.gpsat@gov.ph");
+  const [centerName, setCenterName] = useState("Gonzalo Puyat School of Arts and Trades (GPSAT)");
+  const [repPhone, setRepPhone] = useState("+63 919 555 7890");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Password Security Form State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Sync state if currentUser changes
+  useEffect(() => {
+    if (currentUser?.name) setRepName(currentUser.name);
+    if (currentUser?.email) setRepEmail(currentUser.email);
+  }, [currentUser]);
+
+  const handleSaveProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!repName.trim()) {
+      addToast("Representative name cannot be blank.", "error");
+      return;
+    }
+    if (!repEmail.trim() || !repEmail.includes("@")) {
+      addToast("Please enter a valid institutional email address.", "error");
+      return;
+    }
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: currentUser?.id,
+          name: repName.trim(),
+          email: repEmail.trim().toLowerCase(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update institution profile.");
+      }
+      setIsEditingProfile(false);
+      addToast("Institution profile updated successfully!", "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to update institution profile.", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      addToast("Please enter your current security password.", "error");
+      return;
+    }
+    if (newPassword.length < 6) {
+      addToast("New password must be at least 6 characters long.", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      addToast("New password and confirmation do not match.", "error");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: currentUser?.id,
+          currentPassword,
+          newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update password.");
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      addToast("Institutional security password updated successfully!", "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to update password.", "error");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   // Notifications state
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
+
+  // Helper to get all relevant storage keys for TESDA partner
+  const getStorageKeys = () => {
+    const keys: string[] = [];
+    if (currentUser?.email) {
+      keys.push(`sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}`);
+    }
+    if (currentUser?.id) {
+      keys.push(`sikap_cleared_notifs_${currentUser.id}`);
+    }
+    keys.push("sikap_cleared_notifs_tesda");
+    return Array.from(new Set(keys));
+  };
+
+  // Track dismissed/cleared notifications with localStorage persistence
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const initialKeys = [
+          currentUser?.email ? `sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}` : null,
+          "sikap_cleared_notifs_tesda"
+        ].filter(Boolean) as string[];
+
+        let loaded: string[] = [];
+        for (const k of initialKeys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
+        }
+        return Array.from(new Set(loaded));
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Re-synchronize cleared notifications whenever TESDA user updates
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const keys = getStorageKeys();
+      let loaded: string[] = [];
+      for (const k of keys) {
+        const saved = localStorage.getItem(k);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) loaded.push(...parsed);
+          } catch {}
+        }
+      }
+      if (loaded.length > 0) {
+        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+      }
+    } catch (e) {
+      console.error("Failed to sync cleared notifications in TESDA portal:", e);
+    }
+  }, [currentUser?.email, currentUser?.id]);
+
+  const dismissNotification = (id: string) => {
+    setClearedNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+      } catch (e) {
+        console.error("Failed to save cleared notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllNotifications = (allIds: string[]) => {
+    setClearedNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+        if (currentUser?.email) {
+          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
+        }
+      } catch (e) {
+        console.error("Failed to save cleared notifications:", e);
+      }
+      return updated;
+    });
+    setNotificationsRead(true);
+  };
 
   // Selected applicant for detail view modal
   const [selectedApplicant, setSelectedApplicant] = useState<YouthProfile | null>(null);
@@ -779,84 +975,155 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
             {/* Notification Bell */}
             <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className={`relative p-2.5 text-slate-600 hover:text-[#0A6B43] bg-slate-100/80 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer ${
-                  showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
-                }`}
-                title="TESDA Notifications"
-              >
-                <Bell className="w-4 h-4" />
-                {!notificationsRead && pendingReferralsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center ring-2 ring-white">
-                    {pendingReferralsCount}
-                  </span>
-                )}
-              </button>
+              {(() => {
+                const tesdaNotifications: Array<{
+                  id: string;
+                  title: string;
+                  desc: string;
+                  icon: React.ReactNode;
+                  bg: string;
+                  action: () => void;
+                }> = [];
 
-              {showNotifications && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 py-2 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
-                    <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-emerald-50/70">
-                      <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-[#0A6B43]" />
-                        <span className="font-extrabold text-slate-900 text-xs">TESDA Action Center</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setNotificationsRead(true);
-                          addToast("Notifications marked as read", "info");
-                        }}
-                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                      >
-                        Mark read
-                      </button>
-                    </div>
+                if (pendingReferralsCount > 0) {
+                  tesdaNotifications.push({
+                    id: "notif-tesda-pending",
+                    title: `Pending Youth Applications (${pendingReferralsCount})`,
+                    desc: "Youth members are waiting for TESDA enrollment confirmation.",
+                    icon: <Clock className="w-4 h-4 text-amber-800" />,
+                    bg: "bg-amber-100",
+                    action: () => {
+                      setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
+                      setDashboardTab("pending");
+                    }
+                  });
+                }
 
-                    <div className="p-3 border-b border-slate-100 bg-white">
-                      <NotificationSettingsCard compact userRole="TESDA_PARTNER" addToast={addToast} />
-                    </div>
+                if (activePrograms.length > 0) {
+                  tesdaNotifications.push({
+                    id: "notif-tesda-programs",
+                    title: `Active Training Programs (${activePrograms.length})`,
+                    desc: `${totalSlotsRemaining} open training slots available across courses.`,
+                    icon: <BookOpen className="w-4 h-4 text-[#0A6B43]" />,
+                    bg: "bg-emerald-100/70",
+                    action: () => {
+                      setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                    }
+                  });
+                }
 
-                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                      {pendingReferralsCount > 0 && (
-                        <div
-                          onClick={() => {
-                            setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
-                            setDashboardTab("pending");
-                            setShowNotifications(false);
-                          }}
-                          className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 bg-amber-50/30"
-                        >
-                          <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
-                            <Clock className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900 text-xs">Pending Youth Applications ({pendingReferralsCount})</p>
-                            <p className="text-[11px] text-slate-600 font-medium mt-0.5">Youth members are waiting for TESDA enrollment confirmation.</p>
-                          </div>
-                        </div>
+                const activeNotifs = tesdaNotifications.filter(n => !clearedNotificationIds.includes(n.id));
+
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className={`relative p-2.5 text-slate-600 hover:text-[#0A6B43] bg-slate-100/80 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer ${
+                        showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
+                      }`}
+                      title="TESDA Notifications"
+                    >
+                      <Bell className="w-4 h-4" />
+                      {!notificationsRead && activeNotifs.length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center ring-2 ring-white">
+                          {activeNotifs.length}
+                        </span>
                       )}
+                    </button>
 
-                      <div
-                        onClick={() => {
-                          setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
-                          setShowNotifications(false);
-                        }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-xl bg-emerald-100/70 text-[#0A6B43] shrink-0 mt-0.5">
-                          <BookOpen className="w-4 h-4" />
+                    {showNotifications && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 py-2 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
+                          <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-emerald-50/70">
+                            <div className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-[#0A6B43]" />
+                              <span className="font-extrabold text-slate-900 text-xs">TESDA Action Center</span>
+                              {activeNotifs.length > 0 && (
+                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                                  {activeNotifs.length}
+                                </span>
+                              )}
+                            </div>
+                            {activeNotifs.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(tesdaNotifications.map(n => n.id));
+                                    addToast("All notifications marked as read & cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                  title="Mark all as read & clear"
+                                >
+                                  Mark read
+                                </button>
+                                <span className="text-gray-300">·</span>
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(tesdaNotifications.map(n => n.id));
+                                    addToast("All notifications cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                                  title="Clear all alerts"
+                                >
+                                  Clear all
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <NotificationSettingsCard compact userRole="TESDA_PARTNER" addToast={addToast} />
+
+                          <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                            {activeNotifs.length === 0 ? (
+                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                                <p className="text-xs font-bold text-gray-700">All caught up!</p>
+                                <p className="text-[10px] text-gray-400">No active alerts or pending youth action items right now.</p>
+                              </div>
+                            ) : (
+                              activeNotifs.map((n) => (
+                                <div
+                                  key={n.id}
+                                  onClick={() => {
+                                    dismissNotification(n.id);
+                                    n.action();
+                                    setShowNotifications(false);
+                                  }}
+                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                                >
+                                  <div className={`p-2 rounded-xl ${n.bg} shrink-0 mt-0.5`}>
+                                    {n.icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pr-2">
+                                    <p className="font-bold text-slate-900 text-xs">{n.title}</p>
+                                    <p className="text-[11px] text-slate-600 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dismissNotification(n.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                                    title="Dismiss alert"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                            <span className="text-[10px] font-bold text-gray-400">Click an action to navigate, or ✕ to dismiss</span>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs">Active Training Programs ({activePrograms.length})</p>
-                          <p className="text-[11px] text-slate-600 font-medium mt-0.5">{totalSlotsRemaining} open training slots available across courses.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </header>
@@ -2300,46 +2567,494 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
           {/* SCREEN 5: PARTNER PROFILE & NOTIFICATION SETTINGS */}
           {currentScreen === TESDAPartnerScreen.SETTINGS && (
-            <div className="space-y-6 max-w-3xl animate-in fade-in duration-200">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <Building className="w-5 h-5 text-[#0A6B43]" />
-                  TESDA Partner Profile & Alerts Center
-                </h2>
-                <p className="text-xs text-slate-500 font-medium mt-1">
-                  Configure official technical-vocational institution settings, off-site alerts, and communication preferences.
-                </p>
-              </div>
-
-              {/* Profile Card */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-xl shadow-md border-2 border-emerald-600">
-                    {currentUser?.name?.charAt(0).toUpperCase() || "T"}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">{currentUser?.name || "TESDA Partner Representative"}</h3>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        Verified Institution Partner
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Technical Education and Skills Development Authority · Guagua / San Luis Center
-                    </p>
-                    <p className="text-xs font-mono text-slate-600 mt-1">
-                      {currentUser?.email || "tesda.gpsat@gov.ph"}
-                    </p>
-                  </div>
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Top Banner Header */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <Building className="w-5 h-5 text-[#0A6B43]" />
+                    TESDA Partner Profile & Settings
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Manage institutional TVET center credentials, representative details, system security, and off-site notifications.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Accredited TVET Partner
+                  </span>
                 </div>
               </div>
 
-              {/* Full Notification Settings Card */}
-              <NotificationSettingsCard
-                userRole="TESDA_PARTNER"
-                userEmail={currentUser?.email}
-                addToast={addToast}
-              />
+              {/* Top Sub-tab Pill Navigation Bar */}
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("profile")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "profile"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Building className="w-4 h-4" />
+                  Institution Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("security")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "security"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                  Account Security
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("notifications")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "notifications"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  Alerts & Notifications
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("badge")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "badge"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Award className="w-4 h-4" />
+                  TVET Accreditation Badge
+                </button>
+              </div>
+
+              {/* TAB 1: INSTITUTION PROFILE */}
+              {profileActiveTab === "profile" && (
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                  {/* Left Column (3 cols) */}
+                  <div className="lg:col-span-3 space-y-6">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-xl shadow-md border-2 border-emerald-600">
+                            {repName.charAt(0).toUpperCase() || "T"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-bold text-slate-900">{repName}</h3>
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                Verified TVET Focal
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                              {centerName}
+                            </p>
+                            <p className="text-xs font-mono text-slate-600 mt-1">
+                              {repEmail}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(!isEditingProfile)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                            isEditingProfile
+                              ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                              : "bg-[#0A6B43] text-white hover:bg-[#085435]"
+                          }`}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          {isEditingProfile ? "Cancel" : "Edit Profile"}
+                        </button>
+                      </div>
+
+                      {/* View Mode */}
+                      {!isEditingProfile ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Training Institution</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{centerName}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Accredited Representative</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{repName}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Institutional Email</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{repEmail}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Contact / Hotline</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{repPhone}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Institution Classification</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">Public Vocational Institution (TESDA-Administered)</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Regional Jurisdiction</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">District II, Pampanga · Region III Central Luzon</p>
+                          </div>
+                          <div className="sm:col-span-2 p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">UTPRAS Operating Status</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Fully certified under Unified TVET Program Registration & Accreditation System</p>
+                            </div>
+                            <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">
+                              ACTIVE
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Edit Mode Form */
+                        <form onSubmit={handleSaveProfileSubmit} className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Training Institution / Center Name
+                              </label>
+                              <input
+                                type="text"
+                                value={centerName}
+                                onChange={(e) => setCenterName(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Accredited Focal Representative
+                              </label>
+                              <input
+                                type="text"
+                                value={repName}
+                                onChange={(e) => setRepName(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Institutional Email
+                              </label>
+                              <input
+                                type="email"
+                                value={repEmail}
+                                onChange={(e) => setRepEmail(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                required
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Official Contact / Landline
+                              </label>
+                              <input
+                                type="text"
+                                value={repPhone}
+                                onChange={(e) => setRepPhone(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingProfile(false)}
+                              disabled={isSavingProfile}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSavingProfile}
+                              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2"
+                            >
+                              {isSavingProfile ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  Save Institution Details
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column (2 cols): Authority & Accreditation Card */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-200">
+                          <Award className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900">TVET Center Authority</h4>
+                          <p className="text-[11px] text-slate-500">Accredited Training Partner Clearance</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Clearance Level</span>
+                          <span className="text-xs font-black text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-md">
+                            Institutional Partner (Tier 4)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Active Programs</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Course(s)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Enrolled Youth</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {referrals.filter((r) => r.status === "Enrolled").length} Trainee(s)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Supervisory Office</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            TESDA Pampanga PO
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Accreditation Code</span>
+                          <span className="text-xs font-mono font-bold text-slate-700">
+                            UTPRAS-R03-PAM-2024
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
+                        <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          Republic Act No. 7796 Mandate
+                        </p>
+                        Authorized under the Technical Education and Skills Development Act to evaluate youth course applications, administer competency training, and report graduation outcomes.
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={onLogout}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-colors"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          Sign Out of Institutional Portal
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: ACCOUNT SECURITY */}
+              {profileActiveTab === "security" && (
+                <div className="max-w-2xl bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                  <div className="border-b border-slate-100 pb-4">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-[#0A6B43]" />
+                      Update Account Password
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Ensure your institutional training partner credentials remain secure.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Current Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPass ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPass(!showCurrentPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        New Password (minimum 6 characters)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPass ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
+                          required
+                          minLength={6}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] text-slate-900"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        Updating your password will immediately secure your portal. Please ensure you keep a secure institutional record.
+                      </span>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={isChangingPassword}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        {isChangingPassword ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Updating Security Password...
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3.5 h-3.5" />
+                            Update Institutional Password
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* TAB 3: NOTIFICATIONS */}
+              {profileActiveTab === "notifications" && (
+                <div className="max-w-3xl">
+                  <NotificationSettingsCard
+                    userRole="TESDA_PARTNER"
+                    userEmail={currentUser?.email}
+                    addToast={addToast}
+                  />
+                </div>
+              )}
+
+              {/* TAB 4: TVET ACCREDITATION BADGE */}
+              {profileActiveTab === "badge" && (
+                <div className="max-w-xl mx-auto space-y-6">
+                  {/* Digital Credential ID Card */}
+                  <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-700/40 bg-gradient-to-br from-emerald-950 via-slate-900 to-[#0A3D27] text-white p-7 shadow-2xl">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                    {/* Card Top Header */}
+                    <div className="flex items-center justify-between pb-5 border-b border-emerald-800/60 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-amber-400">
+                          <Award className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Republic of the Philippines</p>
+                          <p className="text-xs font-extrabold tracking-wide text-white">TESDA TVET Training Partner</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                        Official Partner
+                      </span>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
+                        {repName.charAt(0).toUpperCase() || "T"}
+                      </div>
+                      <div className="text-center sm:text-left space-y-1">
+                        <h4 className="text-lg font-black text-white tracking-tight">{repName}</h4>
+                        <p className="text-xs font-semibold text-emerald-200">{centerName}</p>
+                        <p className="text-[11px] text-slate-300 font-mono pt-1">
+                          Provincial Office: Pampanga · Region III
+                        </p>
+                        <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-emerald-300">
+                          <span>REG-ID:</span>
+                          <span className="font-bold">{currentUser?.id?.slice(0, 12) || "TESDA-R03-GPSAT-01"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="pt-4 border-t border-emerald-800/60 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>UTPRAS Verified & Active</span>
+                      </div>
+                      <span className="font-mono text-slate-400">RA 7796 Accredited</span>
+                    </div>
+                  </div>
+
+                  {/* Copy Credential Button */}
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const info = `TESDA TVET PARTNER CREDENTIAL\nRepresentative: ${repName}\nInstitution: ${centerName}\nEmail: ${repEmail}\nContact: ${repPhone}\nPartner ID: ${currentUser?.id || "TESDA-R03-GPSAT-01"}\nUTPRAS Status: Active\nAccreditation Code: UTPRAS-R03-PAM-2024`;
+                        navigator.clipboard.writeText(info);
+                        addToast("TVET Institution Credential copied to clipboard!", "success");
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors"
+                    >
+                      <Copy className="w-4 h-4 text-[#0A6B43]" />
+                      Copy Credential Details
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

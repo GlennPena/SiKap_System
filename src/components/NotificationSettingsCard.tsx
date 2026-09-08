@@ -43,15 +43,27 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
   const [notifyOnAnnouncements, setNotifyOnAnnouncements] = useState(true);
   const [notifyOnNewRegistrations, setNotifyOnNewRegistrations] = useState(true);
 
-  // Browser push status
+  // Browser push status with synchronous cache inspection to prevent UI flicker
   const [pushStatus, setPushStatus] = useState<{
     supported: boolean;
     permission: NotificationPermission;
     subscribed: boolean;
-  }>({
-    supported: true,
-    permission: "default",
-    subscribed: false
+  }>(() => {
+    if (typeof window !== "undefined") {
+      const supported = "Notification" in window && "serviceWorker" in navigator;
+      const perm: NotificationPermission = "Notification" in window ? Notification.permission : "default";
+      const cachedActive = localStorage.getItem("sikap_push_active") === "true";
+      return {
+        supported,
+        permission: perm,
+        subscribed: cachedActive || perm === "granted"
+      };
+    }
+    return {
+      supported: true,
+      permission: "default",
+      subscribed: false
+    };
   });
 
   // Load preferences and browser push status
@@ -63,8 +75,10 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
         getPushSubscriptionStatus()
       ]);
 
+      let isPushOn = true;
       if (prefRes.success && prefRes.data) {
-        setPushEnabled(Boolean(prefRes.data.pushEnabled));
+        isPushOn = Boolean(prefRes.data.pushEnabled);
+        setPushEnabled(isPushOn);
         setEmailEnabled(Boolean(prefRes.data.emailEnabled));
         setNotifyOnApplicationStatus(Boolean(prefRes.data.notifyOnApplicationStatus));
         setNotifyOnAnnouncements(Boolean(prefRes.data.notifyOnAnnouncements));
@@ -72,6 +86,10 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
       }
 
       setPushStatus(pushState);
+      if (typeof window !== "undefined") {
+        const isActive = Boolean(pushState.subscribed && isPushOn);
+        localStorage.setItem("sikap_push_active", isActive ? "true" : "false");
+      }
     } catch (err) {
       console.error("Error loading notification preferences:", err);
     } finally {
@@ -132,6 +150,9 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
       const res = await subscribeUserToPush();
       if (res.success) {
         setPushEnabled(true);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("sikap_push_active", "true");
+        }
         savePreferences({ pushEnabled: true });
         addToast("Browser push notifications enabled!", "success");
       } else {
@@ -140,6 +161,9 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
     } else {
       await unsubscribeUserFromPush();
       setPushEnabled(false);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("sikap_push_active", "false");
+      }
       savePreferences({ pushEnabled: false });
       addToast("Push notifications turned off", "info");
     }
@@ -158,6 +182,9 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
         const subRes = await subscribeUserToPush();
         if (subRes.success) {
           setPushEnabled(true);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("sikap_push_active", "true");
+          }
           await savePreferences({ pushEnabled: true });
           const updated = await getPushSubscriptionStatus();
           setPushStatus(updated);
@@ -196,41 +223,42 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
   const isBarangayGov = ["SK_OFFICIAL", "SUPER_ADMIN", "BARANGAY_CAPTAIN"].includes(userRole);
 
   if (compact) {
-    // Compact widget for dropdowns or quick bars
+    // If loading or if the user has already activated off-site browser alerts, hide from notification dropdown
+    if (loading || (pushStatus.subscribed && pushEnabled)) {
+      return null;
+    }
+
+    // Compact widget for dropdowns when alerts are NOT yet active
     return (
-      <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Smartphone className="w-4 h-4 text-[#0A6B43]" />
-            <span className="text-xs font-bold text-gray-800">Off-Site Browser Alerts</span>
-          </div>
-          {pushStatus.subscribed && pushEnabled ? (
-            <span className="text-[10px] bg-emerald-100 text-[#0A6B43] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" /> Active
-            </span>
-          ) : (
+      <div className="p-3 border-b border-gray-100 bg-white">
+        <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-[#0A6B43]" />
+              <span className="text-xs font-bold text-gray-800">Off-Site Browser Alerts</span>
+            </div>
             <button
               onClick={() => handleTogglePush(true)}
               className="px-2.5 py-1 bg-[#0A6B43] hover:bg-[#075332] text-white text-[10px] font-bold rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               Turn On Alerts
             </button>
-          )}
-        </div>
-        <p className="text-[10px] text-gray-500 font-medium leading-relaxed">
-          {isYouth
-            ? "Receive instant pop-ups on your phone or PC when TESDA accepts your application, even if this website is closed."
-            : "Receive instant desktop/mobile pop-ups for new KK youth registrations and status updates even with the browser closed."}
-        </p>
-        <div className="flex items-center justify-between pt-1">
-          <button
-            onClick={() => handleSendTest("push")}
-            disabled={testing}
-            className="text-[10px] text-[#0A6B43] font-bold hover:underline cursor-pointer flex items-center gap-1"
-          >
-            {testing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-            {pushStatus.subscribed && pushEnabled ? "Send Test Pop-up" : "Turn On & Send Test Pop-up"}
-          </button>
+          </div>
+          <p className="text-[10px] text-gray-500 font-medium leading-relaxed">
+            {isYouth
+              ? "Receive instant pop-ups on your phone or PC when TESDA accepts your application, even if this website is closed."
+              : "Receive instant desktop/mobile pop-ups for new KK youth registrations and status updates even with the browser closed."}
+          </p>
+          <div className="flex items-center justify-between pt-1">
+            <button
+              onClick={() => handleSendTest("push")}
+              disabled={testing}
+              className="text-[10px] text-[#0A6B43] font-bold hover:underline cursor-pointer flex items-center gap-1"
+            >
+              {testing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              Turn On & Send Test Pop-up
+            </button>
+          </div>
         </div>
       </div>
     );

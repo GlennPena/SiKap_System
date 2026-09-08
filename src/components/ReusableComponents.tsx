@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Flame, Check, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { TESDAProgram } from "../types";
 import { getProgramFullSchedule, formatProgramDateRange } from "../lib/cbf-matcher";
 
@@ -102,41 +102,133 @@ export const MetricCard: React.FC<{
 export interface ToastProps {
   message: string;
   type: "success" | "error" | "info";
+  duration?: number;
   onClose: () => void;
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
+export const Toast: React.FC<ToastProps> = ({ message, type, duration = 4000, onClose }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [progress, setProgress] = useState(100);
 
-  const styles = {
+  // Smooth entrance transition on mount
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setIsVisible(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  // Dismiss with smooth exit animation
+  const handleDismiss = useCallback(() => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setIsVisible(false);
+    setTimeout(() => {
+      onClose();
+    }, 280);
+  }, [isExiting, onClose]);
+
+  // Real-time progress bar and auto-close timer with pause-on-hover
+  useEffect(() => {
+    if (isExiting) return;
+
+    const intervalMs = 25;
+    const step = (intervalMs / duration) * 100;
+
+    const interval = setInterval(() => {
+      if (!isPaused) {
+        setProgress(prev => {
+          if (prev <= 0) {
+            clearInterval(interval);
+            handleDismiss();
+            return 0;
+          }
+          return Math.max(0, prev - step);
+        });
+      }
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [isPaused, isExiting, duration, handleDismiss]);
+
+  const config = {
     success: {
-      bg: "bg-emerald-50 border-emerald-300 text-emerald-800",
-      icon: <Check className="w-5 h-5 text-emerald-600" />
+      title: "Success",
+      border: "border-emerald-200/90 shadow-emerald-950/5",
+      bg: "bg-white/95",
+      badgeBg: "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
+      titleColor: "text-emerald-700",
+      barColor: "bg-emerald-500",
+      icon: <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
     },
     error: {
-      bg: "bg-red-50 border-red-300 text-red-800",
-      icon: <X className="w-5 h-5 text-red-600" />
+      title: "Notice",
+      border: "border-rose-200/90 shadow-rose-950/5",
+      bg: "bg-white/95",
+      badgeBg: "bg-rose-500/10 text-rose-600 border border-rose-500/20",
+      titleColor: "text-rose-700",
+      barColor: "bg-rose-500",
+      icon: <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
     },
     info: {
-      bg: "bg-blue-50 border-blue-300 text-blue-800",
-      icon: <Info className="w-5 h-5 text-blue-600" />
+      title: "Information",
+      border: "border-blue-200/90 shadow-blue-950/5",
+      bg: "bg-white/95",
+      badgeBg: "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+      titleColor: "text-blue-700",
+      barColor: "bg-blue-500",
+      icon: <Info className="w-4 h-4 text-blue-600 shrink-0" />
     }
-  };
-
-  const currentStyle = styles[type];
+  }[type];
 
   return (
-    <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg max-w-sm animate-bounce ${currentStyle.bg}`} id="toast-notification">
-      {currentStyle.icon}
-      <span className="text-sm font-medium flex-1">{message}</span>
-      <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
-        <X className="w-4 h-4" />
-      </button>
+    <div
+      role="alert"
+      aria-live="polite"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      className={`
+        relative overflow-hidden rounded-xl border shadow-xl backdrop-blur-md
+        w-full max-w-sm sm:max-w-md pointer-events-auto
+        transform transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
+        ${isVisible && !isExiting ? "translate-x-0 opacity-100 scale-100" : "translate-x-10 opacity-0 scale-95"}
+        ${config.bg} ${config.border}
+      `}
+      id="toast-notification"
+    >
+      <div className="flex items-start gap-3 p-3.5 sm:p-4">
+        <div className={`p-1.5 rounded-lg shrink-0 ${config.badgeBg} shadow-2xs mt-0.5`}>
+          {config.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className={`text-[10px] font-black tracking-wider uppercase ${config.titleColor}`}>
+              {config.title}
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm font-semibold text-slate-800 leading-snug break-words">
+            {message}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss notification"
+          className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1 rounded-lg transition-colors shrink-0 -mr-1 -mt-1"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Real-time countdown progress bar */}
+      <div className="w-full bg-slate-100/70 h-1 overflow-hidden">
+        <div
+          className={`h-full transition-[width] duration-75 ease-linear ${config.barColor}`}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
     </div>
   );
 };

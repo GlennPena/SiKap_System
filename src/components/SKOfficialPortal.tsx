@@ -126,6 +126,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [showNewPass, setShowNewPass] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Check if current logged-in official is an SK Councilor, Secretary, or Treasurer
   const currentCouncilorRecord = useMemo(() => {
@@ -215,6 +216,112 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   // Top Navbar Notification state
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
+
+  // Helper to get all relevant storage keys for the active SK official
+  const getStorageKeys = () => {
+    const keys: string[] = [];
+    if (currentUser?.email) {
+      keys.push(`sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}`);
+    }
+    if (currentUser?.id) {
+      keys.push(`sikap_cleared_notifs_${currentUser.id}`);
+    }
+    const cleanBrgy = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    if (cleanBrgy) {
+      keys.push(`sikap_cleared_notifs_sk_${cleanBrgy}`);
+      keys.push(`sikap_cleared_notifs_sk_${designatedBarangay}`);
+    }
+    keys.push("sikap_cleared_notifs_sk_general");
+    return Array.from(new Set(keys));
+  };
+
+  // Track dismissed/cleared notifications with localStorage persistence
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cleanBrgy = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+        const initialKeys = [
+          currentUser?.email ? `sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}` : null,
+          cleanBrgy ? `sikap_cleared_notifs_sk_${cleanBrgy}` : null,
+          `sikap_cleared_notifs_sk_${designatedBarangay}`,
+          "sikap_cleared_notifs_sk_general"
+        ].filter(Boolean) as string[];
+
+        let loaded: string[] = [];
+        for (const k of initialKeys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
+        }
+        return Array.from(new Set(loaded));
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Re-synchronize cleared notifications whenever SK user or designated barangay updates
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const keys = getStorageKeys();
+      let loaded: string[] = [];
+      for (const k of keys) {
+        const saved = localStorage.getItem(k);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) loaded.push(...parsed);
+          } catch {}
+        }
+      }
+      if (loaded.length > 0) {
+        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+      }
+    } catch (e) {
+      console.error("Failed to sync cleared notifications in SK portal:", e);
+    }
+  }, [currentUser?.email, currentUser?.id, designatedBarangay]);
+
+  const dismissNotification = (id: string) => {
+    setClearedNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+      } catch (e) {
+        console.error("Failed to save cleared notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllNotifications = (allIds: string[]) => {
+    setClearedNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+        if (currentUser?.email) {
+          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
+        }
+      } catch (e) {
+        console.error("Failed to save cleared notifications:", e);
+      }
+      return updated;
+    });
+    setNotificationsRead(true);
+  };
 
   const toggleAspirationExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -973,12 +1080,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           ));
         }
         addToast(data.message || "Profile updated in database!", "success");
+        setIsEditingProfile(false);
       } else {
         addToast(data.message || "Failed to update profile", "error");
       }
     } catch (err) {
       console.error("Failed to update profile:", err);
       addToast("Profile details saved successfully!", "success");
+      setIsEditingProfile(false);
     } finally {
       setIsSavingProfile(false);
     }
@@ -1322,85 +1431,121 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           <div className="flex items-center gap-4 relative">
             {/* Notification Bell Icon & Dropdown */}
             <div className="relative">
-              <button
-                onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
-                className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
-                  showNotificationsDropdown ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
-                }`}
-                title="System Notifications"
-              >
-                <Bell className="w-5 h-5" />
-                {!notificationsRead && systemNotifications.length > 0 && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                )}
-              </button>
+              {(() => {
+                const activeSystemNotifications = systemNotifications.filter(n => !clearedNotificationIds.includes(n.id));
 
-              {/* Notification Dropdown Menu */}
-              {showNotificationsDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsDropdown(false)} />
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs">
-                    <div className="p-4 bg-emerald-50/70 border-b border-emerald-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-[#0A6B43]" />
-                        <h3 className="font-extrabold text-gray-900 text-sm">Notifications</h3>
-                        {systemNotifications.length > 0 && (
-                          <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                            {systemNotifications.length}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => {
-                          setNotificationsRead(true);
-                          addToast("Notifications marked as read", "info");
-                        }}
-                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                      >
-                        Mark all as read
-                      </button>
-                    </div>
-
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                      {systemNotifications.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 font-medium space-y-1">
-                          <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
-                          <p className="text-xs font-bold text-gray-700">All caught up!</p>
-                          <p className="text-[10px] text-gray-400">No new alerts or pending tasks for Barangay {designatedBarangay}.</p>
-                        </div>
-                      ) : (
-                        systemNotifications.map((n) => (
-                          <div
-                            key={n.id}
-                            onClick={() => {
-                              setCurrentScreen(n.targetScreen);
-                              setShowNotificationsDropdown(false);
-                            }}
-                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                          >
-                            <div className="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0 mt-0.5">
-                              {n.icon}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-center mb-0.5">
-                                <h4 className="font-extrabold text-gray-900 text-xs truncate">{n.title}</h4>
-                                <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
-                                  {n.time}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{n.desc}</p>
-                            </div>
-                          </div>
-                        ))
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                      className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
+                        showNotificationsDropdown ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
+                      }`}
+                      title="System Notifications"
+                    >
+                      <Bell className="w-5 h-5" />
+                      {!notificationsRead && activeSystemNotifications.length > 0 && (
+                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
                       )}
-                    </div>
+                    </button>
 
-                    <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
-                      <span className="text-[10px] font-bold text-gray-400">Click any notification to navigate directly</span>
-                    </div>
-                  </div>
-                </>
-              )}
+                    {/* Notification Dropdown Menu */}
+                    {showNotificationsDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsDropdown(false)} />
+                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs">
+                          <div className="p-4 bg-emerald-50/70 border-b border-emerald-100 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-[#0A6B43]" />
+                              <h3 className="font-extrabold text-gray-900 text-sm">Notifications</h3>
+                              {activeSystemNotifications.length > 0 && (
+                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                  {activeSystemNotifications.length}
+                                </span>
+                              )}
+                            </div>
+                            {activeSystemNotifications.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(systemNotifications.map(n => n.id));
+                                    addToast("All notifications marked as read & cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                  title="Mark all notifications as read and clear them"
+                                >
+                                  Mark all read
+                                </button>
+                                <span className="text-gray-300">·</span>
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(systemNotifications.map(n => n.id));
+                                    addToast("All notifications cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                                  title="Clear all alerts"
+                                >
+                                  Clear all
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                            {activeSystemNotifications.length === 0 ? (
+                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                                <p className="text-xs font-bold text-gray-700">All caught up!</p>
+                                <p className="text-[10px] text-gray-400">No new alerts or pending tasks for Barangay {designatedBarangay}.</p>
+                              </div>
+                            ) : (
+                              activeSystemNotifications.map((n) => (
+                                <div
+                                  key={n.id}
+                                  onClick={() => {
+                                    dismissNotification(n.id);
+                                    setCurrentScreen(n.targetScreen);
+                                    setShowNotificationsDropdown(false);
+                                  }}
+                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                                >
+                                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0 mt-0.5">
+                                    {n.icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pr-2">
+                                    <div className="flex justify-between items-center mb-0.5">
+                                      <h4 className="font-extrabold text-gray-900 text-xs truncate">{n.title}</h4>
+                                      <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
+                                        {n.time}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{n.desc}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dismissNotification(n.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                                    title="Dismiss alert"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                            <span className="text-[10px] font-bold text-gray-400">Click a notification to navigate, or ✕ to dismiss</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Profile Icon / Badge Clickable Button */}
@@ -3088,7 +3233,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-150 shadow-xs">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 tracking-tight">Settings & Profile</h2>
-                  <p className="text-xs text-gray-500 font-medium">Manage official account profile, security credentials, and system notifications</p>
+                  <p className="text-xs text-gray-500 font-medium">Manage official administrative profile, security credentials, system notifications, and ID credentials</p>
                 </div>
                 
                 {/* Settings Navigation Tabs */}
@@ -3096,8 +3241,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   {[
                     { id: "profile", label: "Official Profile", icon: <User className="w-3.5 h-3.5" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5" /> },
-                    { id: "preferences", label: "Notifications", icon: <Bell className="w-3.5 h-3.5" /> },
-                    { id: "credentials", label: "ID Badge", icon: <ShieldCheck className="w-3.5 h-3.5" /> }
+                    { id: "preferences", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5" /> },
+                    { id: "credentials", label: "Official SK Badge", icon: <ShieldCheck className="w-3.5 h-3.5" /> }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -3117,103 +3262,193 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Tab 1: Profile Information */}
               {activeSettingsTab === "profile" && (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-6 space-y-6 max-w-3xl animate-in fade-in duration-150">
-                  <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                        <User className="w-4 h-4 text-[#0A6B43]" />
-                        Official Personal Profile
-                      </h3>
-                      <p className="text-xs text-gray-400 font-medium mt-1">Update your administrative profile details visible to municipal partners</p>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={settingsName}
-                          onChange={(e) => setSettingsName(e.target.value)}
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                        />
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
+                  {/* Left Column: Form with View/Edit mode */}
+                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6 space-y-6 shadow-xs">
+                    <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                          <User className="w-4 h-4 text-[#0A6B43]" />
+                          Official Personal Profile
+                        </h3>
+                        {!isEditingProfile && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(true)}
+                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            Edit Profile Details
+                          </button>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Position</label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            disabled
-                            value={settingsPos}
-                            className="w-full p-2.5 border border-gray-200 bg-gray-50 text-emerald-950 font-bold rounded-lg text-xs cursor-not-allowed"
-                          />
-                          <span className="absolute right-2.5 top-2.5 text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded">
-                            Verified Role
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name *</label>
+                          {isEditingProfile ? (
+                            <input
+                              type="text"
+                              required
+                              value={settingsName}
+                              onChange={(e) => setSettingsName(e.target.value)}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            />
+                          ) : (
+                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-bold text-gray-900">
+                              {settingsName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Position</label>
+                          <div className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs flex items-center justify-between">
+                            <span className="font-bold text-emerald-950">{settingsPos}</span>
+                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded">
+                              Verified Role
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Email Address *</label>
+                          {isEditingProfile ? (
+                            <input
+                              type="email"
+                              required
+                              value={settingsEmail}
+                              onChange={(e) => setSettingsEmail(e.target.value)}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            />
+                          ) : (
+                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-mono font-medium text-gray-700">
+                              {settingsEmail}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Phone Number *</label>
+                          {isEditingProfile ? (
+                            <input
+                              type="text"
+                              required
+                              value={settingsPhone}
+                              onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            />
+                          ) : (
+                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-semibold text-gray-800">
+                              {settingsPhone || "Not configured"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Barangay Jurisdiction */}
+                      <div className="space-y-3 pt-4 border-t border-gray-100">
+                        <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Barangay Jurisdiction & Location</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Barangay Zone</label>
+                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-emerald-900 font-bold rounded-lg text-xs">
+                              Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Municipality</label>
+                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-gray-700 font-semibold rounded-lg text-xs">
+                              San Luis
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Province</label>
+                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-gray-700 font-semibold rounded-lg text-xs">
+                              Pampanga
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isEditingProfile && (
+                        <div className="pt-2 flex justify-end gap-2.5 border-t border-gray-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(false)}
+                            className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSavingProfile}
+                            className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                          >
+                            {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            Save Profile Changes
+                          </button>
+                        </div>
+                      )}
+                    </form>
+                  </div>
+
+                  {/* Right Column: Authority & Verification Card */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4 text-xs">
+                      <div>
+                        <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                          Administrative Status & Authority
+                        </h4>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Official Status:</span>
+                          <span className="font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border bg-emerald-50 text-[#0A6B43] border-emerald-200">
+                            Verified SK Official ✓
                           </span>
                         </div>
-                        <p className="text-[10px] text-gray-400">Designated administrative appointment in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</p>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Email Address *</label>
-                        <input
-                          type="email"
-                          required
-                          value={settingsEmail}
-                          onChange={(e) => setSettingsEmail(e.target.value)}
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-800 focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Phone Number *</label>
-                        <input
-                          type="text"
-                          required
-                          value={settingsPhone}
-                          onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-                    </div>
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Designated Barangay:</span>
+                          <span className="font-extrabold text-gray-800">Brgy. {designatedBarangay.replace(/^Barangay\s+/i, "")}</span>
+                        </div>
 
-                    {/* Barangay Jurisdiction */}
-                    <div className="space-y-3 pt-4 border-t border-gray-100">
-                      <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Barangay Jurisdiction & Location</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Barangay Zone</label>
-                          <input type="text" disabled value={`Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}`} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-emerald-900 font-bold rounded-lg text-xs" />
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Registered KK Youth:</span>
+                          <span className="font-bold text-gray-800">{localYouthProfiles.length} Youth Records</span>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Municipality</label>
-                          <input type="text" disabled value="San Luis" className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-600 font-semibold rounded-lg text-xs" />
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Council Roster:</span>
+                          <span className="font-bold text-gray-800">{councilors.length + 1} Authorized Leaders</span>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Province</label>
-                          <input type="text" disabled value="Pampanga" className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-600 font-semibold rounded-lg text-xs" />
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">System Clearance:</span>
+                          <span className="font-bold text-[#0A6B43]">Tier 2 Administrative Access</span>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={isSavingProfile}
-                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-2"
-                      >
-                        {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                        Save Profile Changes
-                      </button>
+                      <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-[11px] text-emerald-950 font-medium space-y-1">
+                        <p className="font-bold flex items-center gap-1.5 text-[#0A6B43]">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          SK Reform Act Compliant
+                        </p>
+                        <p className="text-[10px] text-gray-600 leading-relaxed">
+                          Authorized under Republic Act No. 10742 to conduct Katipunan ng Kabataan profiling, endorsements, and skills-matching activities.
+                        </p>
+                      </div>
                     </div>
-                  </form>
+                  </div>
                 </div>
               )}
 
               {/* Tab 2: Security & Password */}
               {activeSettingsTab === "security" && (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
                   <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
                     <div>
                       <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
@@ -3229,7 +3464,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         Password Security Notice
                       </p>
                       <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                        Your password must be at least 6 characters long. Make sure to share any credential updates with authorized SK council personnel only.
+                        Your password must be at least 6 characters long. Keep your official administrative credentials confidential.
                       </p>
                     </div>
 
@@ -3247,7 +3482,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
                         >
                           {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -3268,7 +3503,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
                         >
                           {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -3303,7 +3538,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Tab 3: System Notifications */}
               {activeSettingsTab === "preferences" && (
-                <div className="max-w-xl animate-in fade-in duration-150">
+                <div className="max-w-2xl animate-in fade-in duration-150">
                   <NotificationSettingsCard
                     userRole="SK_OFFICIAL"
                     userEmail={settingsEmail || (currentUser as any)?.email}
@@ -3314,7 +3549,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Tab 4: Official Jurisdiction ID Badge */}
               {activeSettingsTab === "credentials" && (
-                <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-6 space-y-5 max-w-md animate-in fade-in duration-150">
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-5 max-w-lg animate-in fade-in duration-150">
                   <div>
                     <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />

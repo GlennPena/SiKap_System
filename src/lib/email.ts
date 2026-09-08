@@ -283,3 +283,42 @@ export function buildAnnouncementEmail(params: {
     text: `Announcement: ${params.title}\n\n${params.body}\n\nView at ${appUrl}/`
   };
 }
+
+/**
+ * Template for Password Reset / Recovery Verification Code
+ */
+export function buildPasswordResetEmail(params: {
+  name: string;
+  resetCode: string;
+  expiresInMinutes: number;
+}): { subject: string; html: string; text: string } {
+  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3001";
+  const subject = `🔐 Password Recovery Verification Code: ${params.resetCode}`;
+
+  const html = wrapEmailTemplate(
+    "Password Recovery Request",
+    `
+      <p>Hello <strong>${params.name}</strong>,</p>
+      <p>We received a request to recover the password for your SiKap System account.</p>
+      
+      <div style="margin: 24px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; text-align: center;">
+        <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; color: #166534; text-transform: uppercase; letter-spacing: 1.5px;">Your 6-Digit Verification Code</p>
+        <div style="font-family: monospace, Consolas, Monaco, monospace; font-size: 34px; font-weight: 900; letter-spacing: 8px; color: #0A6B43; margin: 8px 0;">
+          ${params.resetCode}
+        </div>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: #15803D; font-weight: 500;">This security code expires in ${params.expiresInMinutes} minutes.</p>
+      </div>
+
+      <p style="font-size: 13px; color: #4B5563; line-height: 1.6;">
+        Enter this code into the password recovery prompt to establish a new password for your account. If you did not initiate this request, you can safely disregard this email—your account remains protected.
+      </p>
+    `,
+    { label: "Return to SiKap Login", url: `${appUrl}/` }
+  );
+
+  return {
+    subject,
+    html,
+    text: `Your SiKap Password Recovery Verification Code is: ${params.resetCode}. This code is valid for ${params.expiresInMinutes} minutes.`
+  };
+}

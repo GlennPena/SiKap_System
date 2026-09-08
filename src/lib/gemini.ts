@@ -6,9 +6,9 @@ import { YouthProfile, TESDAProgram, SkillGapData } from "../types";
  */
 async function generateContentWithFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
   const modelsToTry = Array.from(new Set([
+    "gemini-3.5-flash",
     process.env.GEMINI_MODEL,
     "gemini-3.6-flash",
-    "gemini-3.5-flash",
     "gemini-3.1-flash-lite"
   ].filter(Boolean))) as string[];
 
@@ -38,6 +38,7 @@ export async function generateYouthCareerPathway(
 ): Promise<string> {
   const topProg = topPrograms && topPrograms.length > 0 ? topPrograms[0] : null;
   const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const brgyName = youth.barangay?.trim() || "San Luis";
 
   const generateDynamicPersonalizedRationale = () => {
     const userSkills = youth.skills && youth.skills.length > 0
@@ -50,7 +51,7 @@ export async function generateYouthCareerPathway(
     const progTitle = topProg ? topProg.title : "Vocational Training Program";
     const provider = topProg ? topProg.provider : "TESDA Partner Institution";
 
-    return `${firstName} possesses background skills in ${userSkills}. Enrolling in ${progTitle} at ${provider} directly bridges their technical competencies, certifying their qualifications under national standards to achieve their career ambition of "${targetGoal}".`;
+    return `As a registered Katipunan ng Kabataan member from Barangay ${brgyName}, San Luis, ${firstName} possesses practical background skills in ${userSkills}. Enrolling in ${progTitle} at ${provider} directly bridges their technical competencies, certifying their qualifications under national standards to achieve their career ambition of "${targetGoal}".`;
   };
 
   const apiKey = process.env.GEMINI_API_KEY || "";
@@ -61,18 +62,18 @@ export async function generateYouthCareerPathway(
   try {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `
-You are an expert AI Career Matchmaking Consultant analyzing a youth profile for Sangguniang Kabataan in San Luis, Pampanga.
+You are an expert AI Career Matchmaking Consultant analyzing a youth profile for the Sangguniang Kabataan (SK) and Katipunan ng Kabataan (KK) in the Municipality of San Luis, Pampanga.
 
 Evaluate this youth profile against the target program and write a 100% personalized, natural language match rationale explaining WHY this specific program was chosen for them.
 
 YOUTH PROFILE:
 - Full Name: ${youth.name}
+- Registered Barangay: Barangay ${brgyName}, San Luis, Pampanga (OFFICIALLY VERIFIED)
 - Age: ${youth.age}
-- Barangay: ${youth.barangay || "San Luis"}
 - Educational Attainment: ${youth.educationalAttainment}
 - Current Status: ${youth.currentStatus}
 - Registered Skills & Competencies: ${youth.skills.join(", ") || "None listed"}
-- Expressed Interests: ${youth.interests.join(", ") || "None listed"}
+- Expressed Interests: ${youth.interests?.join(", ") || "None listed"}
 - Preferred Sector: ${youth.sectorPreference}
 - Career & Livelihood Goal: ${youth.livelihoodGoal}
 
@@ -81,10 +82,11 @@ TARGET PROGRAM:
 - Provider: ${topProg ? topProg.provider : "TESDA Partner"}
 
 REQUIREMENTS FOR YOUR RESPONSE:
-1. Provide a personalized 2 to 3 sentence reasoning rationale explaining why ${firstName} is matched to this program.
-2. Directly reference ${firstName}'s registered skills (${youth.skills.slice(0, 3).join(", ") || "background"}) and how they align with the program's focus.
-3. Connect how completing this program unlocks their goal ("${youth.livelihoodGoal}").
-4. Output ONLY the raw rationale text. Do NOT use quotes, markdown bolding, or bullet points.
+1. Provide a personalized 2 to 3 sentence reasoning rationale explaining why ${firstName} from Barangay ${brgyName} is matched to this program.
+2. Accurately identify ${firstName} as a Katipunan ng Kabataan (KK) member residing in Barangay ${brgyName}, San Luis. You MUST strictly use "Barangay ${brgyName}" and NEVER substitute or mention any other barangay.
+3. Directly reference ${firstName}'s registered skills (${youth.skills.slice(0, 3).join(", ") || "background"}) and how they align with the program's focus.
+4. Connect how completing this program unlocks their goal ("${youth.livelihoodGoal}").
+5. Output ONLY the raw rationale text. Do NOT use quotes, markdown bolding, or bullet points.
 `;
 
     const text = await generateContentWithFallback(ai, prompt);
@@ -105,6 +107,7 @@ export async function generateYouthPersonalizedAdviceBullets(
 ): Promise<string[]> {
   const topProg = topPrograms && topPrograms.length > 0 ? topPrograms[0] : null;
   const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const brgyName = youth.barangay?.trim() || "San Luis";
   const skillsStr = youth.skills && youth.skills.length > 0 ? youth.skills.join(" and ") : youth.sectorPreference || "your background skills";
   const goalStr = youth.livelihoodGoal || "your career goal";
   const progTitle = topProg ? topProg.title : "TESDA Vocational Course";
@@ -113,7 +116,7 @@ export async function generateYouthPersonalizedAdviceBullets(
   const defaultBullets = [
     `Leverage your existing foundational skills in ${skillsStr} during early practical modules of ${progTitle}.`,
     `Successfully complete the certified NC II coursework at ${provider} to obtain nationwide accredited credentials.`,
-    `Utilize local SK Livelihood referrals in Barangay ${youth.barangay || "San Luis"} to secure placement matching "${goalStr}".`
+    `Utilize local Katipunan ng Kabataan (KK) referrals in Barangay ${brgyName} to secure placement matching "${goalStr}".`
   ];
 
   const apiKey = process.env.GEMINI_API_KEY || "";
@@ -129,6 +132,7 @@ Generate exactly 3 concise, highly personalized, and actionable bullet points fo
 
 YOUTH PROFILE:
 - Name: ${youth.name}
+- Barangay: Barangay ${brgyName}, San Luis, Pampanga
 - Skills: ${skillsStr}
 - Sector Preference: ${youth.sectorPreference}
 - Goal: ${goalStr}
@@ -138,10 +142,10 @@ TARGET PROGRAM:
 - Provider: ${provider}
 
 REQUIREMENTS:
-- Exactly 3 actionable bullet points tailored specifically to ${firstName}.
+- Exactly 3 actionable bullet points tailored specifically to ${firstName} from Barangay ${brgyName}.
 - Step 1: Action item focusing on leveraging their skills (${skillsStr}).
 - Step 2: Action item focusing on completing ${progTitle} at ${provider}.
-- Step 3: Action item focusing on achieving their goal ("${goalStr}").
+- Step 3: Action item focusing on connecting with local KK/SK referrals in Barangay ${brgyName} to achieve their goal ("${goalStr}").
 - Output ONLY the 3 lines starting each line with "• ". Do NOT include intro or outro headers.
 `;
 

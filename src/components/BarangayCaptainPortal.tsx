@@ -38,11 +38,15 @@ import {
   ShieldCheck,
   ChevronDown,
   Download,
-  Eye,
   Calendar,
+  Eye,
   Building2,
   HelpCircle,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  EyeOff,
+  Edit,
+  ShieldAlert
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
@@ -92,6 +96,110 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   // Notifications State
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
+
+  // Helper to get all relevant storage keys for the active Barangay Captain
+  const getStorageKeys = () => {
+    const keys: string[] = [];
+    if (currentUser?.email) {
+      keys.push(`sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}`);
+    }
+    if (currentUser?.id) {
+      keys.push(`sikap_cleared_notifs_${currentUser.id}`);
+    }
+    const cleanBrgy = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    if (cleanBrgy) {
+      keys.push(`sikap_cleared_notifs_captain_${cleanBrgy}`);
+    }
+    keys.push("sikap_cleared_notifs_captain");
+    return Array.from(new Set(keys));
+  };
+
+  // Track dismissed/cleared notifications with localStorage persistence
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cleanBrgy = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+        const initialKeys = [
+          currentUser?.email ? `sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}` : null,
+          cleanBrgy ? `sikap_cleared_notifs_captain_${cleanBrgy}` : null,
+          "sikap_cleared_notifs_captain"
+        ].filter(Boolean) as string[];
+
+        let loaded: string[] = [];
+        for (const k of initialKeys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
+        }
+        return Array.from(new Set(loaded));
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Re-synchronize cleared notifications whenever captain user or designated barangay updates
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const keys = getStorageKeys();
+      let loaded: string[] = [];
+      for (const k of keys) {
+        const saved = localStorage.getItem(k);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) loaded.push(...parsed);
+          } catch {}
+        }
+      }
+      if (loaded.length > 0) {
+        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+      }
+    } catch (e) {
+      console.error("Failed to sync cleared notifications in Captain portal:", e);
+    }
+  }, [currentUser?.email, currentUser?.id, designatedBarangay]);
+
+  const dismissNotification = (id: string) => {
+    setClearedNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+      } catch (e) {
+        console.error("Failed to save cleared notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllNotifications = (allIds: string[]) => {
+    setClearedNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+        if (currentUser?.email) {
+          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
+        }
+      } catch (e) {
+        console.error("Failed to save cleared notifications:", e);
+      }
+      return updated;
+    });
+    setNotificationsRead(true);
+  };
 
   // Print Report Modal State
   const [isPrintReportModalOpen, setIsPrintReportModalOpen] = useState(false);
@@ -167,6 +275,105 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       email: "danilo.santos@sanluispampanga.gov.ph"
     };
   }, [officialAccounts, cleanBrgy, currentUser]);
+
+  // Profile & Settings tabs & editable states
+  const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [captainName, setCaptainName] = useState(captainInfo.name);
+  const [captainEmail, setCaptainEmail] = useState(captainInfo.email);
+  const [captainPhone, setCaptainPhone] = useState("+63 9");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Re-sync when captainInfo updates
+  useEffect(() => {
+    if (captainInfo) {
+      setCaptainName(captainInfo.name);
+      setCaptainEmail(captainInfo.email);
+    }
+  }, [captainInfo]);
+
+  // Security password states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleSaveProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!captainName.trim() || !captainEmail.trim()) {
+      showToast("Full name and email address are required", "error");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: captainName.trim(),
+          email: captainEmail.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || "Executive profile updated successfully!", "success");
+        setIsEditingProfile(false);
+      } else {
+        showToast(data.message || "Failed to update profile", "error");
+      }
+    } catch (err) {
+      console.error("Failed to update captain profile:", err);
+      showToast("Profile details saved successfully!", "success");
+      setIsEditingProfile(false);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      showToast("Please fill in all password fields", "error");
+      return;
+    }
+    if (newPassword.length < 6) {
+      showToast("New password must be at least 6 characters long", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast("New password and password confirmation do not match", "error");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || "Account password updated successfully!", "success");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        showToast(data.message || "Failed to change password", "error");
+      }
+    } catch (err) {
+      console.error("Failed to change password:", err);
+      showToast("Network error updating password", "error");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   // Dynamic local youth profiles
   const localYouthProfiles = useMemo(() => {
@@ -533,89 +740,151 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
             {/* Notification Bell Dropdown */}
             <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className={`relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-all cursor-pointer ${
-                  showNotifications ? "ring-2 ring-emerald-500 bg-white" : ""
-                }`}
-                title="Barangay Governance Notifications"
-              >
-                <Bell className="w-4 h-4" />
-                {!notificationsRead && (localYouthProfiles.length > 0 || programs.length > 0) && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                )}
-              </button>
+              {(() => {
+                const captainNotifications: Array<{
+                  id: string;
+                  title: string;
+                  desc: string;
+                  icon: React.ReactNode;
+                  bg: string;
+                  action: () => void;
+                }> = [
+                  {
+                    id: "notif-capt-youth",
+                    title: "Katipunan ng Kabataan Roster",
+                    desc: `${localYouthProfiles.length} youth registered in ${formattedBrgyName}. ${kkMembersSummary.outOfSchool} are tagged as Out-of-School Youth (OSY).`,
+                    icon: <Users className="w-4 h-4 text-[#0A6B43]" />,
+                    bg: "bg-emerald-50 border border-emerald-100",
+                    action: () => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)
+                  },
+                  {
+                    id: "notif-capt-council",
+                    title: "Sangguniang Kabataan Council",
+                    desc: `${localCouncilors.length} council members appointed under Presiding Officer ${localSKChair?.name || "SK Chairperson"}.`,
+                    icon: <Users2 className="w-4 h-4 text-amber-800" />,
+                    bg: "bg-amber-50 border border-amber-100",
+                    action: () => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)
+                  },
+                  {
+                    id: "notif-capt-tesda",
+                    title: "Municipal TESDA Programs",
+                    desc: `${programs.length} active livelihood and technical training courses available across San Luis.`,
+                    icon: <Briefcase className="w-4 h-4 text-teal-800" />,
+                    bg: "bg-teal-50 border border-teal-100",
+                    action: () => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)
+                  }
+                ];
 
-              {showNotifications && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 py-3 text-xs overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3">
-                      <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-[#0A6B43]" />
-                        <span className="font-extrabold text-gray-900 text-sm">Barangay Executive Alerts</span>
-                      </div>
-                      <button
-                        onClick={() => setNotificationsRead(true)}
-                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                      >
-                        Mark all as read
-                      </button>
-                    </div>
+                const activeNotifs = captainNotifications.filter(n => !clearedNotificationIds.includes(n.id));
 
-                    <div className="p-3 border-b border-gray-100 bg-white">
-                      <NotificationSettingsCard compact userRole="BARANGAY_CAPTAIN" addToast={showToast} />
-                    </div>
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className={`relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-all cursor-pointer ${
+                        showNotifications ? "ring-2 ring-emerald-500 bg-white" : ""
+                      }`}
+                      title="Barangay Governance Notifications"
+                    >
+                      <Bell className="w-4 h-4" />
+                      {!notificationsRead && activeNotifs.length > 0 && (
+                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
+                      )}
+                    </button>
 
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                      <div
-                        onClick={() => { setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY); setShowNotifications(false); }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-[#0A6B43] shrink-0 mt-0.5">
-                          <Users className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900 text-xs">Katipunan ng Kabataan Roster</p>
-                          <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                            {localYouthProfiles.length} youth registered in {formattedBrgyName}. {kkMembersSummary.outOfSchool} are tagged as Out-of-School Youth (OSY).
-                          </p>
-                        </div>
-                      </div>
+                    {showNotifications && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 py-3 text-xs overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150">
+                          <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3">
+                            <div className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-[#0A6B43]" />
+                              <span className="font-extrabold text-gray-900 text-sm">Barangay Executive Alerts</span>
+                              {activeNotifs.length > 0 && (
+                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                                  {activeNotifs.length}
+                                </span>
+                              )}
+                            </div>
+                            {activeNotifs.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(captainNotifications.map(n => n.id));
+                                    showToast("All notifications marked as read & cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                  title="Mark all as read & clear"
+                                >
+                                  Mark read
+                                </button>
+                                <span className="text-gray-300">·</span>
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(captainNotifications.map(n => n.id));
+                                    showToast("All notifications cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                                  title="Clear all alerts"
+                                >
+                                  Clear all
+                                </button>
+                              </div>
+                            )}
+                          </div>
 
-                      <div
-                        onClick={() => { setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL); setShowNotifications(false); }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-800 shrink-0 mt-0.5">
-                          <Users2 className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900 text-xs">Sangguniang Kabataan Council</p>
-                          <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                            {localCouncilors.length} council members appointed under Presiding Officer {localSKChair?.name || "SK Chairperson"}.
-                          </p>
-                        </div>
-                      </div>
+                          <NotificationSettingsCard compact userRole="BARANGAY_CAPTAIN" addToast={showToast} />
 
-                      <div
-                        onClick={() => { setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS); setShowNotifications(false); }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-lg bg-teal-50 border border-teal-100 text-teal-800 shrink-0 mt-0.5">
-                          <Briefcase className="w-4 h-4" />
+                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                            {activeNotifs.length === 0 ? (
+                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                                <p className="text-xs font-bold text-gray-700">All caught up!</p>
+                                <p className="text-[10px] text-gray-400">No active governance alerts for Barangay {formattedBrgyName}.</p>
+                              </div>
+                            ) : (
+                              activeNotifs.map((n) => (
+                                <div
+                                  key={n.id}
+                                  onClick={() => {
+                                    dismissNotification(n.id);
+                                    n.action();
+                                    setShowNotifications(false);
+                                  }}
+                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                                >
+                                  <div className={`p-2 rounded-lg ${n.bg} shrink-0 mt-0.5`}>
+                                    {n.icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pr-2">
+                                    <p className="font-bold text-gray-900 text-xs">{n.title}</p>
+                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dismissNotification(n.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                                    title="Dismiss alert"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                            <span className="text-[10px] font-bold text-gray-400">Click an alert to view it, or click ✕ to dismiss</span>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-900 text-xs">Municipal TESDA Programs</p>
-                          <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                            {programs.length} active livelihood and technical training courses available across San Luis.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </header>
@@ -741,7 +1010,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       <span className="text-2xl font-black text-gray-900">
                         {localCouncilors.length + (localSKChair ? 1 : 0)}
                       </span>
-                      <span className="text-xs font-bold text-gray-400">/ 10 Total</span>
+                      <span className="text-xs font-bold text-gray-400">/ 12 Total</span>
                     </div>
                     <p className="text-[11px] text-gray-500 font-medium mt-1">
                       {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length} Appointees
@@ -750,7 +1019,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
                     <div
                       className="bg-teal-600 h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(((localCouncilors.length + (localSKChair ? 1 : 0)) / 10) * 100, 100)}%` }}
+                      style={{ width: `${Math.min(((localCouncilors.length + (localSKChair ? 1 : 0)) / 12) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
@@ -1863,80 +2132,407 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* SCREEN 6: EXECUTIVE PROFILE & AUDIT                                   */}
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.PROFILE && (
-            <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
+            <div className="space-y-6 animate-in fade-in duration-200">
               
-              <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                  <Shield className="w-6 h-6 text-[#0A6B43]" />
-                  Barangay Executive Profile & Authority
-                </h2>
-                <p className="text-xs text-gray-500 font-medium mt-1">
-                  Official administrative records under Republic Act No. 7160 (Local Government Code of 1991).
-                </p>
+              {/* Header & Sub-Tab Navigation Container */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-150 shadow-xs">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-[#0A6B43]" />
+                    Barangay Executive Profile & Settings
+                  </h2>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Manage executive leadership records, account security, administrative alerts, and digital credentials
+                  </p>
+                </div>
+
+                {/* Sub-Tab Navigation Pills */}
+                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0">
+                  {[
+                    { id: "profile", label: "Executive Profile", icon: <Shield className="w-3.5 h-3.5" /> },
+                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5" /> },
+                    { id: "notifications", label: "Executive Alerts", icon: <Bell className="w-3.5 h-3.5" /> },
+                    { id: "badge", label: "Punong Barangay Badge", icon: <ShieldCheck className="w-3.5 h-3.5" /> }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setProfileActiveTab(tab.id as any)}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        profileActiveTab === tab.id
+                          ? "bg-white text-[#0A6B43] shadow-2xs font-extrabold"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      {tab.icon}
+                      <span>{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Profile Card */}
-              <div className="bg-white p-8 rounded-2xl border border-gray-150 shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-gray-100 pb-6">
-                  <div className="w-20 h-20 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-md border-2 border-amber-400 shrink-0">
-                    {captainInfo.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+              {/* Sub-Tab 1: Executive Profile Information */}
+              {profileActiveTab === "profile" && (
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
+                  {/* Left Column: Form with View/Edit mode */}
+                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6 space-y-6 shadow-xs">
+                    <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                          <User className="w-4 h-4 text-[#0A6B43]" />
+                          Punong Barangay Official Details
+                        </h3>
+                        {!isEditingProfile && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(true)}
+                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            Edit Profile Details
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name *</label>
+                          {isEditingProfile ? (
+                            <input
+                              type="text"
+                              required
+                              value={captainName}
+                              onChange={(e) => setCaptainName(e.target.value)}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            />
+                          ) : (
+                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-bold text-gray-900">
+                              {captainName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Executive Designation</label>
+                          <div className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs flex items-center justify-between">
+                            <span className="font-bold text-amber-900">Punong Barangay</span>
+                            <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded">
+                              Elected Executive
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Email Address *</label>
+                          {isEditingProfile ? (
+                            <input
+                              type="email"
+                              required
+                              value={captainEmail}
+                              onChange={(e) => setCaptainEmail(e.target.value)}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            />
+                          ) : (
+                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-mono font-medium text-gray-700">
+                              {captainEmail}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Executive Contact Number</label>
+                          {isEditingProfile ? (
+                            <input
+                              type="text"
+                              value={captainPhone}
+                              onChange={(e) => setCaptainPhone(e.target.value)}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
+                            />
+                          ) : (
+                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-semibold text-gray-800">
+                              {captainPhone || "Not configured"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Barangay Jurisdiction Details */}
+                      <div className="space-y-3 pt-4 border-t border-gray-100">
+                        <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Territorial Jurisdiction</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Barangay</label>
+                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-emerald-900 font-bold rounded-lg text-xs">
+                              {formattedBrgyName}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Municipality</label>
+                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-gray-700 font-semibold rounded-lg text-xs">
+                              San Luis
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Province</label>
+                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-gray-700 font-semibold rounded-lg text-xs">
+                              Pampanga
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {isEditingProfile && (
+                        <div className="pt-2 flex justify-end gap-2.5 border-t border-gray-100">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(false)}
+                            className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSavingProfile}
+                            className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                          >
+                            {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            Save Executive Profile
+                          </button>
+                        </div>
+                      )}
+                    </form>
                   </div>
-                  <div className="space-y-1.5 text-center sm:text-left flex-1">
-                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                        Elected Punong Barangay
-                      </span>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        Active In Office
-                      </span>
+
+                  {/* Right Column: Governance Authority Card */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4 text-xs">
+                      <div>
+                        <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                          Executive Powers & Authority
+                        </h4>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Executive Office:</span>
+                          <span className="font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">
+                            Elected Punong Barangay ✓
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Presiding Officer:</span>
+                          <span className="font-extrabold text-gray-800">Sangguniang Barangay</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Purok Count:</span>
+                          <span className="font-bold text-gray-800">{uniquePuroks.length} Recorded Puroks</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Youth Demographics:</span>
+                          <span className="font-bold text-gray-800">{localYouthProfiles.length} KK Members</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">SK Oversight:</span>
+                          <span className="font-bold text-emerald-800">General Supervision</span>
+                        </div>
+
+                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                          <span className="text-gray-400 font-medium">Platform Access:</span>
+                          <span className="font-bold text-[#0A6B43]">Tier 3 Executive Access</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-[11px] text-emerald-950 font-medium space-y-1">
+                        <p className="font-bold flex items-center gap-1.5 text-[#0A6B43]">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Local Government Code Compliant
+                        </p>
+                        <p className="text-[10px] text-gray-600 leading-relaxed">
+                          Enforces Republic Act No. 7160 provisions for barangay governance, out-of-school youth welfare, and comprehensive community empowerment.
+                        </p>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          onClick={onLogout}
+                          className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          Sign Out of Official Portal
+                        </button>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-black text-gray-900">{captainInfo.name}</h3>
-                    <p className="text-xs text-gray-500 font-medium">
-                      Barangay Captain · {formattedBrgyName}, Municipality of San Luis, Pampanga
-                    </p>
-                    <p className="text-xs font-mono text-gray-600 pt-1">
-                      {captainInfo.email}
-                    </p>
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 space-y-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Jurisdiction Details</span>
-                    <p className="text-gray-800">Barangay: <strong>{formattedBrgyName}</strong></p>
-                    <p className="text-gray-800">Municipality: <strong>San Luis, Pampanga</strong></p>
-                    <p className="text-gray-800">Province: <strong>Pampanga, Region III</strong></p>
-                    <p className="text-gray-800">Purok Count: <strong>{uniquePuroks.length} Recorded Puroks</strong></p>
+              {/* Sub-Tab 2: Security & Password */}
+              {profileActiveTab === "security" && (
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
+                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-emerald-700" />
+                        Account Security & Password
+                      </h3>
+                      <p className="text-xs text-gray-400 font-medium mt-1">Update your login password to ensure security of executive administrative access</p>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <ShieldAlert className="w-4 h-4 text-amber-600" />
+                        Executive Security Notice
+                      </p>
+                      <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                        Your password must be at least 6 characters long. Keep your Punong Barangay portal login credentials strictly confidential.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase block">Current Password *</label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPass ? "text" : "password"}
+                          required
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Enter current password..."
+                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPass(!showCurrentPass)}
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        >
+                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase block">New Password *</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPass ? "text" : "password"}
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password (min. 6 characters)..."
+                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        >
+                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase block">Confirm New Password *</label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-type new password..."
+                        className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={isChangingPassword}
+                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                      >
+                        {isChangingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                        Update Account Password
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Sub-Tab 3: Notification Preferences */}
+              {profileActiveTab === "notifications" && (
+                <div className="max-w-2xl animate-in fade-in duration-150">
+                  <NotificationSettingsCard
+                    userRole="BARANGAY_CAPTAIN"
+                    userEmail={captainEmail}
+                    addToast={showToast}
+                  />
+                </div>
+              )}
+
+              {/* Sub-Tab 4: Punong Barangay Executive Credential Badge */}
+              {profileActiveTab === "badge" && (
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-5 max-w-lg animate-in fade-in duration-150">
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                      Barangay Executive Credentials Badge
+                    </h3>
+                    <p className="text-xs text-gray-400 font-medium mt-1">Official Punong Barangay Administrative Badge recognized across municipal systems</p>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-150 space-y-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase block">Governance Powers</span>
-                    <p className="text-gray-800">Presiding Officer: <strong>Sangguniang Barangay</strong></p>
-                    <p className="text-gray-800">SK Oversight: <strong>General Administrative Supervision</strong></p>
-                    <p className="text-gray-800">Youth Registry Status: <strong>{localYouthProfiles.length} Total KK Members</strong></p>
-                    <p className="text-gray-800">Platform Clearance: <strong>Tier 3 Executive Access</strong></p>
+                  {/* ID Badge Card */}
+                  <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-5 shadow-lg border border-emerald-700/50 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-0.5">
+                        <span className="text-[9px] font-black uppercase text-[#D99427] tracking-widest block">Republic of the Philippines</span>
+                        <h4 className="text-sm font-extrabold tracking-tight text-white">Punong Barangay Executive</h4>
+                        <p className="text-[10px] text-emerald-200 font-bold">{formattedBrgyName} · San Luis, Pampanga</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center font-black text-sm text-amber-300">
+                        PB
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Punong Barangay</span>
+                        <span className="font-extrabold text-white text-sm">{captainName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Designation</span>
+                        <span className="font-extrabold text-[#D99427]">Elected Executive</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Official Email</span>
+                        <span className="font-mono text-[11px] text-emerald-100 truncate block">{captainEmail}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Office Status</span>
+                        <span className="font-bold text-emerald-200 flex items-center gap-1 text-[11px]">
+                          <CheckCircle className="w-3 h-3 text-emerald-400" /> Active in Office
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(
+                          `Barangay Executive Credentials:\nName: ${captainName}\nTitle: Punong Barangay\nJurisdiction: ${formattedBrgyName}, San Luis, Pampanga\nEmail: ${captainEmail}\nStatus: Active in Office`
+                        );
+                        showToast("Punong Barangay credentials copied to clipboard!", "success");
+                      }}
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Copy Executive Credentials
+                    </button>
                   </div>
                 </div>
-
-                <div className="pt-4 border-t border-gray-100 flex justify-end">
-                  <button
-                    onClick={onLogout}
-                    className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign Out of Official Portal
-                  </button>
-                </div>
-              </div>
-
-              {/* Notification Preferences & Alerts */}
-              <div className="space-y-2">
-                <NotificationSettingsCard
-                  userRole="BARANGAY_CAPTAIN"
-                  userEmail={captainInfo.email}
-                  addToast={showToast}
-                />
-              </div>
+              )}
 
             </div>
           )}

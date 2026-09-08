@@ -51,6 +51,111 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
 
+  // Helper to get all relevant storage keys for the active youth user
+  const getStorageKeys = () => {
+    const keys: string[] = [];
+    const email = currentUser?.email || youthProfile?.email;
+    if (email) {
+      keys.push(`sikap_cleared_notifs_${email.toLowerCase().trim()}`);
+    }
+    if (currentUser?.id) {
+      keys.push(`sikap_cleared_notifs_${currentUser.id}`);
+    }
+    if (youthProfile?.id && youthProfile.id !== "empty-youth-profile") {
+      keys.push(`sikap_cleared_notifs_${youthProfile.id}`);
+    }
+    keys.push("sikap_cleared_notifs_youth");
+    return Array.from(new Set(keys));
+  };
+
+  // Track dismissed/cleared notifications with localStorage persistence
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const initialKeys = [
+          currentUser?.email ? `sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}` : null,
+          youthProfile?.email ? `sikap_cleared_notifs_${youthProfile.email.toLowerCase().trim()}` : null,
+          youthProfile?.id && youthProfile.id !== "empty-youth-profile" ? `sikap_cleared_notifs_${youthProfile.id}` : null,
+          "sikap_cleared_notifs_youth"
+        ].filter(Boolean) as string[];
+
+        let loaded: string[] = [];
+        for (const k of initialKeys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
+        }
+        return Array.from(new Set(loaded));
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Re-synchronize cleared notifications whenever youth profile or auth loads
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const keys = getStorageKeys();
+      let loaded: string[] = [];
+      for (const k of keys) {
+        const saved = localStorage.getItem(k);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) loaded.push(...parsed);
+          } catch {}
+        }
+      }
+      if (loaded.length > 0) {
+        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+      }
+    } catch (e) {
+      console.error("Failed to load cleared notifications on profile sync:", e);
+    }
+  }, [currentUser?.email, currentUser?.id, youthProfile?.id, youthProfile?.email]);
+
+  const dismissNotification = (id: string) => {
+    setClearedNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+      } catch (e) {
+        console.error("Failed to save cleared notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllNotifications = (allIds: string[]) => {
+    setClearedNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+        const email = currentUser?.email || youthProfile?.email;
+        if (email) {
+          localStorage.setItem(`sikap_notifs_read_${email.toLowerCase().trim()}`, "true");
+        }
+      } catch (e) {
+        console.error("Failed to save cleared notifications:", e);
+      }
+      return updated;
+    });
+    setNotificationsRead(true);
+  };
+
   // Profile sub-tabs & editable states
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "skills" | "security" | "notifications" | "badge">("profile");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -287,23 +392,79 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     matchScore?: number;
   } | null>(null);
 
+  // Helper to reliably match youth names regardless of accents or casing
+  const isSameYouth = (rYouthName?: string, currentYouthName?: string) => {
+    if (!rYouthName || !currentYouthName) return false;
+    const n1 = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const n2 = currentYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+  };
+
+  // Check if a youth has already completed this program or an identical/equivalent qualification
+  const isProgramCompleted = (prog: TESDAProgram) => {
+    return !!referrals?.some(r =>
+      isSameYouth(r.youthName, youthProfile.name) &&
+      r.status === "Archived" &&
+      (
+        r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim() ||
+        r.programId === prog.id ||
+        (
+          prog.title.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim().length > 3 &&
+          r.programTitle.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim() ===
+          prog.title.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim()
+        )
+      )
+    );
+  };
+
+  // Scored programs with completed qualification indicator
   const scoredPrograms = useMemo(() => {
     return programs
       .map(p => ({
         program: p,
-        matchScore: calculateContentBasedMatchScore(youthProfile, p)
+        matchScore: calculateContentBasedMatchScore(youthProfile, p),
+        isCompleted: isProgramCompleted(p)
       }))
       .sort((a, b) => b.matchScore - a.matchScore);
-  }, [programs, youthProfile]);
+  }, [programs, youthProfile, referrals]);
+
+  // Actionable uncompleted programs for featured recommendation and upskilling
+  const uncompletedScoredPrograms = useMemo(() => {
+    return scoredPrograms.filter(sp => !sp.isCompleted);
+  }, [scoredPrograms]);
+
+  // Completed programs where the member is already certified
+  const completedScoredPrograms = useMemo(() => {
+    return scoredPrograms.filter(sp => sp.isCompleted);
+  }, [scoredPrograms]);
+
+  // Programs ordered for Matches tab: Actionable uncompleted first, completed qualifications below
+  const matchesTabPrograms = useMemo(() => {
+    return [...scoredPrograms].sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) {
+        return a.isCompleted ? 1 : -1;
+      }
+      return b.matchScore - a.matchScore;
+    });
+  }, [scoredPrograms]);
 
   useEffect(() => {
-    if (youthProfile && programs.length > 0) {
+    // Only fetch AI match rationale once actual youth profile is resolved and has a registered barangay
+    if (!youthProfile || youthProfile.id === "empty-youth-profile" || !youthProfile.barangay) {
+      return;
+    }
+    // Target the actionable uncompleted program first so Gemini provides advice on the next upskilling course
+    const targetProgramsForAdvice = uncompletedScoredPrograms.length > 0
+      ? uncompletedScoredPrograms.map(sp => sp.program)
+      : scoredPrograms.map(sp => sp.program);
+
+    if (targetProgramsForAdvice.length > 0) {
       fetch("/api/match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           youth: youthProfile,
-          programs: scoredPrograms.map(sp => sp.program),
+          programs: targetProgramsForAdvice,
           generateLLMAdvice: true
         })
       })
@@ -318,19 +479,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         })
         .catch(err => console.error("Error fetching Gemini advice:", err));
     }
-  }, [youthProfile.skills, youthProfile.sectorPreference, youthProfile.livelihoodGoal, youthProfile.interests, scoredPrograms]);
+  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, uncompletedScoredPrograms, scoredPrograms]);
 
   const skChairpersonName = useMemo(() => {
     return "Your SK Chairperson";
   }, [youthProfile.barangay]);
-
-  // Helper to reliably match youth names regardless of accents or casing
-  const isSameYouth = (rYouthName?: string, currentYouthName?: string) => {
-    if (!rYouthName || !currentYouthName) return false;
-    const n1 = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const n2 = currentYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-  };
 
   // Get enrolled referrals and match them with program details
   const enrolledReferrals = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name) && r.status === "Enrolled") || [];
@@ -367,23 +520,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       }
     }
     return null;
-  };
-
-  // Check if a youth has already completed this program or an identical/equivalent qualification
-  const isProgramCompleted = (prog: TESDAProgram) => {
-    return !!referrals?.some(r =>
-      isSameYouth(r.youthName, youthProfile.name) &&
-      r.status === "Archived" &&
-      (
-        r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim() ||
-        r.programId === prog.id ||
-        (
-          prog.title.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim().length > 3 &&
-          r.programTitle.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim() ===
-          prog.title.toLowerCase().replace(/nc\s*(i|ii|iii|iv)/gi, "").trim()
-        )
-      )
-    );
   };
 
   const handleDeletePathway = async (referralId: string) => {
@@ -947,132 +1083,167 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           <div className="flex items-center gap-4 relative" id="notification-bell-container">
             {/* Notification Bell */}
             <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
-                  showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
-                }`}
-                title="Notifications"
-              >
-                <Bell className="w-5 h-5" />
-                {!notificationsRead && ((referrals?.filter(r => r.youthName === youthProfile.name).length ?? 0) > 0 || localAnnouncements.length > 0) && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                )}
-              </button>
+              {(() => {
+                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                const rawNotifications: Array<{ id: string; text: string; subtext: string; date: string; type: "pending" | "enrolled" | "declined" | "general"; targetTab: YouthScreen }> = [];
 
-              {showNotifications && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-emerald-100 rounded-2xl shadow-2xl z-50 py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
-                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/60 p-3">
-                      <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-[#0A6B43]" />
-                        <span className="font-extrabold text-gray-900 text-sm">Notifications & Alerts</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setNotificationsRead(true);
-                          addToast("Notifications marked as read", "info");
-                        }}
-                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                      >
-                        Mark all as read
-                      </button>
-                    </div>
+                userApps.forEach(app => {
+                  if (app.status === "Pending") {
+                    rawNotifications.push({
+                      id: `notify-${app.id}-pending`,
+                      text: `Requirements Submission Required`,
+                      subtext: `Your application for "${app.programTitle}" is pending. Submit physical requirements at TESDA GPSAT.`,
+                      date: app.referralDate || "Just Now",
+                      type: "pending",
+                      targetTab: YouthScreen.PATHWAY
+                    });
+                  } else if (app.status === "Enrolled") {
+                    rawNotifications.push({
+                      id: `notify-${app.id}-enrolled`,
+                      text: `🎉 Enrollment Approved!`,
+                      subtext: `You are officially accepted into "${app.programTitle}". Training sessions will start soon.`,
+                      date: "Just Now",
+                      type: "enrolled",
+                      targetTab: YouthScreen.PATHWAY
+                    });
+                  } else if (app.status === "Declined") {
+                    rawNotifications.push({
+                      id: `notify-${app.id}-declined`,
+                      text: `❌ Application Declined`,
+                      subtext: `Your application for "${app.programTitle}" was declined.`,
+                      date: "Just Now",
+                      type: "declined",
+                      targetTab: YouthScreen.PATHWAY
+                    });
+                  }
+                });
 
-                    <div className="p-3 border-b border-gray-100 bg-white">
-                      <NotificationSettingsCard compact userRole="KK_YOUTH" addToast={addToast} />
-                    </div>
+                localAnnouncements.forEach((ann, idx) => {
+                  const annId = ann.id || `ann-${(ann.title || "").replace(/[^a-zA-Z0-9]/g, "_")}-${idx}`;
+                  rawNotifications.push({
+                    id: `notify-ann-${annId}`,
+                    text: ann.title,
+                    subtext: ann.body,
+                    date: ann.datePosted,
+                    type: "general",
+                    targetTab: YouthScreen.HOME
+                  });
+                });
 
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                      {(() => {
-                        const userApps = referrals?.filter(r => r.youthName === youthProfile.name) || [];
-                        const notificationsList: Array<{ id: string; text: string; subtext: string; date: string; type: "pending" | "enrolled" | "declined" | "general"; targetTab: YouthScreen }> = [];
+                const notificationsList = rawNotifications.filter(item => !clearedNotificationIds.includes(item.id));
 
-                        userApps.forEach(app => {
-                          if (app.status === "Pending") {
-                            notificationsList.push({
-                              id: `notify-${app.id}-pending`,
-                              text: `Requirements Submission Required`,
-                              subtext: `Your application for "${app.programTitle}" is pending. Submit physical requirements at TESDA GPSAT.`,
-                              date: app.referralDate || "Just Now",
-                              type: "pending",
-                              targetTab: YouthScreen.PATHWAY
-                            });
-                          } else if (app.status === "Enrolled") {
-                            notificationsList.push({
-                              id: `notify-${app.id}-enrolled`,
-                              text: `🎉 Enrollment Approved!`,
-                              subtext: `You are officially accepted into "${app.programTitle}". Training sessions will start soon.`,
-                              date: "Just Now",
-                              type: "enrolled",
-                              targetTab: YouthScreen.PATHWAY
-                            });
-                          } else if (app.status === "Declined") {
-                            notificationsList.push({
-                              id: `notify-${app.id}-declined`,
-                              text: `❌ Application Declined`,
-                              subtext: `Your application for "${app.programTitle}" was declined.`,
-                              date: "Just Now",
-                              type: "declined",
-                              targetTab: YouthScreen.PATHWAY
-                            });
-                          }
-                        });
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
+                        showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
+                      }`}
+                      title="Notifications"
+                    >
+                      <Bell className="w-5 h-5" />
+                      {!notificationsRead && notificationsList.length > 0 && (
+                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
+                      )}
+                    </button>
 
-                        // Add announcements
-                        localAnnouncements.forEach((ann, idx) => {
-                          notificationsList.push({
-                            id: `notify-ann-${idx}`,
-                            text: ann.title,
-                            subtext: ann.body,
-                            date: ann.datePosted,
-                            type: "general",
-                            targetTab: YouthScreen.HOME
-                          });
-                        });
-
-                        if (notificationsList.length === 0) {
-                          return (
-                            <div className="p-8 text-center text-gray-400 font-medium space-y-1">
-                              <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
-                              <p className="text-xs font-bold text-gray-700">No alerts right now</p>
-                              <p className="text-[10px] text-gray-400">You are all caught up with your training applications!</p>
+                    {showNotifications && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-emerald-100 rounded-2xl shadow-2xl z-50 py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
+                          <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/60 p-3">
+                            <div className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-[#0A6B43]" />
+                              <span className="font-extrabold text-gray-900 text-sm">Notifications & Alerts</span>
+                              {notificationsList.length > 0 && (
+                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                  {notificationsList.length}
+                                </span>
+                              )}
                             </div>
-                          );
-                        }
-
-                        return notificationsList.map((item) => (
-                          <div
-                            key={item.id}
-                            onClick={() => {
-                              setActiveTab(item.targetTab);
-                              setShowNotifications(false);
-                            }}
-                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                          >
-                            <span className="mt-0.5 text-base leading-none">
-                              {item.type === "enrolled" && "🎉"}
-                              {item.type === "pending" && "📋"}
-                              {item.type === "declined" && "❌"}
-                              {item.type === "general" && "📢"}
-                            </span>
-                            <div className="space-y-0.5 flex-1">
-                              <p className="font-bold text-gray-900 leading-tight text-xs">{item.text}</p>
-                              <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.subtext}</p>
-                              <p className="text-[9px] text-emerald-700 mt-1 font-semibold">{item.date}</p>
-                            </div>
+                            {notificationsList.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(rawNotifications.map(n => n.id));
+                                    addToast("All notifications marked as read & cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                  title="Mark all notifications as read and clear them"
+                                >
+                                  Mark all read
+                                </button>
+                                <span className="text-gray-300">·</span>
+                                <button
+                                  onClick={() => {
+                                    clearAllNotifications(rawNotifications.map(n => n.id));
+                                    addToast("All notifications cleared", "info");
+                                  }}
+                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                                  title="Clear all alerts"
+                                >
+                                  Clear all
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        ));
-                      })()}
-                    </div>
 
-                    <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
-                      <span className="text-[10px] font-bold text-gray-400">Click any alert to navigate to that tab</span>
-                    </div>
-                  </div>
-                </>
-              )}
+                          <NotificationSettingsCard compact userRole="KK_YOUTH" addToast={addToast} />
+
+                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                            {notificationsList.length === 0 ? (
+                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                                <p className="text-xs font-bold text-gray-700">No alerts right now</p>
+                                <p className="text-[10px] text-gray-400">You are all caught up with your training applications!</p>
+                              </div>
+                            ) : (
+                              notificationsList.map((item) => (
+                                <div
+                                  key={item.id}
+                                  onClick={() => {
+                                    dismissNotification(item.id);
+                                    setActiveTab(item.targetTab);
+                                    setShowNotifications(false);
+                                  }}
+                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                                >
+                                  <span className="mt-0.5 text-base leading-none">
+                                    {item.type === "enrolled" && "🎉"}
+                                    {item.type === "pending" && "📋"}
+                                    {item.type === "declined" && "❌"}
+                                    {item.type === "general" && "📢"}
+                                  </span>
+                                  <div className="space-y-0.5 flex-1 min-w-0 pr-2">
+                                    <p className="font-bold text-gray-900 leading-tight text-xs">{item.text}</p>
+                                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.subtext}</p>
+                                    <p className="text-[9px] text-emerald-700 mt-1 font-semibold">{item.date}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dismissNotification(item.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                                    title="Dismiss alert"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                            <span className="text-[10px] font-bold text-gray-400">Click an alert to view it, or click ✕ to dismiss</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Profile Avatar Button */}
@@ -1286,11 +1457,84 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </div>
                 ) : (
                   (() => {
-                    const topMatchItem = scoredPrograms[0];
+                    // If member has already completed all available programs matching them
+                    if (uncompletedScoredPrograms.length === 0) {
+                      return (
+                        <div className="bg-linear-to-br from-[#112F24] via-[#164132] to-[#0A6B43] text-white rounded-2xl p-6 sm:p-7 shadow-lg border border-emerald-600/40 space-y-5 md:col-span-3">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
+                                  <Award className="w-3 h-3 text-amber-400" />
+                                  Milestone Achieved
+                                </span>
+                                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-700">
+                                  Step 3 Complete • Certified Graduate
+                                </span>
+                              </div>
+                              <h4 className="font-extrabold text-white text-xl sm:text-2xl tracking-tight">
+                                All Matching Qualifications Certified!
+                              </h4>
+                              <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-xl mt-1">
+                                Outstanding work, {youthProfile.name.split(" ")[0]}! You have successfully completed and attained official certification for all training courses currently aligned with your competencies.
+                              </p>
+                            </div>
+                            <div className="w-14 h-14 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
+                              <GraduationCap className="w-8 h-8" />
+                            </div>
+                          </div>
+
+                          {/* Placement & Roadmap Notice */}
+                          <div className="bg-white/10 backdrop-blur-xs p-4 rounded-xl border border-white/15 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-extrabold uppercase text-amber-300 tracking-wider flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                Active Next Step: Livelihood Placement & Career Launch
+                              </span>
+                            </div>
+                            <p className="text-xs text-emerald-50 leading-relaxed">
+                              Your certifications have unlocked <strong>Step 4: Livelihood Placement</strong>. Access your AI-generated 30-day employment roadmap, local micro-grant opportunities, and digital credentials.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 pt-2">
+                            <button
+                              onClick={() => setActiveTab(YouthScreen.PATHWAY)}
+                              className="text-xs font-black px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                            >
+                              <Sparkles className="w-4 h-4 text-slate-950" />
+                              View Step 4 Career Plan
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setActiveTab(YouthScreen.PROFILE);
+                                setProfileActiveTab("badge");
+                              }}
+                              className="text-xs font-bold px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all flex items-center gap-2 cursor-pointer"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                              View KK Digital Credential
+                            </button>
+
+                            <button
+                              onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                              className="text-xs font-semibold px-4 py-2.5 rounded-xl text-emerald-200 hover:text-white transition-colors cursor-pointer"
+                            >
+                              Browse Full Course Directory →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Otherwise, pick top uncompleted matching program as the featured upskilling course
+                    const topMatchItem = uncompletedScoredPrograms[0];
                     const featuredProg = topMatchItem?.program || programs[0];
                     const featuredScore = topMatchItem?.matchScore ?? calculateContentBasedMatchScore(youthProfile, featuredProg);
                     const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
-                    const isCompleted = isProgramCompleted(featuredProg);
+                    const isCompleted = false; // uncompletedScoredPrograms excludes completed courses
                     const isEnrolled = app?.status === "Enrolled";
                     const isDeclined = app?.status === "Declined";
                     const isPending = app?.status === "Pending";
@@ -1300,19 +1544,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     const isDisabled = isCompleted || !!app || isFull || !!overlapWarning || isUnverified;
 
                     return (
-                      <div className={`bg-white border rounded-2xl p-6 shadow-xs space-y-4 md:col-span-3 ${isCompleted ? "border-purple-200" : "border-[#D1FAE5]"}`}>
+                      <div className="bg-white border rounded-2xl p-6 shadow-xs space-y-4 md:col-span-3 border-[#D1FAE5]">
                         <div className="flex justify-between items-start gap-4">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xs uppercase font-bold tracking-wider ${isCompleted ? "text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full border border-purple-200" : "text-[#D97706]"}`}>
-                                {isCompleted ? "Completed Qualification • Top AI Match" : "Featured AI Match for You"}
+                              <span className="text-xs uppercase font-bold tracking-wider text-[#D97706]">
+                                Featured AI Match for You
                               </span>
-                              {isCompleted && (
-                                <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 flex items-center gap-1">
-                                  <CheckCircle className="w-3 h-3 text-purple-600" />
-                                  Certified Graduate
-                                </span>
-                              )}
                             </div>
                             <h4 className="font-extrabold text-gray-800 text-lg mt-1">{featuredProg.title}</h4>
                             <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-150 inline-block mt-1">
@@ -1333,7 +1571,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             </span>
                           </div>
                           <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                            "{liveGeminiAdvice || `${youthProfile.name.split(' ')[0]} has practical background skills in ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "vocational trades"}. This ${featuredProg.title} program will officially certify their qualifications under TESDA and unlock formal job opportunities in ${youthProfile.sectorPreference || "their target industry"}.`}"
+                            "{liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} has practical background skills in ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "vocational trades"}. This ${featuredProg.title} program will officially certify their qualifications under TESDA and unlock formal job opportunities in ${youthProfile.sectorPreference || "their target industry"}.`}"
                           </p>
                         </div>
 
@@ -1383,18 +1621,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             <p>📍 <strong>Location:</strong> {featuredProg.location}</p>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            {isCompleted && (
-                              <span className="text-xs font-extrabold text-purple-800 bg-purple-50 border border-purple-200 px-3 py-2 rounded-lg flex items-center gap-1.5 shadow-2xs">
-                                <CheckCircle className="w-4 h-4 text-purple-600" />
-                                Course Completed & Certified
-                              </span>
-                            )}
                             <button
                               onClick={() => setViewingProgramModal({ program: featuredProg, matchScore: featuredScore })}
                               className="text-xs font-extrabold px-5 py-2.5 rounded-lg bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                               <Eye className="w-4 h-4 text-emerald-200" />
-                              View Details
+                              View Details & Apply
                             </button>
                           </div>
                         </div>
@@ -1542,7 +1774,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {scoredPrograms.map(({ program: prog, matchScore: score }) => {
+                  {matchesTabPrograms.map(({ program: prog, matchScore: score }) => {
 
                     return (
                       <div key={prog.id} className="bg-white border border-gray-150 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-emerald-200 transition-all">
@@ -3370,7 +3602,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </span>
                 </div>
                 <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                  "{liveGeminiAdvice || `${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`}"
+                  "{liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`}"
                 </p>
               </div>
 

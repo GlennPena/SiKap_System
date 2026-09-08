@@ -7,10 +7,11 @@ import {
   Lock, Bell, Search, Filter, MapPin, Sparkles, AlertTriangle, ChevronRight, ChevronLeft,
   User, Mail, Phone, Calendar, CheckCircle, X, Layers, ExternalLink, ShieldCheck,
   Key, Power, Ban, FileText, History, Clock, Tag, Award, GraduationCap, CheckCircle as CheckIcon,
-  LayoutGrid, List, UserPlus, ShieldAlert
+  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { NotificationSettingsCard } from "./NotificationSettingsCard";
 
 interface SuperAdminPortalProps {
   youthProfiles: YouthProfile[];
@@ -43,8 +44,104 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   currentUser
 }) => {
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "youth_masterlist" | "barangays" | "tesda_records" | "audit_logs" | "create_account" | "create_tesda"
+    "dashboard" | "youth_masterlist" | "barangays" | "tesda_records" | "audit_logs" | "create_account" | "create_tesda" | "profile"
   >("dashboard");
+
+  // Profile Tab State
+  const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [adminName, setAdminName] = useState(currentUser?.name || "System Super Administrator");
+  const [adminEmail, setAdminEmail] = useState(currentUser?.email || "admin@sanluis.gov.ph");
+  const [adminPhone, setAdminPhone] = useState("+63 917 123 4567");
+  const [adminOffice, setAdminOffice] = useState("Municipal Youth Development Office (MYDO)");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Password Security Form State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.name) setAdminName(currentUser.name);
+    if (currentUser?.email) setAdminEmail(currentUser.email);
+  }, [currentUser]);
+
+  const handleSaveProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminName.trim()) {
+      addToast("Administrator name cannot be empty.", "error");
+      return;
+    }
+    if (!adminEmail.trim() || !adminEmail.includes("@")) {
+      addToast("Please enter a valid administrative email address.", "error");
+      return;
+    }
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: currentUser?.id,
+          name: adminName.trim(),
+          email: adminEmail.trim().toLowerCase(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update administrator profile.");
+      }
+      setIsEditingProfile(false);
+      addToast("Super Administrator profile updated successfully!", "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to update administrator profile.", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      addToast("Please enter your current security password.", "error");
+      return;
+    }
+    if (newPassword.length < 6) {
+      addToast("New password must be at least 6 characters long.", "error");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      addToast("New password and confirmation do not match.", "error");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: currentUser?.id,
+          currentPassword,
+          newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update password.");
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      addToast("Super Administrator password updated successfully!", "success");
+    } catch (err: any) {
+      addToast(err.message || "Failed to update password.", "error");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   // Create account form states
   const [fullName, setFullName] = useState("");
@@ -83,6 +180,103 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   // Notifications state
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
+
+  // Helper to get all relevant storage keys for Super Admin
+  const getStorageKeys = () => {
+    const keys: string[] = [];
+    if (currentUser?.email) {
+      keys.push(`sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}`);
+    }
+    if (currentUser?.id) {
+      keys.push(`sikap_cleared_notifs_${currentUser.id}`);
+    }
+    keys.push("sikap_cleared_notifs_admin");
+    return Array.from(new Set(keys));
+  };
+
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const initialKeys = [
+          currentUser?.email ? `sikap_cleared_notifs_${currentUser.email.toLowerCase().trim()}` : null,
+          "sikap_cleared_notifs_admin"
+        ].filter(Boolean) as string[];
+
+        let loaded: string[] = [];
+        for (const k of initialKeys) {
+          const stored = localStorage.getItem(k);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
+        }
+        return Array.from(new Set(loaded));
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Re-synchronize cleared notifications whenever Admin user updates
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const keys = getStorageKeys();
+      let loaded: string[] = [];
+      for (const k of keys) {
+        const saved = localStorage.getItem(k);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) loaded.push(...parsed);
+          } catch {}
+        }
+      }
+      if (loaded.length > 0) {
+        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+      }
+    } catch (e) {
+      console.error("Failed to sync cleared notifications in Admin portal:", e);
+    }
+  }, [currentUser?.email, currentUser?.id]);
+
+  const dismissNotification = (id: string) => {
+    setClearedNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const clearAllNotifications = (allIds: string[]) => {
+    setClearedNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        const keys = getStorageKeys();
+        keys.forEach(k => {
+          localStorage.setItem(k, JSON.stringify(updated));
+        });
+        if (currentUser?.email) {
+          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    setNotificationsRead(true);
+  };
 
   // State for newly created or reset credentials modal
   const [createdCredentials, setCreatedCredentials] = useState<{
@@ -687,7 +881,8 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
               { id: "tesda_records", label: "TESDA Directory", icon: <Briefcase className="w-4.5 h-4.5" />, badge: stats.tesdaReps },
               { id: "audit_logs", label: "Audit Logs & Activity", icon: <History className="w-4.5 h-4.5" /> },
               { id: "create_account", label: "Provision Official Account", icon: <PlusCircle className="w-4.5 h-4.5" /> },
-              { id: "create_tesda", label: "Provision TESDA Account", icon: <UserCheck className="w-4.5 h-4.5" /> }
+              { id: "create_tesda", label: "Provision TESDA Account", icon: <UserCheck className="w-4.5 h-4.5" /> },
+              { id: "profile", label: "Admin Profile & Security", icon: <ShieldCheck className="w-4.5 h-4.5" /> }
             ].map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -719,7 +914,11 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
         {/* User Info & Logout */}
         <div className="p-5 border-t border-emerald-800/40 bg-[#0B1E16] shrink-0">
-          <div className="flex items-center gap-3 mb-4 p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/30">
+          <div
+            onClick={() => setActiveTab("profile")}
+            className="flex items-center gap-3 mb-4 p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/30 hover:bg-emerald-900/50 cursor-pointer transition-colors"
+            title="Manage Super Admin Profile"
+          >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs shrink-0">
               ADM
             </div>
@@ -769,86 +968,143 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
             {/* Notification Bell */}
             <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className={`relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200 transition-all cursor-pointer ${
-                  showNotifications ? "ring-2 ring-emerald-500 bg-emerald-50 text-[#0A6B43]" : ""
-                }`}
-                title="System Central Alerts"
-              >
-                <Bell className="w-4.5 h-4.5" />
-                {!notificationsRead && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                )}
-              </button>
+              {(() => {
+                const allCentralAlerts = [
+                  {
+                    id: "alert-demographics",
+                    title: "Registered KK Demographics",
+                    desc: `${youthProfiles.length} active youth profiles registered across 17 barangays.`,
+                    targetTab: "youth_masterlist" as const,
+                    icon: Users,
+                    iconBg: "bg-emerald-100 text-[#0A6B43]",
+                  },
+                  {
+                    id: "alert-leaders",
+                    title: "Barangay Leaders Sync",
+                    desc: `${officialAccounts.length} authorized official accounts active in database.`,
+                    targetTab: "barangays" as const,
+                    icon: Shield,
+                    iconBg: "bg-amber-100 text-amber-800",
+                  },
+                  {
+                    id: "alert-tesda",
+                    title: "TESDA Vocational Courses",
+                    desc: `${programs.length} published TVET course offerings available municipal-wide.`,
+                    targetTab: "tesda_records" as const,
+                    icon: Briefcase,
+                    iconBg: "bg-blue-100 text-blue-800",
+                  },
+                ];
+                const systemAlerts = allCentralAlerts.filter((a) => !clearedNotificationIds.includes(a.id));
 
-              {showNotifications && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                  <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-2 text-xs overflow-hidden text-slate-700 animate-in fade-in-50 slide-in-from-top-2">
-                    <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 p-3">
-                      <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-[#0A6B43]" />
-                        <span className="font-extrabold text-slate-900 text-sm">System Central Alerts</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setNotificationsRead(true);
-                          addToast("Central alerts marked as read", "info");
-                        }}
-                        className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                      >
-                        Mark all read
-                      </button>
-                    </div>
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className={`relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200 transition-all cursor-pointer ${
+                        showNotifications ? "ring-2 ring-emerald-500 bg-emerald-50 text-[#0A6B43]" : ""
+                      }`}
+                      title="System Central Alerts"
+                    >
+                      <Bell className="w-4.5 h-4.5" />
+                      {!notificationsRead && systemAlerts.length > 0 && (
+                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
+                      )}
+                    </button>
 
-                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                      <div
-                        onClick={() => { setActiveTab("youth_masterlist"); setShowNotifications(false); }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-xl bg-emerald-100 text-[#0A6B43] shrink-0 mt-0.5">
-                          <Users className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs">Registered KK Demographics</p>
-                          <p className="text-[11px] text-slate-500 font-medium">{youthProfiles.length} active youth profiles registered across 17 barangays.</p>
-                        </div>
-                      </div>
+                    {showNotifications && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-2 text-xs overflow-hidden text-slate-700 animate-in fade-in-50 slide-in-from-top-2">
+                          <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 p-3">
+                            <div className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-[#0A6B43]" />
+                              <span className="font-extrabold text-slate-900 text-sm">System Central Alerts</span>
+                            </div>
+                            <div className="flex items-center gap-2.5">
+                              {systemAlerts.length > 0 && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      clearAllNotifications(allCentralAlerts.map((a) => a.id));
+                                      addToast("Central alerts marked as read and cleared", "info");
+                                    }}
+                                    className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                  >
+                                    Mark read
+                                  </button>
+                                  <span className="text-slate-300">|</span>
+                                  <button
+                                    onClick={() => {
+                                      clearAllNotifications(allCentralAlerts.map((a) => a.id));
+                                      addToast("All alerts cleared", "info");
+                                    }}
+                                    className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                                  >
+                                    Clear all
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
 
-                      <div
-                        onClick={() => { setActiveTab("barangays"); setShowNotifications(false); }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
-                          <Shield className="w-4 h-4" />
+                          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                            {systemAlerts.length === 0 ? (
+                              <div className="p-6 text-center text-slate-400">
+                                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />
+                                <p className="font-bold text-slate-600">No active alerts</p>
+                                <p className="text-[11px] mt-0.5">All system alerts have been cleared or reviewed.</p>
+                              </div>
+                            ) : (
+                              systemAlerts.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => {
+                                      dismissNotification(item.id);
+                                      setActiveTab(item.targetTab);
+                                      setShowNotifications(false);
+                                    }}
+                                    className="group relative p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                                  >
+                                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${item.iconBg}`}>
+                                      <Icon className="w-4 h-4" />
+                                    </div>
+                                    <div className="pr-6 flex-1">
+                                      <p className="font-bold text-slate-900 text-xs">{item.title}</p>
+                                      <p className="text-[11px] text-slate-500 font-medium">{item.desc}</p>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        dismissNotification(item.id);
+                                      }}
+                                      className="absolute right-2 top-2 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                      title="Dismiss notification"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs">Barangay Leaders Sync</p>
-                          <p className="text-[11px] text-slate-500 font-medium">{officialAccounts.length} authorized official accounts active in database.</p>
-                        </div>
-                      </div>
-
-                      <div
-                        onClick={() => { setActiveTab("tesda_records"); setShowNotifications(false); }}
-                        className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                      >
-                        <div className="p-2 rounded-xl bg-blue-100 text-blue-800 shrink-0 mt-0.5">
-                          <Briefcase className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs">TESDA Vocational Courses</p>
-                          <p className="text-[11px] text-slate-500 font-medium">{programs.length} published TVET course offerings available municipal-wide.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Profile Avatar Badge */}
-            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+            <button
+              type="button"
+              onClick={() => setActiveTab("profile")}
+              className="flex items-center gap-2.5 pl-2 border-l border-slate-200 hover:opacity-80 transition-opacity cursor-pointer text-left"
+              title="View Admin Profile & Security"
+            >
               <div className="w-8 h-8 rounded-full bg-[#112F24] text-white flex items-center justify-center font-black text-xs shadow-xs border border-emerald-600">
                 SA
               </div>
@@ -856,7 +1112,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 <p className="text-xs font-bold text-slate-900 leading-none">Super Admin</p>
                 <p className="text-[10px] text-slate-500 font-medium mt-0.5">San Luis, Pampanga</p>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -2444,6 +2700,501 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
                 </form>
               </div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* TAB 8: SUPER ADMIN PROFILE & GOVERNANCE COMMAND */}
+          {/* ============================================================ */}
+          {activeTab === "profile" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Top Banner Header */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-[#0A6B43]" />
+                    Super Administrator Profile & Governance Command
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                    Tier 1 Root Clearance
+                  </span>
+                </div>
+              </div>
+
+              {/* Top Sub-tab Pill Navigation Bar */}
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("profile")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "profile"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  Administrator Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("security")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "security"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Lock className="w-4 h-4" />
+                  Security & Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("notifications")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "notifications"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  Central System Alerts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileActiveTab("badge")}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    profileActiveTab === "badge"
+                      ? "bg-[#0A6B43] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Award className="w-4 h-4" />
+                  Root Authorization Badge
+                </button>
+              </div>
+
+              {/* TAB 1: ADMINISTRATOR PROFILE */}
+              {profileActiveTab === "profile" && (
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                  {/* Left Column (3 cols) */}
+                  <div className="lg:col-span-3 space-y-6">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black text-xl shadow-md border-2 border-amber-400">
+                            ADM
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-bold text-slate-900">{adminName}</h3>
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                Root Authority
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                              {adminOffice}
+                            </p>
+                            <p className="text-xs font-mono text-slate-600 mt-1">
+                              {adminEmail}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(!isEditingProfile)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                            isEditingProfile
+                              ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                              : "bg-[#0A6B43] text-white hover:bg-[#085435]"
+                          }`}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          {isEditingProfile ? "Cancel" : "Edit Profile"}
+                        </button>
+                      </div>
+
+                      {/* View Mode */}
+                      {!isEditingProfile ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Administrator Full Name</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{adminName}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Official Designation</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">Super Administrator & MYDO Head</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Executive Email</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{adminEmail}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Communication Hotline</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{adminPhone}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Office / Department</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">{adminOffice}</p>
+                          </div>
+                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Territorial Scope</p>
+                            <p className="text-xs font-bold text-slate-800 mt-1">Municipality of San Luis (17 Barangays)</p>
+                          </div>
+                          <div className="sm:col-span-2 p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80 flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Root Governance Clearance</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Unrestricted administrative governance across all barangay zones & institutional portals</p>
+                            </div>
+                            <span className="text-xs font-black text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg">
+                              TIER 1 ROOT
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Edit Mode Form */
+                        <form onSubmit={handleSaveProfileSubmit} className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Administrator Full Name
+                              </label>
+                              <input
+                                type="text"
+                                value={adminName}
+                                onChange={(e) => setAdminName(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Executive Email Address
+                              </label>
+                              <input
+                                type="email"
+                                value={adminEmail}
+                                onChange={(e) => setAdminEmail(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Direct Contact Hotline
+                              </label>
+                              <input
+                                type="text"
+                                value={adminPhone}
+                                onChange={(e) => setAdminPhone(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                                Department / Office Designation
+                              </label>
+                              <input
+                                type="text"
+                                value={adminOffice}
+                                onChange={(e) => setAdminOffice(e.target.value)}
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingProfile(false)}
+                              disabled={isSavingProfile}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSavingProfile}
+                              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2"
+                            >
+                              {isSavingProfile ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  Save Administrator Details
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column (2 cols): Authority & Clearance Summary */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200">
+                          <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900">Root Governance Authority</h4>
+                          <p className="text-[11px] text-slate-500">Tier 1 Central Municipal Command</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Clearance Level</span>
+                          <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                            Tier 1 Root Governance
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Municipal Zones</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            17 Barangays (San Luis)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Provisioned Accounts</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {officialAccounts.length} Official(s)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">KK Youth Tracked</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            {stats.kkMembers} Members
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <span className="text-xs text-slate-600 font-medium">Institutional Hub</span>
+                          <span className="text-xs font-bold text-slate-900">
+                            MYDO Central Command
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
+                        <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          Statutory & Legal Framework
+                        </p>
+                        Authorized under RA 10742 (Sangguniang Kabataan Reform Act) and the Data Privacy Act of 2012 (RA 10173) to administer youth livelihood records and official credentials.
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={onLogout}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-colors cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          Sign Out Central Administration
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: ACCOUNT SECURITY */}
+              {profileActiveTab === "security" && (
+                <div className="max-w-2xl bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                  <div className="border-b border-slate-100 pb-4">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-[#0A6B43]" />
+                      Update Root Security Password
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Ensure central administrative access remains strictly protected against unauthorized access.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Current Security Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPass ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPass(!showCurrentPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        New Security Password (minimum 6 characters)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPass ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
+                          required
+                          minLength={6}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Confirm New Security Password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] text-slate-900"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        Changing the Root Administrator password will immediately update central access across all municipal services. Ensure credentials are preserved safely.
+                      </span>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={isChangingPassword}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {isChangingPassword ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Updating Root Password...
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3.5 h-3.5" />
+                            Update Root Password
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* TAB 3: NOTIFICATIONS */}
+              {profileActiveTab === "notifications" && (
+                <div className="max-w-3xl">
+                  <NotificationSettingsCard
+                    userRole="SUPER_ADMIN"
+                    userEmail={currentUser?.email}
+                    addToast={addToast}
+                  />
+                </div>
+              )}
+
+              {/* TAB 4: ROOT AUTHORIZATION BADGE */}
+              {profileActiveTab === "badge" && (
+                <div className="max-w-xl mx-auto space-y-6">
+                  {/* Digital Credential ID Card */}
+                  <div className="relative overflow-hidden rounded-3xl border-2 border-amber-500/40 bg-gradient-to-br from-slate-950 via-[#112F24] to-[#0A231A] text-white p-7 shadow-2xl">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                    {/* Card Top Header */}
+                    <div className="flex items-center justify-between pb-5 border-b border-white/10 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md">
+                          <Shield className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Republic of the Philippines</p>
+                          <p className="text-xs font-extrabold tracking-wide text-white">Municipality of San Luis · MYDO</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                        Root Clearance
+                      </span>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
+                        ADM
+                      </div>
+                      <div className="text-center sm:text-left space-y-1">
+                        <h4 className="text-lg font-black text-white tracking-tight">{adminName}</h4>
+                        <p className="text-xs font-semibold text-amber-300">Super Administrator & MYDO Head</p>
+                        <p className="text-[11px] text-slate-300 font-mono pt-1">
+                          Municipal Youth Development Office · San Luis, Pampanga
+                        </p>
+                        <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-amber-300">
+                          <span>AUTH-ID:</span>
+                          <span className="font-bold">{currentUser?.id?.slice(0, 14) || "SA-MYDO-SANLUIS-001"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Central Infrastructure Controller</span>
+                      </div>
+                      <span className="font-mono text-slate-400">Tier 1 Root Governance</span>
+                    </div>
+                  </div>
+
+                  {/* Copy Credential Button */}
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const info = `MUNICIPAL SUPER ADMINISTRATOR CREDENTIAL\nAdministrator: ${adminName}\nDesignation: Super Administrator & MYDO Head\nOffice: ${adminOffice}\nEmail: ${adminEmail}\nContact: ${adminPhone}\nJurisdiction: San Luis, Pampanga (17 Barangays)\nClearance: Tier 1 Root Governance\nAuthorization ID: ${currentUser?.id || "SA-MYDO-SANLUIS-001"}`;
+                        navigator.clipboard.writeText(info);
+                        addToast("Super Administrator Credential copied to clipboard!", "success");
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4 text-[#0A6B43]" />
+                      Copy Root Credential Details
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

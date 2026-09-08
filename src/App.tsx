@@ -16,6 +16,7 @@ import { LandingPage } from "./components/LandingPage";
 import { SuperAdminPortal } from "./components/SuperAdminPortal";
 import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
+import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft } from "lucide-react";
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [viewingLanding, setViewingLanding] = useState(true);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
@@ -171,7 +173,7 @@ export default function App() {
     name: session?.user?.name || "Youth Member",
     age: 18,
     purok: "Purok 1",
-    barangay: "San Sebastian",
+    barangay: (session?.user as any)?.barangay || "",
     educationalAttainment: "High School Graduate",
     currentStatus: "Out-of-school",
     skills: [],
@@ -204,24 +206,28 @@ export default function App() {
 
     return {
       ...defaultEmptyYouthProfile,
-      name: session?.user?.name || "Youth Member"
+      name: session?.user?.name || "Youth Member",
+      barangay: (session?.user as any)?.barangay || "",
+      email: session?.user?.email || ""
     };
   }, [youthProfiles, loggedInYouthId, session?.user]);
 
   return (
     <div className="font-sans antialiased" id="sikap-application-root">
       {/* Toast Alert stack */}
-      <div className="fixed top-4 right-4 z-50 space-y-2 pointer-events-none">
+      <aside
+        aria-label="Notifications"
+        className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 pointer-events-none max-w-[calc(100vw-2rem)] sm:max-w-md w-full items-end"
+      >
         {toasts.map(t => (
-          <div key={t.id} className="pointer-events-auto">
-            <Toast
-              message={t.message}
-              type={t.type}
-              onClose={() => removeToast(t.id)}
-            />
-          </div>
+          <Toast
+            key={t.id}
+            message={t.message}
+            type={t.type}
+            onClose={() => removeToast(t.id)}
+          />
         ))}
-      </div>
+      </aside>
 
       {currentUserRole === null ? (
         isSelfRegistering ? (
@@ -315,9 +321,13 @@ export default function App() {
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <label className="text-[11px] font-bold text-gray-500 uppercase">Password</label>
-                      <a href="#forgot" onClick={(e) => { e.preventDefault(); addToast("Password recovery link sent if registered.", "info"); }} className="text-[10px] font-bold text-[#0A6B43] hover:underline">
+                      <button
+                        type="button"
+                        onClick={() => setIsForgotPasswordOpen(true)}
+                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                      >
                         Forgot?
-                      </a>
+                      </button>
                     </div>
                     <div className="relative">
                       <input
@@ -462,6 +472,20 @@ export default function App() {
           )}
         </div>
       )}
+
+      {/* Account Password Recovery Modal */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        initialEmail={email}
+        onClose={() => setIsForgotPasswordOpen(false)}
+        onSuccess={(resetEmail) => {
+          setIsForgotPasswordOpen(false);
+          setEmail(resetEmail);
+          setPassword("");
+          addToast("Password reset successfully! Please sign in with your new password.", "success");
+        }}
+        addToast={addToast}
+      />
     </div>
   );
 }
