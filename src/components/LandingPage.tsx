@@ -56,7 +56,7 @@ const getSpeedFactor = () => {
 
 const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction = "up", amount = "some", margin = "-50px" }: { children: React.ReactNode, delay?: number, duration?: number, className?: string, direction?: "up" | "left" | "right", amount?: number | "some" | "all", margin?: string }) => {
   const ref = React.useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin, amount });
+  const isInView = useInView(ref, { once: true, margin: margin as any, amount });
   const controls = useAnimation();
 
   const initial = direction === "up" ? { opacity: 0, y: 30 } : direction === "left" ? { opacity: 0, x: -30 } : { opacity: 0, x: 30 };
