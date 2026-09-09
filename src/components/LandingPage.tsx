@@ -17,6 +17,102 @@ import {
   Plus
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
+import { AnimatedGridBackground } from "./AnimatedGridBackground";
+import { motion, useInView, animate, useAnimation } from "motion/react";
+
+// --- GLOBAL SCROLL VELOCITY TRACKER ---
+let globalScrollVelocity = 0;
+let lastScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+let lastScrollTime = typeof performance !== 'undefined' ? performance.now() : 0;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('scroll', () => {
+    const currentScrollY = window.scrollY;
+    const currentTime = performance.now();
+    const dt = currentTime - lastScrollTime;
+    const dy = currentScrollY - lastScrollY;
+    
+    if (dt > 0) {
+       globalScrollVelocity = Math.abs(dy / dt); // px per ms
+    }
+    
+    lastScrollY = currentScrollY;
+    lastScrollTime = currentTime;
+  }, { passive: true });
+
+  setInterval(() => {
+     globalScrollVelocity *= 0.8; 
+     if (globalScrollVelocity < 0.1) globalScrollVelocity = 0;
+  }, 100);
+}
+
+const getSpeedFactor = () => {
+  const maxVelocity = 4; // high speed scroll
+  const normalized = Math.min(globalScrollVelocity / maxVelocity, 1);
+  const factor = 1.0 - (normalized * 0.7); // drops down to 0.3 at max speed
+  return Math.max(0.3, Math.min(1.0, factor));
+};
+// ----------------------------------------
+
+const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction = "up", amount = "some", margin = "-50px" }: { children: React.ReactNode, delay?: number, duration?: number, className?: string, direction?: "up" | "left" | "right", amount?: number | "some" | "all", margin?: string }) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin, amount });
+  const controls = useAnimation();
+
+  const initial = direction === "up" ? { opacity: 0, y: 30 } : direction === "left" ? { opacity: 0, x: -30 } : { opacity: 0, x: 30 };
+  const target = direction === "up" ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 };
+
+  useEffect(() => {
+    if (isInView) {
+      const speedFactor = getSpeedFactor();
+      controls.start({
+        ...target,
+        transition: { 
+          duration: duration * speedFactor, 
+          delay: delay * speedFactor, 
+          ease: "easeOut" 
+        }
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInView]);
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={initial}
+      animate={controls}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+};
+
+const NumberCounter = ({ value, suffix = "", duration = 1, delay = 0, className = "" }: { value: number, suffix?: string, duration?: number, delay?: number, className?: string }) => {
+  const ref = React.useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true, margin: "-50px" });
+  const [displayValue, setDisplayValue] = useState("0");
+
+  useEffect(() => {
+    if (isInView) {
+      const speedFactor = getSpeedFactor();
+      const controls = animate(0, value, {
+        duration: duration * speedFactor,
+        delay: delay * speedFactor,
+        ease: "easeOut",
+        onUpdate(v) {
+          const isFloat = value % 1 !== 0;
+          setDisplayValue(isFloat ? v.toFixed(1) : Math.floor(v).toString());
+        },
+      });
+      return () => controls.stop();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInView, value]);
+
+  return <span ref={ref} className={className}>{displayValue}{suffix}</span>;
+};
 
 
 interface LandingPageProps {
@@ -133,41 +229,49 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               {/* Hero Left Content */}
               <div className="lg:col-span-7 space-y-7 sm:space-y-8 text-center lg:text-left">
-                <div className="inline-flex items-center bg-emerald-100/80 border border-emerald-200 text-[#075332] text-xs sm:text-sm font-black px-5 py-2 rounded-full uppercase tracking-wider shadow-2xs">
-                  San Luis, Pampanga
-                </div>
+                <FadeIn direction="left" delay={0.1}>
+                  <div className="inline-flex items-center bg-emerald-100/80 border border-emerald-200 text-[#075332] text-xs sm:text-sm font-black px-5 py-2 rounded-full uppercase tracking-wider shadow-2xs">
+                    San Luis, Pampanga
+                  </div>
+                </FadeIn>
 
-                <h1 className="text-5xl sm:text-6xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.05] tracking-tight">
-                  <span className="block">Find the Right Path.</span>
-                  <span className="block text-[#0A6B43] relative inline-block mt-1 sm:mt-2.5">
-                    Build Your Future.
-                    <span className="absolute left-0 -bottom-1 sm:-bottom-0.5 lg:-bottom-0.5 w-full h-3 sm:h-3.5 lg:h-4 bg-emerald-100/90 -z-10 rounded-full"></span>
-                  </span>
-                </h1>
+                <FadeIn direction="left" delay={0.2}>
+                  <h1 className="text-5xl sm:text-6xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.05] tracking-tight">
+                    <span className="block">Find the Right Path.</span>
+                    <span className="block text-[#0A6B43] relative inline-block mt-1 sm:mt-2.5">
+                      Build Your Future.
+                      <span className="absolute left-0 -bottom-1 sm:-bottom-0.5 lg:-bottom-0.5 w-full h-3 sm:h-3.5 lg:h-4 bg-emerald-100/90 -z-10 rounded-full"></span>
+                    </span>
+                  </h1>
+                </FadeIn>
 
-                <p className="text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-medium">
-                  Find opportunities that turn your potential into possibilities.
-                </p>
+                <FadeIn direction="left" delay={0.3}>
+                  <p className="text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-medium">
+                    Find opportunities that turn your potential into possibilities.
+                  </p>
+                </FadeIn>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-1.5">
-                  <button
-                    onClick={onEnterLogin}
-                    className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-base sm:text-lg font-black px-9 py-4.5 rounded-2xl shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3"
-                  >
-                    Sign In
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => handleScrollToSection("workflow")}
-                    className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 hover:border-emerald-300 text-base sm:text-lg font-bold px-8 py-4.5 rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
-                  >
-                    How SiKap Works
-                  </button>
-                </div>
+                <FadeIn direction="left" delay={0.4}>
+                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-1.5">
+                    <button
+                      onClick={onEnterLogin}
+                      className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-base sm:text-lg font-black px-9 py-4.5 rounded-2xl shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3"
+                    >
+                      Sign In
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleScrollToSection("workflow")}
+                      className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 hover:border-emerald-300 text-base sm:text-lg font-bold px-8 py-4.5 rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                    >
+                      How SiKap Works
+                    </button>
+                  </div>
+                </FadeIn>
               </div>
 
               {/* Hero Right Visual Column */}
-              <div className="lg:col-span-5 relative mt-5 lg:mt-0">
+              <FadeIn direction="right" delay={0.6} className="lg:col-span-5 relative mt-5 lg:mt-0">
                 <div className="absolute -inset-3 bg-emerald-100/35 rounded-3xl blur-xl -z-10"></div>
 
                 {/* Interactive Demo Matching Mockup Card */}
@@ -229,7 +333,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
                 </div>
 
-              </div>
+              </FadeIn>
 
             </div>
           </div>
@@ -256,134 +360,176 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
 
           {/* Main Showcase Container (Clean & Borderless) */}
-          <div className="relative rounded-3xl overflow-hidden bg-white shadow-xl transition-all duration-300">
+          <FadeIn duration={0.3} className="relative rounded-3xl overflow-hidden bg-white shadow-xl transition-all duration-300">
 
             {/* Top Header inside Container */}
             <div className="pt-8 sm:pt-12 px-6 sm:px-12 pb-4 space-y-3">
-              <div className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs sm:text-sm font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
-                Bridging the gap to opportunity
-              </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-900 tracking-tight leading-tight max-w-4xl">
-                The <span className="text-[#0A6B43]">opportunity gap</span> starts with finding the <span className="text-[#0A6B43] relative inline-block">right path<span className="absolute left-0 bottom-1.5 w-full h-3 bg-emerald-100/90 -z-10 rounded-full"></span></span>.
-              </h2>
-              <p className="text-sm sm:text-base lg:text-lg text-gray-600 font-medium leading-relaxed max-w-3xl">
-                Across the Philippines, millions of young people are outside formal education and face barriers to building the skills they need for their future.
-              </p>
+              <FadeIn direction="left" delay={0.3}>
+                <div className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs sm:text-sm font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+                  Bridging the gap to opportunity
+                </div>
+              </FadeIn>
+              <FadeIn direction="left" delay={0.5}>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-900 tracking-tight leading-tight max-w-4xl">
+                  The <span className="text-[#0A6B43]">opportunity gap</span> starts with finding the <span className="text-[#0A6B43] relative inline-block">right path<span className="absolute left-0 bottom-1.5 w-full h-3 bg-emerald-100/90 -z-10 rounded-full"></span></span>.
+                </h2>
+              </FadeIn>
+              <FadeIn direction="left" delay={0.7}>
+                <p className="text-sm sm:text-base lg:text-lg text-gray-600 font-medium leading-relaxed max-w-3xl">
+                  Across the Philippines, millions of young people are outside formal education and face barriers to building the skills they need for their future.
+                </p>
+              </FadeIn>
             </div>
 
             {/* Map Vector Graphic Area (Enlarged Philippines SVG Map) */}
-            <div className="relative min-h-[500px] sm:min-h-[620px] lg:min-h-[720px] py-4 sm:py-8 w-full overflow-hidden bg-white flex items-center justify-center">
+            <FadeIn delay={0.8} amount={0.2} margin="0px">
+              <div className="relative min-h-[500px] sm:min-h-[620px] lg:min-h-[720px] py-4 sm:py-8 w-full overflow-hidden bg-white flex items-center justify-center">
 
-              {/* Philippines SVG Map Container */}
-              <div className="relative aspect-square w-auto h-[480px] sm:h-[580px] lg:h-[680px] max-w-[95%] flex items-center justify-center">
-                <img
-                  src="/country.svg"
-                  alt="Philippines Vector Map"
-                  className="w-full h-full object-contain select-none opacity-95 filter drop-shadow-sm"
-                />
+                {/* Philippines SVG Map Container */}
+                <div className="relative aspect-square w-auto h-[480px] sm:h-[580px] lg:h-[680px] max-w-[95%] flex items-center justify-center">
+                  <img
+                    src="/country.svg"
+                    alt="Philippines Vector Map"
+                    className="w-full h-full object-contain select-none opacity-95 filter drop-shadow-sm"
+                  />
 
-                {/* Pulsing Pin & Mini Card positioned precisely at the white circle coordinates */}
-                <div
-                  className="absolute z-20"
-                  style={{
-                    top: "38.65%",
-                    left: "43.75%",
-                    transform: "translate(-50%, -50%)"
-                  }}
-                >
-                  {/* Interactive Dot Group: Hovering only the dot scales the card */}
-                  <div className="relative group flex items-center justify-center">
+                  {/* Pulsing Pin & Mini Card positioned precisely at the white circle coordinates */}
+                  <div
+                    className="absolute z-20"
+                    style={{
+                      top: "38.65%",
+                      left: "43.75%",
+                      transform: "translate(-50%, -50%)"
+                    }}
+                  >
+                    {/* Interactive Dot Group: Hovering only the dot scales the card */}
+                    <div className="relative group flex items-center justify-center">
 
-                    {/* Hit area & Pin */}
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center relative cursor-pointer">
-                      {/* Expanding Radar Wave */}
-                      <span className="absolute w-9 h-9 rounded-full bg-emerald-500/35 animate-ping group-hover:bg-emerald-500/50 transition-colors"></span>
+                      {/* Hit area & Pin */}
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center relative cursor-pointer">
+                        {/* Expanding Radar Wave */}
+                        <span className="absolute w-9 h-9 rounded-full bg-emerald-500/35 animate-ping group-hover:bg-emerald-500/50 transition-colors"></span>
 
-                      {/* Glowing Aura Ring */}
-                      <span className="absolute w-5 h-5 rounded-full bg-emerald-400/50 animate-pulse group-hover:scale-125 transition-transform"></span>
+                        {/* Glowing Aura Ring */}
+                        <span className="absolute w-5 h-5 rounded-full bg-emerald-400/50 animate-pulse group-hover:scale-125 transition-transform"></span>
 
-                      {/* Target Outer Ring with Solid Center */}
-                      <span className="relative w-3.5 h-3.5 rounded-full bg-white border-2 border-[#0A6B43] shadow-md flex items-center justify-center group-hover:scale-110 group-hover:border-emerald-700 transition-transform">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43]"></span>
-                      </span>
-                    </div>
+                        {/* Target Outer Ring with Solid Center */}
+                        <span className="relative w-3.5 h-3.5 rounded-full bg-white border-2 border-[#0A6B43] shadow-md flex items-center justify-center group-hover:scale-110 group-hover:border-emerald-700 transition-transform">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43]"></span>
+                        </span>
+                      </div>
 
-                    {/* Floating Mini Card: Scales up in place when dot is hovered */}
-                    <div className="absolute left-9 sm:left-11 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-emerald-200/90 py-2 px-4 rounded-xl shadow-xl flex items-center gap-2 whitespace-nowrap pointer-events-none transform origin-left transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-emerald-400">
-                      <span className="w-2 h-2 rounded-full bg-[#0A6B43] animate-pulse"></span>
-                      <span className="text-xs sm:text-sm font-black text-gray-900 tracking-tight">
-                        San Luis, Pampanga
-                      </span>
+                      {/* Floating Mini Card: Scales up in place when dot is hovered */}
+                      <div className="absolute left-9 sm:left-11 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-emerald-200/90 py-2 px-4 rounded-xl shadow-xl flex items-center gap-2 whitespace-nowrap pointer-events-none transform origin-left transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-emerald-400">
+                        <span className="w-2 h-2 rounded-full bg-[#0A6B43] animate-pulse"></span>
+                        <span className="text-xs sm:text-sm font-black text-gray-900 tracking-tight">
+                          San Luis, Pampanga
+                        </span>
+                      </div>
                     </div>
                   </div>
+
                 </div>
 
               </div>
-
-            </div>
+            </FadeIn>
 
             {/* Bottom Storytelling Statistics Grid (Clean & Borderless) */}
             <div className="bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 relative pt-2 pb-6 px-6 sm:px-12 gap-6">
               {/* Stat 1 */}
               <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                <p className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight">10.7M</p>
-                <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Out-of-School Youth</h4>
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  Young Filipinos facing barriers to education, skills development, and employment.
-                </p>
+                <FadeIn delay={0.2}>
+                  <NumberCounter value={10.7} suffix="M" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
+                </FadeIn>
+                <FadeIn delay={0.8}>
+                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Out-of-School Youth</h4>
+                </FadeIn>
+                <FadeIn delay={0.9}>
+                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                    Young Filipinos facing barriers to education, skills development, and employment.
+                  </p>
+                </FadeIn>
               </div>
 
               {/* Stat 2 */}
               <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                <p className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight">49%</p>
-                <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Want to Return to Education</h4>
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  Nearly half of interviewed out-of-school youth expressed interest in returning to formal education.
-                </p>
+                <FadeIn delay={0.2}>
+                  <NumberCounter value={49} suffix="%" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
+                </FadeIn>
+                <FadeIn delay={0.8}>
+                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Want to Return to Education</h4>
+                </FadeIn>
+                <FadeIn delay={0.9}>
+                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                    Nearly half of interviewed out-of-school youth expressed interest in returning to formal education.
+                  </p>
+                </FadeIn>
               </div>
 
               {/* Stat 3 */}
               <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                <p className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight">21%</p>
-                <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Plan to Pursue Employment</h4>
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  Many young people are looking for pathways toward work and greater economic participation.
-                </p>
+                <FadeIn delay={0.2}>
+                  <NumberCounter value={21} suffix="%" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
+                </FadeIn>
+                <FadeIn delay={0.8}>
+                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Plan to Pursue Employment</h4>
+                </FadeIn>
+                <FadeIn delay={0.9}>
+                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                    Many young people are looking for pathways toward work and greater economic participation.
+                  </p>
+                </FadeIn>
               </div>
 
               {/* Stat 4 */}
               <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-emerald-50/40 hover:bg-emerald-50/60 transition-colors border border-emerald-100/60">
-                <p className="text-4xl sm:text-5xl font-black text-[#0A6B43] tracking-tight">17</p>
-                <h4 className="text-sm sm:text-base font-extrabold text-gray-900">San Luis Barangays</h4>
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  Bridging local youth directly to verified TESDA institute cohorts and sustainable careers.
-                </p>
+                <FadeIn delay={0.2}>
+                  <NumberCounter value={17} duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-[#0A6B43] tracking-tight block" />
+                </FadeIn>
+                <FadeIn delay={0.8}>
+                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">San Luis Barangays</h4>
+                </FadeIn>
+                <FadeIn delay={0.9}>
+                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                    Bridging local youth directly to verified TESDA institute cohorts and sustainable careers.
+                  </p>
+                </FadeIn>
               </div>
             </div>
 
-          </div>
+          </FadeIn>
 
         </div>
       </section>
 
       {/* Where Potential Meets Opportunity Section */}
       <section id="opportunity" className="py-24 lg:py-32 bg-[#0A4D30] text-white relative overflow-hidden">
+        {/* Grid Texture Overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0 opacity-16 mix-blend-overlay"
+          style={{
+            backgroundImage: "url('/grid.png')",
+            backgroundRepeat: "repeat",
+            backgroundSize: "32px 32px",
+          }}
+        />
+
         {/* Subtle background ambient lighting */}
-        <div className="absolute top-0 right-0 -mr-40 -mt-40 w-[600px] h-[600px] bg-emerald-400/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 -ml-40 -mb-40 w-[600px] h-[600px] bg-amber-400/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-0 right-0 -mr-40 -mt-40 w-[600px] h-[600px] bg-emerald-400/10 rounded-full blur-3xl pointer-events-none z-0"></div>
+        <div className="absolute bottom-0 left-0 -ml-40 -mb-40 w-[600px] h-[600px] bg-amber-400/5 rounded-full blur-3xl pointer-events-none z-0"></div>
 
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
 
             {/* Left Part: Header */}
-            <div className="lg:col-span-5 space-y-4">
+            <FadeIn direction="left" amount={0.3} className="lg:col-span-5 space-y-4">
               <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08]">
                 Where <span className="text-[#F5A623]">potential</span> meets <span className="text-[#F5A623]">opportunity</span>
               </h2>
-            </div>
+            </FadeIn>
 
             {/* Right Part: Description Narrative (Matching Font Sizes, No Underlines) */}
-            <div className="lg:col-span-7 space-y-6 lg:pt-2">
+            <FadeIn direction="right" delay={0.6} amount={0.3} className="lg:col-span-7 space-y-6 lg:pt-2">
               <p className="text-lg sm:text-xl lg:text-2xl text-emerald-100/90 font-medium leading-relaxed">
                 SiKap connects young people in San Luis, Pampanga with verified <span className="text-white font-bold">TESDA training opportunities</span> based on{" "}
                 <strong className="text-white font-black">who they are</strong>,{" "}
@@ -394,7 +540,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <p className="text-lg sm:text-xl lg:text-2xl text-emerald-100/90 font-medium leading-relaxed">
                 By bringing <span className="text-white font-bold">youth profiles</span> and <span className="text-white font-bold">training opportunities</span> together, SiKap makes it easier to discover programs that fit their skills, interests, education, and goals — and take the next step toward their future.
               </p>
-            </div>
+            </FadeIn>
 
           </div>
         </div>
@@ -406,28 +552,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
 
             {/* Left Column: Editorial Sticky Header */}
-            <div className="lg:col-span-5 lg:sticky lg:top-28 space-y-6">
+            <FadeIn direction="left" amount={0.3} className="lg:col-span-5 lg:sticky lg:top-28 space-y-6">
               <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
                 HOW SIKAP WORKS
               </span>
 
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]">
-                From profile to opportunity
+                From <span className="text-[#0A6B43]">profile</span> to <span className="text-[#0A6B43]">opportunity</span>
               </h2>
 
               <p className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-md">
                 A simple path from discovering your strengths to finding the right training opportunity.
               </p>
-            </div>
+            </FadeIn>
 
             {/* Right Column: Numbered Process Rows */}
             <div className="lg:col-span-7 divide-y divide-gray-200/70 border-t border-gray-200/70">
 
               {/* Step 01 */}
-              <div className="py-8 sm:py-10 group">
+              <FadeIn direction="right" delay={0.6} amount={0.3} className="py-8 sm:py-10 group">
                 <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700">01</span>
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
+                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">01</span>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
@@ -438,13 +584,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </p>
                   </div>
                 </div>
-              </div>
+              </FadeIn>
 
               {/* Step 02 */}
-              <div className="py-8 sm:py-10 group">
+              <FadeIn direction="right" delay={0.7} amount={0.3} className="py-8 sm:py-10 group">
                 <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700">02</span>
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
+                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">02</span>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
@@ -455,13 +601,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </p>
                   </div>
                 </div>
-              </div>
+              </FadeIn>
 
               {/* Step 03 */}
-              <div className="py-8 sm:py-10 group">
+              <FadeIn direction="right" delay={0.8} amount={0.3} className="py-8 sm:py-10 group">
                 <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700">03</span>
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
+                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">03</span>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
@@ -472,13 +618,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </p>
                   </div>
                 </div>
-              </div>
+              </FadeIn>
 
               {/* Step 04 */}
-              <div className="py-8 sm:py-10 group">
+              <FadeIn direction="right" delay={0.9} amount={0.3} className="py-8 sm:py-10 group">
                 <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700">04</span>
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
+                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">04</span>
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
@@ -489,7 +635,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </p>
                   </div>
                 </div>
-              </div>
+              </FadeIn>
 
             </div>
 
@@ -498,55 +644,72 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="py-20 sm:py-28 bg-[#FAFBF9] border-b border-gray-100">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+      <section id="faq" className="py-20 sm:py-28 bg-[#FAFBF9] relative overflow-hidden">
+        {/* Redox Texture Overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0 opacity-40 mix-blend-multiply"
+          style={{
+            backgroundImage: "url('/redox-02.png')",
+            backgroundRepeat: "repeat",
+            backgroundSize: "200px 200px",
+          }}
+        />
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="flex flex-col items-center text-center space-y-12 lg:space-y-16">
 
-            {/* Left Column: Editorial Sticky Header */}
-            <div className="lg:col-span-5 lg:sticky lg:top-28 space-y-6">
-              <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
-                FREQUENTLY ASKED QUESTIONS
-              </span>
+            {/* Header */}
+            <div className="space-y-6 flex flex-col items-center w-full">
+              <FadeIn direction="up" amount={0.3} delay={0.1}>
+                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+                  FREQUENTLY ASKED QUESTIONS
+                </span>
+              </FadeIn>
 
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]">
-                Have questions about SiKap?
-              </h2>
+              <FadeIn direction="up" amount={0.3} delay={0.2}>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]">
+                  Have <span className="text-[#0A6B43]">questions</span> about <span className="text-[#0A6B43]">SiKap</span>?
+                </h2>
+              </FadeIn>
 
-              <p className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-md">
-                Find clear answers regarding program eligibility, AI matchmaking, free TESDA certifications, and direct enrollment in San Luis, Pampanga.
-              </p>
+              <FadeIn direction="up" amount={0.3} delay={0.3}>
+                <p className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-2xl mx-auto">
+                  Find clear answers regarding program eligibility, AI matchmaking, free TESDA certifications, and direct enrollment in San Luis, Pampanga.
+                </p>
+              </FadeIn>
             </div>
 
-            {/* Right Column: Minimalist Editorial Accordion Rows */}
-            <div className="lg:col-span-7 divide-y divide-gray-200/70 border-t border-gray-200/70">
+            {/* Minimalist Editorial Accordion Rows */}
+            <div className="w-full divide-y divide-gray-200/70 border-t border-gray-200/70 text-left">
               {faqs.map((faq, i) => {
                 const isOpen = activeFaqIndex === i;
                 return (
-                  <div key={i} className="py-6 sm:py-8 group">
-                    <button
-                      type="button"
-                      onClick={() => toggleFaq(i)}
-                      className="w-full text-left flex items-start justify-between gap-6 cursor-pointer"
-                    >
-                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors pr-2">
-                        {faq.q}
-                      </h3>
-                      <div
-                        className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 transition-all duration-200 ${isOpen
-                          ? "bg-[#0A6B43] border-[#0A6B43] text-white rotate-45 shadow-xs"
-                          : "bg-white border-gray-200 text-gray-500 group-hover:border-[#0A6B43] group-hover:text-[#0A6B43]"
-                          }`}
+                  <FadeIn key={i} direction="up" delay={0.4 + (i * 0.15)} amount={0.3}>
+                    <div className="py-6 sm:py-8 group">
+                      <button
+                        type="button"
+                        onClick={() => toggleFaq(i)}
+                        className="w-full text-left flex items-start justify-between gap-6 cursor-pointer"
                       >
-                        <Plus className="w-4 h-4 transition-transform duration-200" />
-                      </div>
-                    </button>
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors pr-2">
+                          {faq.q}
+                        </h3>
+                        <div
+                          className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 transition-all duration-200 ${isOpen
+                            ? "bg-[#0A6B43] border-[#0A6B43] text-white rotate-45 shadow-xs"
+                            : "bg-white border-gray-200 text-gray-500 group-hover:border-[#0A6B43] group-hover:text-[#0A6B43]"
+                            }`}
+                        >
+                          <Plus className="w-4 h-4 transition-transform duration-200" />
+                        </div>
+                      </button>
 
-                    {isOpen && (
-                      <div className="pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed animate-in fade-in duration-200">
-                        {faq.a}
-                      </div>
-                    )}
-                  </div>
+                      {isOpen && (
+                        <div className="pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed animate-in fade-in duration-200">
+                          {faq.a}
+                        </div>
+                      )}
+                    </div>
+                  </FadeIn>
                 );
               })}
             </div>
@@ -556,163 +719,105 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Call To Action Banner */}
-      <section className="py-20 lg:py-28 bg-[#FAFBF9]">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-3xl overflow-hidden bg-[#0A4D30] border border-emerald-800/60 shadow-2xl p-8 sm:p-14 lg:p-20 text-center">
+      <section className="pt-10 pb-20 lg:pt-14 lg:pb-32 bg-[#FAFBF9] relative overflow-hidden">
+        {/* Redox Texture Overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0 opacity-40 mix-blend-multiply"
+          style={{
+            backgroundImage: "url('/redox-02.png')",
+            backgroundRepeat: "repeat",
+            backgroundSize: "200px 200px",
+          }}
+        />
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <FadeIn amount={0.3} duration={0.4} className="relative rounded-3xl overflow-hidden bg-[#0A4D30] border border-emerald-800/60 shadow-2xl px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-12 text-left">
 
-            {/* Ambient Lighting & Pattern Overlay */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.18),transparent_65%)] pointer-events-none"></div>
-            <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none"></div>
+            {/* Animated 3D Grid Overlay */}
+            <AnimatedGridBackground />
 
-            <div className="relative z-10 max-w-3xl mx-auto space-y-6">
-              <span className="inline-flex items-center bg-emerald-400/15 border border-emerald-400/30 text-emerald-300 text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
-                START YOUR SKILLS PATHWAY
-              </span>
+            {/* Subtle Lighting behind text to ensure readability */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.15),transparent_70%)] pointer-events-none z-0"></div>
 
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]">
-                Ready to secure your vocational career pathway?
-              </h2>
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+              <div className="space-y-6 lg:space-y-30 max-w-2xl">
+                <FadeIn direction="left" delay={0.4}>
+                  <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]">
+                    Ready to secure your <span className="text-[#F5A623]">vocational</span> career <span className="text-[#F5A623]">pathway</span>?
+                  </h2>
+                </FadeIn>
 
-              <p className="text-base sm:text-lg text-emerald-100/80 font-normal leading-relaxed max-w-2xl mx-auto">
-                Discover free TESDA-accredited training programs matched to your strengths, interests, and aspirations across San Luis, Pampanga.
-              </p>
+                <FadeIn direction="left" delay={0.6}>
+                  <p className="text-base sm:text-lg text-emerald-100/80 font-normal leading-relaxed">
+                    Discover free TESDA-accredited training programs matched to your strengths, interests, and aspirations across San Luis, Pampanga.
+                  </p>
+                </FadeIn>
+              </div>
 
-              <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button
+              <FadeIn direction="up" delay={0.8} className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-4 shrink-0">
+                <motion.button
                   type="button"
                   onClick={onEnterLogin}
-                  className="w-full sm:w-auto bg-white hover:bg-emerald-50 text-[#0A4D30] font-black text-base sm:text-lg px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2.5 cursor-pointer"
+                  whileHover={{ y: -2 }}
+                  animate={{ y: [0, -10, 0, -5, 0] }}
+                  transition={{
+                    y: {
+                      duration: 0.6,
+                      repeat: Infinity,
+                      repeatDelay: 5,
+                      delay: 2,
+                      ease: "easeInOut"
+                    }
+                  }}
+                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-base sm:text-lg px-8 py-3.5 rounded-2xl shadow-xl hover:shadow-2xl transition-colors inline-flex items-center justify-center gap-2.5 cursor-pointer"
                 >
-                  Sign In to Portal
+                  Register
                   <ArrowRight className="w-5 h-5" />
-                </button>
+                </motion.button>
                 <button
                   type="button"
                   onClick={() => handleScrollToSection("workflow")}
-                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 font-bold text-base sm:text-lg px-8 py-4 rounded-2xl transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 font-bold text-base sm:text-lg px-8 py-3.5 rounded-2xl transition-all cursor-pointer inline-flex items-center justify-center gap-2"
                 >
                   How It Works
                 </button>
-              </div>
-
-              {/* Trust Indicators / Badges */}
-              <div className="pt-6 border-t border-emerald-800/60 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs sm:text-sm font-semibold text-emerald-200/70">
-                <span className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  100% Free & Subsidized
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  Accredited TESDA Courses
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  17 Barangays Covered
-                </span>
-              </div>
-
+              </FadeIn>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* Modern Footer */}
-      <footer className="bg-[#0D1812] text-gray-400 pt-16 pb-12 border-t border-emerald-950">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      {/* Minimalist Footer */}
+      <footer className="bg-[#0D1812] border-t border-emerald-950 pt-16 pb-8 mt-auto">
+        <FadeIn className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row items-start justify-between gap-8 md:gap-4">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-
-            {/* Col 1: Brand & Municipal Scope (5 cols) */}
-            <div className="lg:col-span-5 space-y-5">
-              <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => handleScrollToSection("hero")}>
-                <SikapLogo size={38} variant="white" showText={true} showSubtext={false} />
-                <div className="flex flex-col border-l border-emerald-800/80 pl-3 py-0.5 justify-center">
-                  <span className="text-xs font-black text-white tracking-wider uppercase leading-tight">San Luis</span>
-                  <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest leading-tight mt-0.5">Pampanga</span>
-                </div>
+            {/* Brand */}
+            <div className="flex flex-col items-center md:items-start gap-4">
+              <div className="cursor-pointer" onClick={() => handleScrollToSection("hero")}>
+                <SikapLogo size={40} variant="white" showText={true} />
               </div>
-              <p className="text-sm text-gray-400 font-normal leading-relaxed max-w-md">
-                Automating Katipunan ng Kabataan demographic skills mapping and direct vocational program pathways across the 17 Barangays of the Municipality of San Luis, Pampanga.
+              <p className="text-sm text-gray-400 font-medium text-justify max-w-xl">
+                SiKap helps young people in San Luis, Pampanga discover opportunities that fit their strengths and aspirations. By connecting youth profiles with relevant training programs, SiKap turns skills, interests, and goals into clearer pathways for learning, growth, and opportunity.
               </p>
-              <div className="inline-flex items-center gap-2 bg-emerald-950/80 border border-emerald-800/60 text-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Live in 17 Barangays • San Luis, Pampanga</span>
-              </div>
             </div>
 
-            {/* Col 2: Navigation Links (2 cols) */}
-            <div className="lg:col-span-2 space-y-4">
-              <h4 className="text-xs font-black text-white uppercase tracking-wider">Navigation</h4>
-              <ul className="text-sm space-y-2.5 font-medium">
-                <li>
-                  <button onClick={() => handleScrollToSection("hero")} className="hover:text-white transition-colors cursor-pointer">
-                    Overview
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => handleScrollToSection("impact-map")} className="hover:text-white transition-colors cursor-pointer">
-                    Regional Context
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => handleScrollToSection("opportunity")} className="hover:text-white transition-colors cursor-pointer">
-                    Opportunity Scope
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => handleScrollToSection("workflow")} className="hover:text-white transition-colors cursor-pointer">
-                    How It Works
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => handleScrollToSection("faq")} className="hover:text-white transition-colors cursor-pointer">
-                    FAQs
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Col 3: Governance (2 cols) */}
-            <div className="lg:col-span-2 space-y-4">
-              <h4 className="text-xs font-black text-white uppercase tracking-wider">Governance</h4>
-              <ul className="text-sm space-y-2.5 font-medium text-gray-400">
-                <li>Sangguniang Kabataan</li>
-                <li>SK Federation San Luis</li>
-                <li>17 Barangay Councils</li>
-                <li>San Luis Municipal Hall</li>
-              </ul>
-            </div>
-
-            {/* Col 4: Strategic Partners & Portals (3 cols) */}
-            <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-xs font-black text-white uppercase tracking-wider">Portals & Accreditation</h4>
-              <ul className="text-sm space-y-2.5 font-medium text-gray-400">
-                <li>TESDA Accredited Programs</li>
-                <li>GPSAT Campus Network</li>
-                <li>National Certification (NC II)</li>
-              </ul>
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={onEnterLogin}
-                  className="w-full bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border border-emerald-700/60 text-xs font-bold px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  Enter Portal
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {/* Links */}
+            <div className="flex flex-wrap justify-center md:justify-end gap-x-8 gap-y-4 text-sm font-bold text-gray-400 pt-2">
+              <button onClick={() => handleScrollToSection("hero")} className="hover:text-white transition-colors cursor-pointer">Home</button>
+              <button onClick={() => handleScrollToSection("impact-map")} className="hover:text-white transition-colors cursor-pointer">Why It Matters</button>
+              <button onClick={() => handleScrollToSection("opportunity")} className="hover:text-white transition-colors cursor-pointer">What SiKap Offers</button>
+              <button onClick={() => handleScrollToSection("workflow")} className="hover:text-white transition-colors cursor-pointer">How SiKap Works</button>
+              <button onClick={() => handleScrollToSection("faq")} className="hover:text-white transition-colors cursor-pointer">FAQs</button>
             </div>
 
           </div>
 
           {/* Bottom Sub-footer */}
-          <div className="pt-8 border-t border-gray-900 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-500 font-medium">
-            <p>© 2026 Sangguniang Kabataan Federation of San Luis, Pampanga. Republic of the Philippines.</p>
-            <p className="text-emerald-500 font-semibold">SiKap System • Skills Profiling & Matchmaking</p>
+          <div className="mt-16 pt-8 border-t border-gray-900 flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-medium text-gray-500">
+            <p>© 2026 SiKap. All rights reserved.</p>
+            <p className="text-emerald-500/80">Designed and developed by BITWISE</p>
           </div>
-
-        </div>
+        </FadeIn>
       </footer>
 
     </div>
