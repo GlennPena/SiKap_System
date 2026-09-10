@@ -17,7 +17,7 @@ import { SuperAdminPortal } from "./components/SuperAdminPortal";
 import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
-import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft } from "lucide-react";
+import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Sparkles } from "lucide-react";
 
 export default function App() {
   const { data: session, status } = useSession();
@@ -25,7 +25,7 @@ export default function App() {
   const [viewingLanding, setViewingLanding] = useState(true);
   const [rememberMe, setRememberMe] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
-  
+
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
       if (typeof window !== "undefined") {
@@ -94,7 +94,7 @@ export default function App() {
         .then(res => res.json())
         .then(res => { if (res.success && res.data) setCouncilors(res.data); })
         .catch(err => console.log("Error fetching councilors", err));
-        
+
       if ((session?.user as any)?.role === "SUPER_ADMIN" || (session?.user as any)?.role === "BARANGAY_CAPTAIN") {
         fetch("/api/users")
           .then(res => res.json())
@@ -108,7 +108,7 @@ export default function App() {
   // Simple toast system
   const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error" | "info" }[]>([]);
   const toastCounterRef = React.useRef(0);
-  
+
   const addToast = (message: string, type: "success" | "error" | "info") => {
     const id = `${Date.now()}-${++toastCounterRef.current}`;
     setToasts(prev => [...prev, { id, message, type }]);
@@ -191,8 +191,8 @@ export default function App() {
   };
 
   const activeYouthProfile = useMemo(() => {
-    const found = youthProfiles.find(y => 
-      (loggedInYouthId && y.id === loggedInYouthId) || 
+    const found = youthProfiles.find(y =>
+      (loggedInYouthId && y.id === loggedInYouthId) ||
       (y.userId && (session?.user as any)?.id && y.userId === (session?.user as any)?.id) ||
       (session?.user?.email && y.email && y.email.toLowerCase().trim() === session.user.email.toLowerCase().trim()) ||
       (session?.user?.name && y.name && y.name.toLowerCase().trim() === session.user.name.toLowerCase().trim())
@@ -230,158 +230,207 @@ export default function App() {
       </aside>
 
       {currentUserRole === null ? (
-        isSelfRegistering ? (
-          <KKYouthRegister
-            onRegisterComplete={(newProfile) => {
-              setYouthProfiles(prev => [newProfile, ...prev]);
-              setLoggedInYouthId(newProfile.id);
-              setCurrentUserRole(UserRole.KK_YOUTH);
-              setIsSelfRegistering(false);
-              setViewingLanding(false);
-              addToast(`Welcome ${newProfile.name}! Registered successfully. Your account is view-only pending SK Chairperson verification.`, "success");
-            }}
-            onBackToHome={() => {
-              setIsSelfRegistering(false);
-              setViewingLanding(true);
-            }}
-          />
-        ) : viewingLanding ? (
+        viewingLanding ? (
           <LandingPage
             programs={programs}
             onEnterLogin={() => setViewingLanding(false)}
             addToast={addToast}
           />
         ) : (
-          // Split layout login screen
-          <div className="min-h-screen flex flex-col md:flex-row">
-            
-            {/* Left panel */}
-            <div className="md:w-1/2 bg-[#1C2B20] text-white p-8 md:p-16 flex flex-col justify-between shrink-0">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  <SikapLogo size={36} variant="white" showText={true} />
-                  <span className="text-xs font-black text-emerald-100 uppercase tracking-widest ml-1.5 border-l border-emerald-500/30 pl-2">San Luis</span>
+          <div className="h-screen flex flex-col md:flex-row bg-white p-4 sm:p-6 gap-6 overflow-hidden">
+
+            {/* Left panel as a card */}
+            <div className="md:w-[45%] bg-[#0A6B43] rounded-[1.5rem] p-8 md:p-10 flex flex-col shrink-0 relative overflow-hidden shadow-xl">
+
+              {/* Header Row: Welcome Text & Back Button inline */}
+              <div className="flex items-start justify-between w-full relative z-10 mb-8">
+                <div className="w-full mt-2">
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 whitespace-nowrap">
+                    Your Path Continues Here
+                  </h1>
+                  <p className="text-base md:text-lg text-emerald-100/90 leading-relaxed font-medium pr-4 mt-2">
+                    Sign in to explore opportunities matched to you.
+                  </p>
                 </div>
-                
-                {/* Back to Home Button */}
-                <button
-                  type="button"
-                  onClick={() => setViewingLanding(true)}
-                  className="flex items-center gap-1.5 text-xs font-extrabold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition-all shadow-xs"
-                  id="login-back-to-home-btn"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back to Home
-                </button>
               </div>
 
-              <div className="max-w-md my-12">
-                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
-                  AI-Integrated Youth Skills & Livelihood Matching System
-                </h1>
-                <p className="text-amber-500 font-semibold mt-3 text-lg">
-                  "Your skills. Your pathway. Your future."
-                </p>
-                <p className="text-sm text-gray-300 mt-4 leading-relaxed">
-                  SiKap automates skills mapping for the Katipunan ng Kabataan members across the Municipality of San Luis, Pampanga. Connecting out-of-school youth to active TESDA programs with Google Gemini explanation rationales.
-                </p>
-              </div>
+              {/* Hero "Image" Mockup - tilted clockwise to face left, tall format */}
+              <div className="absolute top-[28%] -left-[30%] w-[80%] max-w-[800px] transform scale-[1.3] origin-top-left">
+                <div className="bg-white border-2 border-emerald-100/90 rounded-3xl p-8 shadow-2xl aspect-[3/4] min-h-[600px] overflow-hidden transition-transform duration-700 hover:rotate-0 [transform:perspective(1200px)_rotateX(0deg)_rotateY(-10deg)_rotateZ(9deg)]">
+                  <div className="transform scale-[1.5] origin-top-right w-[68%] ml-auto space-y-6">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-800 font-black text-sm shadow-inner border border-emerald-100">
+                          KK
+                        </div>
+                        <div>
+                          <h4 className="text-base font-black text-gray-900">Juan dela Cruz</h4>
+                          <p className="text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
+                        </div>
+                      </div>
+                      <span className="text-xs bg-[#0A6B43] text-white px-3 py-1.5 rounded-full font-black uppercase tracking-wider shadow-2xs">
+                        OSY Youth
+                      </span>
+                    </div>
 
-              <div className="text-xs text-gray-400">
-                <p>© 2026 Sangguniang Kabataan Federation of San Luis, Pampanga.</p>
-                <p className="mt-1">Powered by content-based filtering algorithms & Gemini AI models.</p>
+                    <div className="space-y-4">
+                      <div className="bg-emerald-50/70 rounded-2xl p-5 border border-emerald-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
+                          <span className="text-xs font-black text-emerald-700 bg-white px-2.5 py-1 rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
+                        </div>
+                        <p className="text-base font-black text-gray-900 mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
+                      </div>
+
+                      <div className="bg-amber-50/70 rounded-2xl p-5 border border-amber-200/70 text-sm text-amber-950 leading-relaxed space-y-2">
+                        <div className="flex items-center gap-1.5 font-black text-sm text-amber-900">
+                          <Sparkles className="w-5 h-5 fill-amber-500 text-amber-500 shrink-0" />
+                          Gemini Match Rationale
+                        </div>
+                        <p className="text-gray-700 font-medium text-xs leading-relaxed">
+                          "Juan has hands-on skills in metal fabrication. This vocational program will officially certify his qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Right panel */}
-            <div className="flex-1 bg-[#FAFAF8] p-8 md:p-16 flex flex-col justify-center items-center">
-              <div className="w-full max-w-md bg-white border border-[#D1FAE5] rounded-2xl shadow-sm p-6 md:p-8 space-y-6">
-                
-                <div className="text-center">
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-wider inline-block">
-                    Authorized Sign In
-                  </span>
-                  <h2 className="text-xl font-bold text-gray-900 mt-2">Sign in to SiKap</h2>
-                  <p className="text-xs text-gray-500 mt-1">Sangguniang Kabataan Youth database portals</p>
-                </div>
+            <div className={`flex-1 bg-white relative min-h-[600px] h-full flex flex-col items-center justify-center p-6 md:px-12 md:py-8 overflow-hidden`}>
 
-                {/* Login Form */}
-                <form onSubmit={handleFormLogin} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-gray-500 uppercase">Email Address</label>
-                    <input
-                      type="email"
-                      placeholder="rhea.cruz@sanluispampanga.gov.ph"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+              {/* Logo centered at top - identical in both sign in and register */}
+              <div className="absolute top-4 md:top-6 left-0 w-full flex justify-center z-50 pointer-events-auto">
+                <SikapLogo size={48} logoSize={60} textSize={40} showText={true} showSubtext={false} gap="gap-1" disableHover={true} />
+              </div>
+
+              <div className={`w-full z-10 relative ${isSelfRegistering ? 'flex-1 flex flex-col min-h-0 max-w-2xl px-2 pt-[64px] md:pt-[78px] pb-10 md:pb-12' : 'max-w-md space-y-6'}`}>
+                {isSelfRegistering ? (
+                  <>
+                    <KKYouthRegister
+                      onRegisterComplete={(newProfile) => {
+                        setYouthProfiles(prev => [newProfile, ...prev]);
+                        setLoggedInYouthId(newProfile.id);
+                        setCurrentUserRole(UserRole.KK_YOUTH);
+                        setIsSelfRegistering(false);
+                        setViewingLanding(false);
+                        addToast(`Welcome ${newProfile.name}! Registered successfully. Your account is view-only pending SK Chairperson verification.`, "success");
+                      }}
+                      onBackToHome={() => setIsSelfRegistering(false)}
                     />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[11px] font-bold text-gray-500 uppercase">Password</label>
-                      <button
-                        type="button"
-                        onClick={() => setIsForgotPasswordOpen(true)}
-                        className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                      >
-                        Forgot?
-                      </button>
+                    <div className="text-center pt-2 shrink-0">
+                      <p className="text-xs sm:text-sm font-semibold text-gray-700">
+                        Have a SiKap account?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setIsSelfRegistering(false)}
+                          className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
+                        >
+                          Sign in here
+                        </button>
+                      </p>
                     </div>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-lg text-xs pr-10 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-left mb-10">
+                      <h2 className="text-4xl font-black tracking-tight leading-[1.05] text-gray-900">Sign In</h2>
+                      <p className="text-base text-gray-500 font-medium mt-2.5">Please login to continue</p>
                     </div>
-                  </div>
 
-                  {/* Simple Remember Me Checkbox */}
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <input
-                      id="remember-me-checkbox"
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43]"
-                    />
-                    <label htmlFor="remember-me-checkbox" className="text-xs text-gray-600 select-none cursor-pointer">
-                      Remember me
-                    </label>
-                  </div>
+                    {/* Login Form */}
+                    <form onSubmit={handleFormLogin} className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700">Email</label>
+                        <input
+                          type="email"
+                          placeholder="juan.delacruz@gmail.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400"
+                        />
+                      </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
-                  >
-                    Sign In
-                  </button>
-                </form>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-sm font-semibold text-gray-700">Password</label>
+                          <button
+                            type="button"
+                            onClick={() => setIsForgotPasswordOpen(true)}
+                            className="text-xs font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer"
+                          >
+                            Forgot?
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
 
-                <div className="text-center pt-2 border-t border-gray-100 mt-2">
-                  <p className="text-xs text-gray-500 font-medium">
-                    Out-of-School Youth (OSY) in San Luis?{" "}
-                    <button
-                      type="button"
-                      onClick={() => setIsSelfRegistering(true)}
-                      className="font-extrabold text-[#0A6B43] hover:underline cursor-pointer"
-                    >
-                      Register Profile Here
-                    </button>
-                  </p>
-                </div>
+                        {/* Remember Me Checkbox (nested closer to password) */}
+                        <div className="flex items-center gap-2.5 pt-2">
+                          <input
+                            id="remember-me-checkbox"
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43]"
+                          />
+                          <label htmlFor="remember-me-checkbox" className="text-sm text-gray-600 font-medium select-none cursor-pointer">
+                            Remember me
+                          </label>
+                        </div>
+                      </div>
 
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          className="w-full py-4 bg-[#0A6B43] hover:bg-[#075332] text-white text-base font-bold rounded-2xl shadow-md transition-colors cursor-pointer"
+                        >
+                          Login
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Registration Link */}
+                    <div className="text-center mt-8">
+                      <p className="text-sm font-semibold text-gray-700">
+                        New to SiKap?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setIsSelfRegistering(true)}
+                          className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
+                        >
+                          Register Here
+                        </button>
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Back to Homepage link at the very bottom - identical in both sign in and register */}
+              <div className="absolute bottom-4 md:bottom-6 left-0 w-full flex justify-center z-30 pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={() => setViewingLanding(true)}
+                  className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] cursor-pointer transition-colors"
+                >
+                  Back to Homepage
+                </button>
               </div>
             </div>
 

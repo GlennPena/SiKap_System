@@ -600,6 +600,7 @@ export const SikapLogo: React.FC<{
   textClassName?: string;
   gap?: string;
   textScale?: number;
+  disableHover?: boolean;
 }> = ({
   size = 40,
   logoSize,
@@ -610,7 +611,8 @@ export const SikapLogo: React.FC<{
   className = "",
   textClassName = "pt-2",
   gap = "gap-2",
-  textScale = 0.85
+  textScale = 0.85,
+  disableHover = false
 }) => {
     const effectiveLogoSize = logoSize ?? size;
     const effectiveTextSize = textSize ?? (size * textScale);
@@ -619,7 +621,7 @@ export const SikapLogo: React.FC<{
     const subtextColorClass = variant === "dark" ? "text-gray-300" : variant === "white" ? "text-white/80" : "text-gray-500";
 
     return (
-      <div className={`flex items-center ${gap} select-none group cursor-pointer transition-transform duration-200 hover:scale-105 ${className}`}>
+      <div className={`flex items-center ${gap} select-none ${disableHover ? '' : 'group cursor-pointer transition-transform duration-200 hover:scale-105'} ${className}`}>
         {/* Official SiKap Emblem Logo */}
         <img
           src="/sikap-logo.png"
