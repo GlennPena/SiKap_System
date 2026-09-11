@@ -9,7 +9,7 @@ import {
   Tag, Compass, FileText, Layers, Activity
 } from "lucide-react";
 import { formatContactNumber } from "../lib/utils";
-import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem } from "../types";
+import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
@@ -164,7 +164,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [editGoal, setEditGoal] = useState(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
   const [editSector, setEditSector] = useState(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
   const [editPhone, setEditPhone] = useState(youthProfile.contactNumber || "+63 9");
-  const [editEdu, setEditEdu] = useState(youthProfile.educationalAttainment || "College level");
+  const [editEdu, setEditEdu] = useState<string>(normalizeEducationalAttainment(youthProfile.educationalAttainment));
   const [editStatus, setEditStatus] = useState(youthProfile.currentStatus || "Out-of-school");
   const [editSoloParent, setEditSoloParent] = useState(Boolean(youthProfile.soloParent));
   const [editPwd, setEditPwd] = useState(Boolean(youthProfile.pwd));
@@ -184,7 +184,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       setEditGoal(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
       setEditSector(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
       setEditPhone(youthProfile.contactNumber || "+63 9");
-      setEditEdu(youthProfile.educationalAttainment || "College level");
+      setEditEdu(normalizeEducationalAttainment(youthProfile.educationalAttainment));
       setEditStatus(youthProfile.currentStatus || "Out-of-school");
       setEditSoloParent(Boolean(youthProfile.soloParent));
       setEditPwd(Boolean(youthProfile.pwd));
@@ -735,7 +735,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     setEditGoal(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
     setEditSector(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
     setEditPhone(youthProfile.contactNumber || "+63 9");
-    setEditEdu(youthProfile.educationalAttainment || "College level");
+    setEditEdu(normalizeEducationalAttainment(youthProfile.educationalAttainment));
     setEditStatus(youthProfile.currentStatus || "Out-of-school");
     setEditSoloParent(Boolean(youthProfile.soloParent));
     setEditPwd(Boolean(youthProfile.pwd));
@@ -2610,7 +2610,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Educational Attainment *</label>
                           <select
                             disabled={!isEditingProfile || isUnverified}
-                            value={editEdu}
+                            value={normalizeEducationalAttainment(editEdu)}
                             onChange={(e) => setEditEdu(e.target.value)}
                             className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
                               isEditingProfile
@@ -2618,19 +2618,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
                             }`}
                           >
-                            {[
-                              "College Graduate",
-                              "College Level",
-                              "College level",
-                              "Senior High School Graduate",
-                              "Senior High School",
-                              "High School Graduate",
-                              "High School Level",
-                              "Elementary Graduate",
-                              "Elementary Level",
-                              "Elementary level",
-                              "Tech-Voc / TVET Graduate"
-                            ].filter((v, i, a) => a.indexOf(v) === i).map(edu => (
+                            {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
                               <option key={edu} value={edu}>{edu}</option>
                             ))}
                           </select>

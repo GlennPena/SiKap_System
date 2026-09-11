@@ -26,6 +26,27 @@ export default function App() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
+  // Derive active user role immediately to eliminate render flickers on page refresh
+  const activeUserRole = useMemo(() => {
+    if (currentUserRole) return currentUserRole;
+    if (status === "authenticated" && session?.user) {
+      if (typeof window !== "undefined") {
+        const isRemembered = (session.user as any).rememberMe ?? (localStorage.getItem("sikap_remember_me") === "true");
+        const isSessionActive = sessionStorage.getItem("sikap_session_active") === "true";
+        if (!isRemembered && !isSessionActive) {
+          return null;
+        }
+      }
+      const roleStr = (session.user as any).role;
+      if (roleStr === "SUPER_ADMIN") return UserRole.SUPER_ADMIN;
+      if (roleStr === "SK_OFFICIAL") return UserRole.SK_OFFICIAL;
+      if (roleStr === "BARANGAY_CAPTAIN") return UserRole.BARANGAY_CAPTAIN;
+      if (roleStr === "TESDA_PARTNER") return UserRole.TESDA_PARTNER;
+      if (roleStr === "KK_YOUTH") return UserRole.KK_YOUTH;
+    }
+    return null;
+  }, [currentUserRole, session, status]);
+
   useEffect(() => {
     if (status === "authenticated" && session?.user) {
       if (typeof window !== "undefined") {
@@ -212,6 +233,21 @@ export default function App() {
     };
   }, [youthProfiles, loggedInYouthId, session?.user]);
 
+  // Prevent flash of landing page while session is loading or authenticating
+  if (status === "loading" || (status === "authenticated" && !activeUserRole)) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 select-none" id="sikap-session-loader">
+        <div className="flex flex-col items-center gap-6">
+          <SikapLogo size={52} logoSize={68} textSize={44} showText={true} showSubtext={true} disableHover={true} />
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-white border border-slate-200/80 text-emerald-800 text-xs font-semibold shadow-xs">
+            <div className="w-2 h-2 rounded-full bg-[#0A6B43] animate-ping" />
+            <span>Loading SiKap...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="font-sans antialiased" id="sikap-application-root">
       {/* Toast Alert stack */}
@@ -229,7 +265,7 @@ export default function App() {
         ))}
       </aside>
 
-      {currentUserRole === null ? (
+      {activeUserRole === null ? (
         viewingLanding ? (
           <LandingPage
             programs={programs}
@@ -374,7 +410,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center"
                           >
                             {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                           </button>
@@ -439,7 +475,7 @@ export default function App() {
       ) : (
         // Authenticated portals
         <div>
-          {currentUserRole === UserRole.SK_OFFICIAL && (
+          {activeUserRole === UserRole.SK_OFFICIAL && (
             <SKOfficialPortal
               currentUser={session?.user}
               designatedBarangay={(session?.user as any)?.barangay || designatedBarangay}
@@ -459,7 +495,7 @@ export default function App() {
             />
           )}
 
-          {currentUserRole === UserRole.KK_YOUTH && (
+          {activeUserRole === UserRole.KK_YOUTH && (
             <KKYouthPortal
               currentUser={session?.user}
               youthProfile={activeYouthProfile}
@@ -474,7 +510,7 @@ export default function App() {
             />
           )}
 
-          {currentUserRole === UserRole.TESDA_PARTNER && (
+          {activeUserRole === UserRole.TESDA_PARTNER && (
             <TESDAPartnerPortal
               currentUser={session?.user}
               programs={programs}
@@ -487,7 +523,7 @@ export default function App() {
             />
           )}
 
-          {currentUserRole === UserRole.BARANGAY_CAPTAIN && (
+          {activeUserRole === UserRole.BARANGAY_CAPTAIN && (
             <BarangayCaptainPortal
               currentUser={session?.user}
               onLogout={handleLogout}
@@ -502,7 +538,7 @@ export default function App() {
             />
           )}
 
-          {currentUserRole === UserRole.SUPER_ADMIN && (
+          {activeUserRole === UserRole.SUPER_ADMIN && (
             <SuperAdminPortal
               currentUser={session?.user}
               barangays={barangays}

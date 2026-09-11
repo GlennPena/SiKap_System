@@ -6,6 +6,7 @@ import { encrypt } from "@/lib/encryption";
 import { calculateContentBasedMatchScore } from "@/lib/cbf-matcher";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 import { notifyNewYouthRegistered } from "@/lib/notifications";
+import { normalizeEducationalAttainment } from "@/types";
 
 export async function POST(req: Request) {
   try {
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
         preferencesNormalized: normalizedPreferences,
         experiencesNormalized: normalizedExperiences,
         goalNormalized: normalizedGoal,
-        educationalAttainment: educationalAttainment || "",
+        educationalAttainment: normalizeEducationalAttainment(educationalAttainment),
         currentStatus: currentStatus || "Out-of-school"
       };
 
@@ -129,7 +130,7 @@ export async function POST(req: Request) {
           age: Number(age),
           purok,
           barangayId: brgy.id,
-          educationalAttainment,
+          educationalAttainment: normalizeEducationalAttainment(educationalAttainment),
           currentStatus: currentStatus || "Out-of-school",
           skills: finalSkillsRaw,
           interests: finalPreferencesRaw,

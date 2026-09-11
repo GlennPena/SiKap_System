@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
+import { normalizeEducationalAttainment } from "@/types";
 
 function safeDecrypt(enc: string | null | undefined): string {
   if (!enc) return "";
@@ -152,7 +153,7 @@ export async function POST(request: Request) {
         age: Number(body.age),
         purok: body.purok,
         barangayId: barangayId,
-        educationalAttainment: body.educationalAttainment,
+        educationalAttainment: normalizeEducationalAttainment(body.educationalAttainment),
         currentStatus: body.currentStatus,
         skills: Array.isArray(body.skills) ? body.skills : [],
         interests: Array.isArray(body.interests) ? body.interests : [],
@@ -234,6 +235,10 @@ export async function PUT(request: Request) {
     if (body.verificationIdImage !== undefined) {
        updateData.verificationIdImageEnc = encrypt(body.verificationIdImage);
        delete updateData.verificationIdImage;
+    }
+
+    if (body.educationalAttainment !== undefined) {
+       updateData.educationalAttainment = normalizeEducationalAttainment(body.educationalAttainment);
     }
 
     let rawSkillsToSave: string[] | null = null;

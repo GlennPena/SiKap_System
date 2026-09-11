@@ -6,11 +6,13 @@ import {
   FileText, Megaphone, Settings, ArrowLeft, Mail, Phone, Calendar, Award,
   CheckCircle, ShieldAlert, Sparkles, AlertTriangle, TrendingUp, Users2, Trash2, Edit, X, RefreshCw,
   ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
-  LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight
+  LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight,
+  Printer, Download
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
-  SKOfficialScreen, UserRole, SkillGapData, Councilor
+  SKOfficialScreen, UserRole, SkillGapData, Councilor,
+  EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment
 } from "../types";
 import {
   MetricCard, FlameMatchScore, PathwayTimeline,
@@ -78,7 +80,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [regSex, setRegSex] = useState("Male");
   const [regPurok, setRegPurok] = useState("Purok 2");
   const [regContact, setRegContact] = useState("+63 9");
-  const [regEdu, setRegEdu] = useState("College level");
+  const [regEdu, setRegEdu] = useState<string>("College Level");
   const [regStatus, setRegStatus] = useState("Out-of-school");
   const [regSchool, setRegSchool] = useState("");
   const [regSkills, setRegSkills] = useState<string[]>([]);
@@ -94,6 +96,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [isRegistering, setIsRegistering] = useState(false);
   const [showRegSuccess, setShowRegSuccess] = useState(false);
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
+
+  // Skills Gap Printable Report Modal State
+  const [isSkillsGapReportModalOpen, setIsSkillsGapReportModalOpen] = useState(false);
 
   // Announcement modal
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -534,6 +539,362 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     return localYouthProfiles.filter(y => y.currentStatus === "Out-of-school" && !y.hasReferred).length;
   }, [localYouthProfiles]);
 
+  // Clean formatted Barangay name
+  const cleanDesignatedBarangay = useMemo(() => {
+    return designatedBarangay.replace(/^Barangay\s+/i, "").trim();
+  }, [designatedBarangay]);
+
+  const formattedBrgyName = useMemo(() => {
+    return `Barangay ${cleanDesignatedBarangay}`;
+  }, [cleanDesignatedBarangay]);
+
+  // Resolved SK Chairperson Name for official report sign-off
+  const skChairName = useMemo(() => {
+    if (isChairperson && (settingsName || currentUser?.name)) {
+      return settingsName || currentUser.name;
+    }
+    const chairInCouncilors = councilors.find(c =>
+      c.role.toLowerCase().includes("chair") &&
+      (c.barangay.toLowerCase() === designatedBarangay.toLowerCase() ||
+       c.barangay.replace(/^Barangay\s+/i, "").toLowerCase() === designatedBarangay.replace(/^Barangay\s+/i, "").toLowerCase())
+    );
+    return chairInCouncilors?.name || (currentUser?.name && isChairperson ? currentUser.name : "HON. SK CHAIRPERSON");
+  }, [isChairperson, settingsName, currentUser, councilors, designatedBarangay]);
+
+  // Sector breakdown for Skills Gap Report
+  const skillsGapSectorBreakdown = useMemo(() => {
+    const defaultCategories: Record<string, { count: number; track: string; demand: string }> = {
+      "IT & Digital Technologies": { count: 0, track: "Computer Systems Servicing NC II", demand: "High Priority" },
+      "Food, Culinary & Pastry Arts": { count: 0, track: "Cookery NC II / Bread & Pastry NC II", demand: "High Priority" },
+      "Construction, Electrical & Welding": { count: 0, track: "SMAW NC II / Electrical Installation NC II", demand: "Critical Need" },
+      "Automotive & Engine Servicing": { count: 0, track: "Automotive Servicing NC I / NC II", demand: "Moderate Need" },
+      "Agriculture & Agribusiness": { count: 0, track: "Organic Agriculture Production NC II", demand: "High Priority" },
+      "Other Livelihood & Trades": { count: 0, track: "Community-Based Livelihood Training", demand: "Emerging Field" }
+    };
+
+    localYouthProfiles.forEach(y => {
+      const pref = (y.sectorPreference || "").toLowerCase();
+      const goal = (y.livelihoodGoal || "").toLowerCase();
+      if (pref.includes("it") || pref.includes("tech") || pref.includes("computer") || goal.includes("computer") || goal.includes("tech")) {
+        defaultCategories["IT & Digital Technologies"].count++;
+      } else if (pref.includes("food") || pref.includes("culinary") || pref.includes("pastry") || pref.includes("bread") || pref.includes("cook") || goal.includes("food") || goal.includes("cook") || goal.includes("baker")) {
+        defaultCategories["Food, Culinary & Pastry Arts"].count++;
+      } else if (pref.includes("construction") || pref.includes("weld") || pref.includes("electr") || pref.includes("metal") || pref.includes("smaw") || goal.includes("electric") || goal.includes("weld")) {
+        defaultCategories["Construction, Electrical & Welding"].count++;
+      } else if (pref.includes("auto") || pref.includes("engine") || pref.includes("mechanic") || pref.includes("motor") || goal.includes("mechanic") || goal.includes("driver")) {
+        defaultCategories["Automotive & Engine Servicing"].count++;
+      } else if (pref.includes("agri") || pref.includes("farm") || pref.includes("crop") || goal.includes("farm") || goal.includes("agri")) {
+        defaultCategories["Agriculture & Agribusiness"].count++;
+      } else {
+        defaultCategories["Other Livelihood & Trades"].count++;
+      }
+    });
+
+    const total = localYouthProfiles.length;
+    return Object.entries(defaultCategories).map(([sector, info]) => ({
+      sector,
+      count: info.count,
+      pct: total > 0 ? ((info.count / total) * 100).toFixed(1) : "0.0",
+      track: info.track,
+      demand: info.demand
+    }));
+  }, [localYouthProfiles]);
+
+  // Export Skills Gap Analytics Report to Styled Microsoft Excel (.xls)
+  const handleExportSkillsGapExcel = () => {
+    const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    const totalYouth = localYouthProfiles.length;
+    const osyCount = localYouthProfiles.filter(y => y.currentStatus === "Out-of-school").length;
+    const osyPct = totalYouth > 0 ? ((osyCount / totalYouth) * 100).toFixed(1) : "0.0";
+    const totalTesdaSlots = programs.reduce((sum, p) => sum + (p.slotsRemaining || 0), 0);
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>${formattedBrgyName.slice(0, 20)} Skills Gap</x:Name>
+                <x:WorksheetOptions>
+                  <x:FitToPage/>
+                  <x:Print>
+                    <x:ValidPrinterInfo/>
+                    <x:PaperSizeIndex>1</x:PaperSizeIndex>
+                    <x:FitWidth>1</x:FitWidth>
+                    <x:FitHeight>0</x:FitHeight>
+                    <x:Orientation>Portrait</x:Orientation>
+                  </x:Print>
+                  <x:PageSetup>
+                    <x:Header x:Margin="0.3"/>
+                    <x:Footer x:Margin="0.3"/>
+                    <x:PageMargins x:Left="0.4" x:Right="0.4" x:Top="0.5" x:Bottom="0.5"/>
+                  </x:PageSetup>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <style>
+          @page {
+            size: letter portrait;
+            margin: 0.4in 0.4in 0.5in 0.4in;
+            mso-page-orientation: portrait;
+          }
+          body {
+            font-family: 'Segoe UI', -apple-system, Calibri, Arial, sans-serif;
+            font-size: 9.5pt;
+            color: #1e293b;
+            margin: 0;
+            padding: 8px;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 18px;
+            table-layout: fixed;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            padding: 7px 10px;
+            font-size: 9pt;
+            text-align: left;
+            vertical-align: middle;
+            height: 24pt;
+          }
+          td {
+            border: 1px solid #e2e8f0;
+            padding: 6px 10px;
+            font-size: 9pt;
+            vertical-align: middle;
+            white-space: normal;
+            height: 20pt;
+          }
+          .banner-title {
+            background-color: #0A6B43;
+            color: #ffffff;
+            font-size: 13pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 11px 10px;
+            border: 1px solid #075332;
+          }
+          .banner-sub {
+            background-color: #112F24;
+            color: #a7f3d0;
+            font-size: 9.5pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 6px 10px;
+            border: 1px solid #0A231A;
+          }
+          .meta-box {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            font-size: 9pt;
+            padding: 7px 10px;
+          }
+          .sec-hdr {
+            background-color: #0A6B43;
+            color: #ffffff;
+            font-size: 10pt;
+            font-weight: bold;
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #075332;
+          }
+          .total-row {
+            background-color: #e2e8f0;
+            font-weight: bold;
+            color: #0f172a;
+            border-top: 2px solid #0A6B43;
+          }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: bold; }
+          .text-num { mso-number-format: "#\,\#\#0"; }
+          .text-pct { mso-number-format: "0\.0%"; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <col width="38" />   <!-- Col 1: Index # -->
+          <col width="280" />  <!-- Col 2: Competency Area / Sector -->
+          <col width="110" />  <!-- Col 3: Youth Lacking / Count -->
+          <col width="110" />  <!-- Col 4: Deficiency Rate % -->
+          <col width="130" />  <!-- Col 5: Slots / Severity -->
+          <col width="290" />  <!-- Col 6: Recommended Training Track / Action -->
+
+          <tr><td colspan="6" class="banner-title">MUNICIPALITY OF SAN LUIS · PROVINCE OF PAMPANGA</td></tr>
+          <tr><td colspan="6" class="banner-sub">${formattedBrgyName.toUpperCase()} · SANGGUNIANG KABATAAN</td></tr>
+          <tr><td colspan="6" style="height: 6px; border: none;"></td></tr>
+          <tr>
+            <td colspan="2" class="meta-box"><strong>SK Presiding Officer:</strong> Hon. ${skChairName}</td>
+            <td colspan="2" class="meta-box"><strong>Assessment Date:</strong> ${dateStr}</td>
+            <td colspan="2" class="meta-box"><strong>Barangay Scope:</strong> ${formattedBrgyName}</td>
+          </tr>
+          <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 1: KK SKILLS & LIVELIHOOD READINESS SCORECARD -->
+          <tr><td colspan="6" class="sec-hdr">I. KATIPUNAN NG KABATAAN WORKFORCE READINESS & OSY SCORECARD</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th>Diagnostic Indicator / Demographic Metric</th>
+            <th class="text-center">Youth Count</th>
+            <th class="text-center">Demographic Ratio</th>
+            <th class="text-center">Classification</th>
+            <th>Strategic Action Directive</th>
+          </tr>
+          <tr>
+            <td class="text-center">1</td>
+            <td class="font-bold">Total Registered KK Youth Members</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #0A6B43;">${totalYouth}</td>
+            <td class="text-center font-bold text-pct">100.0%</td>
+            <td class="text-center"><span style="color: #047857; font-weight: bold;">Verified KK Base</span></td>
+            <td>Official Youth Registry Base</td>
+          </tr>
+          <tr>
+            <td class="text-center">2</td>
+            <td class="font-bold">Out-of-School Youth (OSY) Target Population</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #b45309;">${osyCount}</td>
+            <td class="text-center font-bold text-pct">${osyPct}%</td>
+            <td class="text-center"><span style="color: #b45309; font-weight: bold;">★ Primary Priority</span></td>
+            <td>Priority Beneficiaries for Livelihood TVET</td>
+          </tr>
+          <tr>
+            <td class="text-center">3</td>
+            <td class="font-bold">OSY Demographic Vulnerability Density Rate</td>
+            <td class="text-center font-bold text-pct" style="font-size: 11pt; color: #b45309;">${osyPct}%</td>
+            <td class="text-center font-bold">Of Total KK</td>
+            <td class="text-center"><span style="color: #b45309; font-weight: bold;">Vulnerability Rate</span></td>
+            <td>Targeted Livelihood Intervention Baseline</td>
+          </tr>
+          <tr>
+            <td class="text-center">4</td>
+            <td class="font-bold">Unmatched OSY Requiring TVET Scholarship</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #dc2626;">${unmatchedCount}</td>
+            <td class="text-center font-bold text-pct">${totalYouth > 0 ? ((unmatchedCount / totalYouth) * 100).toFixed(1) : "0.0"}%</td>
+            <td class="text-center"><span style="color: #dc2626; font-weight: bold;">Urgent TVET Need</span></td>
+            <td>Immediate Program Matching & Enrollment</td>
+          </tr>
+          <tr>
+            <td class="text-center">5</td>
+            <td class="font-bold">Active TESDA Training Capacity in San Luis</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #1d4ed8;">${totalTesdaSlots}</td>
+            <td class="text-center font-bold">Available Slots</td>
+            <td class="text-center"><span style="color: #1d4ed8; font-weight: bold;">Open Capacity</span></td>
+            <td>TESDA GPSAT & Community Center Courses</td>
+          </tr>
+          <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 2: TECHNICAL COMPETENCY DEFICIENCY & TRAINING ALLOCATION MATRIX -->
+          <tr><td colspan="6" class="sec-hdr">II. TECHNICAL COMPETENCY DEFICIENCY & TRAINING ALLOCATION MATRIX</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th>Competency Deficiency Area</th>
+            <th class="text-center">Youth Lacking</th>
+            <th class="text-center">Deficiency Impact Rate</th>
+            <th class="text-center">Severity & Slots</th>
+            <th>Recommended Training Action & Pathway</th>
+          </tr>
+          ${localSkillsGaps.map((gap, idx) => `
+            <tr>
+              <td class="text-center">${idx + 1}</td>
+              <td class="font-bold">${gap.skill}</td>
+              <td class="text-center font-bold text-num" style="color: #b45309;">${gap.count}</td>
+              <td class="text-center font-bold text-pct">${gap.percentage}%</td>
+              <td class="text-center">
+                <span style="color: ${gap.percentage >= 30 ? '#dc2626' : '#b45309'}; font-weight: bold;">
+                  ${gap.percentage >= 30 ? 'Critical Gap' : 'Moderate'}
+                </span>
+                <span style="font-size: 8pt; color: #047857; display: block;">(${gap.availableSlots} Slots Avail)</span>
+              </td>
+              <td>${gap.recommendedAction}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td class="text-center">--</td>
+            <td>OVERALL COMPETENCY DEFICIENCY BASE</td>
+            <td class="text-center text-num">${localSkillsGaps.reduce((acc, g) => acc + g.count, 0)}</td>
+            <td class="text-center">--</td>
+            <td class="text-center text-num">${localSkillsGaps.reduce((acc, g) => acc + g.availableSlots, 0)} Total Slots</td>
+            <td>Comprehensive Katipunan ng Kabataan Livelihood Assessment</td>
+          </tr>
+          <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 3: YOUTH SECTOR PREFERENCES & DEMAND TRAJECTORY -->
+          <tr><td colspan="6" class="sec-hdr">III. PRIORITY SECTOR PREFERENCES & TVET DEMAND BREAKDOWN</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th colspan="2">Industry / Sector Trajectory</th>
+            <th class="text-center">Interested Youth</th>
+            <th class="text-center">Youth Share %</th>
+            <th>Strategic TVET Alignment</th>
+          </tr>
+          ${skillsGapSectorBreakdown.map((sec, idx) => `
+            <tr>
+              <td class="text-center">${idx + 1}</td>
+              <td colspan="2" class="font-bold">${sec.sector}</td>
+              <td class="text-center font-bold text-num">${sec.count}</td>
+              <td class="text-center font-bold text-pct">${sec.pct}%</td>
+              <td>${sec.count > 0 ? 'Active Enrollment Priority Track' : 'Baseline TVET Offering'}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td class="text-center">--</td>
+            <td colspan="2">TOTAL YOUTH ASSESSED</td>
+            <td class="text-center text-num">${totalYouth}</td>
+            <td class="text-center text-pct">100.0%</td>
+            <td>Comprehensive Demographics Captured</td>
+          </tr>
+          <tr><td colspan="6" style="height: 22px; border: none;"></td></tr>
+
+          <!-- SECTION IV: OFFICIAL ATTESTATION & SIGN-OFF BLOCK -->
+          <tr>
+            <td colspan="3" class="text-center" style="font-weight: bold; font-size: 9pt; border: none;">Prepared & Certified Correct:</td>
+            <td colspan="3" class="text-center" style="font-weight: bold; font-size: 9pt; border: none;">Attested & Noted By:</td>
+          </tr>
+          <tr><td colspan="6" style="height: 35px; border: none;"></td></tr>
+          <tr>
+            <td colspan="3" class="text-center font-bold" style="font-size: 10pt; border-bottom: 1.5pt solid #334155; border-top: none; border-left: none; border-right: none;">${(skChairName || "HON. SK CHAIRPERSON").toUpperCase()}</td>
+            <td colspan="3" class="text-center font-bold" style="font-size: 10pt; border-bottom: 1.5pt solid #334155; border-top: none; border-left: none; border-right: none;">HON. PUNONG BARANGAY</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-center" style="font-size: 8.5pt; font-weight: bold; color: #047857; border: none;">SK Chairperson</td>
+            <td colspan="3" class="text-center" style="font-size: 8.5pt; font-weight: bold; color: #0f172a; border: none;">Punong Barangay</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-center" style="font-size: 8pt; color: #64748b; border: none;">Sangguniang Kabataan · ${formattedBrgyName}</td>
+            <td colspan="3" class="text-center" style="font-size: 8pt; color: #64748b; border: none;">Barangay Government of ${formattedBrgyName}</td>
+          </tr>
+          <tr><td colspan="6" style="height: 14px; border: none;"></td></tr>
+          <tr>
+            <td colspan="6" class="text-center" style="font-size: 8pt; color: #94a3b8; border: none;">Official Skills Gap Diagnostic Document generated through the SiKap Youth Governance & Livelihood Matching Platform · Verified Katipunan ng Kabataan Public Record · San Luis, Pampanga</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `San_Luis_${formattedBrgyName.replace(/[^a-zA-Z0-9]/g, '_')}_Skills_Gap_Analytics_Report_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    if (addToast) addToast(`Downloaded ${formattedBrgyName} Skills Gap Report (.xls)`, "success");
+  };
+
   // Pending Approvals Barangay Filter
   const [pendingBarangayFilter, setPendingBarangayFilter] = useState<string>("All");
 
@@ -688,7 +1049,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     setRegSex("Male");
     setRegPurok("Purok 2");
     setRegContact("+63 9");
-    setRegEdu("College level");
+    setRegEdu("College Level");
     setRegStatus("Out-of-school");
     setRegSchool("");
     setRegSkills([]);
@@ -1162,7 +1523,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         y.purok.toLowerCase().includes(searchQuery.toLowerCase()) ||
         y.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
       
-      const matchesEdu = eduFilter === "All" || y.educationalAttainment === eduFilter;
+      const matchesEdu = eduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === eduFilter;
       const matchesPurok = purokFilter === "All" || y.purok === purokFilter;
       
       let matchesAge = true;
@@ -1880,10 +2241,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     className="p-2 border border-gray-200 rounded-lg text-xs focus:outline-hidden text-gray-600 bg-white"
                   >
                     <option value="All">All Education</option>
-                    <option value="College level">College level</option>
-                    <option value="SHS graduate">SHS graduate</option>
-                    <option value="HS graduate">HS graduate</option>
-                    <option value="In-school">In-school</option>
+                    {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
+                      <option key={edu} value={edu}>{edu}</option>
+                    ))}
                   </select>
 
                   <select
@@ -2565,10 +2925,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           onChange={(e) => setRegEdu(e.target.value)}
                           className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
                         >
-                          <option value="College level">College level</option>
-                          <option value="SHS graduate">SHS graduate</option>
-                          <option value="HS graduate">HS graduate</option>
-                          <option value="Elementary level">Elementary level</option>
+                          {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
+                            <option key={edu} value={edu}>{edu}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -2948,14 +3307,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <option value="Agriculture">Agriculture & Agribusiness</option>
                   </select>
                   <button
-                    onClick={() => {
-                      addToast(`Diagnostic report generated for Barangay ${designatedBarangay}! Printing layout...`, "info");
-                      window.print();
-                    }}
-                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    type="button"
+                    onClick={handleExportSkillsGapExcel}
+                    className="bg-white hover:bg-gray-50 text-emerald-800 border border-emerald-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Export Skills Gap Report to styled Excel spreadsheet (.xls)"
                   >
-                    <FileText className="w-4 h-4" />
-                    Print Summary
+                    <Download className="w-4 h-4 text-emerald-700" />
+                    Export Excel (.xls)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSkillsGapReportModalOpen(true)}
+                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Generate printable Skills Gap Analytics report and PDF summary"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Print Summary Report
                   </button>
                 </div>
               </div>
@@ -5011,6 +5378,261 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EXECUTIVE PRINTABLE SKILLS GAP ANALYTICS REPORT                    */}
+      {/* ========================================================================= */}
+      {isSkillsGapReportModalOpen && (
+        <div id="printable-skillsgap-modal-backdrop" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden">
+          <div id="printable-skillsgap-modal-card" className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in zoom-in-95 duration-150">
+            
+            {/* Header with Print & Excel Action Controls */}
+            <div className="relative bg-[#1C2B20] text-white p-4 sm:p-5 pr-14 sm:pr-16 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print border-b border-emerald-900/60">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shadow-xs">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-2">
+                    Skills Gap Analytics Summary
+                    <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded-md">
+                      {formattedBrgyName}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-emerald-200/90 font-medium">
+                    Official Katipunan ng Kabataan Competency & TVET Training Allocation Audit
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Export Excel (.xls) Formatted Table Button */}
+                <button
+                  type="button"
+                  onClick={handleExportSkillsGapExcel}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/50"
+                  title="Export styled spreadsheet pre-configured for US Letter printing (.xls)"
+                >
+                  <Download className="w-3.5 h-3.5 text-white" />
+                  <span>Export Excel (.xls)</span>
+                </button>
+
+                {/* Print / Save as PDF Button */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Print official document on US Letter paper size or save as PDF"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print / PDF (Letter)</span>
+                </button>
+              </div>
+
+              {/* Dedicated Top-Right X / Exit Button */}
+              <button
+                type="button"
+                onClick={() => setIsSkillsGapReportModalOpen(false)}
+                className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-all flex items-center justify-center"
+                aria-label="Close skills gap report modal"
+                title="Close report"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Content View */}
+            <div className="flex-1 p-6 sm:p-10 print:p-0 print:space-y-5 overflow-y-auto space-y-6 text-xs text-gray-800 bg-white" id="printable-skillsgap-report">
+              
+              {/* Document Letterhead */}
+              <div className="text-center border-b-2 border-emerald-900 pb-4 space-y-1 print-avoid-break">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Republic of the Philippines · Province of Pampanga</p>
+                <h2 className="text-base font-black text-gray-950 uppercase tracking-tight">MUNICIPALITY OF SAN LUIS</h2>
+                <h3 className="text-sm font-extrabold text-[#0A6B43] uppercase tracking-wider">{formattedBrgyName.toUpperCase()} · SANGGUNIANG KABATAAN</h3>
+                <p className="text-[10px] text-gray-400 font-semibold pt-1">
+                  KATIPUNAN NG KABATAAN SKILLS GAP & WORKFORCE READINESS DIAGNOSTIC REPORT
+                </p>
+              </div>
+
+              {/* Report Meta Details */}
+              <div className="flex justify-between items-center text-[11px] font-semibold bg-gray-50 p-3.5 rounded-xl border border-gray-150 print-avoid-break">
+                <div>
+                  <p>SK Presiding Officer: <strong>Hon. {skChairName}</strong></p>
+                  <p className="mt-0.5">Barangay: <strong>{formattedBrgyName}</strong></p>
+                </div>
+                <div className="text-right">
+                  <p>Assessment Date: <strong>{new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong></p>
+                  <p className="mt-0.5">Focus Demographic: <strong className="text-amber-800">Priority Out-of-School Youth (OSY)</strong></p>
+                </div>
+              </div>
+
+              {/* Statistical Summary Scorecard (OSY & Skills Focused) */}
+              <div className="space-y-2 print-avoid-break">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                  I. Katipunan ng Kabataan Workforce Readiness Scorecard
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-5 print:grid-cols-5 gap-3 text-center kpi-scorecard-grid">
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[9px] font-bold text-gray-500 uppercase">Total KK Youth</span>
+                    <p className="text-lg font-black text-gray-900 mt-0.5">{localYouthProfiles.length}</p>
+                    <span className="text-[8px] text-gray-400 font-bold">Registered Base</span>
+                  </div>
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                    <span className="text-[9px] font-bold text-amber-800 uppercase">Out-of-School (OSY)</span>
+                    <p className="text-lg font-black text-amber-900 mt-0.5">
+                      {localYouthProfiles.filter(y => y.currentStatus === "Out-of-school").length}
+                    </p>
+                    <span className="text-[8px] text-amber-700 font-bold">Priority Target</span>
+                  </div>
+                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <span className="text-[9px] font-bold text-emerald-800 uppercase">OSY Density Rate</span>
+                    <p className="text-lg font-black text-emerald-900 mt-0.5">
+                      {localYouthProfiles.length > 0 ? ((localYouthProfiles.filter(y => y.currentStatus === "Out-of-school").length / localYouthProfiles.length) * 100).toFixed(1) : "0.0"}%
+                    </p>
+                    <span className="text-[8px] text-emerald-700 font-bold">Demographic Share</span>
+                  </div>
+                  <div className="p-3 bg-red-50 rounded-xl border border-red-200">
+                    <span className="text-[9px] font-bold text-red-700 uppercase">Unmatched OSY</span>
+                    <p className="text-lg font-black text-red-800 mt-0.5">{unmatchedCount}</p>
+                    <span className="text-[8px] text-red-600 font-bold">Need TVET Slots</span>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                    <span className="text-[9px] font-bold text-blue-800 uppercase">High Deficiency Gaps</span>
+                    <p className="text-lg font-black text-blue-900 mt-0.5">
+                      {localSkillsGaps.filter(g => g.percentage >= 30).length}
+                    </p>
+                    <span className="text-[8px] text-blue-700 font-bold">Rate ≥ 30%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Skills Gaps Table */}
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                  II. Technical Competency Deficiency & Training Allocation Matrix
+                </h4>
+                <table className="w-full text-left text-xs border border-gray-200">
+                  <thead className="bg-gray-100 text-gray-700 font-bold uppercase text-[9px]">
+                    <tr>
+                      <th className="p-2 border-b w-8 text-center" style={{ width: '4%' }}>#</th>
+                      <th className="p-2 border-b" style={{ width: '25%' }}>Competency Deficiency Area</th>
+                      <th className="p-2 border-b text-center" style={{ width: '12%' }}>Youth Lacking</th>
+                      <th className="p-2 border-b text-center" style={{ width: '12%' }}>Deficiency Rate</th>
+                      <th className="p-2 border-b text-center" style={{ width: '15%' }}>Severity & Slots</th>
+                      <th className="p-2 border-b" style={{ width: '32%' }}>Recommended Training Action & Pathway</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {localSkillsGaps.map((gap, idx) => (
+                      <tr key={gap.skill}>
+                        <td className="p-2 text-center text-gray-400 font-bold">{idx + 1}</td>
+                        <td className="p-2 font-bold text-gray-800">{gap.skill}</td>
+                        <td className="p-2 text-center font-bold text-amber-900">{gap.count} youth</td>
+                        <td className="p-2 text-center text-amber-700 font-black">{gap.percentage}%</td>
+                        <td className="p-2 text-center">
+                          <span className={`inline-block font-bold text-[9px] px-2 py-0.5 rounded ${gap.percentage >= 30 ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                            {gap.percentage >= 30 ? 'Critical' : 'Moderate'}
+                          </span>
+                          <span className="block text-[8px] text-emerald-700 font-bold mt-0.5">({gap.availableSlots} Slots Avail)</span>
+                        </td>
+                        <td className="p-2 text-gray-600 text-[11px]">{gap.recommendedAction}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Priority Sector Preferences */}
+              <div className="space-y-2 print-avoid-break">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                  III. Priority Sector Preferences & TVET Demand Alignment
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-3 gap-2.5 skillsgap-sectors-grid">
+                  {skillsGapSectorBreakdown.map((sec) => (
+                    <div key={sec.sector} className="p-2.5 bg-gray-50 rounded-xl border border-gray-150 space-y-1">
+                      <div className="flex justify-between items-start">
+                        <span className="font-bold text-gray-800 text-[11px] leading-tight">{sec.sector}</span>
+                        <span className="font-black text-emerald-800 text-xs shrink-0 ml-1">{sec.count} youth</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] text-gray-500 pt-1 border-t border-gray-200">
+                        <span>Share: <strong>{sec.pct}%</strong></span>
+                        <span className="text-emerald-700 font-bold">{sec.demand}</span>
+                      </div>
+                      <p className="text-[9px] text-gray-400 italic truncate" title={sec.track}>Track: {sec.track}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Strategic Policy Directives */}
+              <div className="space-y-2 print-avoid-break">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                  IV. Strategic Interventions & Action Plan
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-2.5 skillsgap-actions-grid">
+                  <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-150 text-[11px] space-y-1">
+                    <strong className="text-emerald-950 block font-black">1. Priority TVET Scholarship Batch</strong>
+                    <p className="text-emerald-900/80 leading-relaxed text-[10px]">
+                      Coordinate with TESDA GPSAT for dedicated training batch targeting {highestSector.name !== "None" ? highestSector.name : "top technical trade"}.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-150 text-[11px] space-y-1">
+                    <strong className="text-emerald-950 block font-black">2. Barangay Practical Skills Caravan</strong>
+                    <p className="text-emerald-900/80 leading-relaxed text-[10px]">
+                      Host localized digital and practical workshops in Barangay {cleanDesignatedBarangay} to rapidly reduce {mostCriticalGapItem.skill.toLowerCase()} deficiency.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-150 text-[11px] space-y-1">
+                    <strong className="text-emerald-950 block font-black">3. LGU & DTI Micro-Enterprise Aid</strong>
+                    <p className="text-emerald-900/80 leading-relaxed text-[10px]">
+                      Support out-of-school youth completing TVET with starter toolkits and micro-entrepreneurship mentorship in San Luis.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION V: OFFICIAL ATTESTATION & SIGN-OFF BLOCK */}
+              <div className="pt-6 border-t-2 border-gray-300 print-avoid-break">
+                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-6 text-center">
+                  Official Sangguniang Kabataan Skills Gap Diagnostic Attestation & Certification
+                </div>
+                <div className="grid grid-cols-2 gap-8 text-center skillsgap-signoff-grid">
+                  <div>
+                    <div className="border-b border-gray-400 pb-1 w-48 mx-auto font-black text-gray-900 text-xs uppercase tracking-wide">
+                      HON. {(skChairName || "HON. SK CHAIRPERSON").toUpperCase()}
+                    </div>
+                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider mt-1">
+                      SK Chairperson
+                    </p>
+                    <p className="text-[9px] text-gray-500 font-semibold">
+                      Sangguniang Kabataan · {formattedBrgyName}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="border-b border-gray-400 pb-1 w-48 mx-auto font-black text-gray-900 text-xs uppercase tracking-wide">
+                      HON. PUNONG BARANGAY
+                    </div>
+                    <p className="text-[10px] font-black text-gray-900 uppercase tracking-wider mt-1">
+                      Punong Barangay
+                    </p>
+                    <p className="text-[9px] text-gray-500 font-semibold">
+                      Barangay Government of {formattedBrgyName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-3 border-t border-gray-200 text-center text-[9px] text-gray-400 font-medium">
+                  Official Skills Gap Diagnostic Document generated through the SiKap Youth Governance & Livelihood Matching Platform · Verified Katipunan ng Kabataan Public Record · San Luis, Pampanga
+                </div>
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}

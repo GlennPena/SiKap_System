@@ -7,9 +7,9 @@ import {
   Lock, Bell, Search, Filter, MapPin, Sparkles, AlertTriangle, ChevronRight, ChevronLeft,
   User, Mail, Phone, Calendar, CheckCircle, X, Layers, ExternalLink, ShieldCheck,
   Key, Power, Ban, FileText, History, Clock, Tag, Award, GraduationCap, CheckCircle as CheckIcon,
-  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff
+  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download
 } from "lucide-react";
-import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement } from "../types";
+import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 
@@ -55,6 +55,10 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   const [adminPhone, setAdminPhone] = useState("+63 917 123 4567");
   const [adminOffice, setAdminOffice] = useState("Municipal Youth Development Office (MYDO)");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Executive Municipal Report Generator State
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedReportBarangay, setSelectedReportBarangay] = useState<string>("All");
 
   // Password Security Form State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -664,7 +668,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
       else if (youthDemographicFilter === "Indigenous") matchesDemographic = Boolean(y.indigenous);
 
       // Education match
-      const matchesEdu = youthEduFilter === "All" || y.educationalAttainment === youthEduFilter;
+      const matchesEdu = youthEduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === youthEduFilter;
 
       return matchesSearch && matchesBrgy && matchesStatus && matchesDemographic && matchesEdu;
     });
@@ -850,6 +854,414 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
     }
   };
 
+  // ============================================================
+  // MUNICIPAL EXECUTIVE REPORT DATA & METRICS
+  // ============================================================
+  const reportFilteredYouth = useMemo(() => {
+    if (selectedReportBarangay === "All") return youthProfiles;
+    const target = selectedReportBarangay.trim().toLowerCase();
+    return youthProfiles.filter(y => {
+      const yBrgy = (y.barangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+      return yBrgy === target;
+    });
+  }, [youthProfiles, selectedReportBarangay]);
+
+  const reportFilteredEnrollments = useMemo(() => {
+    if (selectedReportBarangay === "All") return referrals;
+    const target = selectedReportBarangay.trim().toLowerCase();
+    return referrals.filter(r => {
+      const rBrgy = (r.barangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+      return rBrgy === target;
+    });
+  }, [referrals, selectedReportBarangay]);
+
+  // Section I: Executive KPI Scorecard metrics (strictly no in-school vs employed, strictly "Enrollments")
+  const reportStats = useMemo(() => {
+    const totalYouth = reportFilteredYouth.length;
+    const osyCount = reportFilteredYouth.filter(y => y.currentStatus === "Out-of-school").length;
+    const osyPercentage = totalYouth > 0 ? ((osyCount / totalYouth) * 100).toFixed(1) : "0.0";
+    const activeProgramsCount = programs.filter(p => p.activeStatus !== "Closed").length;
+    const totalEnrollments = reportFilteredEnrollments.length;
+    const barangaysCount = selectedReportBarangay === "All" ? barangays.length : 1;
+
+    return {
+      totalYouth,
+      osyCount,
+      osyPercentage,
+      activeProgramsCount,
+      totalProgramsCount: programs.length,
+      totalEnrollments,
+      barangaysCount
+    };
+  }, [reportFilteredYouth, programs, reportFilteredEnrollments, selectedReportBarangay, barangays]);
+
+  // Section II: 17-Barangay Administrative & Demographic Matrix
+  const barangayReportList = useMemo(() => {
+    const targetList = selectedReportBarangay === "All" 
+      ? barangays 
+      : barangays.filter(b => b.name.toLowerCase() === selectedReportBarangay.toLowerCase());
+
+    return targetList.map(b => {
+      const sk = officialAccounts.find(o => o.role === "SK Chairperson" && o.barangay === b.name);
+      const cap = officialAccounts.find(o => o.role === "Barangay Captain" && o.barangay === b.name);
+      const councilorCount = councilors.filter(c => c.barangay === b.name).length;
+      
+      const bName = b.name.trim().toLowerCase();
+      const bYouth = youthProfiles.filter(y => {
+        const yBrgy = (y.barangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+        return yBrgy === bName;
+      });
+
+      const bEnrollments = referrals.filter(r => {
+        const rBrgy = (r.barangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+        return rBrgy === bName;
+      });
+
+      const kkCount = bYouth.length;
+      const osyCount = bYouth.filter(y => y.currentStatus === "Out-of-school").length;
+      const osyPercentage = kkCount > 0 ? ((osyCount / kkCount) * 100).toFixed(1) : "0.0";
+
+      return {
+        name: b.name,
+        sk: sk ? { name: sk.name, email: sk.email, status: sk.status } : { name: "Unassigned", email: "N/A", status: "Inactive" },
+        cap: cap ? { name: cap.name, email: cap.email, status: cap.status } : { name: "Unassigned", email: "N/A", status: "Inactive" },
+        councilorCount,
+        kkCount,
+        osyCount,
+        osyPercentage,
+        enrollmentCount: bEnrollments.length
+      };
+    });
+  }, [barangays, officialAccounts, councilors, youthProfiles, referrals, selectedReportBarangay]);
+
+  // Section III: Educational Attainment Distribution
+  const educationStats = useMemo(() => {
+    const list = reportFilteredYouth;
+    const total = list.length || 1;
+    const categories = [
+      "College Level",
+      "Senior High School Graduate",
+      "High School Graduate",
+      "Elementary Level"
+    ];
+
+    return categories.map(cat => {
+      const count = list.filter(y => normalizeEducationalAttainment(y.educationalAttainment) === cat).length;
+      return {
+        label: cat,
+        count,
+        percentage: ((count / total) * 100).toFixed(1)
+      };
+    });
+  }, [reportFilteredYouth]);
+
+  // Age group distribution
+  const ageGroupStats = useMemo(() => {
+    const list = reportFilteredYouth;
+    const total = list.length || 1;
+    const g1 = list.filter(y => y.age >= 15 && y.age <= 17).length;
+    const g2 = list.filter(y => y.age >= 18 && y.age <= 24).length;
+    const g3 = list.filter(y => y.age >= 25 && y.age <= 30).length;
+
+    return [
+      { label: "15–17 years (Minor Youth)", count: g1, percentage: ((g1 / total) * 100).toFixed(1) },
+      { label: "18–24 years (Core Youth)", count: g2, percentage: ((g2 / total) * 100).toFixed(1) },
+      { label: "25–30 years (Young Adult)", count: g3, percentage: ((g3 / total) * 100).toFixed(1) },
+    ];
+  }, [reportFilteredYouth]);
+
+  // Formatted Excel (.xls) Export pre-configured for US Letter Single Page Width Printing (No Tarpapel)
+  const handleExportReportExcel = () => {
+    const reportScope = selectedReportBarangay === "All" ? "All 17 Barangays" : `Barangay ${selectedReportBarangay}`;
+    const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Municipal Youth Report</x:Name>
+                <x:WorksheetOptions>
+                  <x:FitToPage/>
+                  <x:Print>
+                    <x:ValidPrinterInfo/>
+                    <x:PaperSizeIndex>1</x:PaperSizeIndex>
+                    <x:FitWidth>1</x:FitWidth>
+                    <x:FitHeight>0</x:FitHeight>
+                    <x:Orientation>Portrait</x:Orientation>
+                  </x:Print>
+                  <x:PageSetup>
+                    <x:Header x:Margin="0.3"/>
+                    <x:Footer x:Margin="0.3"/>
+                    <x:PageMargins x:Left="0.4" x:Right="0.4" x:Top="0.5" x:Bottom="0.5"/>
+                  </x:PageSetup>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <style>
+          @page {
+            size: letter portrait;
+            margin: 0.4in 0.4in 0.5in 0.4in;
+            mso-page-orientation: portrait;
+          }
+          body {
+            font-family: 'Segoe UI', -apple-system, Calibri, Arial, sans-serif;
+            font-size: 9.5pt;
+            color: #1e293b;
+            margin: 0;
+            padding: 8px;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 18px;
+            table-layout: fixed;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            padding: 7px 10px;
+            font-size: 9pt;
+            text-align: left;
+            vertical-align: middle;
+            height: 24pt;
+          }
+          td {
+            border: 1px solid #e2e8f0;
+            padding: 6px 10px;
+            font-size: 9pt;
+            vertical-align: middle;
+            white-space: normal;
+            height: 20pt;
+          }
+          .banner-title {
+            background-color: #0A6B43;
+            color: #ffffff;
+            font-size: 13pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 11px 10px;
+            border: 1px solid #075332;
+          }
+          .banner-sub {
+            background-color: #112F24;
+            color: #a7f3d0;
+            font-size: 9.5pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 6px 10px;
+            border: 1px solid #0A231A;
+          }
+          .meta-box {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            font-size: 9pt;
+            padding: 7px 10px;
+          }
+          .sec-hdr {
+            background-color: #0A6B43;
+            color: #ffffff;
+            font-size: 10pt;
+            font-weight: bold;
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #075332;
+          }
+          .total-row {
+            background-color: #e2e8f0;
+            font-weight: bold;
+            color: #0f172a;
+            border-top: 2px solid #0A6B43;
+          }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: bold; }
+          .text-num { mso-number-format: "#\,\#\#0"; }
+          .text-pct { mso-number-format: "0\.0%"; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <col width="38" />   <!-- Col 1 (A): Index # -->
+          <col width="170" />  <!-- Col 2 (B): Barangay Zone -->
+          <col width="88" />   <!-- Col 3 (C): KK Members -->
+          <col width="78" />   <!-- Col 4 (D): OSY Count -->
+          <col width="78" />   <!-- Col 5 (E): OSY % -->
+          <col width="180" />  <!-- Col 6 (F): SK Chairperson -->
+          <col width="180" />  <!-- Col 7 (G): Barangay Captain -->
+          <col width="88" />   <!-- Col 8 (H): Councilors -->
+          <col width="98" />   <!-- Col 9 (I): Enrollments -->
+
+          <tr><td colspan="9" class="banner-title">MUNICIPALITY OF SAN LUIS · PROVINCE OF PAMPANGA</td></tr>
+          <tr><td colspan="9" class="banner-sub">MUNICIPAL YOUTH DEVELOPMENT OFFICE (MYDO) · SIKAP CENTRAL EXECUTIVE REGISTRY</td></tr>
+          <tr><td colspan="9" style="height: 6px; border: none;"></td></tr>
+          <tr>
+            <td colspan="3" class="meta-box"><strong>Scope:</strong> ${reportScope}</td>
+            <td colspan="3" class="meta-box"><strong>Assessment Date:</strong> ${dateStr}</td>
+            <td colspan="3" class="meta-box"><strong>Generating Authority:</strong> ${adminName}</td>
+          </tr>
+          <tr><td colspan="9" style="height: 12px; border: none;"></td></tr>
+          
+          <!-- TABLE 1: EXECUTIVE KPI SCORECARD -->
+          <tr><td colspan="9" class="sec-hdr">I. EXECUTIVE KPI SCORECARD - MUNICIPAL SUMMARY</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th colspan="3">Key Performance Indicator (KPI)</th>
+            <th colspan="2" class="text-center">Metric Value</th>
+            <th colspan="3">Coverage Status & Operational Details</th>
+          </tr>
+          <tr>
+            <td class="text-center">1</td>
+            <td colspan="3" class="font-bold">Total Katipunan ng Kabataan (KK) Members</td>
+            <td colspan="2" class="text-center font-bold text-num" style="font-size: 11pt; color: #0A6B43;">${reportStats.totalYouth}</td>
+            <td colspan="3">${reportStats.barangaysCount} active administrative zone(s) registered</td>
+          </tr>
+          <tr>
+            <td class="text-center">2</td>
+            <td colspan="3" class="font-bold">Out-of-School Youth (OSY)</td>
+            <td colspan="2" class="text-center font-bold" style="font-size: 11pt; color: #b45309;">${reportStats.osyCount} (${reportStats.osyPercentage}%)</td>
+            <td colspan="3">Prioritized for TVET livelihood training & scholarship programs</td>
+          </tr>
+          <tr>
+            <td class="text-center">3</td>
+            <td colspan="3" class="font-bold">Active TVET Vocational Courses</td>
+            <td colspan="2" class="text-center font-bold" style="font-size: 11pt; color: #047857;">${reportStats.activeProgramsCount} of ${reportStats.totalProgramsCount} Modules</td>
+            <td colspan="3">Published TESDA technical training modules with open enrollment slots</td>
+          </tr>
+          <tr>
+            <td class="text-center">4</td>
+            <td colspan="3" class="font-bold">Total Course Enrollments</td>
+            <td colspan="2" class="text-center font-bold text-num" style="font-size: 11pt; color: #1d4ed8;">${reportStats.totalEnrollments}</td>
+            <td colspan="3">Youth trainees registered and enrolled in technical programs</td>
+          </tr>
+          <tr>
+            <td class="text-center">5</td>
+            <td colspan="3" class="font-bold">Municipal Geographic Coverage</td>
+            <td colspan="2" class="text-center font-bold" style="font-size: 11pt; color: #0f172a;">${reportStats.barangaysCount} Zones</td>
+            <td colspan="3">100% of municipal barangays tracked and synchronized</td>
+          </tr>
+          <tr><td colspan="9" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 2: 17-BARANGAY MATRIX -->
+          <tr><td colspan="9" class="sec-hdr">II. 17-BARANGAY ADMINISTRATIVE & DEMOGRAPHIC MATRIX</td></tr>
+          <tr>
+            <th class="text-center">#</th>
+            <th>Barangay Zone</th>
+            <th class="text-center">KK Members</th>
+            <th class="text-center">OSY Count</th>
+            <th class="text-center">OSY %</th>
+            <th>SK Chairperson</th>
+            <th>Barangay Captain</th>
+            <th class="text-center">Councilors</th>
+            <th class="text-center">Enrollments</th>
+          </tr>
+          ${barangayReportList.map((b, idx) => `
+            <tr>
+              <td class="text-center">${idx + 1}</td>
+              <td class="font-bold">${b.name}</td>
+              <td class="text-center font-bold text-num">${b.kkCount}</td>
+              <td class="text-center font-bold text-num" style="color: #b45309;">${b.osyCount}</td>
+              <td class="text-center font-bold text-pct">${b.osyPercentage}%</td>
+              <td>
+                <strong>${b.sk.name}</strong> 
+                <span style="font-size: 8pt; font-weight: bold; color: ${b.sk.status === 'Active' ? '#047857' : '#64748b'};">(${b.sk.status})</span>
+              </td>
+              <td>
+                <strong>${b.cap.name}</strong> 
+                <span style="font-size: 8pt; font-weight: bold; color: ${b.cap.status === 'Active' ? '#047857' : '#64748b'};">(${b.cap.status})</span>
+              </td>
+              <td class="text-center font-bold text-num" style="color: #7e22ce;">${b.councilorCount}</td>
+              <td class="text-center font-bold text-num" style="color: #1d4ed8;">${b.enrollmentCount}</td>
+            </tr>
+          `).join("")}
+          <tr class="total-row">
+            <td class="text-center">--</td>
+            <td>MUNICIPAL TOTAL</td>
+            <td class="text-center text-num">${reportStats.totalYouth}</td>
+            <td class="text-center text-num">${reportStats.osyCount}</td>
+            <td class="text-center text-pct">${reportStats.osyPercentage}%</td>
+            <td colspan="2" class="text-center">17 Municipal Zones Synchronized</td>
+            <td class="text-center text-num">${councilors.length}</td>
+            <td class="text-center text-num">${reportStats.totalEnrollments}</td>
+          </tr>
+          <tr><td colspan="9" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 3: EDUCATIONAL ATTAINMENT & DEMOGRAPHICS -->
+          <tr><td colspan="9" class="sec-hdr">III. EDUCATIONAL ATTAINMENT & DEMOGRAPHIC PROFILE</td></tr>
+          <tr>
+            <th class="text-center">#</th>
+            <th colspan="4">Educational Attainment / Demographic Cohort</th>
+            <th colspan="2" class="text-center">Youth Count</th>
+            <th colspan="2" class="text-center">Demographic Share (%)</th>
+          </tr>
+          ${educationStats.map((e, idx) => `
+            <tr>
+              <td class="text-center">${idx + 1}</td>
+              <td colspan="4" class="font-bold">${e.label}</td>
+              <td colspan="2" class="text-center font-bold text-num">${e.count}</td>
+              <td colspan="2" class="text-center font-bold text-pct">${e.percentage}%</td>
+            </tr>
+          `).join("")}
+          ${ageGroupStats.map((a, idx) => `
+            <tr style="background-color: #f8fafc;">
+              <td class="text-center">${educationStats.length + idx + 1}</td>
+              <td colspan="4" class="font-bold">Cohort: ${a.label}</td>
+              <td colspan="2" class="text-center font-bold text-num">${a.count}</td>
+              <td colspan="2" class="text-center font-bold text-pct">${a.percentage}%</td>
+            </tr>
+          `).join("")}
+          <tr><td colspan="9" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 4: TVET COURSES -->
+          <tr><td colspan="9" class="sec-hdr">IV. TESDA TVET COURSE DIRECTORY & ENROLLMENT CAPACITY</td></tr>
+          <tr>
+            <th class="text-center">#</th>
+            <th colspan="3">Course Program Title</th>
+            <th colspan="2">Training Center / Provider</th>
+            <th class="text-center">Total Capacity</th>
+            <th class="text-center">Available Slots</th>
+            <th class="text-center">Enrolled</th>
+          </tr>
+          ${programs.map((p, idx) => {
+            const enrolledCount = referrals.filter(r => r.programId === p.id).length;
+            return `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td colspan="3" class="font-bold">${p.title}</td>
+                <td colspan="2">${p.provider || "San Luis TVET Center"}</td>
+                <td class="text-center font-bold text-num">${p.slotsTotal}</td>
+                <td class="text-center font-bold text-num" style="color: #047857;">${p.slotsRemaining}</td>
+                <td class="text-center font-bold text-num" style="color: #1d4ed8;">${enrolledCount}</td>
+              </tr>
+            `;
+          }).join("")}
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `San_Luis_Municipal_Youth_Report_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    addToast("Municipal Census & Enrollment Report downloaded as Letter-Printable Excel (.xls)!", "success");
+  };
+
   return (
     <div className="h-screen overflow-hidden bg-slate-50 flex font-sans text-slate-800" id="super-admin-portal-root">
       
@@ -965,6 +1377,17 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               Live Infrastructure: Healthy
             </span>
+
+            {/* Official Report Generation Button */}
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              title="Generate Official Municipal Executive Report"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Generate Report</span>
+            </button>
 
             {/* Notification Bell */}
             <div className="relative">
@@ -1218,6 +1641,18 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                   <div className="space-y-2 pt-2">
                     <button
                       onClick={() => {
+                        setIsReportModalOpen(true);
+                      }}
+                      className="w-full py-2.5 px-4 bg-emerald-800/80 hover:bg-emerald-700/80 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer border border-emerald-500/40"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-emerald-300" />
+                        Generate Municipal Report
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-emerald-300" />
+                    </button>
+                    <button
+                      onClick={() => {
                         setActiveTab("youth_masterlist");
                       }}
                       className="w-full py-2.5 px-4 bg-emerald-700/60 hover:bg-emerald-600/70 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer border border-emerald-500/40"
@@ -1377,12 +1812,9 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                       className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
                     >
                       <option value="All">All Attainments</option>
-                      <option value="Elementary level">Elementary level</option>
-                      <option value="High School level">High School level</option>
-                      <option value="High School Graduate">High School Graduate</option>
-                      <option value="College level">College level</option>
-                      <option value="College Graduate">College Graduate</option>
-                      <option value="Vocational / TVET">Vocational / TVET</option>
+                      {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
+                        <option key={edu} value={edu}>{edu}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -3595,6 +4027,414 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
         onConfirm={confirmDeleteAccount}
         onCancel={() => setDeleteAccountTarget(null)}
       />
+
+      {/* ============================================================ */}
+      {/* EXECUTIVE MUNICIPAL REPORT GENERATOR MODAL */}
+      {/* ============================================================ */}
+      {isReportModalOpen && (
+        <div 
+          id="printable-superadmin-modal-backdrop"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden"
+        >
+          <div 
+            id="printable-superadmin-modal-card"
+            className="bg-white rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-slate-200 animate-in zoom-in-95 duration-150"
+          >
+            
+            {/* Modal Header Bar (Hidden during Print) */}
+            <div className="relative bg-[#112F24] text-white p-4 sm:p-5 pr-14 sm:pr-16 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print border-b border-emerald-900">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-2">
+                    Executive Municipal Report Generator
+                    <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded-md">
+                      Official MYDO Document
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-emerald-200/90 font-medium">
+                    Municipality of San Luis, Pampanga · Comprehensive Statistical Assessment
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Scope Filter Dropdown */}
+                <div className="flex items-center gap-1.5 bg-[#0D241C] border border-emerald-800/80 rounded-xl px-2.5 py-1.5 text-xs text-emerald-100">
+                  <span className="text-[10px] uppercase font-extrabold text-emerald-400">Zone:</span>
+                  <select
+                    value={selectedReportBarangay}
+                    onChange={(e) => setSelectedReportBarangay(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+                  >
+                    <option value="All" className="text-slate-900">All 17 Barangays</option>
+                    {barangays.map((b) => (
+                      <option key={b.name} value={b.name} className="text-slate-900">
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Export Excel (.xls) Formatted Table Button */}
+                <button
+                  type="button"
+                  onClick={handleExportReportExcel}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/50"
+                  title="Export styled spreadsheet pre-configured for US Letter printing (.xls)"
+                >
+                  <Download className="w-3.5 h-3.5 text-white" />
+                  <span>Export Excel (.xls)</span>
+                </button>
+
+                {/* Print / Save as PDF Button */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Print official multi-page document on US Letter paper size or save as PDF"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print / PDF (Letter)</span>
+                </button>
+              </div>
+
+              {/* Dedicated Top-Right X / Exit Button */}
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-all flex items-center justify-center"
+                aria-label="Close report generator"
+                title="Close report modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Report Document Body */}
+            <div
+              className="flex-1 p-6 sm:p-10 print:p-0 print:space-y-5 overflow-y-auto space-y-7 text-slate-800 bg-white"
+              id="printable-superadmin-report"
+            >
+              
+              {/* Document Header & Official Government Letterhead */}
+              <div className="text-center border-b-2 border-[#0A6B43] pb-5 space-y-1 print-avoid-break">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Republic of the Philippines · Province of Pampanga
+                </p>
+                <h2 className="text-lg sm:text-xl font-black text-slate-950 uppercase tracking-tight">
+                  MUNICIPALITY OF SAN LUIS
+                </h2>
+                <h3 className="text-xs sm:text-sm font-extrabold text-[#0A6B43] uppercase tracking-wider">
+                  MUNICIPAL YOUTH DEVELOPMENT OFFICE (MYDO) · CENTRAL EXECUTIVE REGISTRY
+                </h3>
+                <p className="text-[10px] text-slate-400 font-semibold pt-1 uppercase tracking-wider">
+                  SiKap Integrated Katipunan ng Kabataan & TVET Livelihood Matching System
+                </p>
+                <div className="pt-2">
+                  <span className="inline-block bg-slate-100 text-slate-900 border border-slate-300 text-xs sm:text-sm font-black uppercase tracking-wider px-4 py-1.5 rounded-lg">
+                    Comprehensive Municipal Youth Demographic & TVET Enrollment Report
+                  </span>
+                </div>
+              </div>
+
+              {/* Document Metadata Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200 print-avoid-break">
+                <div>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Report Scope</span>
+                  <span className="font-black text-slate-900 text-xs">
+                    {selectedReportBarangay === "All" ? "All 17 Municipal Zones" : `Barangay ${selectedReportBarangay}`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Report Series ID</span>
+                  <span className="font-mono font-bold text-slate-800 text-xs">
+                    MYDO-SLP-2026-{selectedReportBarangay.slice(0, 3).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Assessment Date</span>
+                  <span className="font-bold text-slate-900 text-xs">
+                    {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Generating Authority</span>
+                  <span className="font-bold text-[#0A6B43] text-xs">
+                    {adminName} (Super Admin)
+                  </span>
+                </div>
+              </div>
+
+              {/* SECTION I: EXECUTIVE KPI SCORECARD */}
+              <div className="space-y-3 print-avoid-break">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#0A6B43]" />
+                    I. Executive KPI Scorecard
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Official Central Metrics
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 print:grid-cols-5 kpi-scorecard-grid gap-3 text-center">
+                  
+                  {/* Metric 1: Total KK Youth */}
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Total KK Youth
+                    </span>
+                    <p className="text-2xl font-black text-slate-900 mt-1">
+                      {reportStats.totalYouth}
+                    </p>
+                    <span className="text-[10px] font-semibold text-slate-500 mt-1">
+                      {reportStats.barangaysCount} zone(s) active
+                    </span>
+                  </div>
+
+                  {/* Metric 2: Out-of-School Youth (OSY) */}
+                  <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                      Out-of-School (OSY)
+                    </span>
+                    <p className="text-2xl font-black text-amber-950 mt-1">
+                      {reportStats.osyCount}
+                    </p>
+                    <span className="text-[10px] font-bold text-amber-700 mt-1">
+                      {reportStats.osyPercentage}% OSY density
+                    </span>
+                  </div>
+
+                  {/* Metric 3: Active TESDA Programs */}
+                  <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
+                      Active TVET Courses
+                    </span>
+                    <p className="text-2xl font-black text-emerald-950 mt-1">
+                      {reportStats.activeProgramsCount}
+                    </p>
+                    <span className="text-[10px] font-semibold text-emerald-700 mt-1">
+                      of {reportStats.totalProgramsCount} published modules
+                    </span>
+                  </div>
+
+                  {/* Metric 4: Total Course Enrollments (strictly using "Enrollment", no "referrals") */}
+                  <div className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">
+                      Course Enrollments
+                    </span>
+                    <p className="text-2xl font-black text-blue-950 mt-1">
+                      {reportStats.totalEnrollments}
+                    </p>
+                    <span className="text-[10px] font-semibold text-blue-700 mt-1">
+                      trainees enrolled
+                    </span>
+                  </div>
+
+                  {/* Metric 5: Municipal Coverage */}
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col justify-between col-span-2 sm:col-span-1 print:col-span-1">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Municipal Coverage
+                    </span>
+                    <p className="text-2xl font-black text-slate-900 mt-1">
+                      {reportStats.barangaysCount}
+                    </p>
+                    <span className="text-[10px] font-semibold text-emerald-700 mt-1">
+                      100% zones tracked
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* SECTION II: 17-BARANGAY ADMINISTRATIVE & DEMOGRAPHIC MATRIX */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#0A6B43]" />
+                    II. Barangay Governance & Demographic Matrix
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Coverage Breakdown across 17 Zones
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="py-2.5 px-3">Barangay Zone</th>
+                        <th className="py-2.5 px-2 text-center">KK Members</th>
+                        <th className="py-2.5 px-2 text-center">OSY Count</th>
+                        <th className="py-2.5 px-2 text-center">OSY %</th>
+                        <th className="py-2.5 px-3">SK Chairperson</th>
+                        <th className="py-2.5 px-3">Barangay Captain</th>
+                        <th className="py-2.5 px-2 text-center">Councilors</th>
+                        <th className="py-2.5 px-2 text-center">Enrollments</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {barangayReportList.map((b) => (
+                        <tr key={b.name} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-2.5 px-3 font-bold text-slate-900">
+                            {b.name}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-bold text-slate-800">
+                            {b.kkCount}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-bold text-amber-700">
+                            {b.osyCount}
+                          </td>
+                          <td className="py-2.5 px-2 text-center text-[11px] font-bold text-slate-600">
+                            {b.osyPercentage}%
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-slate-800 block text-[11px] leading-tight">
+                              {b.sk.name}
+                            </span>
+                            <span className={`text-[9px] font-bold uppercase ${b.sk.status === "Active" ? "text-emerald-700" : "text-slate-400"}`}>
+                              {b.sk.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-slate-800 block text-[11px] leading-tight">
+                              {b.cap.name}
+                            </span>
+                            <span className={`text-[9px] font-bold uppercase ${b.cap.status === "Active" ? "text-emerald-700" : "text-slate-400"}`}>
+                              {b.cap.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-bold text-purple-700">
+                            {b.councilorCount}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-black text-blue-700">
+                            {b.enrollmentCount}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION III: DEMOGRAPHIC & EDUCATIONAL PROFILE ANALYSIS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-5 print-avoid-break">
+                
+                {/* Educational Attainment Table */}
+                <div className="space-y-3 p-4 bg-slate-50/60 rounded-2xl border border-slate-200">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-2 flex items-center justify-between">
+                    <span>III. Educational Attainment</span>
+                    <span className="text-[10px] text-slate-400 font-bold">Academic Distribution</span>
+                  </h4>
+                  <div className="space-y-2">
+                    {educationStats.map((item) => (
+                      <div key={item.label} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-700 font-semibold">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900">{item.count}</span>
+                          <span className="text-[10px] font-bold text-slate-500 w-12 text-right">
+                            ({item.percentage}%)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Age Demographics Table */}
+                <div className="space-y-3 p-4 bg-slate-50/60 rounded-2xl border border-slate-200">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-2 flex items-center justify-between">
+                    <span>Age Bracket Demographics</span>
+                    <span className="text-[10px] text-slate-400 font-bold">Age Cohorts</span>
+                  </h4>
+                  <div className="space-y-2">
+                    {ageGroupStats.map((item) => (
+                      <div key={item.label} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-700 font-semibold">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900">{item.count}</span>
+                          <span className="text-[10px] font-bold text-slate-500 w-12 text-right">
+                            ({item.percentage}%)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Summary note */}
+                  <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-500 leading-relaxed font-medium">
+                    Demographic data validated against active Katipunan ng Kabataan profiling records across San Luis, Pampanga.
+                  </div>
+                </div>
+
+              </div>
+
+              {/* SECTION IV: TESDA TVET COURSE DIRECTORY & ENROLLMENT UTILIZATION */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#0A6B43]" />
+                    IV. Technical Vocational (TVET) Course Offerings & Capacity
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Active TESDA Partnerships
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="py-2.5 px-3">Course Title</th>
+                        <th className="py-2.5 px-3">Training Center / Provider</th>
+                        <th className="py-2.5 px-2 text-center">Total Slots</th>
+                        <th className="py-2.5 px-2 text-center">Available</th>
+                        <th className="py-2.5 px-2 text-center">Enrolled</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {programs.map((p) => {
+                        const enrolledCount = referrals.filter(r => r.programId === p.id).length;
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-2.5 px-3 font-bold text-slate-900">
+                              {p.title}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600">
+                              {p.provider || "San Luis TVET Center"}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-bold text-slate-800">
+                              {p.slotsTotal}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-bold text-emerald-700">
+                              {p.slotsRemaining}
+                            </td>
+                            <td className="py-2.5 px-2 text-center font-black text-blue-700">
+                              {enrolledCount}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${p.activeStatus === "Closed" ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
+                                {p.activeStatus || "Active"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

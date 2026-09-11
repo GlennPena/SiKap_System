@@ -95,6 +95,36 @@ export interface SkillGapData {
   recommendedAction: string;
 }
 
+export const EDUCATIONAL_ATTAINMENT_OPTIONS = [
+  "College Level",
+  "Senior High School Graduate",
+  "High School Graduate",
+  "Elementary Level"
+] as const;
+
+export type EducationalAttainment = typeof EDUCATIONAL_ATTAINMENT_OPTIONS[number];
+
+export function normalizeEducationalAttainment(val?: string | null): EducationalAttainment {
+  if (!val) return "College Level";
+  const v = val.trim().toLowerCase();
+  if (v.includes("college") || v.includes("undergraduate") || v.includes("tertiary") || v.includes("higher ed")) {
+    return "College Level";
+  }
+  if (v.includes("senior") || v.includes("shs") || v.includes("grade 11") || v.includes("grade 12")) {
+    return "Senior High School Graduate";
+  }
+  if (v.includes("high school") || v.includes("hs") || v.includes("junior") || v.includes("jhs") || v.includes("secondary")) {
+    return "High School Graduate";
+  }
+  if (v.includes("elementary") || v.includes("primary") || v.includes("grade school")) {
+    return "Elementary Level";
+  }
+  if (v.includes("vocational") || v.includes("tvet") || v.includes("tech-voc")) {
+    return "Senior High School Graduate";
+  }
+  return "College Level";
+}
+
 export interface YouthProfile {
   id: string;
   name: string;

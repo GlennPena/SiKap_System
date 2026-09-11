@@ -56,7 +56,9 @@ import {
   OfficialAccount,
   TESDAProgram,
   Councilor,
-  BarangayCaptainScreen
+  BarangayCaptainScreen,
+  EDUCATIONAL_ATTAINMENT_OPTIONS,
+  normalizeEducationalAttainment
 } from "../types";
 
 interface BarangayCaptainPortalProps {
@@ -434,12 +436,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
   // List of unique educational attainments for dropdown filter
   const uniqueEdus = useMemo(() => {
-    const edus = new Set<string>();
-    localYouthProfiles.forEach(y => {
-      if (y.educationalAttainment) edus.add(y.educationalAttainment);
-    });
-    return Array.from(edus).sort();
-  }, [localYouthProfiles]);
+    return Array.from(EDUCATIONAL_ATTAINMENT_OPTIONS);
+  }, []);
 
   // Filtered Youth Profiles for the Directory Screen
   const filteredYouthProfiles = useMemo(() => {
@@ -453,7 +451,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         (y.sectorPreference && y.sectorPreference.toLowerCase().includes(q));
       
       const matchesPurok = purokFilter === "All" || y.purok === purokFilter;
-      const matchesEdu = eduFilter === "All" || y.educationalAttainment === eduFilter;
+      const matchesEdu = eduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === eduFilter;
       
       let matchesStatus = true;
       if (statusFilter !== "All") {
@@ -540,7 +538,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       if (y.indigenous) indigenous++;
 
       purokBreakdown[y.purok] = (purokBreakdown[y.purok] || 0) + 1;
-      eduBreakdown[y.educationalAttainment] = (eduBreakdown[y.educationalAttainment] || 0) + 1;
+      const normEdu = normalizeEducationalAttainment(y.educationalAttainment);
+      eduBreakdown[normEdu] = (eduBreakdown[normEdu] || 0) + 1;
     });
 
     return {
@@ -618,6 +617,287 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       makeGap("Bread & Pastry Production", bakingCount)
     ].sort((a, b) => b.count - a.count);
   }, [localYouthProfiles]);
+
+  // Export Barangay Census Report to Styled Microsoft Excel (.xls)
+  const handleExportCensusExcel = () => {
+    const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    const totalYouth = localYouthProfiles.length;
+    const osyCount = kkMembersSummary.outOfSchool;
+    const osyPct = totalYouth > 0 ? ((osyCount / totalYouth) * 100).toFixed(1) : "0.0";
+    const purokEntries = Object.entries(kkMembersSummary.purokBreakdown);
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>${formattedBrgyName.slice(0, 31)} Census</x:Name>
+                <x:WorksheetOptions>
+                  <x:FitToPage/>
+                  <x:Print>
+                    <x:ValidPrinterInfo/>
+                    <x:PaperSizeIndex>1</x:PaperSizeIndex>
+                    <x:FitWidth>1</x:FitWidth>
+                    <x:FitHeight>0</x:FitHeight>
+                    <x:Orientation>Portrait</x:Orientation>
+                  </x:Print>
+                  <x:PageSetup>
+                    <x:Header x:Margin="0.3"/>
+                    <x:Footer x:Margin="0.3"/>
+                    <x:PageMargins x:Left="0.4" x:Right="0.4" x:Top="0.5" x:Bottom="0.5"/>
+                  </x:PageSetup>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <style>
+          @page {
+            size: letter portrait;
+            margin: 0.4in 0.4in 0.5in 0.4in;
+            mso-page-orientation: portrait;
+          }
+          body {
+            font-family: 'Segoe UI', -apple-system, Calibri, Arial, sans-serif;
+            font-size: 9.5pt;
+            color: #1e293b;
+            margin: 0;
+            padding: 8px;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 18px;
+            table-layout: fixed;
+          }
+          th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            padding: 7px 10px;
+            font-size: 9pt;
+            text-align: left;
+            vertical-align: middle;
+            height: 24pt;
+          }
+          td {
+            border: 1px solid #e2e8f0;
+            padding: 6px 10px;
+            font-size: 9pt;
+            vertical-align: middle;
+            white-space: normal;
+            height: 20pt;
+          }
+          .banner-title {
+            background-color: #0A6B43;
+            color: #ffffff;
+            font-size: 13pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 11px 10px;
+            border: 1px solid #075332;
+          }
+          .banner-sub {
+            background-color: #112F24;
+            color: #a7f3d0;
+            font-size: 9.5pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 6px 10px;
+            border: 1px solid #0A231A;
+          }
+          .meta-box {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            font-size: 9pt;
+            padding: 7px 10px;
+          }
+          .sec-hdr {
+            background-color: #0A6B43;
+            color: #ffffff;
+            font-size: 10pt;
+            font-weight: bold;
+            padding: 8px 12px;
+            text-align: left;
+            border: 1px solid #075332;
+          }
+          .total-row {
+            background-color: #e2e8f0;
+            font-weight: bold;
+            color: #0f172a;
+            border-top: 2px solid #0A6B43;
+          }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: bold; }
+          .text-num { mso-number-format: "#\,\#\#0"; }
+          .text-pct { mso-number-format: "0\.0%"; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <col width="38" />   <!-- Col 1: Index # -->
+          <col width="330" />  <!-- Col 2: Category / Title -->
+          <col width="130" />  <!-- Col 3: Count -->
+          <col width="130" />  <!-- Col 4: Share / Percentage -->
+          <col width="150" />  <!-- Col 5: Classification / Priority -->
+          <col width="190" />  <!-- Col 6: Operational Notes -->
+
+          <tr><td colspan="6" class="banner-title">MUNICIPALITY OF SAN LUIS · PROVINCE OF PAMPANGA</td></tr>
+          <tr><td colspan="6" class="banner-sub">${formattedBrgyName.toUpperCase()} · OFFICE OF THE PUNONG BARANGAY</td></tr>
+          <tr><td colspan="6" style="height: 6px; border: none;"></td></tr>
+          <tr>
+            <td colspan="2" class="meta-box"><strong>Punong Barangay:</strong> Hon. ${captainInfo.name}</td>
+            <td colspan="2" class="meta-box"><strong>Census Date:</strong> ${dateStr}</td>
+            <td colspan="2" class="meta-box"><strong>SK Presiding Officer:</strong> ${localSKChair?.name || "SK Chairperson"}</td>
+          </tr>
+          <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 1: KATIPUNAN NG KABATAAN SUMMARY -->
+          <tr><td colspan="6" class="sec-hdr">I. KATIPUNAN NG KABATAAN (KK) CENSUS & EMPLOYMENT SUMMARY</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th>Demographic Indicator / Status</th>
+            <th class="text-center">Youth Count</th>
+            <th class="text-center">Demographic Ratio</th>
+            <th class="text-center">Classification</th>
+            <th>Governance Recommendation</th>
+          </tr>
+          <tr>
+            <td class="text-center">1</td>
+            <td class="font-bold">Total Registered KK Youth Members</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #0A6B43;">${totalYouth}</td>
+            <td class="text-center font-bold text-pct">100.0%</td>
+            <td class="text-center"><span style="color: #047857; font-weight: bold;">Verified Census</span></td>
+            <td>Official Katipunan ng Kabataan Registry</td>
+          </tr>
+          <tr>
+            <td class="text-center">2</td>
+            <td class="font-bold">Out-of-School Youth (OSY) Target Population</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #b45309;">${osyCount}</td>
+            <td class="text-center font-bold text-pct">${osyPct}%</td>
+            <td class="text-center"><span style="color: #b45309; font-weight: bold;">★ Priority Cohort</span></td>
+            <td>TESDA TVET Livelihood Scholarship Priority</td>
+          </tr>
+          <tr>
+            <td class="text-center">3</td>
+            <td class="font-bold">Priority OSY Population Density</td>
+            <td class="text-center font-bold text-pct" style="font-size: 11pt; color: #b45309;">${osyPct}%</td>
+            <td class="text-center font-bold">Of Total KK</td>
+            <td class="text-center"><span style="color: #b45309; font-weight: bold;">Vulnerability Rate</span></td>
+            <td>Allocation for Barangay Livelihood Projects</td>
+          </tr>
+          <tr>
+            <td class="text-center">4</td>
+            <td class="font-bold">TVET Scholarship & Livelihood Matching Target</td>
+            <td class="text-center font-bold text-num" style="font-size: 11pt; color: #1d4ed8;">${osyCount}</td>
+            <td class="text-center font-bold text-pct">${osyPct}%</td>
+            <td class="text-center"><span style="color: #1d4ed8; font-weight: bold;">Active Matching</span></td>
+            <td>Screened for Free Technical Skills Certification</td>
+          </tr>
+          <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 2: PUROK DISTRIBUTION -->
+          <tr><td colspan="6" class="sec-hdr">II. PUROK GEOGRAPHIC POPULATION DISTRIBUTION</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th colspan="2">Purok / Sub-Zone Designation</th>
+            <th class="text-center">Registered KK Youth</th>
+            <th class="text-center">Population Density</th>
+            <th>Zone Status</th>
+          </tr>
+          ${purokEntries.map(([purok, count], idx) => {
+            const pct = totalYouth > 0 ? (((count as number) / totalYouth) * 100).toFixed(1) : "0.0";
+            return `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td colspan="2" class="font-bold">${purok}</td>
+                <td class="text-center font-bold text-num">${count}</td>
+                <td class="text-center font-bold text-pct">${pct}%</td>
+                <td>Active Demographic Area</td>
+              </tr>
+            `;
+          }).join("")}
+          <tr class="total-row">
+            <td class="text-center">--</td>
+            <td colspan="2">TOTAL PUROK POPULATION</td>
+            <td class="text-center text-num">${totalYouth}</td>
+            <td class="text-center text-pct">100.0%</td>
+            <td>All Sub-Zones Covered</td>
+          </tr>
+          <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
+
+          <!-- TABLE 3: SKILLS GAPS -->
+          <tr><td colspan="6" class="sec-hdr">III. IDENTIFIED TECHNICAL VOCATIONAL COMPETENCY DEFICIENCIES</td></tr>
+          <tr style="background-color: #f8fafc;">
+            <th class="text-center">#</th>
+            <th>Technical Competency Deficiency Area</th>
+            <th class="text-center">Youth Lacking</th>
+            <th class="text-center">Deficiency Impact Rate</th>
+            <th class="text-center">Severity Level</th>
+            <th>Recommended Training Track</th>
+          </tr>
+          ${localSkillsGaps.map((gap, idx) => `
+            <tr>
+              <td class="text-center">${idx + 1}</td>
+              <td class="font-bold">${gap.skill}</td>
+              <td class="text-center font-bold text-num" style="color: #b45309;">${gap.count}</td>
+              <td class="text-center font-bold text-pct">${gap.percentage}%</td>
+              <td class="text-center">
+                <span style="color: ${gap.percentage >= 30 ? '#dc2626' : '#b45309'}; font-weight: bold;">
+                  ${gap.percentage >= 30 ? 'High Deficiency' : 'Moderate'}
+                </span>
+              </td>
+              <td>TESDA Community-Based Training</td>
+            </tr>
+          `).join("")}
+          <tr><td colspan="6" style="height: 22px; border: none;"></td></tr>
+
+          <!-- SECTION IV: OFFICIAL BARANGAY ATTESTATION & SIGN-OFF BLOCK -->
+          <tr>
+            <td colspan="3" class="text-center" style="font-weight: bold; font-size: 9pt; border: none;">Prepared & Certified Correct:</td>
+            <td colspan="3" class="text-center" style="font-weight: bold; font-size: 9pt; border: none;">Attested & Approved By:</td>
+          </tr>
+          <tr><td colspan="6" style="height: 35px; border: none;"></td></tr>
+          <tr>
+            <td colspan="3" class="text-center font-bold" style="font-size: 10pt; border-bottom: 1.5pt solid #334155; border-top: none; border-left: none; border-right: none;">${(localSKChair?.name || "HON. SK CHAIRPERSON").toUpperCase()}</td>
+            <td colspan="3" class="text-center font-bold" style="font-size: 10pt; border-bottom: 1.5pt solid #334155; border-top: none; border-left: none; border-right: none;">${(captainInfo.name || "HON. PUNONG BARANGAY").toUpperCase()}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-center" style="font-size: 8.5pt; font-weight: bold; color: #047857; border: none;">SK Chairperson</td>
+            <td colspan="3" class="text-center" style="font-size: 8.5pt; font-weight: bold; color: #0f172a; border: none;">Punong Barangay</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-center" style="font-size: 8pt; color: #64748b; border: none;">Sangguniang Kabataan · ${formattedBrgyName}</td>
+            <td colspan="3" class="text-center" style="font-size: 8pt; color: #64748b; border: none;">Barangay Government of ${formattedBrgyName}</td>
+          </tr>
+          <tr><td colspan="6" style="height: 14px; border: none;"></td></tr>
+          <tr>
+            <td colspan="6" class="text-center" style="font-size: 8pt; color: #94a3b8; border: none;">Official Census Document generated through the SiKap Youth Governance & Livelihood Matching Platform · Verified Katipunan ng Kabataan Public Record</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `San_Luis_${formattedBrgyName.replace(/[^a-zA-Z0-9]/g, '_')}_Census_Report_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    if (addToast) addToast(`Downloaded ${formattedBrgyName} Census Spreadsheet (.xls)`, "success");
+  };
 
   return (
     <div className="flex h-screen bg-[#FAFAF8] text-slate-800 font-sans antialiased overflow-hidden" id="captain-portal-container">
@@ -1073,43 +1353,36 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   {localYouthProfiles.length > 0 ? (
                     <div className="space-y-6">
                       
-                      {/* Primary 5-Status Cards */}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        <div className="bg-amber-50 border-2 border-amber-400 p-3 rounded-xl text-center shadow-xs">
+                      {/* Primary OSY & TVET Livelihood Governance Cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-amber-50 border-2 border-amber-400 p-3.5 rounded-xl text-center shadow-xs">
                           <span className="text-[9px] font-black uppercase tracking-wider text-amber-900 block">
-                            ★ OSY Youth
+                            ★ OSY Youth Target
                           </span>
-                          <h5 className="text-xl font-black text-amber-950 mt-1">{kkMembersSummary.outOfSchool}</h5>
+                          <h5 className="text-2xl font-black text-amber-950 mt-1">{kkMembersSummary.outOfSchool}</h5>
                           <p className="text-[9px] text-amber-700 mt-0.5 font-bold">
-                            {Math.round((kkMembersSummary.outOfSchool / localYouthProfiles.length) * 100)}% of total
+                            {Math.round((kkMembersSummary.outOfSchool / (localYouthProfiles.length || 1)) * 100)}% Priority Cohort
                           </p>
                         </div>
-                        <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-blue-800 block">Employed</span>
-                          <h5 className="text-xl font-black text-blue-950 mt-1">{kkMembersSummary.employed}</h5>
-                          <p className="text-[9px] text-gray-400 mt-0.5 font-bold">
-                            {Math.round((kkMembersSummary.employed / localYouthProfiles.length) * 100)}%
+                        <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-xl text-center">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">TVET Matching Target</span>
+                          <h5 className="text-2xl font-black text-emerald-950 mt-1">{kkMembersSummary.outOfSchool}</h5>
+                          <p className="text-[9px] text-emerald-700 mt-0.5 font-bold">
+                            Free TESDA Training
                           </p>
                         </div>
-                        <div className="bg-indigo-50/50 border border-indigo-100 p-3 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-800 block">Self-Employed</span>
-                          <h5 className="text-xl font-black text-indigo-950 mt-1">{kkMembersSummary.selfEmployed}</h5>
-                          <p className="text-[9px] text-gray-400 mt-0.5 font-bold">
-                            {Math.round((kkMembersSummary.selfEmployed / localYouthProfiles.length) * 100)}%
+                        <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-xl text-center">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-blue-800 block">Skill Deficiencies</span>
+                          <h5 className="text-2xl font-black text-blue-950 mt-1">{localSkillsGaps.length} Areas</h5>
+                          <p className="text-[9px] text-blue-700 mt-0.5 font-bold">
+                            Priority Training Needs
                           </p>
                         </div>
-                        <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">Graduates</span>
-                          <h5 className="text-xl font-black text-emerald-950 mt-1">{kkMembersSummary.graduate}</h5>
-                          <p className="text-[9px] text-gray-400 mt-0.5 font-bold">
-                            {Math.round((kkMembersSummary.graduate / localYouthProfiles.length) * 100)}%
-                          </p>
-                        </div>
-                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-700 block">In-School</span>
-                          <h5 className="text-xl font-black text-slate-900 mt-1">{kkMembersSummary.inSchool}</h5>
-                          <p className="text-[9px] text-gray-400 mt-0.5 font-bold">
-                            {Math.round((kkMembersSummary.inSchool / localYouthProfiles.length) * 100)}%
+                        <div className="bg-purple-50/70 border border-purple-200 p-3.5 rounded-xl text-center">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-purple-800 block">Active Sub-Zones</span>
+                          <h5 className="text-2xl font-black text-purple-950 mt-1">{Object.keys(kkMembersSummary.purokBreakdown).length} Puroks</h5>
+                          <p className="text-[9px] text-purple-700 mt-0.5 font-bold">
+                            Demographic Scope
                           </p>
                         </div>
                       </div>
@@ -2807,37 +3080,67 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* MODAL 3: EXECUTIVE PRINTABLE CENSUS REPORT                                */}
       {/* ========================================================================= */}
       {isPrintReportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] border border-gray-200 animate-in zoom-in-95 duration-150">
+        <div id="printable-census-modal-backdrop" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden">
+          <div id="printable-census-modal-card" className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in zoom-in-95 duration-150">
             
-            {/* Header with Print Action */}
-            <div className="bg-[#1C2B20] text-white p-5 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <Printer className="w-5 h-5 text-amber-400" />
+            {/* Header with Print & Excel Action Controls */}
+            <div className="relative bg-[#1C2B20] text-white p-4 sm:p-5 pr-14 sm:pr-16 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print border-b border-emerald-900/60">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shadow-xs">
+                  <Printer className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider">Executive Census Summary Sheet</h3>
-                  <p className="text-[10px] text-emerald-200">Official Barangay Governance Documentation</p>
+                  <h3 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-2">
+                    Executive Census Summary Sheet
+                    <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded-md">
+                      {formattedBrgyName}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-emerald-200/90 font-medium">
+                    Official Barangay Youth Governance & Demographic Audit Documentation
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Action Controls */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Export Excel (.xls) Formatted Table Button */}
                 <button
+                  type="button"
+                  onClick={handleExportCensusExcel}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/50"
+                  title="Export styled spreadsheet pre-configured for US Letter printing (.xls)"
+                >
+                  <Download className="w-3.5 h-3.5 text-white" />
+                  <span>Export Excel (.xls)</span>
+                </button>
+
+                {/* Print / Save as PDF Button */}
+                <button
+                  type="button"
                   onClick={() => window.print()}
                   className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Print official multi-page document on US Letter paper size or save as PDF"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  Print Now
-                </button>
-                <button
-                  onClick={() => setIsPrintReportModalOpen(false)}
-                  className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
+                  <span>Print / PDF (Letter)</span>
                 </button>
               </div>
+
+              {/* Dedicated Top-Right X / Exit Button */}
+              <button
+                type="button"
+                onClick={() => setIsPrintReportModalOpen(false)}
+                className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-all flex items-center justify-center"
+                aria-label="Close census report modal"
+                title="Close census report"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             {/* Printable Content View */}
-            <div className="flex-1 p-8 overflow-y-auto space-y-6 text-xs text-gray-800 bg-white" id="printable-census-report">
+            <div className="flex-1 p-6 sm:p-10 print:p-0 print:space-y-5 overflow-y-auto space-y-6 text-xs text-gray-800 bg-white" id="printable-census-report">
               
               {/* Document Letterhead */}
               <div className="text-center border-b-2 border-emerald-900 pb-4 space-y-1">
@@ -2845,7 +3148,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <h2 className="text-base font-black text-gray-950 uppercase tracking-tight">MUNICIPALITY OF SAN LUIS</h2>
                 <h3 className="text-sm font-extrabold text-[#0A6B43] uppercase tracking-wider">{formattedBrgyName.toUpperCase()}</h3>
                 <p className="text-[10px] text-gray-400 font-semibold pt-1">
-                  OFFICE OF THE PUNONG BARANGAY · SIKKAP YOUTH GOVERNANCE SYSTEM
+                  OFFICE OF THE PUNONG BARANGAY · SIKAP YOUTH GOVERNANCE SYSTEM
                 </p>
               </div>
 
@@ -2861,27 +3164,33 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
               </div>
 
-              {/* Statistical Summary Table */}
+              {/* Statistical Summary Table (Strictly OSY & Livelihood Focused) */}
               <div className="space-y-2">
                 <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
                   I. Katipunan ng Kabataan Census Summary
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 text-center">
                   <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <span className="text-[9px] font-bold text-gray-500 uppercase">Total Youth</span>
+                    <span className="text-[9px] font-bold text-gray-500 uppercase">Total Registered Youth</span>
                     <p className="text-lg font-black text-gray-900 mt-0.5">{localYouthProfiles.length}</p>
+                    <span className="text-[8px] text-gray-400 font-bold">KK Registry</span>
                   </div>
                   <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
                     <span className="text-[9px] font-bold text-amber-800 uppercase">Out-of-School (OSY)</span>
                     <p className="text-lg font-black text-amber-900 mt-0.5">{kkMembersSummary.outOfSchool}</p>
-                  </div>
-                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
-                    <span className="text-[9px] font-bold text-blue-800 uppercase">Employed / Wage</span>
-                    <p className="text-lg font-black text-blue-900 mt-0.5">{kkMembersSummary.employed}</p>
+                    <span className="text-[8px] text-amber-700 font-bold">Primary Priority</span>
                   </div>
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <span className="text-[9px] font-bold text-emerald-800 uppercase">In-School / Students</span>
-                    <p className="text-lg font-black text-emerald-900 mt-0.5">{kkMembersSummary.inSchool}</p>
+                    <span className="text-[9px] font-bold text-emerald-800 uppercase">OSY Density Rate</span>
+                    <p className="text-lg font-black text-emerald-900 mt-0.5">
+                      {localYouthProfiles.length > 0 ? ((kkMembersSummary.outOfSchool / localYouthProfiles.length) * 100).toFixed(1) : "0.0"}%
+                    </p>
+                    <span className="text-[8px] text-emerald-700 font-bold">Demographic Share</span>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
+                    <span className="text-[9px] font-bold text-blue-800 uppercase">TVET Matching Target</span>
+                    <p className="text-lg font-black text-blue-900 mt-0.5">{kkMembersSummary.outOfSchool}</p>
+                    <span className="text-[8px] text-blue-700 font-bold">TESDA Scholarship</span>
                   </div>
                 </div>
               </div>
@@ -2891,7 +3200,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
                   II. Purok Population Distribution
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-3 gap-2">
                   {Object.entries(kkMembersSummary.purokBreakdown).map(([purok, count]) => (
                     <div key={purok} className="flex justify-between p-2 bg-gray-50 rounded-lg border border-gray-150 text-xs">
                       <span className="font-bold text-gray-700">{purok}</span>
@@ -2926,37 +3235,42 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </table>
               </div>
 
-              {/* Signatures */}
-              <div className="grid grid-cols-2 gap-8 pt-8 text-center text-xs font-semibold">
-                <div>
-                  <div className="border-b border-gray-800 pb-1 w-48 mx-auto" />
-                  <p className="font-black text-gray-950 mt-1">{localSKChair?.name || "SK Chairperson"}</p>
-                  <p className="text-[10px] text-gray-500">SK Chairperson, {formattedBrgyName}</p>
+              {/* SECTION IV: OFFICIAL ATTESTATION & SIGN-OFF BLOCK */}
+              <div className="pt-6 border-t-2 border-gray-300 print-avoid-break">
+                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-6 text-center">
+                  Official Barangay Katipunan ng Kabataan Verification & Executive Attestation
                 </div>
-                <div>
-                  <div className="border-b border-gray-800 pb-1 w-48 mx-auto" />
-                  <p className="font-black text-gray-950 mt-1">Hon. {captainInfo.name}</p>
-                  <p className="text-[10px] text-gray-500">Punong Barangay, {formattedBrgyName}</p>
+                <div className="grid grid-cols-2 gap-8 text-center census-signoff-grid">
+                  <div>
+                    <div className="border-b border-gray-400 pb-1 w-48 mx-auto font-black text-gray-900 text-xs uppercase tracking-wide">
+                      {localSKChair?.name || "HON. SK CHAIRPERSON"}
+                    </div>
+                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider mt-1">
+                      SK Chairperson
+                    </p>
+                    <p className="text-[9px] text-gray-500 font-semibold">
+                      Sangguniang Kabataan · {formattedBrgyName}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="border-b border-gray-400 pb-1 w-48 mx-auto font-black text-gray-900 text-xs uppercase tracking-wide">
+                      Hon. {captainInfo.name || "HON. PUNONG BARANGAY"}
+                    </div>
+                    <p className="text-[10px] font-black text-gray-900 uppercase tracking-wider mt-1">
+                      Punong Barangay
+                    </p>
+                    <p className="text-[9px] text-gray-500 font-semibold">
+                      Barangay Government of {formattedBrgyName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-3 border-t border-gray-200 text-center text-[9px] text-gray-400 font-medium">
+                  Official Census Document generated through the SiKap Youth Governance & Livelihood Matching Platform · Verified Katipunan ng Kabataan Public Record · San Luis, Pampanga
                 </div>
               </div>
 
-            </div>
-
-            {/* Modal Footer */}
-            <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-2 shrink-0">
-              <button
-                onClick={() => setIsPrintReportModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-100 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-              >
-                Close Preview
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="px-5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Print Census Sheet
-              </button>
             </div>
 
           </div>

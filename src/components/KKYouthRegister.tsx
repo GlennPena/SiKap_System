@@ -6,7 +6,7 @@ import {
   User, Mail, Phone, Calendar, Award, GraduationCap, Plus, X,
   Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft
 } from "lucide-react";
-import { YouthProfile, UserRole } from "../types";
+import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
 import { SikapLogo } from "./ReusableComponents";
 import { formatContactNumber, isValidContactNumber, calculateAge } from "../lib/utils";
 
@@ -64,7 +64,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     }
   };
 
-  const [regEdu, setRegEdu] = useState("College level");
+  const [regEdu, setRegEdu] = useState<string>("College Level");
   const [regStatus, setRegStatus] = useState("Out-of-school");
 
   const [skillInput, setSkillInput] = useState("");
@@ -544,10 +544,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         onChange={(e) => setRegEdu(e.target.value)}
                         className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                       >
-                        <option value="College level">College level</option>
-                        <option value="SHS graduate">SHS graduate</option>
-                        <option value="HS graduate">HS graduate</option>
-                        <option value="Elementary level">Elementary level</option>
+                        {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
+                          <option key={edu} value={edu}>{edu}</option>
+                        ))}
                       </select>
                     </div>
 

@@ -48,3 +48,217 @@ body {
   transform-origin: center;
   will-change: transform;
 }
+
+/* Explicit US Letter Paper Configuration for Multi-Page Reports */
+@page {
+  size: letter portrait;
+  margin: 10mm 12mm 10mm 12mm;
+}
+
+/* Print Styles for Multi-Page Executive Reports */
+@media print {
+  /* Hide non-printable app layout elements completely so they take 0px space */
+  aside,
+  header,
+  nav,
+  #super-admin-portal-root > aside,
+  #super-admin-portal-root > main,
+  #captain-portal-container > aside,
+  #captain-portal-container > main,
+  #sk-portal-container > aside,
+  #sk-portal-container > main,
+  .no-print,
+  .toast-container {
+    display: none !important;
+  }
+
+  /* Reset document root, body, and all app ancestor wrappers */
+  html,
+  body,
+  #__next,
+  #root,
+  #sikap-application-root,
+  body > div,
+  body > div > div {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Reset portal roots from flex to standard static block flow */
+  #super-admin-portal-root,
+  #captain-portal-container,
+  #sk-portal-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Reset modal overlays: remove backdrop blur, dark background, and centering constraints */
+  #printable-superadmin-modal-backdrop,
+  #printable-census-modal-backdrop,
+  #printable-skillsgap-modal-backdrop,
+  div:has(> #printable-superadmin-modal-card),
+  div:has(> #printable-census-modal-card),
+  div:has(> #printable-skillsgap-modal-card) {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    inset: auto !important;
+    transform: none !important;
+    animation: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Reset modal card: flat, borderless, full width */
+  #printable-superadmin-modal-card,
+  #printable-census-modal-card,
+  #printable-skillsgap-modal-card {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    transform: none !important;
+    animation: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+  }
+
+  /* Document body: starts right at top-left, full width, visible overflow */
+  #printable-superadmin-report,
+  #printable-census-report,
+  #printable-skillsgap-report {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Eliminate any scrollbars, height limits, or clipping inside the report */
+  #printable-superadmin-report *,
+  #printable-census-report *,
+  #printable-skillsgap-report * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  #printable-superadmin-report .overflow-x-auto,
+  #printable-superadmin-report .overflow-y-auto,
+  #printable-census-report .overflow-x-auto,
+  #printable-census-report .overflow-y-auto,
+  #printable-skillsgap-report .overflow-x-auto,
+  #printable-skillsgap-report .overflow-y-auto {
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
+  /* Section I KPI Scorecard 5-column grid layout on Letter portrait */
+  #printable-superadmin-report .kpi-scorecard-grid,
+  #printable-skillsgap-report .kpi-scorecard-grid {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  /* Section III Priority Sectors 3-column grid layout on Letter portrait */
+  #printable-skillsgap-report .skillsgap-sectors-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  /* Section IV Strategic Interventions 3-column grid layout on Letter portrait */
+  #printable-skillsgap-report .skillsgap-actions-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  /* Section V Official Sign-off 2-column signature layout on Letter portrait */
+  #printable-skillsgap-report .skillsgap-signoff-grid,
+  #printable-census-report .census-signoff-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 2rem !important;
+  }
+
+  /* Clean table formatting & multi-page pagination */
+  table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  th, td {
+    word-break: normal !important;
+  }
+
+  /* Avoid awkward page breaks for individual compact summary blocks */
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Force exact color and background graphic rendering in browser PDF generator */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
