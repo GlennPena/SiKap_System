@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 import { normalizeEducationalAttainment } from "@/types";
+import { calculateAge } from "@/lib/utils";
 
 function safeDecrypt(enc: string | null | undefined): string {
   if (!enc) return "";
@@ -25,12 +26,17 @@ function mapToClientProfile(y: any) {
   const currentInterests = (y.interests && y.interests.length > 0) ? y.interests : (y.preferencesRaw || []);
   const currentGoal = y.livelihoodGoal || y.goalRaw || "";
 
+  const computedAge = y.birthdate ? (calculateAge(y.birthdate) || y.age) : y.age;
+  const birthdateFormatted = y.birthdate ? (y.birthdate instanceof Date ? y.birthdate.toISOString().split("T")[0] : String(y.birthdate).split("T")[0]) : undefined;
+
   return {
     id: y.id,
     userId: y.userId,
     name: y.name,
     email: y.user?.email || y.email || "",
-    age: y.age,
+    birthdate: birthdateFormatted,
+    age: computedAge,
+    gender: y.gender || "Male",
     purok: y.purok,
     barangay: y.barangay?.name || "",
     educationalAttainment: y.educationalAttainment,
@@ -146,11 +152,17 @@ export async function POST(request: Request) {
        barangayId = brgy.id;
     }
     
+    const parsedBirthdate = body.birthdate || body.dob ? new Date(body.birthdate || body.dob) : null;
+    const computedAge = parsedBirthdate ? (calculateAge(parsedBirthdate) || Number(body.age)) : Number(body.age);
+    const userGender = body.gender || body.sex || "Male";
+
     const newProfile = await db.youthProfile.create({
       data: {
         userId: roleStr === "KK_YOUTH" ? (session.user as any).id : undefined,
         name: body.name,
-        age: Number(body.age),
+        birthdate: parsedBirthdate,
+        age: Number(computedAge),
+        gender: userGender,
         purok: body.purok,
         barangayId: barangayId,
         educationalAttainment: normalizeEducationalAttainment(body.educationalAttainment),
@@ -204,8 +216,26 @@ export async function PUT(request: Request) {
     delete updateData.experiencesNormalized;
     delete updateData.goalNormalized;
 
-    if (body.age !== undefined) {
+    if (body.birthdate !== undefined || body.dob !== undefined) {
+      const bDateStr = body.birthdate || body.dob;
+      if (bDateStr) {
+        const bDate = new Date(bDateStr);
+        updateData.birthdate = bDate;
+        const calcAge = calculateAge(bDate);
+        if (calcAge !== "") {
+          updateData.age = calcAge;
+        }
+      }
+      delete updateData.dob;
+    }
+
+    if (body.age !== undefined && !updateData.age) {
       updateData.age = parseInt(String(body.age), 10) || 18;
+    }
+
+    if (body.gender !== undefined || body.sex !== undefined) {
+      updateData.gender = body.gender || body.sex || "Male";
+      delete updateData.sex;
     }
 
     if (body.soloParent !== undefined) {

@@ -17,7 +17,70 @@ import { SuperAdminPortal } from "./components/SuperAdminPortal";
 import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
+import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
 import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+
+const MatchBadge: React.FC = () => {
+  const [matchState, setMatchState] = useState<"analyzing" | "calculating" | "complete">("analyzing");
+  const [calcScore, setCalcScore] = useState(0);
+
+  useEffect(() => {
+    // Stage 1: While card is entering diagonally (0s to 0.85s). Display "Analyzing..."
+    const analyzeTimer = setTimeout(() => {
+      setMatchState("calculating");
+    }, 850);
+
+    return () => clearTimeout(analyzeTimer);
+  }, []);
+
+  useEffect(() => {
+    if (matchState === "calculating") {
+      let current = 0;
+      const target = 94;
+      const interval = setInterval(() => {
+        current += Math.floor(Math.random() * 6) + 4;
+        if (current >= target) {
+          setCalcScore(target);
+          setMatchState("complete");
+          clearInterval(interval);
+        } else {
+          setCalcScore(current);
+        }
+      }, 55); // smooth, readable calculation count-up over ~750ms
+
+      return () => clearInterval(interval);
+    }
+  }, [matchState]);
+
+  if (matchState === "analyzing") {
+    return (
+      <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 shadow-2xs flex items-center gap-1.5 animate-pulse">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+        Analyzing...
+      </span>
+    );
+  }
+
+  if (matchState === "calculating") {
+    return (
+      <span className="text-xs font-black text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg border border-emerald-300 shadow-2xs font-mono">
+        {calcScore}% Calculating...
+      </span>
+    );
+  }
+
+  return (
+    <motion.span
+      initial={{ scale: 0.8 }}
+      animate={{ scale: [1, 1.28, 0.92, 1] }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="text-xs font-black text-emerald-700 bg-white px-2.5 py-1 rounded-lg shadow-md border border-emerald-200 flex items-center gap-1"
+    >
+      94% Match
+    </motion.span>
+  );
+};
 
 export default function App() {
   const { data: session, status } = useSession();
@@ -276,22 +339,53 @@ export default function App() {
           <div className="h-screen flex flex-col md:flex-row bg-white p-4 sm:p-6 gap-6 overflow-hidden">
 
             {/* Left panel as a card */}
-            <div className="md:w-[45%] bg-[#0A6B43] rounded-[1.5rem] p-8 md:p-10 flex flex-col shrink-0 relative overflow-hidden shadow-xl">
+            <div className="md:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 md:p-10 flex flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
 
-              {/* Header Row: Welcome Text & Back Button inline */}
+              {/* Redox Texture Overlay (Identical to Landing Page CTA) */}
+              <div
+                className="absolute inset-0 pointer-events-none z-0 opacity-40 mix-blend-multiply"
+                style={{
+                  backgroundImage: "url('/redox-02.png')",
+                  backgroundRepeat: "repeat",
+                  backgroundSize: "200px 200px",
+                }}
+              />
+
+              {/* Animated 3D Grid Overlay (Identical to Landing Page CTA) */}
+              <AnimatedGridBackground />
+
+              {/* Subtle Radial Lighting behind text */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.18),transparent_70%)] pointer-events-none z-0" />
+
+              {/* Header Row: Welcome Text */}
               <div className="flex items-start justify-between w-full relative z-10 mb-8">
                 <div className="w-full mt-2">
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 whitespace-nowrap">
+                  <motion.h1
+                    initial={{ opacity: 0, x: -35 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.65, ease: "easeOut" }}
+                    className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 whitespace-nowrap drop-shadow-xs"
+                  >
                     Your Path Continues Here
-                  </h1>
-                  <p className="text-base md:text-lg text-emerald-100/90 leading-relaxed font-medium pr-4 mt-2">
-                    Sign in to explore opportunities matched to you.
-                  </p>
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0, x: -25 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.65, ease: "easeOut", delay: 0.15 }}
+                    className="text-base md:text-lg text-emerald-100/95 leading-relaxed font-medium pr-4 mt-2"
+                  >
+                    Explore more opportunities specially matched to you
+                  </motion.p>
                 </div>
               </div>
 
-              {/* Hero "Image" Mockup - tilted clockwise to face left, tall format */}
-              <div className="absolute top-[28%] -left-[30%] w-[80%] max-w-[800px] transform scale-[1.3] origin-top-left">
+              {/* Hero "Image" Mockup - OSY CARD entering diagonally from lower-left to destination */}
+              <motion.div
+                initial={{ opacity: 0, x: -90, y: 90 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                transition={{ duration: 0.75, ease: "easeOut", delay: 0.1 }}
+                className="absolute top-[28%] -left-[30%] w-[80%] max-w-[800px] transform scale-[1.3] origin-top-left z-10 pointer-events-auto"
+              >
                 <div className="bg-white border-2 border-emerald-100/90 rounded-3xl p-8 shadow-2xl aspect-[3/4] min-h-[600px] overflow-hidden transition-transform duration-700 hover:rotate-0 [transform:perspective(1200px)_rotateX(0deg)_rotateY(-10deg)_rotateZ(9deg)]">
                   <div className="transform scale-[1.5] origin-top-right w-[68%] ml-auto space-y-6">
                     <div className="flex items-center justify-between border-b border-gray-100 pb-4">
@@ -313,7 +407,7 @@ export default function App() {
                       <div className="bg-emerald-50/70 rounded-2xl p-5 border border-emerald-100">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
-                          <span className="text-xs font-black text-emerald-700 bg-white px-2.5 py-1 rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
+                          <MatchBadge />
                         </div>
                         <p className="text-base font-black text-gray-900 mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
                       </div>
@@ -330,20 +424,32 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Right panel */}
-            <div className={`flex-1 bg-white relative min-h-[600px] h-full flex flex-col items-center justify-center p-6 md:px-12 md:py-8 overflow-hidden`}>
+            <div className="flex-1 bg-white relative min-h-[600px] h-full flex flex-col items-center justify-center p-6 md:px-12 md:py-8 overflow-hidden">
 
-              {/* Logo centered at top - identical in both sign in and register */}
-              <div className="absolute top-4 md:top-6 left-0 w-full flex justify-center z-50 pointer-events-auto">
+              {/* Logo centered at top - sliding down from above */}
+              <motion.div
+                initial={{ opacity: 0, y: -25 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+                className="absolute top-4 md:top-6 left-0 w-full flex justify-center z-50 pointer-events-auto"
+              >
                 <SikapLogo size={48} logoSize={60} textSize={40} showText={true} showSubtext={false} gap="gap-1" disableHover={true} />
-              </div>
+              </motion.div>
 
-              <div className={`w-full z-10 relative ${isSelfRegistering ? 'flex-1 flex flex-col min-h-0 max-w-2xl px-2 pt-[64px] md:pt-[78px] pb-10 md:pb-12' : 'max-w-md space-y-6'}`}>
+              <AnimatePresence mode="wait">
                 {isSelfRegistering ? (
-                  <>
+                  <motion.div
+                    key="register-form-view"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.28, ease: "easeOut" }}
+                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl px-2 pt-[64px] md:pt-[78px] pb-10 md:pb-12"
+                  >
                     <KKYouthRegister
                       onRegisterComplete={(newProfile) => {
                         setYouthProfiles(prev => [newProfile, ...prev]);
@@ -367,10 +473,17 @@ export default function App() {
                         </button>
                       </p>
                     </div>
-                  </>
+                  </motion.div>
                 ) : (
-                  <>
-                    <div className="text-left mb-10">
+                  <motion.div
+                    key="signin-form-view"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.28, ease: "easeOut" }}
+                    className="w-full z-10 relative max-w-md space-y-6 pt-12 md:pt-0"
+                  >
+                    <div className="text-left mb-8">
                       <h2 className="text-4xl font-black tracking-tight leading-[1.05] text-gray-900">Sign In</h2>
                       <p className="text-base text-gray-500 font-medium mt-2.5">Please login to continue</p>
                     </div>
@@ -432,12 +545,14 @@ export default function App() {
                       </div>
 
                       <div className="pt-2">
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.015 }}
+                          whileTap={{ scale: 0.985 }}
                           type="submit"
                           className="w-full py-4 bg-[#0A6B43] hover:bg-[#075332] text-white text-base font-bold rounded-2xl shadow-md transition-colors cursor-pointer"
                         >
                           Login
-                        </button>
+                        </motion.button>
                       </div>
                     </form>
 
@@ -454,12 +569,17 @@ export default function App() {
                         </button>
                       </p>
                     </div>
-                  </>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
 
-              {/* Back to Homepage link at the very bottom - identical in both sign in and register */}
-              <div className="absolute bottom-4 md:bottom-6 left-0 w-full flex justify-center z-30 pointer-events-auto">
+              {/* Back to Homepage link at the very bottom - sliding up from below */}
+              <motion.div
+                initial={{ opacity: 0, y: 25 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+                className="absolute bottom-4 md:bottom-6 left-0 w-full flex justify-center z-30 pointer-events-auto"
+              >
                 <button
                   type="button"
                   onClick={() => setViewingLanding(true)}
@@ -467,7 +587,7 @@ export default function App() {
                 >
                   Back to Homepage
                 </button>
-              </div>
+              </motion.div>
             </div>
 
           </div>

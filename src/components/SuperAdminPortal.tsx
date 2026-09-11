@@ -3659,7 +3659,11 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
             </div>
 
             <div className="p-6 overflow-y-auto space-y-5 flex-1 text-slate-700">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Gender</span>
+                  <span className="font-bold text-slate-900 text-sm">{selectedYouthDetail.gender || "Male"}</span>
+                </div>
                 <div>
                   <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Age</span>
                   <span className="font-bold text-slate-900 text-sm">{selectedYouthDetail.age} years old</span>

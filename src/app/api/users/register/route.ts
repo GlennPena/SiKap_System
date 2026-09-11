@@ -7,6 +7,7 @@ import { calculateContentBasedMatchScore } from "@/lib/cbf-matcher";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 import { notifyNewYouthRegistered } from "@/lib/notifications";
 import { normalizeEducationalAttainment } from "@/types";
+import { calculateAge } from "@/lib/utils";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +17,10 @@ export async function POST(req: Request) {
       password, 
       name, 
       barangay, 
+      birthdate,
+      dob,
+      gender,
+      sex,
       age, 
       purok, 
       educationalAttainment, 
@@ -123,11 +128,53 @@ export async function POST(req: Request) {
         ? Math.max(...activePrograms.map(p => calculateContentBasedMatchScore(tempYouth as any, p as any)))
         : 50;
 
-      const newProfile = await prisma.youthProfile.create({
-        data: {
+      const parsedBirthdate = birthdate || dob ? new Date(birthdate || dob) : null;
+      const computedAge = parsedBirthdate ? (calculateAge(parsedBirthdate) || Number(age)) : Number(age);
+      const userGender = gender || sex || "Male";
+
+      let newProfile;
+      try {
+        newProfile = await prisma.youthProfile.create({
+          data: {
+            userId: newUser.id,
+            name,
+            birthdate: parsedBirthdate,
+            age: Number(computedAge),
+            gender: userGender,
+            purok,
+            barangayId: brgy.id,
+            educationalAttainment: normalizeEducationalAttainment(educationalAttainment),
+            currentStatus: currentStatus || "Out-of-school",
+            skills: finalSkillsRaw,
+            interests: finalPreferencesRaw,
+            sectorPreference: sectorPreference || (finalPreferencesRaw[0] || ""),
+            livelihoodGoal: finalGoalRaw,
+            skillsRaw: finalSkillsRaw,
+            preferencesRaw: finalPreferencesRaw,
+            experiencesRaw: finalExperiencesRaw,
+            goalRaw: finalGoalRaw,
+            skillsNormalized: normalizedSkills as any,
+            preferencesNormalized: normalizedPreferences as any,
+            experiencesNormalized: normalizedExperiences as any,
+            goalNormalized: normalizedGoal as any,
+            contactNumberEncrypted,
+            matchScore: calculatedScore,
+            soloParent: Boolean(soloParent),
+            pwd: Boolean(pwd),
+            indigenous: Boolean(indigenous),
+            approvalStatus: body.approvalStatus === "Approved" ? ApprovalStatus.Approved : ApprovalStatus.Pending,
+            verificationIdType,
+            verificationIdNumberEnc,
+            verificationIdImageEnc
+          }
+        });
+      } catch (profileErr: any) {
+        console.warn("[YouthProfile create fallback triggered]:", profileErr?.message || profileErr);
+        // Fallback for Prisma engine instances that might have cached older schema DMMF definitions
+        const fallbackData: any = {
           userId: newUser.id,
           name,
-          age: Number(age),
+          age: Number(computedAge),
           purok,
           barangayId: brgy.id,
           educationalAttainment: normalizeEducationalAttainment(educationalAttainment),
@@ -153,8 +200,18 @@ export async function POST(req: Request) {
           verificationIdType,
           verificationIdNumberEnc,
           verificationIdImageEnc
+        };
+        newProfile = await prisma.youthProfile.create({ data: fallbackData });
+        if (parsedBirthdate || userGender) {
+          try {
+            await prisma.$executeRaw`UPDATE "YouthProfile" SET "birthdate" = ${parsedBirthdate}, "gender" = ${userGender} WHERE "id" = ${newProfile.id}`;
+            newProfile.birthdate = parsedBirthdate;
+            newProfile.gender = userGender;
+          } catch (rawErr) {
+            console.error("[Raw SQL update error]:", rawErr);
+          }
         }
-      });
+      }
 
       return { newUser, newProfile };
     });
@@ -174,7 +231,9 @@ export async function POST(req: Request) {
         id: result.newProfile.id,
         name: result.newProfile.name,
         email: result.newUser.email,
+        birthdate: result.newProfile.birthdate ? result.newProfile.birthdate.toISOString().split("T")[0] : undefined,
         age: result.newProfile.age,
+        gender: result.newProfile.gender || "Male",
         purok: result.newProfile.purok,
         barangay: brgy.name,
         educationalAttainment: result.newProfile.educationalAttainment,

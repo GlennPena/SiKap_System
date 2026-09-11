@@ -100,7 +100,9 @@ model YouthProfile {
   userId                  String?        @unique
   user                    User?          @relation(fields: [userId], references: [id])
   name                    String
+  birthdate               DateTime?
   age                     Int
+  gender                  String?
   purok                   String
   barangayId              String
   barangay                Barangay       @relation(fields: [barangayId], references: [id])

@@ -10,10 +10,11 @@ export function cn(...inputs: ClassValue[]) {
  * Allows typing up to 9 additional digits after "+63 9" (total 11 digits: +63 9XX XXX XXXX).
  */
 export function formatContactNumber(val: string): string {
-  if (!val) return "+63 9";
+  if (!val || val.trim() === "") return "";
   
   // Extract all digits
   const rawDigits = val.replace(/\D/g, "");
+  if (!rawDigits) return "";
   
   let userDigits = "";
   if (rawDigits.startsWith("639")) {
@@ -71,25 +72,32 @@ export function formatTime12Hour(time24: string): string {
 }
 
 /**
- * Calculates age based on a birth date string (YYYY-MM-DD).
+ * Calculates age based on a birth date string (YYYY-MM-DD or ISO string) or Date object.
  * Returns the integer age, or "" if invalid, empty, or a future date.
  */
-export function calculateAge(dobString: string): number | "" {
-  if (!dobString) return "";
-  const parts = dobString.split("-");
-  if (parts.length !== 3) return "";
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return "";
+export function calculateAge(dobInput: string | Date | null | undefined): number | "" {
+  if (!dobInput) return "";
 
-  const birthDate = new Date(year, month, day);
-  if (
-    birthDate.getFullYear() !== year ||
-    birthDate.getMonth() !== month ||
-    birthDate.getDate() !== day
-  ) {
-    return "";
+  let birthDate: Date;
+
+  if (dobInput instanceof Date) {
+    birthDate = dobInput;
+  } else {
+    const dateStr = String(dobInput).split("T")[0];
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return "";
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return "";
+    birthDate = new Date(year, month, day);
+    if (
+      birthDate.getFullYear() !== year ||
+      birthDate.getMonth() !== month ||
+      birthDate.getDate() !== day
+    ) {
+      return "";
+    }
   }
 
   const today = new Date();

@@ -129,7 +129,9 @@ export interface YouthProfile {
   id: string;
   name: string;
   email?: string;
+  birthdate?: string;
   age: number;
+  gender?: string;
   purok: string;
   barangay: string;
   educationalAttainment: string;

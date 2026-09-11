@@ -975,7 +975,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       email: regEmail,
       password: regPassword,
       name: regName,
+      birthdate: regDOB,
       age: Number(regAge),
+      gender: regSex,
       purok: regPurok,
       barangay: brgyName,
       educationalAttainment: regEdu,
@@ -2313,7 +2315,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <div className="min-w-0">
                             <h4 className="font-bold text-gray-800 text-sm truncate leading-snug">{y.name}</h4>
                             <p className="text-xs text-gray-400 mt-0.5">
-                              {y.age} y/o · {y.purok}
+                              {y.gender ? `${y.gender} · ` : ""}{y.age} y/o · {y.purok}
                             </p>
                           </div>
                         </div>
@@ -2429,7 +2431,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
                     <h3 className="text-base font-bold text-gray-800">{selectedYouth.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {selectedYouth.age} years old · {selectedYouth.purok}
+                      {selectedYouth.gender ? `${selectedYouth.gender} · ` : ""}{selectedYouth.age} years old · {selectedYouth.purok}
                     </p>
                     <p className="text-xs text-gray-400">Barangay {selectedYouth.barangay.replace(/^Barangay\s+/i, "")} · San Luis</p>
 
@@ -2809,7 +2811,18 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-500 uppercase">Gender *</label>
+                          <select
+                            value={regSex}
+                            onChange={(e) => setRegSex(e.target.value)}
+                            className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          >
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                          </select>
+                        </div>
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-gray-500 uppercase">Age *</label>
                           <input

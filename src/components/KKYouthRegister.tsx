@@ -4,11 +4,13 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, MapPin, Check, Sparkles, Clock, CheckCircle,
   User, Mail, Phone, Calendar, Award, GraduationCap, Plus, X,
-  Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft
+  Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft, ChevronDown,
+  Eye, EyeOff, AlertCircle
 } from "lucide-react";
 import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
 import { SikapLogo } from "./ReusableComponents";
 import { formatContactNumber, isValidContactNumber, calculateAge } from "../lib/utils";
+import { motion, AnimatePresence } from "motion/react";
 
 interface KKYouthRegisterProps {
   onRegisterComplete: (newProfile: YouthProfile) => void;
@@ -47,10 +49,40 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
-  const [regDOB, setRegDOB] = useState("2006-05-15");
-  const [regAge, setRegAge] = useState<number | string>(() => calculateAge("2006-05-15") || 20);
-  const [regContact, setRegContact] = useState("+63 9");
-  const [regPurok, setRegPurok] = useState("Purok 2");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [regDOB, setRegDOB] = useState("");
+  const [regAge, setRegAge] = useState<number | string>("");
+  const [regGender, setRegGender] = useState("");
+  const [regContact, setRegContact] = useState("");
+  const [regPurok, setRegPurok] = useState("");
+
+  const [emailExists, setEmailExists] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
+  useEffect(() => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regEmail || !emailRegex.test(regEmail)) {
+      setEmailExists(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingEmail(true);
+      try {
+        const res = await fetch(`/api/users/check-email?email=${encodeURIComponent(regEmail.trim())}`);
+        const data = await res.json();
+        setEmailExists(data.exists);
+      } catch {
+        setEmailExists(false);
+      } finally {
+        setIsCheckingEmail(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [regEmail]);
 
   const handleDOBChange = (dob: string) => {
     setRegDOB(dob);
@@ -64,27 +96,28 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     }
   };
 
-  const [regEdu, setRegEdu] = useState<string>("College Level");
+  const [regEdu, setRegEdu] = useState<string>("");
   const [regStatus, setRegStatus] = useState("Out-of-school");
 
   const [skillInput, setSkillInput] = useState("");
-  const [regSkills, setRegSkills] = useState<string[]>(["Computer"]);
+  const [regSkills, setRegSkills] = useState<string[]>([]);
 
   const [prefInput, setPrefInput] = useState("");
-  const [regPreferences, setRegPreferences] = useState<string[]>(["Technology"]);
-  const [regSector, setRegSector] = useState("Information & Communications Technology (ICT)");
+  const [regPreferences, setRegPreferences] = useState<string[]>([]);
+  const [regSector, setRegSector] = useState("");
 
   const [expInput, setExpInput] = useState("");
   const [regExperiences, setRegExperiences] = useState<string[]>([]);
 
-  const [regGoal, setRegGoal] = useState("I want to become an IT professional");
+  const [regGoal, setRegGoal] = useState("");
 
   const [regSolo, setRegSolo] = useState(false);
   const [regPwd, setRegPwd] = useState(false);
   const [regIndigenous, setRegIndigenous] = useState(false);
+  const [regNone, setRegNone] = useState(false);
 
   // ID Verification states
-  const [regIdType, setRegIdType] = useState("National ID");
+  const [regIdType, setRegIdType] = useState("");
   const [regIdNumber, setRegIdNumber] = useState("");
   const [regIdFileName, setRegIdFileName] = useState("");
   const [regIdImage, setRegIdImage] = useState<string>("");
@@ -105,7 +138,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     { label: "Location", desc: "Barangay Select", icon: <MapPin className="w-4 h-4" /> },
     { label: "Personal", desc: "Contact & Info", icon: <User className="w-4 h-4" /> },
     { label: "Background", desc: "Edu & Demographics", icon: <GraduationCap className="w-4 h-4" /> },
-    { label: "CBF Signals", desc: "Skills, Prefs & Goal", icon: <Award className="w-4 h-4" /> },
+    { label: "Attributes", desc: "Skills, Prefs & Goal", icon: <Award className="w-4 h-4" /> },
     { label: "Verification", desc: "ID & Declaration", icon: <FileCheck className="w-4 h-4" /> }
   ];
 
@@ -191,7 +224,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName.trim() || !regGoal.trim() || !regContact.trim() || !selectedBarangay || !regEmail.trim() || regPassword.length < 6) {
+    if (!regName.trim() || !regGoal.trim() || !regContact.trim() || !selectedBarangay || !regEmail.trim() || regPassword.length < 6 || regPassword !== regConfirmPassword) {
       return;
     }
 
@@ -207,7 +240,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       email: regEmail,
       password: regPassword,
       name: regName,
+      birthdate: regDOB,
       age: regAge,
+      gender: regGender,
       purok: regPurok,
       barangay: selectedBarangay,
       educationalAttainment: regEdu,
@@ -256,17 +291,20 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const isStepValid = (stepIndex: number) => {
     switch (stepIndex) {
       case 0:
-        return !!selectedBarangay;
+        return !!selectedBarangay && !!regPurok;
       case 1: {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return !!regName.trim() && isValidContactNumber(regContact) && regAge !== "" && Number(regAge) >= 15 && Number(regAge) <= 30 && emailRegex.test(regEmail) && regPassword.length >= 6;
+        const computedAge = regDOB ? calculateAge(regDOB) : "";
+        const isAgeValid = computedAge !== "" && Number(computedAge) >= 18 && Number(computedAge) <= 30;
+        const isPasswordValid = regPassword.length >= 6 && regPassword === regConfirmPassword;
+        return !!regName.trim() && !!regGender && isValidContactNumber(regContact) && isAgeValid && emailRegex.test(regEmail) && !emailExists && isPasswordValid;
       }
       case 2:
-        return true; // Dropdowns and checkboxes have default values
+        return !!regEdu && (regSolo || regPwd || regIndigenous || regNone);
       case 3:
         return !!regGoal.trim() && !!regSector.trim();
       case 4:
-        return !!regIdNumber.trim() && !!regIdFileName && certifyAge && certifyResidency;
+        return !!regIdType && !!regIdNumber.trim() && !!regIdFileName && certifyAge && certifyResidency;
       default:
         return false;
     }
@@ -278,7 +316,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
         {/* Stepper Progress - Anchored persistently at top */}
         {currentStep < 5 && (
-          <div className="mb-4 bg-white border border-gray-150 p-3 sm:p-4 rounded-2xl shadow-xs shrink-0 w-full max-w-xl mx-auto" id="kk-reg-stepper">
+          <div className="mb-4 bg-white border border-gray-150 p-3 sm:p-4 rounded-2xl shadow-xs shrink-0 w-full max-w-2xl mx-auto" id="kk-reg-stepper">
             {/* Mobile View Progress */}
             <div className="flex justify-between items-center md:hidden mb-2">
               <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full uppercase tracking-wider">
@@ -289,9 +327,11 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               </span>
             </div>
             <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden md:hidden">
-              <div
-                className="bg-[#0A6B43] h-full transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / 5) * 100}%` }}
+              <motion.div
+                className="bg-[#0A6B43] h-full"
+                initial={false}
+                animate={{ width: `${((currentStep + 1) / 5) * 100}%` }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
               />
             </div>
 
@@ -305,28 +345,40 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     {/* Connector Line between step icons */}
                     {idx < STEPS.length - 1 && (
                       <div className="absolute top-[18px] left-[50%] w-full h-[2px] bg-gray-200 -translate-y-1/2 z-0">
-                        <div
-                          className="bg-[#0A6B43] h-full transition-all duration-300 ease-out"
-                          style={{ width: idx < currentStep ? "100%" : "0%" }}
+                        <motion.div
+                          className="bg-[#0A6B43] h-full"
+                          initial={false}
+                          animate={{ width: idx < currentStep ? "100%" : "0%" }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
                         />
                       </div>
                     )}
 
                     {/* Step Node Icon Button */}
-                    <button
+                    <motion.button
                       type="button"
                       disabled={idx > currentStep && !isStepValid(currentStep)}
                       onClick={() => idx <= currentStep && setCurrentStep(idx)}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-200 focus:outline-hidden relative z-10 ${isCompleted
+                      animate={{ scale: isActive ? 1.12 : 1 }}
+                      whileHover={idx <= currentStep ? { scale: 1.15 } : {}}
+                      whileTap={idx <= currentStep ? { scale: 0.95 } : {}}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors duration-200 focus:outline-hidden relative z-10 ${isCompleted
                         ? "bg-[#0A6B43] border-[#0A6B43] text-white cursor-pointer hover:bg-[#075332] shadow-xs"
                         : isActive
-                          ? "bg-white border-[#0A6B43] text-[#0A6B43] ring-4 ring-emerald-50 cursor-default"
+                          ? "bg-white border-[#0A6B43] text-[#0A6B43] ring-4 ring-emerald-50 cursor-default shadow-xs"
                           : "bg-white border-gray-200 text-gray-400 cursor-not-allowed"
                         }`}
                       title={step.label}
                     >
-                      {isCompleted ? <Check className="w-4 h-4 stroke-[2.5]" /> : step.icon}
-                    </button>
+                      {isCompleted ? (
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.2 }}>
+                          <Check className="w-4 h-4 stroke-[2.5]" />
+                        </motion.div>
+                      ) : (
+                        step.icon
+                      )}
+                    </motion.button>
 
                     {/* Step Labels */}
                     <span className={`text-[11px] font-bold mt-2 transition-colors text-center px-1 ${isActive ? "text-[#0A6B43]" : isCompleted ? "text-gray-800" : "text-gray-400"
@@ -341,53 +393,128 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         )}
 
         {/* Step Views Area */}
-        <div className="flex-1 min-h-0 flex flex-col w-full max-w-xl mx-auto px-1 pt-3">
-          {/* Step 0: Barangay Selection */}
-          {currentStep === 0 && (
-            <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-250" id="step-location-select">
+        <div className="flex-1 min-h-0 flex flex-col w-full max-w-2xl mx-auto px-1 pt-3">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.28, ease: "easeOut" }}
+              className="flex-1 min-h-0 flex flex-col w-full"
+            >
+              {/* Step 0: Barangay & Purok Selection */}
+              {currentStep === 0 && (
+                <div className="flex-1 flex flex-col min-h-0 w-full" id="step-location-select">
               {/* Non-scrollable Step Header */}
               <div className="text-center space-y-1.5 mb-3 shrink-0">
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
-                  LOCATION SELECTION
+                  LOCATION & PUROK SELECTION
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Which Barangay Are You From?</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-3">
-                  Please select your official residential barangay in San Luis, Pampanga
+                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Select Your Barangay & Purok</h2>
+                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-2">
+                  Please select your official residential area in San Luis, Pampanga
                 </p>
               </div>
 
-              {/* Scrollable Barangay Card Grid ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 max-h-[365px] overflow-y-auto custom-scrollbar py-1 pt-1">
-                <div className="grid grid-cols-2 gap-3 max-w-lg mx-auto">
-                  {BARANGAYS.map((brgy) => {
-                    const isSelected = selectedBarangay === brgy;
-                    return (
-                      <button
-                        key={brgy}
-                        type="button"
-                        onClick={() => setSelectedBarangay(brgy)}
-                        className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
-                          ? "border-[#0A6B43] bg-emerald-50/30 ring-1 ring-[#0A6B43]/50"
-                          : "border-gray-200 hover:border-emerald-300 bg-white hover:bg-emerald-50/5"
-                          }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/30 group-hover:text-emerald-700"
-                            }`}>
-                            <MapPin className="w-3.5 h-3.5" />
-                          </div>
-                          <span className={`text-xs font-bold ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
-                            {brgy}
-                          </span>
-                        </div>
-                        {isSelected && (
-                          <span className="w-4 h-4 rounded-full bg-[#0A6B43] text-white flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5" />
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+              {/* Selection 2-Row Container */}
+              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar py-1 space-y-4 max-w-xl mx-auto w-full">
+                {/* Row 1: Barangay Selection (2 Columns of Choices) */}
+                <div className="space-y-1.5 flex flex-col">
+                  <div className="flex items-center justify-between px-0.5 shrink-0">
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      <span>Select Barangay *</span>
+                    </label>
+                    {selectedBarangay && (
+                      <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 truncate">
+                        {selectedBarangay}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="max-h-[190px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                    <div className="grid grid-cols-2 gap-2">
+                      {BARANGAYS.map((brgy) => {
+                        const isSelected = selectedBarangay === brgy;
+                        return (
+                          <button
+                            key={brgy}
+                            type="button"
+                            onClick={() => setSelectedBarangay(brgy)}
+                            className={`p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                              ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                              : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                              }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 pr-1">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                }`}>
+                                <MapPin className="w-3 h-3" />
+                              </div>
+                              <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                {brgy}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Purok Selection (2 Columns of Choices) */}
+                <div className="space-y-1.5 flex flex-col">
+                  <div className="flex items-center justify-between px-0.5 shrink-0">
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      <span>Select Purok Sector *</span>
+                    </label>
+                    {regPurok && (
+                      <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                        {regPurok}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                    <div className="grid grid-cols-2 gap-2">
+                      {["Purok 1", "Purok 2", "Purok 3", "Purok 4"].map((purok) => {
+                        const isSelected = regPurok === purok;
+                        return (
+                          <button
+                            key={purok}
+                            type="button"
+                            onClick={() => setRegPurok(purok)}
+                            className={`p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                              ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                              : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                              }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 pr-1">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                }`}>
+                                <MapPin className="w-3 h-3" />
+                              </div>
+                              <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                {purok}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -402,118 +529,206 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   PERSONAL PROFILE DETAILS
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Tell Us About Yourself</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-3">
+                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Please provide your personal information to create your SiKap profile
                 </p>
               </div>
 
               {/* Scrollable Form Fields ONLY */}
               <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 py-1">
-                <div className="w-full max-w-xl mx-auto space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                <div className="w-full max-w-xl mx-auto space-y-3.5">
+
+                  {/* Row 1: Full Name */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      placeholder="Juan dela Cruz"
+                      className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                    />
+                  </div>
+
+                  {/* Row 2: Date of Birth & Gender (2 Columns) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
                     <div className="space-y-1">
-                      <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Full Name *</label>
+                      <div className="flex items-center justify-between h-4">
+                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Date of Birth *</label>
+                        {regDOB && calculateAge(regDOB) !== "" && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : "text-rose-700 bg-rose-50 border-rose-200"
+                            }`}>
+                            {Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
+                              ? `${calculateAge(regDOB)} yrs`
+                              : `${calculateAge(regDOB)} yrs (Ineligible)`}
+                          </span>
+                        )}
+                      </div>
                       <input
-                        type="text"
+                        type="date"
                         required
-                        value={regName}
-                        onChange={(e) => setRegName(e.target.value)}
-                        placeholder="Juan dela Cruz"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                        value={regDOB}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => handleDOBChange(e.target.value)}
+                        className={`w-full px-4 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all font-medium shadow-2xs ${regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30)
+                          ? "border-rose-300 bg-rose-50/30"
+                          : "border-gray-200"
+                          } ${regDOB ? "text-gray-900" : "text-gray-400"}`}
                       />
+                      {regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30) && (
+                        <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>Ineligible age: KK membership requires age 18 to 30 (Calculated: {calculateAge(regDOB)} yrs).</span>
+                        </p>
+                      )}
                     </div>
+
                     <div className="space-y-1">
-                      <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Email Address *</label>
+                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Gender *</label>
+                      <div className="relative">
+                        <select
+                          value={regGender}
+                          onChange={(e) => setRegGender(e.target.value)}
+                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regGender ? "text-gray-900" : "text-gray-400"
+                            }`}
+                        >
+                          <option value="" disabled hidden className="text-xs text-gray-400">Select Gender</option>
+                          <option value="Male" className="text-xs text-gray-900 py-1">Male</option>
+                          <option value="Female" className="text-xs text-gray-900 py-1">Female</option>
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Phone Number */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Phone Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={regContact}
+                      onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
+                      placeholder="+63 9"
+                      className={`w-full px-4 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regContact && !isValidContactNumber(regContact) ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                        }`}
+                    />
+                    {regContact && !isValidContactNumber(regContact) && (
+                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>Incomplete number: Must be 11 digits starting with +63 9 (e.g. +63 912 345 6789).</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Row 4: Email Address */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
+                    <div className="relative">
                       <input
                         type="email"
                         required
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
                         placeholder="juan.delacruz@gmail.com"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                        className={`w-full px-4 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${(regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
+                          ? "border-rose-300 bg-rose-50/30"
+                          : "border-gray-200"
+                          }`}
                       />
+                      {isCheckingEmail && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium animate-pulse">
+                          Checking...
+                        </span>
+                      )}
                     </div>
+                    {regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail) ? (
+                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>Invalid email format: Please enter a valid address (e.g. name@example.com).</span>
+                      </p>
+                    ) : emailExists ? (
+                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>Email already registered: This email address is already associated with an account.</span>
+                      </p>
+                    ) : null}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                  {/* Row 5: Password & Confirm Password (2 Columns) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Date of Birth</label>
-                      </div>
-                      <input
-                        type="date"
-                        value={regDOB}
-                        max={new Date().toISOString().split("T")[0]}
-                        onChange={(e) => handleDOBChange(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Age * (15-30)</label>
-                          {regDOB && calculateAge(regDOB) !== "" && (
-                            <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">Auto</span>
-                          )}
-                        </div>
+                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Password *</label>
+                      <div className="relative">
                         <input
-                          type="number"
+                          type={showPassword ? "text" : "password"}
                           required
-                          min={15}
-                          max={30}
-                          value={regAge}
-                          onChange={(e) => setRegAge(e.target.value === "" ? "" : Number(e.target.value))}
-                          placeholder="20"
-                          className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && regPassword.length < 6 ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                            }`}
                         />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Purok Sector *</label>
-                        <select
-                          value={regPurok}
-                          onChange={(e) => setRegPurok(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-hidden p-1 rounded-md transition-colors"
+                          title={showPassword ? "Hide password" : "Show password"}
                         >
-                          <option value="Purok 1">Purok 1</option>
-                          <option value="Purok 2">Purok 2</option>
-                          <option value="Purok 3">Purok 3</option>
-                          <option value="Purok 4">Purok 4</option>
-                        </select>
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
+                      {regPassword && regPassword.length < 6 && (
+                        <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>Password too short: Must be at least 6 characters (Current: {regPassword.length}/6).</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between h-4">
+                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Confirm Password *</label>
+                        {regConfirmPassword && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${regPassword === regConfirmPassword
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            : "text-rose-700 bg-rose-50 border-rose-200"
+                            }`}>
+                            {regPassword === regConfirmPassword ? "Match" : "No match"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          value={regConfirmPassword}
+                          onChange={(e) => setRegConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regConfirmPassword && regPassword !== regConfirmPassword ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                            }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-hidden p-1 rounded-md transition-colors"
+                          title={showConfirmPassword ? "Hide password" : "Show password"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {regConfirmPassword && regPassword !== regConfirmPassword && (
+                        <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>Mismatch: Confirm password must match your password above.</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {regAge !== "" && (Number(regAge) < 15 || Number(regAge) > 30) && (
-                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-medium">
-                      Note: Katipunan ng Kabataan (KK) membership requires an age between 15 and 30 years old.
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
-                    <div className="space-y-1">
-                      <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Password *</label>
-                      <input
-                        type="password"
-                        required
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Contact Number *</label>
-                      <input
-                        type="text"
-                        required
-                        value={regContact}
-                        onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
-                        placeholder="+63 9xx xxx xxxx"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -528,8 +743,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   EDUCATION & BACKGROUND
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Educational Attainment & Status</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-3">
-                  Providing these details helps map qualifying parameters for local scholarship priorities
+                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
+                  Tell us about your education to help us find relevant training opportunities
                 </p>
               </div>
 
@@ -538,28 +753,33 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <div className="w-full max-w-xl mx-auto space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                     <div className="space-y-1">
-                      <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Highest Educational Attainment</label>
-                      <select
-                        value={regEdu}
-                        onChange={(e) => setRegEdu(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      >
-                        {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
-                          <option key={edu} value={edu}>{edu}</option>
-                        ))}
-                      </select>
+                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Highest Educational Attainment</label>
+                      <div className="relative">
+                        <select
+                          value={regEdu}
+                          onChange={(e) => setRegEdu(e.target.value)}
+                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regEdu ? "text-gray-900" : "text-gray-400"
+                            }`}
+                        >
+                          <option value="" disabled hidden className="text-xs text-gray-400">Select Educational Attainment</option>
+                          {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
+                            <option key={edu} value={edu} className="text-xs text-gray-900 py-1">{edu}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                      </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-sm font-black text-[#0A6B43] uppercase tracking-wide block flex items-center justify-between">
-                        <span>Youth Status</span>
-                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black">System Target</span>
-                      </label>
+                      <div className="flex items-center justify-between h-4">
+                        <label className="text-[11px] font-black text-[#0A6B43] uppercase tracking-wide inline-flex items-center h-full">Youth Status</label>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border text-emerald-700 bg-emerald-50 border-emerald-200">System Target</span>
+                      </div>
                       <input
                         type="text"
                         readOnly
                         value={regStatus}
-                        className="w-full py-2.5 px-4 border-2 border-emerald-300 bg-emerald-50/80 rounded-xl text-sm font-extrabold text-emerald-900 cursor-not-allowed shadow-2xs"
+                        className="w-full py-2.5 px-4 border border-emerald-600 bg-emerald-50/80 rounded-xl text-sm font-medium text-emerald-950 cursor-not-allowed shadow-2xs"
                       />
                     </div>
                   </div>
@@ -573,54 +793,87 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   </div>
 
                   {/* Demographics Toggles */}
-                  <div className="space-y-4">
-                    <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Sectoral Demographics</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs font-semibold">
-                      <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-150 cursor-pointer select-none">
-                        <span className="text-xs font-bold text-gray-700">Solo Parent</span>
-                        <input
-                          type="checkbox"
-                          checked={regSolo}
-                          onChange={(e) => setRegSolo(e.target.checked)}
-                          className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
-                        />
+                  <div className="space-y-1.5 flex flex-col">
+                    <div className="flex items-center justify-between px-0.5 shrink-0">
+                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                        <span>Sectoral Demographics</span>
                       </label>
+                    </div>
 
-                      <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-150 cursor-pointer select-none">
-                        <span className="text-xs font-bold text-gray-700">PWD Member</span>
-                        <input
-                          type="checkbox"
-                          checked={regPwd}
-                          onChange={(e) => setRegPwd(e.target.checked)}
-                          className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
-                        />
-                      </label>
-
-                      <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-150 cursor-pointer select-none">
-                        <span className="text-xs font-bold text-gray-700">Indigenous</span>
-                        <input
-                          type="checkbox"
-                          checked={regIndigenous}
-                          onChange={(e) => setRegIndigenous(e.target.checked)}
-                          className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
-                        />
-                      </label>
-
-                      <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-gray-150 cursor-pointer select-none">
-                        <span className="text-xs font-bold text-gray-700">None / General</span>
-                        <input
-                          type="checkbox"
-                          checked={!regSolo && !regPwd && !regIndigenous}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setRegSolo(false);
-                              setRegPwd(false);
-                              setRegIndigenous(false);
+                    <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {
+                            key: "solo",
+                            label: "Solo Parent",
+                            isSelected: regSolo,
+                            onClick: () => {
+                              setRegSolo(!regSolo);
+                              setRegNone(false);
                             }
-                          }}
-                          className="w-4 h-4 rounded-xs text-[#0A6B43] focus:ring-emerald-500"
-                        />
-                      </label>
+                          },
+                          {
+                            key: "pwd",
+                            label: "PWD Member",
+                            isSelected: regPwd,
+                            onClick: () => {
+                              setRegPwd(!regPwd);
+                              setRegNone(false);
+                            }
+                          },
+                          {
+                            key: "indigenous",
+                            label: "Indigenous",
+                            isSelected: regIndigenous,
+                            onClick: () => {
+                              setRegIndigenous(!regIndigenous);
+                              setRegNone(false);
+                            }
+                          },
+                          {
+                            key: "none",
+                            label: "None / General",
+                            isSelected: regNone,
+                            onClick: () => {
+                              const next = !regNone;
+                              setRegNone(next);
+                              if (next) {
+                                setRegSolo(false);
+                                setRegPwd(false);
+                                setRegIndigenous(false);
+                              }
+                            }
+                          }
+                        ].map((sector) => {
+                          return (
+                            <button
+                              key={sector.key}
+                              type="button"
+                              onClick={sector.onClick}
+                              className={`p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${sector.isSelected
+                                ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                                : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                                }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 pr-1">
+                                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${sector.isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                  }`}>
+                                  <User className="w-3 h-3" />
+                                </div>
+                                <span className={`text-[11px] font-bold truncate ${sector.isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                  {sector.label}
+                                </span>
+                              </div>
+                              {sector.isSelected && (
+                                <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -636,9 +889,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   INTERESTS & SKILLS MAPPING
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Skills & Livelihood Goals</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-3">
-                  Detail your skills and preferences to enable automated matching with active training centers.
+                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Skills & Preferences</h2>
+                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
+                  Tell us about your skills and goals to find suitable training.
                 </p>
               </div>
 
@@ -647,45 +900,45 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <div className="w-full max-w-xl mx-auto space-y-6">
 
                   {/* Preferred Vocational Sector */}
-                  <div className="space-y-1.5 text-xs font-semibold">
-                    <label className="text-sm font-black text-gray-800 uppercase tracking-wide flex items-center justify-between">
-                      <span>Preferred Vocational Sector *</span>
-                      <span className="text-[10px] text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded font-extrabold">Primary Field</span>
-                    </label>
-                    <select
-                      value={regSector}
-                      onChange={(e) => setRegSector(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                    >
-                      <option value="Information & Communications Technology (ICT)">Information & Communications Technology (ICT)</option>
-                      <option value="Agriculture, Forestry and Fishery">Agriculture, Forestry and Fishery</option>
-                      <option value="Automotive and Land Transportation">Automotive and Land Transportation</option>
-                      <option value="Construction">Construction</option>
-                      <option value="Electrical and Electronics">Electrical and Electronics</option>
-                      <option value="Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)">Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)</option>
-                      <option value="Heavy Equipment Operation">Heavy Equipment Operation</option>
-                      <option value="Metals and Engineering / Welding">Metals and Engineering / Welding</option>
-                      <option value="Process Food and Beverages / Culinary">Process Food and Beverages / Culinary</option>
-                      <option value="Tourism / Hotel and Restaurant Services">Tourism / Hotel and Restaurant Services</option>
-                      <option value="Social, Community Development and other Services / Caregiving">Social, Community Development and other Services / Caregiving</option>
-                      <option value="Human Health / Health Care">Human Health / Health Care</option>
-                      <option value="Visual and Performing Arts / Creative">Visual and Performing Arts / Creative</option>
-                      <option value="Garments and Textiles">Garments and Textiles</option>
-                      <option value="Wholesale and Retail / Sales">Wholesale and Retail / Sales</option>
-                      <option value="Logistics and Warehousing">Logistics and Warehousing</option>
-                      <option value="Maritime">Maritime</option>
-                      <option value="Utilities / Solar Power">Utilities / Solar Power</option>
-                      <option value="Language and Culture">Language and Culture</option>
-                      <option value="Entrepreneurship & Management">Entrepreneurship & Management</option>
-                    </select>
-                    <p className="text-[10px] text-gray-400 font-medium">Select your primary technical-vocational trade or industry interest for automated TESDA program matching.</p>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Preferred Vocational Sector *</label>
+                    <div className="relative">
+                      <select
+                        value={regSector}
+                        onChange={(e) => setRegSector(e.target.value)}
+                        className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regSector ? "text-gray-900" : "text-gray-400"
+                          }`}
+                      >
+                        <option value="" disabled hidden className="text-xs text-gray-400">Select Preferred Vocational Sector</option>
+                        <option value="Information & Communications Technology (ICT)" className="text-xs text-gray-900 py-1">Information & Communications Technology (ICT)</option>
+                        <option value="Agriculture, Forestry and Fishery" className="text-xs text-gray-900 py-1">Agriculture, Forestry and Fishery</option>
+                        <option value="Automotive and Land Transportation" className="text-xs text-gray-900 py-1">Automotive and Land Transportation</option>
+                        <option value="Construction" className="text-xs text-gray-900 py-1">Construction</option>
+                        <option value="Electrical and Electronics" className="text-xs text-gray-900 py-1">Electrical and Electronics</option>
+                        <option value="Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)" className="text-xs text-gray-900 py-1">Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)</option>
+                        <option value="Heavy Equipment Operation" className="text-xs text-gray-900 py-1">Heavy Equipment Operation</option>
+                        <option value="Metals and Engineering / Welding" className="text-xs text-gray-900 py-1">Metals and Engineering / Welding</option>
+                        <option value="Process Food and Beverages / Culinary" className="text-xs text-gray-900 py-1">Process Food and Beverages / Culinary</option>
+                        <option value="Tourism / Hotel and Restaurant Services" className="text-xs text-gray-900 py-1">Tourism / Hotel and Restaurant Services</option>
+                        <option value="Social, Community Development and other Services / Caregiving" className="text-xs text-gray-900 py-1">Social, Community Development and other Services / Caregiving</option>
+                        <option value="Human Health / Health Care" className="text-xs text-gray-900 py-1">Human Health / Health Care</option>
+                        <option value="Visual and Performing Arts / Creative" className="text-xs text-gray-900 py-1">Visual and Performing Arts / Creative</option>
+                        <option value="Garments and Textiles" className="text-xs text-gray-900 py-1">Garments and Textiles</option>
+                        <option value="Wholesale and Retail / Sales" className="text-xs text-gray-900 py-1">Wholesale and Retail / Sales</option>
+                        <option value="Logistics and Warehousing" className="text-xs text-gray-900 py-1">Logistics and Warehousing</option>
+                        <option value="Maritime" className="text-xs text-gray-900 py-1">Maritime</option>
+                        <option value="Utilities / Solar Power" className="text-xs text-gray-900 py-1">Utilities / Solar Power</option>
+                        <option value="Language and Culture" className="text-xs text-gray-900 py-1">Language and Culture</option>
+                        <option value="Entrepreneurship & Management" className="text-xs text-gray-900 py-1">Entrepreneurship & Management</option>
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                    </div>
                   </div>
 
                   {/* 1. Skills (Multi-entry tags) */}
                   <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-sm font-black text-gray-800 uppercase tracking-wide flex items-center justify-between">
-                      <span>1. Technical & Practical Skills (Press Enter to Add)</span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-extrabold">Skill Factor (50%)</span>
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                      Technical & Practical Skills *
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -693,7 +946,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         value={skillInput}
                         onChange={(e) => setSkillInput(e.target.value)}
                         onKeyDown={handleAddSkill}
-                        placeholder="Type a skill (e.g. Computer, Programming, Welding, Cooking) and press Enter"
+                        placeholder="Type a skill (e.g. Computer, Welding, Cooking) and press Enter"
                         className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                       />
                       <button
@@ -725,55 +978,10 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. Preferences (Multi-entry tags) */}
+                  {/* 2. Experiences (Multi-entry tags) */}
                   <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-sm font-black text-gray-800 uppercase tracking-wide flex items-center justify-between">
-                      <span>2. Interests & Vocational Preferences (Press Enter to Add)</span>
-                      <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-extrabold">Preference Factor (25%)</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={prefInput}
-                        onChange={(e) => setPrefInput(e.target.value)}
-                        onKeyDown={handleAddPreference}
-                        placeholder="Type an interest/preference (e.g. Technology, Culinary, Electronics) and press Enter"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const trimmed = prefInput.trim();
-                          if (trimmed && !regPreferences.includes(trimmed)) {
-                            setRegPreferences([...regPreferences, trimmed]);
-                            setPrefInput("");
-                          }
-                        }}
-                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
-                      {regPreferences.map((p) => (
-                        <span key={p} className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-                          {p}
-                          <button type="button" onClick={() => handleRemovePreference(p)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
-                            &times;
-                          </button>
-                        </span>
-                      ))}
-                      {regPreferences.length === 0 && (
-                        <span className="text-gray-400 italic text-[11px]">No preferences added yet.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 3. Experiences (Multi-entry tags) */}
-                  <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-sm font-black text-gray-800 uppercase tracking-wide flex items-center justify-between">
-                      <span>3. Past Work / Practical Experiences (Press Enter to Add)</span>
-                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-extrabold">Experience Factor (15%)</span>
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                      Past Work / Practical Experiences (Optional)
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -813,18 +1021,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. Primary Livelihood / Career Goal */}
+                  {/* 3. Primary Livelihood / Career Goal */}
                   <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-sm font-black text-gray-800 uppercase tracking-wide flex items-center justify-between">
-                      <span>4. Primary Career / Livelihood Goal *</span>
-                      <span className="text-[10px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-extrabold">Goal Factor (10%)</span>
+                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                      Primary Career / Livelihood Goal *
                     </label>
                     <input
                       type="text"
                       required
                       value={regGoal}
                       onChange={(e) => setRegGoal(e.target.value)}
-                      placeholder="e.g. I want to become an IT professional / Set up a welding shop"
+                      placeholder="e.g. I want to become an IT professional"
                       className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                     />
                   </div>
@@ -842,7 +1049,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   IDENTITY VERIFICATION
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Official KK Member Verification</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-3">
+                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Provide proof of identity to authorize your profile for official training referrals.
                 </p>
               </div>
@@ -854,29 +1061,34 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                       <div className="space-y-1">
-                        <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Verification ID Type *</label>
-                        <select
-                          value={regIdType}
-                          onChange={(e) => setRegIdType(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                        >
-                          <option value="National ID">National ID (PhilSys)</option>
-                          <option value="Student ID / Enrollment Receipt">Student ID / Enrollment Receipt</option>
-                          <option value="SK Member Card">Sangguniang Kabataan Member Card</option>
-                          <option value="Barangay Clearance">Barangay Clearance</option>
-                          <option value="Voter's ID or Stub">Voter's ID or Registration Stub</option>
-                          <option value="Birth Certificate">PSA Birth Certificate</option>
-                        </select>
+                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Verification ID Type *</label>
+                        <div className="relative">
+                          <select
+                            value={regIdType}
+                            onChange={(e) => setRegIdType(e.target.value)}
+                            className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regIdType ? "text-gray-900" : "text-gray-400"
+                              }`}
+                          >
+                            <option value="" disabled hidden className="text-xs text-gray-400">Select Verification ID Type</option>
+                            <option value="National ID" className="text-xs text-gray-900 py-1">National ID (PhilSys)</option>
+                            <option value="Student ID / Enrollment Receipt" className="text-xs text-gray-900 py-1">Student ID / Enrollment Receipt</option>
+                            <option value="SK Member Card" className="text-xs text-gray-900 py-1">Sangguniang Kabataan Member Card</option>
+                            <option value="Barangay Clearance" className="text-xs text-gray-900 py-1">Barangay Clearance</option>
+                            <option value="Voter's ID or Stub" className="text-xs text-gray-900 py-1">Voter's ID or Registration Stub</option>
+                            <option value="Birth Certificate" className="text-xs text-gray-900 py-1">PSA Birth Certificate</option>
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                        </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">ID Number / Reference Number *</label>
+                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">ID Number / Reference Number *</label>
                         <input
                           type="text"
                           required
                           value={regIdNumber}
                           onChange={(e) => setRegIdNumber(e.target.value)}
-                          placeholder="e.g. LRN, ID No., or Barcode Reference"
+                          placeholder="e.g., LRN, ID, or Reference Number"
                           className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                         />
                       </div>
@@ -884,7 +1096,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                     {/* Drag and Drop Upload Zone */}
                     <div className="space-y-1.5 text-xs font-semibold">
-                      <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">
+                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
                         Upload Proof of ID / Document Image *
                       </label>
                       <div
@@ -967,45 +1179,32 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     </div>
 
                     {/* Attestations */}
-                    <div className="space-y-2.5 bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 text-xs font-semibold">
-                      <h4 className="text-[10px] font-extrabold text-[#0a6b43] uppercase tracking-wider flex items-center gap-1">
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                        Statutory KK Membership Requirements
-                      </h4>
+                    <div className="space-y-3 bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 text-xs font-semibold">
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          required
+                          checked={certifyAge}
+                          onChange={(e) => setCertifyAge(e.target.checked)}
+                          className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
+                        />
+                        <span className="text-xs font-medium text-gray-700 leading-relaxed">
+                          I certify that the information I provided is true, accurate, and complete, and that I meet the requirements to register for SiKap.
+                        </span>
+                      </label>
 
-                      <div className="space-y-2">
-                        <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            required
-                            checked={certifyAge}
-                            onChange={(e) => setCertifyAge(e.target.checked)}
-                            className="w-4 h-4 rounded-xs text-emerald-600 focus:ring-emerald-500 mt-0.5"
-                          />
-                          <span className="text-xs font-semibold text-gray-700 leading-normal">
-                            I certify that I am between <strong>15 and 30 years old</strong>, fitting the legal age bracket for Sangguniang Kabataan membership under RA 10742.
-                          </span>
-                        </label>
-
-                        <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            required
-                            checked={certifyResidency}
-                            onChange={(e) => setCertifyResidency(e.target.checked)}
-                            className="w-4 h-4 rounded-xs text-emerald-600 focus:ring-emerald-500 mt-0.5"
-                          />
-                          <span className="text-xs font-semibold text-gray-700 leading-normal">
-                            I certify that I am an official resident of <strong>{selectedBarangay || "my selected barangay"}</strong>, San Luis, Pampanga.
-                          </span>
-                        </label>
-                      </div>
-
-                      {(!certifyAge || !certifyResidency) && (
-                        <p className="text-[10px] text-amber-700 font-bold flex items-center gap-1 mt-1 bg-amber-50 border border-amber-100 p-1.5 rounded">
-                          <span>⚠</span> Both checkboxes are required to complete self-registration.
-                        </p>
-                      )}
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          required
+                          checked={certifyResidency}
+                          onChange={(e) => setCertifyResidency(e.target.checked)}
+                          className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
+                        />
+                        <span className="text-xs font-medium text-gray-700 leading-relaxed">
+                          I agree to SiKap's Terms of Service and Privacy Policy, and consent to the collection and processing of my information for verification, youth profiling, and matching with relevant training opportunities.
+                        </span>
+                      </label>
                     </div>
 
                   </form>
@@ -1043,11 +1242,13 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               </div>
             </div>
           )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Unified Sticky Footer Buttons */}
         {currentStep < 5 && (
-          <div className={`flex items-center pt-3 border-t border-gray-200 mt-2 shrink-0 w-full max-w-xl mx-auto ${currentStep === 0 ? "justify-end" : "justify-between"}`}>
+          <div className={`flex items-center pt-3 border-t border-gray-200 mt-2 shrink-0 w-full max-w-2xl mx-auto ${currentStep === 0 ? "justify-end" : "justify-between"}`}>
             {/* Consistent Back Button with Left Arrow Icon (hidden on Step 1 / Location) */}
             {currentStep !== 0 && (
               <button
