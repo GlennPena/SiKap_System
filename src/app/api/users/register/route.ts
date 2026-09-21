@@ -138,7 +138,7 @@ export async function POST(req: Request) {
           data: {
             userId: newUser.id,
             name,
-            birthdate: parsedBirthdate,
+            birthdate: parsedBirthdate as any,
             age: Number(computedAge),
             gender: userGender,
             purok,

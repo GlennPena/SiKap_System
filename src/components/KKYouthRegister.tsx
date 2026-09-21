@@ -411,7 +411,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   LOCATION & PUROK SELECTION
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Select Your Barangay & Purok</h2>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Select Your Barangay & Purok</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-2">
                   Please select your official residential area in San Luis, Pampanga
                 </p>
@@ -528,7 +528,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   PERSONAL PROFILE DETAILS
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Tell Us About Yourself</h2>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Tell Us About Yourself</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Please provide your personal information to create your SiKap profile
                 </p>
@@ -742,7 +742,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   EDUCATION & BACKGROUND
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Educational Attainment & Status</h2>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Educational Attainment & Status</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Tell us about your education to help us find relevant training opportunities
                 </p>
@@ -889,7 +889,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   INTERESTS & SKILLS MAPPING
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Skills & Preferences</h2>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Skills & Preferences</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Tell us about your skills and goals to find suitable training.
                 </p>
@@ -1048,7 +1048,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   IDENTITY VERIFICATION
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight leading-[1.05] pb-1">Official KK Member Verification</h2>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Official KK Member Verification</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Provide proof of identity to authorize your profile for official training referrals.
                 </p>

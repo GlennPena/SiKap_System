@@ -185,23 +185,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Non-sticky Header */}
       <header className="relative w-full z-40 bg-white border-b border-emerald-100/80 shadow-2xs transition-all duration-200">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 sm:h-20">
+        <div className="max-w-[1500px] mx-auto px-3.5 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-20">
 
             {/* Logo & Brand ID */}
-            <div className="flex items-center cursor-pointer select-none group" onClick={() => handleScrollToSection("hero")}>
-              <SikapLogo size={48} logoSize={60} textSize={40} showText={true} showSubtext={false} gap="gap-1" />
+            <div className="flex items-center cursor-pointer select-none group shrink-0" onClick={() => handleScrollToSection("hero")}>
+              {/* Mobile Viewport Logo */}
+              <div className="sm:hidden">
+                <SikapLogo size={32} logoSize={38} textSize={24} showText={true} showSubtext={false} gap="gap-1" />
+              </div>
+              {/* Tablet & Desktop Viewport Logo */}
+              <div className="hidden sm:block">
+                <SikapLogo size={48} logoSize={58} textSize={38} showText={true} showSubtext={false} gap="gap-1.5" />
+              </div>
             </div>
 
             {/* Right Action / Sign In Button */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <button
                 onClick={onEnterLogin}
-                className="bg-[#0A6B43] hover:bg-[#075332] text-white text-base font-extrabold px-6 sm:px-7 py-2.5 sm:py-3 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2.5 group cursor-pointer"
+                className="bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-base font-bold sm:font-extrabold px-3.5 sm:px-6 lg:px-7 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-xs sm:shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-1.5 sm:gap-2.5 group cursor-pointer shrink-0"
                 id="landing-access-portals-btn"
               >
                 <span>Sign In</span>
-                <ArrowRight className="w-5 h-5 text-emerald-200 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1 transition-transform shrink-0" />
               </button>
             </div>
 
@@ -236,7 +243,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </FadeIn>
 
                 <FadeIn direction="left" delay={0.2}>
-                  <h1 className="text-5xl sm:text-6xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.05] tracking-tight">
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.05] tracking-tight">
                     <span className="block">Find the Right Path.</span>
                     <span className="block text-[#0A6B43] relative inline-block mt-1 sm:mt-2.5">
                       Build Your Future.
@@ -275,61 +282,61 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="absolute -inset-3 bg-emerald-100/35 rounded-3xl blur-xl -z-10"></div>
 
                 {/* Interactive Demo Matching Mockup Card */}
-                <div className="bg-white border-2 border-emerald-100/90 rounded-3xl p-7 sm:p-8 shadow-2xl space-y-5.5">
+                <div className="bg-white border-2 border-emerald-100/90 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-4 sm:space-y-5.5">
                   <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-800 font-black text-sm shadow-inner border border-emerald-100">
+                    <div className="flex items-center gap-3 sm:gap-3.5">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-800 font-black text-xs sm:text-sm shadow-inner border border-emerald-100 shrink-0">
                         KK
                       </div>
                       <div>
-                        <h4 className="text-base sm:text-lg font-black text-gray-900">Juan dela Cruz</h4>
-                        <p className="text-xs sm:text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
+                        <h4 className="text-sm sm:text-lg font-black text-gray-900">Juan dela Cruz</h4>
+                        <p className="text-[11px] sm:text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
                       </div>
                     </div>
-                    <span className="text-xs sm:text-sm bg-[#0A6B43] text-white px-3.5 py-1 rounded-full font-black uppercase tracking-wider shadow-2xs">
+                    <span className="text-[10px] sm:text-sm bg-[#0A6B43] text-white px-3 sm:px-3.5 py-1 rounded-full font-black uppercase tracking-wider shadow-2xs shrink-0">
                       OSY Youth
                     </span>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="bg-emerald-50/70 rounded-2xl p-4.5 sm:p-5 border border-emerald-100">
+                  <div className="space-y-3.5 sm:space-y-4">
+                    <div className="bg-emerald-50/70 rounded-2xl p-3.5 sm:p-5 border border-emerald-100">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs sm:text-sm font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
-                        <span className="text-xs sm:text-sm font-black text-emerald-700 bg-white px-2.5 py-0.5 rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
+                        <span className="text-[11px] sm:text-sm font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
+                        <span className="text-[10px] sm:text-sm font-black text-emerald-700 bg-white px-2 sm:px-2.5 py-0.5 rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
                       </div>
-                      <p className="text-base sm:text-lg font-black text-gray-900 mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
-                      <div className="flex items-center gap-4 mt-2.5 text-xs sm:text-sm text-gray-600 font-bold">
+                      <p className="text-sm sm:text-lg font-black text-gray-900 mt-1.5 sm:mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
+                      <div className="flex items-center gap-3 sm:gap-4 mt-2 sm:mt-2.5 text-[11px] sm:text-sm text-gray-600 font-bold">
                         <span className="flex items-center gap-1">⏱ 3 Months</span>
                         <span className="flex items-center gap-1">📍 TESDA GPSAT Campus</span>
                       </div>
                     </div>
 
-                    <div className="bg-amber-50/70 rounded-2xl p-4.5 sm:p-5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-black text-sm sm:text-base text-amber-900">
-                        <Sparkles className="w-4.5 h-4.5 fill-amber-500 text-amber-500 shrink-0" />
+                    <div className="bg-amber-50/70 rounded-2xl p-3.5 sm:p-5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-black text-xs sm:text-base text-amber-900">
+                        <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-amber-500 text-amber-500 shrink-0" />
                         Gemini Match Rationale
                       </div>
-                      <p className="text-gray-700 font-medium text-xs sm:text-sm leading-relaxed">
+                      <p className="text-gray-700 font-medium text-[11px] sm:text-sm leading-relaxed">
                         "Juan has hands-on skills in metal fabrication. This vocational program will officially certify his qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 text-xs sm:text-sm font-black text-gray-600 pt-0.5">
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-3.5 py-2 rounded-xl border border-gray-200/60">✓ No Fees</span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-3.5 py-2 rounded-xl border border-gray-200/60">✓ Free Starter Tools</span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-3.5 py-2 rounded-xl border border-gray-200/60">✓ Transport Allowance</span>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 text-[11px] sm:text-sm font-black text-gray-600 pt-0.5">
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-gray-200/60">✓ No Fees</span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-gray-200/60">✓ Free Tools</span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-gray-200/60">✓ Transport Allowance</span>
                   </div>
                 </div>
 
-                {/* Mini overlap card */}
-                <div className="absolute -bottom-5 -left-5 bg-[#1C2B20] text-white p-5 sm:p-5.5 rounded-2xl shadow-2xl border border-emerald-700 hidden sm:flex items-center gap-4 max-w-[285px]">
-                  <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center font-black text-sm shrink-0 text-white shadow-xs">
+                {/* Mini overlap card - Visible & Optimized across all screen sizes */}
+                <div className="mt-3.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3.5 sm:p-5.5 rounded-2xl shadow-xl sm:shadow-2xl border border-emerald-700/80 flex items-center gap-3 sm:gap-4 max-w-full sm:max-w-[285px] z-10">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 text-white shadow-xs">
                     ✓
                   </div>
-                  <div>
-                    <p className="text-sm sm:text-base font-black">Authorized Portals</p>
-                    <p className="text-xs text-emerald-300 font-semibold mt-0.5">Dual synchronization for Youth & SK Officials</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-base font-black leading-tight text-white">Authorized Portals</p>
+                    <p className="text-[10px] sm:text-xs text-emerald-300 font-semibold mt-0.5 leading-snug">Dual synchronization for Youth & SK Officials</p>
                   </div>
                 </div>
 

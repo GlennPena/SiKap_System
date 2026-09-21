@@ -7,7 +7,7 @@ import {
   CheckCircle, ShieldAlert, Sparkles, AlertTriangle, TrendingUp, Users2, Trash2, Edit, X, RefreshCw,
   ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
   LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight,
-  Printer, Download
+  Printer, Download, Menu
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
@@ -57,6 +57,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   designatedBarangay,
   currentUser
 }) => {
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<SKOfficialScreen>(SKOfficialScreen.DASHBOARD);
   const [selectedYouthId, setSelectedYouthId] = useState<string | null>("y-01"); // Default to Juan
   
@@ -1700,17 +1701,42 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   return (
     <div className="h-screen overflow-hidden bg-[#FAFAF8] flex" id="sk-portal-container">
-      {/* Sidebar Navigation */}
-      <aside className="w-64 h-screen shrink-0 sticky top-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-lg z-20 select-none overflow-hidden">
-        <div className="p-6 overflow-y-auto min-h-0 flex-1">
-          <div className="flex items-center gap-2 mb-8">
-            <SikapLogo size={32} variant="white" showText={true} />
-            <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
-              <span className="text-xs font-black text-[#D99427] uppercase tracking-widest block leading-none">Official</span>
-              <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={designatedBarangay.replace(/^Barangay\s+/i, "")}>
-                {designatedBarangay.replace(/^Barangay\s+/i, "")}
-              </span>
+      {/* Mobile Navigation Backdrop Overlay */}
+      {isMobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          onClick={() => setIsMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-screen shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-2">
+              <SikapLogo size={32} variant="white" showText={true} />
+              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
+                <span className="text-xs font-black text-[#D99427] uppercase tracking-widest block leading-none">Official</span>
+                <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={designatedBarangay.replace(/^Barangay\s+/i, "")}>
+                  {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                </span>
+              </div>
             </div>
+
+            {/* Mobile Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           <nav className="space-y-1.5">
@@ -1730,6 +1756,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   key={item.id}
                   onClick={() => {
                     setCurrentScreen(item.id);
+                    setIsMobileNavOpen(false);
                     if (item.id === SKOfficialScreen.YOUTH_PROFILES) {
                       // reset filters
                       setSearchQuery("");
@@ -1757,7 +1784,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
         <div className="p-6 border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
           <div
-            onClick={() => setCurrentScreen(SKOfficialScreen.SETTINGS)}
+            onClick={() => {
+              setCurrentScreen(SKOfficialScreen.SETTINGS);
+              setIsMobileNavOpen(false);
+            }}
             className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
             title="Go to Settings & Profile"
           >
@@ -1782,16 +1812,27 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       {/* Main Content Area */}
       <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
         {/* Sticky Topbar */}
-        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-8 py-4 flex items-center justify-between shadow-2xs">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">
-              Good morning, {settingsName.split(" ")[0]} 👋
-            </h1>
-            <p className="text-xs text-gray-500 font-medium">
-              Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · San Luis, Pampanga
-            </p>
+        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 leading-tight truncate block">
+                Good morning, {settingsName.split(" ")[0]} 👋
+              </h1>
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate block">
+                Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · San Luis, Pampanga
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-4 relative">
+          <div className="flex items-center gap-1.5 sm:gap-3 relative shrink-0">
             {/* Notification Bell Icon & Dropdown */}
             <div className="relative">
               {(() => {
@@ -1816,8 +1857,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     {showNotificationsDropdown && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsDropdown(false)} />
-                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-emerald-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs">
-                          <div className="p-4 bg-emerald-50/70 border-b border-emerald-100 flex items-center justify-between">
+                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 sm:mt-0 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white rounded-2xl shadow-2xl border border-emerald-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs flex flex-col max-h-[80vh] sm:max-h-none">
+                          <div className="p-4 bg-emerald-50/70 border-b border-emerald-100 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-2">
                               <Bell className="w-4 h-4 text-[#0A6B43]" />
                               <h3 className="font-extrabold text-gray-900 text-sm">Notifications</h3>
@@ -1929,7 +1970,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         </header>
 
         {/* Dynamic Screen Content */}
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
           {currentScreen === SKOfficialScreen.DASHBOARD && (
             <div className="space-y-6">
               {/* Metric Cards Banner */}
@@ -3610,24 +3651,29 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           {currentScreen === SKOfficialScreen.SETTINGS && (
             <div className="space-y-6">
               {/* Header & Sub-Tab Navigation Container */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-150 shadow-xs">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Settings & Profile</h2>
-                  <p className="text-xs text-gray-500 font-medium">Manage official administrative profile, security credentials, system notifications, and ID credentials</p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight">Settings & Profile</h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Manage official administrative profile, security credentials, system notifications, and ID credentials</p>
+                  </div>
                 </div>
                 
                 {/* Settings Navigation Tabs */}
-                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0">
+                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full">
                   {[
-                    { id: "profile", label: "Official Profile", icon: <User className="w-3.5 h-3.5" /> },
-                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5" /> },
-                    { id: "preferences", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5" /> },
-                    { id: "credentials", label: "Official SK Badge", icon: <ShieldCheck className="w-3.5 h-3.5" /> }
+                    { id: "profile", label: "Official Profile", icon: <User className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "preferences", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "credentials", label: "Official SK Badge", icon: <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> }
                   ].map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveSettingsTab(tab.id as any)}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         activeSettingsTab === tab.id
                           ? "bg-white text-[#0A6B43] shadow-2xs font-extrabold"
                           : "text-gray-600 hover:text-gray-900"
@@ -3644,21 +3690,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {activeSettingsTab === "profile" && (
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
                   {/* Left Column: Form with View/Edit mode */}
-                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6 space-y-6 shadow-xs">
+                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 space-y-6 shadow-xs">
                     <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
                         <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                          <User className="w-4 h-4 text-[#0A6B43]" />
-                          Official Personal Profile
+                          <User className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                          <span>Official Personal Profile</span>
                         </h3>
                         {!isEditingProfile && (
                           <button
                             type="button"
                             onClick={() => setIsEditingProfile(true)}
-                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                            className="self-start sm:self-auto px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
                           >
-                            <Edit className="w-3.5 h-3.5" />
-                            Edit Profile Details
+                            <Edit className="w-3.5 h-3.5 shrink-0" />
+                            <span>Edit Profile Details</span>
                           </button>
                         )}
                       </div>
@@ -3828,14 +3874,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Tab 2: Security & Password */}
               {activeSettingsTab === "security" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-4 sm:p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
                   <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
                     <div>
                       <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-emerald-700" />
-                        Account Security & Password
+                        <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>Account Security & Password</span>
                       </h3>
-                      <p className="text-xs text-gray-400 font-medium mt-1">Update your login password to ensure security of administrative access</p>
+                      <p className="text-xs text-gray-400 font-medium mt-1 leading-relaxed">Update your login password to ensure security of administrative access</p>
                     </div>
 
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
@@ -3929,13 +3975,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Tab 4: Official Jurisdiction ID Badge */}
               {activeSettingsTab === "credentials" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-5 max-w-lg animate-in fade-in duration-150">
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-4 sm:p-6 space-y-5 max-w-lg animate-in fade-in duration-150">
                   <div>
                     <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                      Official Jurisdiction Credentials Badge
+                      <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                      <span>Official Jurisdiction Credentials Badge</span>
                     </h3>
-                    <p className="text-xs text-gray-400 font-medium mt-1">Official SK Administrative Badge recognized across municipal systems</p>
+                    <p className="text-xs text-gray-400 font-medium mt-1 leading-relaxed">Official SK Administrative Badge recognized across municipal systems</p>
                   </div>
 
                   {/* ID Badge Card */}

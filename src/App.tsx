@@ -336,10 +336,10 @@ export default function App() {
             addToast={addToast}
           />
         ) : (
-          <div className="h-screen flex flex-col md:flex-row bg-white p-4 sm:p-6 gap-6 overflow-hidden">
+          <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto md:overflow-hidden">
 
-            {/* Left panel as a card */}
-            <div className="md:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 md:p-10 flex flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
+            {/* Left panel as a card (Hidden on small mobile screens to maximize form focus and prevent vertical cutoff) */}
+            <div className="hidden md:flex md:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 md:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
 
               {/* Redox Texture Overlay (Identical to Landing Page CTA) */}
               <div
@@ -364,7 +364,7 @@ export default function App() {
                     initial={{ opacity: 0, x: -35 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.65, ease: "easeOut" }}
-                    className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 whitespace-nowrap drop-shadow-xs"
+                    className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 drop-shadow-xs"
                   >
                     Your Path Continues Here
                   </motion.h1>
@@ -428,16 +428,16 @@ export default function App() {
             </div>
 
             {/* Right panel */}
-            <div className="flex-1 bg-white relative min-h-[600px] h-full flex flex-col items-center justify-center p-6 md:px-12 md:py-8 overflow-hidden">
+            <div className="flex-1 bg-white relative min-h-[520px] md:min-h-[600px] w-full flex flex-col items-center justify-center p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 md:py-8 overflow-y-auto md:overflow-hidden">
 
               {/* Logo centered at top - sliding down from above */}
               <motion.div
                 initial={{ opacity: 0, y: -25 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
-                className="absolute top-4 md:top-6 left-0 w-full flex justify-center z-50 pointer-events-auto"
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="absolute top-3 sm:top-4 md:top-6 lg:top-8 left-0 w-full flex justify-center z-50 pointer-events-auto"
               >
-                <SikapLogo size={48} logoSize={60} textSize={40} showText={true} showSubtext={false} gap="gap-1" disableHover={true} />
+                <SikapLogo size={42} logoSize={52} textSize={36} showText={true} showSubtext={false} gap="gap-1" disableHover={true} />
               </motion.div>
 
               <AnimatePresence mode="wait">
@@ -448,7 +448,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl px-2 pt-[64px] md:pt-[78px] pb-10 md:pb-12"
+                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl px-2 pt-[64px] md:pt-[78px] pb-10 md:pb-12"
                   >
                     <KKYouthRegister
                       onRegisterComplete={(newProfile) => {
@@ -481,104 +481,106 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="w-full z-10 relative max-w-md space-y-6 pt-12 md:pt-0"
+                    className="w-full flex justify-center items-center"
                   >
-                    <div className="text-left mb-8">
-                      <h2 className="text-4xl font-black tracking-tight leading-[1.05] text-gray-900">Sign In</h2>
-                      <p className="text-base text-gray-500 font-medium mt-2.5">Please login to continue</p>
-                    </div>
-
-                    {/* Login Form */}
-                    <form onSubmit={handleFormLogin} className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-semibold text-gray-700">Email</label>
-                        <input
-                          type="email"
-                          placeholder="juan.delacruz@gmail.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400"
-                        />
+                    <div className="w-full z-10 relative max-w-md sm:max-w-lg lg:max-w-xl xl:max-w-[540px] space-y-6 lg:space-y-8 pt-20 md:pt-0 pb-6 md:pb-0">
+                      <div className="text-left mb-6 sm:mb-8 lg:mb-10">
+                        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.05] text-gray-900">Sign In</h2>
+                        <p className="text-sm sm:text-base lg:text-lg text-gray-500 font-medium mt-2 lg:mt-3">Please login to continue</p>
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-sm font-semibold text-gray-700">Password</label>
+                      {/* Login Form */}
+                      <form onSubmit={handleFormLogin} className="space-y-5 sm:space-y-6 lg:space-y-7">
+                        <div className="space-y-2 lg:space-y-2.5">
+                          <label className="text-sm lg:text-base font-semibold text-gray-700">Email</label>
+                          <input
+                            type="email"
+                            placeholder="juan.delacruz@gmail.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900"
+                          />
+                        </div>
+
+                        <div className="space-y-2 lg:space-y-2.5">
+                          <div className="flex justify-between items-center">
+                            <label className="text-sm lg:text-base font-semibold text-gray-700">Password</label>
+                            <button
+                              type="button"
+                              onClick={() => setIsForgotPasswordOpen(true)}
+                              className="text-xs sm:text-sm font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer"
+                            >
+                              Forgot?
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showPassword ? "text" : "password"}
+                              placeholder="••••••••"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center"
+                            >
+                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+
+                          {/* Remember Me Checkbox (nested closer to password) */}
+                          <div className="flex items-center gap-2.5 pt-2">
+                            <input
+                              id="remember-me-checkbox"
+                              type="checkbox"
+                              checked={rememberMe}
+                              onChange={(e) => setRememberMe(e.target.checked)}
+                              className="h-4 w-4 sm:h-4.5 sm:w-4.5 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43]"
+                            />
+                            <label htmlFor="remember-me-checkbox" className="text-sm lg:text-base text-gray-600 font-medium select-none cursor-pointer">
+                              Remember me
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 lg:pt-3">
+                          <motion.button
+                            whileHover={{ scale: 1.015 }}
+                            whileTap={{ scale: 0.985 }}
+                            type="submit"
+                            className="w-full py-3.5 sm:py-4 lg:py-4.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-base lg:text-lg font-bold rounded-2xl shadow-md transition-colors cursor-pointer"
+                          >
+                            Login
+                          </motion.button>
+                        </div>
+                      </form>
+
+                      {/* Registration Link */}
+                      <div className="text-center mt-6 sm:mt-8 lg:mt-10">
+                        <p className="text-sm lg:text-base font-semibold text-gray-700">
+                          New to SiKap?{" "}
                           <button
                             type="button"
-                            onClick={() => setIsForgotPasswordOpen(true)}
-                            className="text-xs font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer"
+                            onClick={() => setIsSelfRegistering(true)}
+                            className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
                           >
-                            Forgot?
+                            Register Here
                           </button>
-                        </div>
-                        <div className="relative">
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center"
-                          >
-                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                          </button>
-                        </div>
-
-                        {/* Remember Me Checkbox (nested closer to password) */}
-                        <div className="flex items-center gap-2.5 pt-2">
-                          <input
-                            id="remember-me-checkbox"
-                            type="checkbox"
-                            checked={rememberMe}
-                            onChange={(e) => setRememberMe(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43]"
-                          />
-                          <label htmlFor="remember-me-checkbox" className="text-sm text-gray-600 font-medium select-none cursor-pointer">
-                            Remember me
-                          </label>
-                        </div>
+                        </p>
                       </div>
-
-                      <div className="pt-2">
-                        <motion.button
-                          whileHover={{ scale: 1.015 }}
-                          whileTap={{ scale: 0.985 }}
-                          type="submit"
-                          className="w-full py-4 bg-[#0A6B43] hover:bg-[#075332] text-white text-base font-bold rounded-2xl shadow-md transition-colors cursor-pointer"
-                        >
-                          Login
-                        </motion.button>
-                      </div>
-                    </form>
-
-                    {/* Registration Link */}
-                    <div className="text-center mt-8">
-                      <p className="text-sm font-semibold text-gray-700">
-                        New to SiKap?{" "}
-                        <button
-                          type="button"
-                          onClick={() => setIsSelfRegistering(true)}
-                          className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
-                        >
-                          Register Here
-                        </button>
-                      </p>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Back to Homepage link at the very bottom - sliding up from below */}
+              {/* Back to Homepage link at the bottom - responsive flow */}
               <motion.div
                 initial={{ opacity: 0, y: 25 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-                className="absolute bottom-4 md:bottom-6 left-0 w-full flex justify-center z-30 pointer-events-auto"
+                className="relative md:absolute mt-4 md:mt-0 bottom-auto md:bottom-6 lg:bottom-8 left-0 w-full flex justify-center z-30 pointer-events-auto pb-4 md:pb-0"
               >
                 <button
                   type="button"

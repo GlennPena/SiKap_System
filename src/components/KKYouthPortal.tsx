@@ -6,7 +6,7 @@ import {
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
   BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
-  Tag, Compass, FileText, Layers, Activity
+  Tag, Compass, FileText, Layers, Activity, Menu
 } from "lucide-react";
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
@@ -44,6 +44,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const isUnverified = youthProfile.approvalStatus === "Pending" || youthProfile.approvalStatus === "Rejected";
 
   const [activeTab, setActiveTab] = useState<YouthScreen>(YouthScreen.HOME);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [newSkillInput, setNewSkillInput] = useState("");
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -1009,17 +1010,42 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   return (
     <div className="h-screen overflow-hidden bg-[#FAFAF8] flex" id="youth-portal-container">
       
-      {/* Sidebar Navigation */}
-      <aside className="w-64 h-screen shrink-0 sticky top-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-lg z-20 select-none overflow-hidden">
-        <div className="p-6 overflow-y-auto min-h-0 flex-1">
-          <div className="flex items-center gap-2 mb-8">
-            <SikapLogo size={32} variant="white" showText={true} />
-            <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
-              <span className="text-xs font-black text-amber-500 uppercase tracking-widest block leading-none">Youth</span>
-              <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={youthProfile.barangay.replace(/^Barangay\s+/i, "")}>
-                {youthProfile.barangay.replace(/^Barangay\s+/i, "")}
-              </span>
+      {/* Mobile Navigation Backdrop Overlay */}
+      {isMobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          onClick={() => setIsMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-screen shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-2">
+              <SikapLogo size={32} variant="white" showText={true} />
+              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
+                <span className="text-xs font-black text-amber-500 uppercase tracking-widest block leading-none">Youth</span>
+                <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={youthProfile.barangay.replace(/^Barangay\s+/i, "")}>
+                  {youthProfile.barangay.replace(/^Barangay\s+/i, "")}
+                </span>
+              </div>
             </div>
+
+            {/* Mobile Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           <nav className="space-y-1.5">
@@ -1033,7 +1059,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setIsMobileNavOpen(false);
+                  }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left ${
                     isActive
                       ? "bg-emerald-950 text-emerald-300 border-l-4 border-[#0A6B43]"
@@ -1050,7 +1079,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
         <div className="p-6 border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
           <div
-            onClick={() => setActiveTab(YouthScreen.PROFILE)}
+            onClick={() => {
+              setActiveTab(YouthScreen.PROFILE);
+              setIsMobileNavOpen(false);
+            }}
             className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
             title="Go to My Profile"
           >
@@ -1074,13 +1106,28 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
       {/* Main viewport */}
       <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
-        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-8 py-4 flex items-center justify-between shadow-2xs">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-tight">Welcome, {youthProfile.name}! 👋</h1>
-            <p className="text-xs text-gray-500 font-medium">Out-of-School Youth (OSY) Career & Livelihood Portal · San Luis, Pampanga</p>
+        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 leading-tight truncate block">
+                Welcome, {youthProfile.name}! 👋
+              </h1>
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate block">
+                Out-of-School Youth (OSY) Career & Livelihood Portal · San Luis, Pampanga
+              </p>
+            </div>
           </div>
           
-          <div className="flex items-center gap-4 relative" id="notification-bell-container">
+          <div className="flex items-center gap-1.5 sm:gap-4 relative shrink-0" id="notification-bell-container">
             {/* Notification Bell */}
             <div className="relative">
               {(() => {
@@ -1150,8 +1197,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     {showNotifications && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-emerald-100 rounded-2xl shadow-2xl z-50 py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
-                          <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/60 p-3">
+                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-emerald-100 rounded-2xl shadow-2xl py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                          <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/60 p-3 shrink-0">
                             <div className="flex items-center gap-2">
                               <Bell className="w-4 h-4 text-[#0A6B43]" />
                               <span className="font-extrabold text-gray-900 text-sm">Notifications & Alerts</span>
@@ -1264,7 +1311,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </header>
 
         {/* Outer content container */}
-        <div className="p-8 max-w-6xl mx-auto w-full space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto w-full space-y-6">
 
           {isUnverified && (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs animate-in slide-in-from-top-2 duration-200">
@@ -2486,24 +2533,29 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           {activeTab === YouthScreen.PROFILE && (
             <div className="space-y-6">
               {/* Header & Sub-Tab Navigation */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-150 shadow-xs">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">My Profile & Skills</h2>
-                  <p className="text-xs text-gray-500 font-medium">Manage your personal demographics, livelihood goals, competency skills, and account security</p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight">My Profile & Skills</h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Manage your personal demographics, livelihood goals, competency skills, and account security</p>
+                  </div>
                 </div>
 
-                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0">
+                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full">
                   {[
-                    { id: "profile", label: "Personal Details", icon: <User className="w-3.5 h-3.5" /> },
-                    { id: "skills", label: "Skills & Competencies", icon: <Award className="w-3.5 h-3.5" /> },
-                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5" /> },
-                    { id: "notifications", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5" /> },
-                    { id: "badge", label: "KK Digital ID Card", icon: <ShieldCheck className="w-3.5 h-3.5" /> }
+                    { id: "profile", label: "Personal Details", icon: <User className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "skills", label: "Skills & Competencies", icon: <Award className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "notifications", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5 shrink-0" /> },
+                    { id: "badge", label: "KK Digital ID Card", icon: <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> }
                   ].map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => setProfileActiveTab(tab.id as any)}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         profileActiveTab === tab.id
                           ? "bg-white text-[#0A6B43] shadow-2xs font-extrabold"
                           : "text-gray-600 hover:text-gray-900"

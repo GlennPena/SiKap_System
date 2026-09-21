@@ -6,7 +6,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
   Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive, Calculator,
-  Lock, EyeOff, Edit, ShieldAlert, Copy
+  Lock, EyeOff, Edit, ShieldAlert, Copy, Menu
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
@@ -36,6 +36,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   currentUser
 }) => {
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   
   // Dashboard Sub-tabs
   const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs" | "archived">("all");
@@ -831,28 +832,53 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   return (
     <div className="h-screen overflow-hidden bg-[#F8FAF9] flex font-sans text-slate-800 antialiased" id="tesda-portal-container">
-      {/* Sidebar Navigation */}
-      <aside className="w-64 h-screen shrink-0 sticky top-0 bg-[#112F24] text-white flex flex-col justify-between shadow-xl z-20 select-none overflow-hidden">
+      {/* Mobile Navigation Backdrop Overlay */}
+      {isMobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          onClick={() => setIsMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-screen shrink-0 bg-[#112F24] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
         <div className="overflow-y-auto min-h-0 flex-1">
           {/* Brand Header */}
-          <div className="p-6 border-b border-emerald-900/50">
+          <div className="p-5 sm:p-6 border-b border-emerald-900/50 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <SikapLogo size={32} variant="white" showText={true} />
               <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-700/40">
                 Partner
               </span>
             </div>
-            <p className="text-[11px] text-emerald-300/70 font-medium mt-2">TESDA Training & Livelihood Hub</p>
+
+            {/* Mobile Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
+          <p className="px-5 sm:px-6 text-[11px] text-emerald-300/70 font-medium pt-2">TESDA Training & Livelihood Hub</p>
+
           {/* Navigation Links */}
-          <div className="px-4 py-5 space-y-1.5">
+          <div className="px-4 py-4 space-y-1.5">
             <p className="px-3 text-[10px] font-black uppercase tracking-wider text-emerald-400/60 mb-2">Main Portals</p>
             
             <button
               onClick={() => {
                 setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
                 setDashboardTab("all");
+                setIsMobileNavOpen(false);
               }}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.DASHBOARD
@@ -872,7 +898,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </button>
 
             <button
-              onClick={() => setCurrentScreen(TESDAPartnerScreen.PROGRAMS)}
+              onClick={() => {
+                setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                setIsMobileNavOpen(false);
+              }}
               className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.PROGRAMS
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
@@ -889,7 +918,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </button>
 
             <button
-              onClick={handleNewProgramClick}
+              onClick={() => {
+                handleNewProgramClick();
+                setIsMobileNavOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.ADD_PROGRAM || currentScreen === TESDAPartnerScreen.EDIT_PROGRAM
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
@@ -901,7 +933,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </button>
 
             <button
-              onClick={() => setCurrentScreen(TESDAPartnerScreen.SETTINGS)}
+              onClick={() => {
+                setCurrentScreen(TESDAPartnerScreen.SETTINGS);
+                setIsMobileNavOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.SETTINGS
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
@@ -917,7 +952,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         {/* User Info & Logout Footer */}
         <div className="p-4 border-t border-emerald-900/50 bg-[#0c241b] shrink-0">
           <div
-            onClick={() => setCurrentScreen(TESDAPartnerScreen.SETTINGS)}
+            onClick={() => {
+              setCurrentScreen(TESDAPartnerScreen.SETTINGS);
+              setIsMobileNavOpen(false);
+            }}
             className="flex items-center gap-3 mb-3 p-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/30 cursor-pointer transition-all"
             title="Click to view Profile & Notification Preferences"
           >
@@ -943,34 +981,43 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {/* Main Viewport */}
       <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
         {/* Sticky Header */}
-        <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 z-30 px-8 py-4 flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 text-[#0A6B43] rounded-xl border border-emerald-100 hidden sm:block">
+        <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-slate-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="p-2 bg-emerald-50 text-[#0A6B43] rounded-xl border border-emerald-100 hidden sm:block shrink-0">
               <Building className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <h1 className="text-sm sm:text-base lg:text-lg font-black text-slate-900 tracking-tight leading-tight truncate block">
                   {currentUser?.name || "TESDA GPSAT"} Portal
                 </h1>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-2 py-0.5 rounded-full">
+                <span className="hidden xs:inline-flex text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
                   San Luis Matchmaker
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Katipunan ng Kabataan (KK) Out-of-School Youth Technical-Vocational Admissions
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate block">
+                Katipunan ng Kabataan (KK) Out-of-School Youth Admissions
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Quick Action: New Program */}
             <button
               onClick={handleNewProgramClick}
-              className="hidden md:flex items-center gap-2 px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer hover:shadow-sm"
+              className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer hover:shadow-sm"
             >
               <Plus className="w-3.5 h-3.5" />
-              Post Training Course
+              <span>Post Course</span>
             </button>
 
             {/* Notification Bell */}
@@ -1034,8 +1081,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     {showNotifications && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 py-2 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
-                          <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-emerald-50/70">
+                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 sm:mt-0 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                          <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-emerald-50/70 shrink-0">
                             <div className="flex items-center gap-2">
                               <Bell className="w-4 h-4 text-[#0A6B43]" />
                               <span className="font-extrabold text-slate-900 text-xs">TESDA Action Center</span>
@@ -1129,7 +1176,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         </header>
 
         {/* Content Body */}
-        <div className="p-6 md:p-8 space-y-6 max-w-7xl w-full mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
           
           {/* ============================================================ */}
           {/* SCREEN 1: DASHBOARD & PIPELINE */}
@@ -2569,19 +2616,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {currentScreen === TESDAPartnerScreen.SETTINGS && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {/* Top Banner Header */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    <Building className="w-5 h-5 text-[#0A6B43]" />
-                    TESDA Partner Profile & Settings
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    Manage institutional TVET center credentials, representative details, system security, and off-site notifications.
-                  </p>
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <Building className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight leading-tight">
+                      TESDA Partner Profile & Settings
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                      Manage institutional TVET center credentials, representative details, system security, and off-site notifications.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <ShieldCheck className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                     Accredited TVET Partner
                   </span>
                 </div>
@@ -2592,50 +2643,50 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("profile")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "profile"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Building className="w-4 h-4" />
-                  Institution Profile
+                  <Building className="w-4 h-4 shrink-0" />
+                  <span>Institution Profile</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("security")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "security"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Lock className="w-4 h-4" />
-                  Account Security
+                  <Lock className="w-4 h-4 shrink-0" />
+                  <span>Account Security</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("notifications")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "notifications"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Bell className="w-4 h-4" />
-                  Alerts & Notifications
+                  <Bell className="w-4 h-4 shrink-0" />
+                  <span>Alerts & Notifications</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("badge")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "badge"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Award className="w-4 h-4" />
-                  TVET Accreditation Badge
+                  <Award className="w-4 h-4 shrink-0" />
+                  <span>TVET Accreditation Badge</span>
                 </button>
               </div>
 
@@ -2644,23 +2695,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   {/* Left Column (3 cols) */}
                   <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-xl shadow-md border-2 border-emerald-600">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-emerald-600 shrink-0 mt-0.5 sm:mt-0">
                             {repName.charAt(0).toUpperCase() || "T"}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-base font-bold text-slate-900">{repName}</h3>
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">{repName}</h3>
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
                                 Verified TVET Focal
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
                               {centerName}
                             </p>
-                            <p className="text-xs font-mono text-slate-600 mt-1">
+                            <p className="text-xs font-mono text-slate-600 mt-1 truncate">
                               {repEmail}
                             </p>
                           </div>
@@ -2668,14 +2719,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <button
                           type="button"
                           onClick={() => setIsEditingProfile(!isEditingProfile)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${
                             isEditingProfile
                               ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
                               : "bg-[#0A6B43] text-white hover:bg-[#085435]"
                           }`}
                         >
-                          <Edit className="w-3.5 h-3.5" />
-                          {isEditingProfile ? "Cancel" : "Edit Profile"}
+                          <Edit className="w-3.5 h-3.5 shrink-0" />
+                          <span>{isEditingProfile ? "Cancel" : "Edit Profile"}</span>
                         </button>
                       </div>
 
@@ -2802,9 +2853,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                   {/* Right Column (2 cols): Authority & Accreditation Card */}
                   <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-200">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-200 shrink-0">
                           <Award className="w-5 h-5" />
                         </div>
                         <div>
@@ -2871,15 +2922,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* TAB 2: ACCOUNT SECURITY */}
               {profileActiveTab === "security" && (
-                <div className="max-w-2xl bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                <div className="max-w-2xl bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
                   <div className="border-b border-slate-100 pb-4">
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-[#0A6B43]" />
-                      Update Account Password
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Ensure your institutional training partner credentials remain secure.
-                    </p>
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                          Update Account Password
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Ensure your institutional training partner credentials remain secure.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">

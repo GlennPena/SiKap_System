@@ -7,7 +7,7 @@ import {
   Lock, Bell, Search, Filter, MapPin, Sparkles, AlertTriangle, ChevronRight, ChevronLeft,
   User, Mail, Phone, Calendar, CheckCircle, X, Layers, ExternalLink, ShieldCheck,
   Key, Power, Ban, FileText, History, Clock, Tag, Award, GraduationCap, CheckCircle as CheckIcon,
-  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download
+  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
@@ -46,6 +46,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "youth_masterlist" | "barangays" | "tesda_records" | "audit_logs" | "create_account" | "create_tesda" | "profile"
   >("dashboard");
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Profile Tab State
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
@@ -1265,23 +1266,48 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
   return (
     <div className="h-screen overflow-hidden bg-slate-50 flex font-sans text-slate-800" id="super-admin-portal-root">
       
+      {/* Mobile Navigation Backdrop Overlay */}
+      {isMobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          onClick={() => setIsMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ============================================================ */}
-      {/* SIDEBAR - Signature SiKap Emerald Theme (#112F24 / #164132) */}
+      {/* SIDEBAR - Signature SiKap Emerald Theme (Responsive Drawer on Mobile) */}
       {/* ============================================================ */}
-      <aside className="w-68 h-screen shrink-0 sticky top-0 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-xl z-20 select-none overflow-hidden">
-        <div className="p-6 overflow-y-auto min-h-0 flex-1">
+      <aside
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-68 h-screen shrink-0 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
           {/* Header Brand */}
-          <div className="flex items-center gap-3 mb-8 pb-5 border-b border-emerald-800/40">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
-              <Shield className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black tracking-tight text-white block truncate">SiKap System</span>
-                <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-400 text-slate-950">MYDO</span>
+          <div className="flex items-center justify-between mb-8 pb-5 border-b border-emerald-800/40">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                <Shield className="w-5 h-5" />
               </div>
-              <span className="text-[11px] font-bold text-emerald-300 block tracking-tight">Super Admin Command</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-black tracking-tight text-white block truncate">SiKap System</span>
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 shrink-0">MYDO</span>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-300 block tracking-tight truncate">Super Admin Command</span>
+              </div>
             </div>
+
+            {/* Mobile Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Navigation Links */}
@@ -1302,6 +1328,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                   key={item.id}
                   onClick={() => {
                     setActiveTab(item.id as any);
+                    setIsMobileNavOpen(false);
                     if (item.id === "create_account") setRole("SK Chairperson");
                     if (item.id === "create_tesda") setRole("TESDA Representative");
                   }}
@@ -1327,7 +1354,10 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
         {/* User Info & Logout */}
         <div className="p-5 border-t border-emerald-800/40 bg-[#0B1E16] shrink-0">
           <div
-            onClick={() => setActiveTab("profile")}
+            onClick={() => {
+              setActiveTab("profile");
+              setIsMobileNavOpen(false);
+            }}
             className="flex items-center gap-3 mb-4 p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/30 hover:bg-emerald-900/50 cursor-pointer transition-colors"
             title="Manage Super Admin Profile"
           >
@@ -1355,34 +1385,46 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
       <main className="flex-1 h-screen flex flex-col min-w-0 bg-slate-50/70 overflow-y-auto">
         
         {/* Sticky Top Header */}
-        <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-8 py-4 flex items-center justify-between z-10 shadow-xs">
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2">
-              {activeTab === "dashboard" && "System Infrastructure Dashboard"}
-              {activeTab === "youth_masterlist" && "Municipal Youth Demographic Masterlist"}
-              {activeTab === "barangays" && "Barangay Administrative Directory (17 Zones)"}
-              {activeTab === "tesda_records" && "TESDA Directory & Records"}
-              {activeTab === "audit_logs" && "System-Wide Audit Logs & Activity Stream"}
-              {activeTab === "create_account" && "Authorized Official Provisioning Studio"}
-              {activeTab === "create_tesda" && "TESDA Representative Provisioning"}
-            </h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Municipal Youth Development Office · Municipality of San Luis, Pampanga (17 Barangays)
-            </p>
+        <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between z-10 shadow-xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-slate-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-tight text-slate-900 truncate block">
+                {activeTab === "dashboard" && "System Infrastructure Dashboard"}
+                {activeTab === "youth_masterlist" && "Municipal Youth Demographic Masterlist"}
+                {activeTab === "barangays" && "Barangay Directory (17 Zones)"}
+                {activeTab === "tesda_records" && "TESDA Directory & Records"}
+                {activeTab === "audit_logs" && "System-Wide Audit Logs & Stream"}
+                {activeTab === "create_account" && "Authorized Official Provisioning"}
+                {activeTab === "create_tesda" && "TESDA Provisioning"}
+                {activeTab === "profile" && "Admin Profile & Security"}
+              </h1>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate block">
+                Municipal Youth Development Office · San Luis, Pampanga
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 relative">
+          <div className="flex items-center gap-1.5 sm:gap-3 relative shrink-0">
             {/* Live Status Pill */}
-            <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-xs font-extrabold rounded-full shadow-2xs">
+            <span className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-xs font-extrabold rounded-full shadow-2xs">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Live Infrastructure: Healthy
+              Live Infrastructure
             </span>
 
             {/* Official Report Generation Button */}
             <button
               type="button"
               onClick={() => setIsReportModalOpen(true)}
-              className="px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              className="p-2 sm:px-3.5 sm:py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
               title="Generate Official Municipal Executive Report"
             >
               <FileText className="w-3.5 h-3.5" />
@@ -1438,8 +1480,8 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     {showNotifications && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                        <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-2 text-xs overflow-hidden text-slate-700 animate-in fade-in-50 slide-in-from-top-2">
-                          <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 p-3">
+                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 text-xs overflow-hidden text-slate-700 animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                          <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 p-3 shrink-0">
                             <div className="flex items-center gap-2">
                               <Bell className="w-4 h-4 text-[#0A6B43]" />
                               <span className="font-extrabold text-slate-900 text-sm">System Central Alerts</span>
@@ -1540,7 +1582,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
         </header>
 
         {/* Dynamic Inner Tab Content */}
-        <div className="p-6 md:p-8 max-w-7xl w-full mx-auto space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
           
           {/* ============================================================ */}
           {/* TAB 1: SYSTEM INFRASTRUCTURE DASHBOARD */}
@@ -1581,16 +1623,22 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
               </div>
 
               {/* Registered System Demographics Breakdown */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                      <Users className="w-4.5 h-4.5 text-[#0A6B43]" />
-                      Registered System Accounts & Demographics by Assigned Role
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Live distribution across the 17 barangays of San Luis, Pampanga</p>
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-4">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                        Registered System Accounts & Demographics by Assigned Role
+                      </h3>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        Live distribution across the 17 barangays of San Luis, Pampanga
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full self-start sm:self-auto">
+                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shrink-0 shadow-2xs">
                     {officialAccounts.length + councilors.length + youthProfiles.length} Total Users Active
                   </span>
                 </div>
@@ -1623,9 +1671,9 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Provisioning Quick Shortcuts */}
-                <div className="bg-gradient-to-br from-[#112F24] to-[#164132] text-white rounded-2xl p-6 shadow-md space-y-4 lg:col-span-1">
+                <div className="bg-gradient-to-br from-[#112F24] to-[#164132] text-white rounded-2xl p-4 sm:p-6 shadow-md space-y-4 lg:col-span-1">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black">
+                    <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shrink-0">
                       <PlusCircle className="w-5 h-5" />
                     </div>
                     <div>
@@ -1684,13 +1732,22 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 </div>
 
                 {/* Infrastructure Health & Security Grid */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs lg:col-span-2 space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                      <Activity className="w-4.5 h-4.5 text-[#0A6B43]" />
-                      Infrastructure Architecture & Security Node Status
-                    </h3>
-                    <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-md">
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-xs lg:col-span-2 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-3.5">
+                    <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                          Infrastructure Architecture & Security Node Status
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                          Core system microservices, cryptographic tokens, and database latency
+                        </p>
+                      </div>
+                    </div>
+                    <span className="self-start sm:self-auto text-[10px] sm:text-[11px] bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-full border border-slate-200/80 shrink-0">
                       Refreshed: Real-time
                     </span>
                   </div>
@@ -2591,9 +2648,9 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
             <div className="space-y-5">
               
               {/* Header and Action */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex-1 relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex-1 min-w-0 relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Search by TESDA Representative name or official email..."
@@ -2608,19 +2665,25 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     setActiveTab("create_tesda");
                     setRole("TESDA Representative");
                   }}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
                 >
-                  <PlusCircle className="w-4 h-4" /> Provision New Representative
+                  <PlusCircle className="w-4 h-4 shrink-0" />
+                  <span className="leading-snug">Provision New Representative</span>
                 </button>
               </div>
 
               <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-900">TESDA Municipal Representatives</h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Authorized technical and vocational training coordinators assigned to the municipality</p>
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                      <Briefcase className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">TESDA Municipal Representatives</h3>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Authorized technical and vocational training coordinators assigned to the municipality</p>
+                    </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shadow-2xs shrink-0">
                     {filteredTesdaReps.length} Representative(s)
                   </span>
                 </div>
@@ -2714,9 +2777,9 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
             <div className="space-y-5">
               
               {/* Filter controls */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex-1 relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex-1 min-w-0 relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Search logs by actor, action description, or barangay..."
@@ -2726,11 +2789,11 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                   <select
                     value={auditCategoryFilter}
                     onChange={(e) => setAuditCategoryFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
+                    className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
                   >
                     <option value="All">All Event Categories ({auditLogs.length})</option>
                     <option value="User Provisioning">User Provisioning</option>
@@ -2744,15 +2807,21 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
               {/* Logs Stream Card */}
               <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                      <History className="w-4 h-4 text-[#0A6B43]" />
-                      Municipal Activity Stream & Audit Trail
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Chronological record of account provisions, youth registrations, and program applications</p>
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                      <History className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                        Municipal Activity Stream & Audit Trail
+                      </h3>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        Chronological record of account provisions, youth registrations, and program applications
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shadow-2xs shrink-0">
                     {auditLogs.length} Log Entries
                   </span>
                 </div>
@@ -2866,22 +2935,22 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
             <div className="max-w-3xl mx-auto">
               <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
                 
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black">
+                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
                       <Lock className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h3 className="text-base font-extrabold text-slate-900">Provision Barangay Leader Account</h3>
-                      <p className="text-xs text-slate-500 font-medium">Create verified access credentials for SK Chairpersons and Barangay Captains across 17 Barangays</p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Provision Barangay Leader Account</h3>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for SK Chairpersons and Barangay Captains across 17 Barangays</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
                     OAuth 2.0 Node
                   </span>
                 </div>
 
-                <form onSubmit={handleCreateAccountSubmit} className="p-6 md:p-8 space-y-6 text-xs font-semibold">
+                <form onSubmit={handleCreateAccountSubmit} className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 text-xs font-semibold">
                   
                   {/* Section 1: Official Info */}
                   <div className="space-y-4">
@@ -2958,25 +3027,27 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-700 uppercase">Temporary Generated Password</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          value={tempPassword}
-                          onChange={(e) => setTempPassword(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden pr-20"
-                        />
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <input
+                            type="text"
+                            required
+                            value={tempPassword}
+                            onChange={(e) => setTempPassword(e.target.value)}
+                            className="w-full p-2.5 sm:p-3 bg-slate-50 border border-slate-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs sm:text-sm"
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={generatePassword}
-                          className="absolute right-2.5 top-2.5 px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                          className="px-3.5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs self-stretch sm:self-auto"
                           title="Generate New Password"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          Regenerate
+                          <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                          <span>Regenerate</span>
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 font-medium">The official will be prompted to update this password upon initial sign in.</p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">The official will be prompted to update this password upon initial sign in.</p>
                     </div>
                   </div>
 
@@ -2984,14 +3055,14 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3.5 bg-gradient-to-r from-[#0A6B43] to-[#075332] hover:from-[#075332] hover:to-[#053F26] text-white text-xs font-black rounded-xl uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="w-full py-3 sm:py-3.5 px-4 bg-gradient-to-r from-[#0A6B43] to-[#075332] hover:from-[#075332] hover:to-[#053F26] text-white text-xs sm:text-sm font-bold sm:font-black rounded-xl tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-center"
                     >
                       {isSubmitting ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                       ) : (
-                        <UserCheck className="w-4 h-4" />
+                        <UserCheck className="w-4 h-4 shrink-0" />
                       )}
-                      Provision Account & Generate Credentials
+                      <span className="leading-snug">Provision Account & Generate Credentials</span>
                     </button>
                   </div>
 
@@ -3007,22 +3078,22 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
             <div className="max-w-3xl mx-auto">
               <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
                 
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-black">
+                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
                       <Briefcase className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h3 className="text-base font-extrabold text-slate-900">Provision TESDA Partner Representative</h3>
-                      <p className="text-xs text-slate-500 font-medium">Create verified access credentials for TVET technical training officers</p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Provision TESDA Partner Representative</h3>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for TVET technical training officers</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                  <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
                     Municipal Partner
                   </span>
                 </div>
 
-                <form onSubmit={handleCreateTesdaSubmit} className="p-6 md:p-8 space-y-6 text-xs font-semibold">
+                <form onSubmit={handleCreateTesdaSubmit} className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 text-xs font-semibold">
                   
                   {/* Section 1: Partner Info */}
                   <div className="space-y-4">
@@ -3094,22 +3165,24 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-700 uppercase">Temporary Generated Password</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          value={tempPassword}
-                          onChange={(e) => setTempPassword(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden pr-20"
-                        />
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <input
+                            type="text"
+                            required
+                            value={tempPassword}
+                            onChange={(e) => setTempPassword(e.target.value)}
+                            className="w-full p-2.5 sm:p-3 bg-slate-50 border border-slate-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs sm:text-sm"
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={generatePassword}
-                          className="absolute right-2.5 top-2.5 px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                          className="px-3.5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs self-stretch sm:self-auto"
                           title="Generate New Password"
                         >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          Regenerate
+                          <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                          <span>Regenerate</span>
                         </button>
                       </div>
                     </div>
@@ -3119,14 +3192,14 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-black rounded-xl uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="w-full py-3 sm:py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs sm:text-sm font-bold sm:font-black rounded-xl tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-center"
                     >
                       {isSubmitting ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                       ) : (
-                        <UserCheck className="w-4 h-4" />
+                        <UserCheck className="w-4 h-4 shrink-0" />
                       )}
-                      Provision TESDA Account & Generate Credentials
+                      <span className="leading-snug">Provision TESDA Account & Generate Credentials</span>
                     </button>
                   </div>
 
@@ -3141,19 +3214,23 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
           {activeTab === "profile" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {/* Top Banner Header */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-[#0A6B43]" />
-                    Super Administrator Profile & Governance Command
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls.
-                  </p>
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight leading-tight">
+                      Super Administrator Profile & Governance Command
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                      Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     Tier 1 Root Clearance
                   </span>
                 </div>
@@ -3164,50 +3241,50 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("profile")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "profile"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Shield className="w-4 h-4" />
-                  Administrator Profile
+                  <Shield className="w-4 h-4 shrink-0" />
+                  <span>Administrator Profile</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("security")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "security"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Lock className="w-4 h-4" />
-                  Security & Password
+                  <Lock className="w-4 h-4 shrink-0" />
+                  <span>Security & Password</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("notifications")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "notifications"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Bell className="w-4 h-4" />
-                  Central System Alerts
+                  <Bell className="w-4 h-4 shrink-0" />
+                  <span>Central System Alerts</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfileActiveTab("badge")}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                     profileActiveTab === "badge"
                       ? "bg-[#0A6B43] text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                   }`}
                 >
-                  <Award className="w-4 h-4" />
-                  Root Authorization Badge
+                  <Award className="w-4 h-4 shrink-0" />
+                  <span>Root Authorization Badge</span>
                 </button>
               </div>
 
@@ -3216,23 +3293,23 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   {/* Left Column (3 cols) */}
                   <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black text-xl shadow-md border-2 border-amber-400">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-slate-100">
+                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-amber-400 shrink-0 mt-0.5 sm:mt-0">
                             ADM
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-base font-bold text-slate-900">{adminName}</h3>
-                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">{adminName}</h3>
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
                                 Root Authority
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
                               {adminOffice}
                             </p>
-                            <p className="text-xs font-mono text-slate-600 mt-1">
+                            <p className="text-xs font-mono text-slate-600 mt-1 truncate">
                               {adminEmail}
                             </p>
                           </div>
@@ -3240,14 +3317,14 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                         <button
                           type="button"
                           onClick={() => setIsEditingProfile(!isEditingProfile)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${
                             isEditingProfile
                               ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
                               : "bg-[#0A6B43] text-white hover:bg-[#085435]"
                           }`}
                         >
-                          <Edit className="w-3.5 h-3.5" />
-                          {isEditingProfile ? "Cancel" : "Edit Profile"}
+                          <Edit className="w-3.5 h-3.5 shrink-0" />
+                          <span>{isEditingProfile ? "Cancel" : "Edit Profile"}</span>
                         </button>
                       </div>
 
@@ -3374,14 +3451,14 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
                   {/* Right Column (2 cols): Authority & Clearance Summary */}
                   <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
                           <ShieldCheck className="w-5 h-5" />
                         </div>
-                        <div>
-                          <h4 className="text-sm font-black text-slate-900">Root Governance Authority</h4>
-                          <p className="text-[11px] text-slate-500">Tier 1 Central Municipal Command</p>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-black text-slate-900 leading-tight">Root Governance Authority</h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Tier 1 Central Municipal Command</p>
                         </div>
                       </div>
 
@@ -3443,15 +3520,21 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
               {/* TAB 2: ACCOUNT SECURITY */}
               {profileActiveTab === "security" && (
-                <div className="max-w-2xl bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                <div className="max-w-2xl bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
                   <div className="border-b border-slate-100 pb-4">
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-[#0A6B43]" />
-                      Update Root Security Password
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Ensure central administrative access remains strictly protected against unauthorized access.
-                    </p>
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                          Update Root Security Password
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                          Ensure central administrative access remains strictly protected against unauthorized access.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
@@ -3567,17 +3650,17 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
 
                     {/* Card Top Header */}
-                    <div className="flex items-center justify-between pb-5 border-b border-white/10 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md">
+                    <div className="flex items-center justify-between pb-5 border-b border-white/10 relative z-10 gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
                           <Shield className="w-5 h-5" />
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Republic of the Philippines</p>
-                          <p className="text-xs font-extrabold tracking-wide text-white">Municipality of San Luis · MYDO</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-400 truncate">Republic of the Philippines</p>
+                          <p className="text-xs font-extrabold tracking-wide text-white truncate">Municipality of San Luis · MYDO</p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 shrink-0">
                         Root Clearance
                       </span>
                     </div>

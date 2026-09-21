@@ -160,7 +160,7 @@ export async function POST(request: Request) {
       data: {
         userId: roleStr === "KK_YOUTH" ? (session.user as any).id : undefined,
         name: body.name,
-        birthdate: parsedBirthdate,
+        birthdate: parsedBirthdate as any,
         age: Number(computedAge),
         gender: userGender,
         purok: body.purok,
