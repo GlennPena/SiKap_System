@@ -428,16 +428,24 @@ export default function App() {
             </div>
 
             {/* Right panel */}
-            <div className="flex-1 bg-white relative min-h-[520px] md:min-h-[600px] w-full flex flex-col items-center justify-center p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 md:py-8 overflow-y-auto md:overflow-hidden">
+            <div className="flex-1 bg-white relative min-h-[520px] md:min-h-[600px] w-full flex flex-col items-center justify-start md:justify-center p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 pt-3 sm:pt-6 md:py-8 overflow-y-auto md:overflow-hidden">
 
-              {/* Logo centered at top - sliding down from above */}
+              {/* Logo centered at top - sliding down from above (desktop, or mobile when registering) */}
               <motion.div
                 initial={{ opacity: 0, y: -25 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
-                className="absolute top-3 sm:top-4 md:top-6 lg:top-8 left-0 w-full flex justify-center z-50 pointer-events-auto"
+                className={`${isSelfRegistering ? 'flex' : 'hidden md:flex'} absolute top-2 sm:top-3 md:top-5 lg:top-7 left-0 w-full justify-center z-50 pointer-events-auto`}
               >
-                <SikapLogo size={42} logoSize={52} textSize={36} showText={true} showSubtext={false} gap="gap-1" disableHover={true} />
+                <SikapLogo
+                  size={isSelfRegistering ? 36 : 42}
+                  logoSize={isSelfRegistering ? 44 : 52}
+                  textSize={isSelfRegistering ? 30 : 36}
+                  showText={true}
+                  showSubtext={false}
+                  gap="gap-1.5"
+                  disableHover={true}
+                />
               </motion.div>
 
               <AnimatePresence mode="wait">
@@ -448,7 +456,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl px-2 pt-[64px] md:pt-[78px] pb-10 md:pb-12"
+                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl px-1 sm:px-2 pt-[68px] sm:pt-[78px] md:pt-[88px] pb-4 sm:pb-6 md:pb-8"
                   >
                     <KKYouthRegister
                       onRegisterComplete={(newProfile) => {
@@ -461,7 +469,7 @@ export default function App() {
                       }}
                       onBackToHome={() => setIsSelfRegistering(false)}
                     />
-                    <div className="text-center pt-2 shrink-0">
+                    <div className="text-center pt-4 sm:pt-5 pb-1 shrink-0">
                       <p className="text-xs sm:text-sm font-semibold text-gray-700">
                         Have a SiKap account?{" "}
                         <button
@@ -483,7 +491,21 @@ export default function App() {
                     transition={{ duration: 0.28, ease: "easeOut" }}
                     className="w-full flex justify-center items-center"
                   >
-                    <div className="w-full z-10 relative max-w-md sm:max-w-lg lg:max-w-xl xl:max-w-[540px] space-y-6 lg:space-y-8 pt-20 md:pt-0 pb-6 md:pb-0">
+                    <div className="w-full z-10 relative max-w-md sm:max-w-lg lg:max-w-xl xl:max-w-[540px] space-y-5 sm:space-y-6 lg:space-y-8 pt-0 md:pt-0 pb-4 md:pb-0">
+                      {/* Mobile centered SiKap logo and text - positioned higher with ample separation */}
+                      <div className="md:hidden flex flex-col items-center justify-center pt-0 pb-6 mb-12 sm:mb-16">
+                        <SikapLogo
+                          size={40}
+                          logoSize={48}
+                          textSize={32}
+                          showText={true}
+                          showSubtext={true}
+                          orientation="vertical"
+                          gap="gap-1.5"
+                          disableHover={true}
+                        />
+                      </div>
+
                       <div className="text-left mb-6 sm:mb-8 lg:mb-10">
                         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.05] text-gray-900">Sign In</h2>
                         <p className="text-sm sm:text-base lg:text-lg text-gray-500 font-medium mt-2 lg:mt-3">Please login to continue</p>

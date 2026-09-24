@@ -37,6 +37,524 @@ const BARANGAYS = [
   "Sto. Tomas"
 ];
 
+interface CustomSelectOption {
+  value: string;
+  label: string;
+}
+
+const CustomSelect: React.FC<{
+  value: string;
+  onChange: (val: string) => void;
+  options: (string | CustomSelectOption)[];
+  placeholder?: string;
+  className?: string;
+}> = ({ value, onChange, options, placeholder = "Select an option", className = "" }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const normalizedOptions: CustomSelectOption[] = options.map(opt =>
+    typeof opt === "string" ? { value: opt, label: opt } : opt
+  );
+
+  const selectedOption = normalizedOptions.find(opt => opt.value === value);
+
+  return (
+    <div ref={containerRef} className="relative w-full min-w-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between pl-3 sm:pl-4 pr-9 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all text-left focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs cursor-pointer ${
+          value ? "text-gray-900 border-gray-200" : "text-gray-400 border-gray-200"
+        } ${className}`}
+      >
+        <span className="truncate block pr-1">{selectedOption ? selectedOption.label : placeholder}</span>
+        <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="absolute left-0 right-0 top-full mt-1.5 w-full max-h-48 sm:max-h-56 overflow-y-auto custom-scrollbar bg-white border border-gray-200 rounded-lg sm:rounded-xl shadow-xl z-50 py-1"
+          >
+            {normalizedOptions.map(opt => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-medium transition-colors flex items-center justify-between gap-2 cursor-pointer ${
+                    isSelected
+                      ? "bg-emerald-50 text-[#0A6B43] font-bold"
+                      : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                  }`}
+                >
+                  <span className="break-words line-clamp-2 leading-snug">{opt.label}</span>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+const DAYS_OF_WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+interface SiKapDatePickerProps {
+  value: string;
+  onChange: (val: string) => void;
+  max?: string;
+  hasError?: boolean;
+}
+
+const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
+  value,
+  onChange,
+  max,
+  hasError = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isMonthOpen, setIsMonthOpen] = useState(false);
+  const [isYearOpen, setIsYearOpen] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const monthSelectRef = useRef<HTMLDivElement>(null);
+  const yearSelectRef = useRef<HTMLDivElement>(null);
+  const selectedYearButtonRef = useRef<HTMLButtonElement>(null);
+
+  const initialDate = value ? new Date(value) : new Date(new Date().getFullYear() - 20, 0, 1);
+  const [viewYear, setViewYear] = useState<number>(initialDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState<number>(initialDate.getMonth());
+
+  useEffect(() => {
+    if (value) {
+      const parts = value.split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        if (!isNaN(y) && !isNaN(m)) {
+          setViewYear(y);
+          setViewMonth(m);
+        }
+      }
+    }
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setIsMonthOpen(false);
+        setIsYearOpen(false);
+      } else {
+        if (monthSelectRef.current && !monthSelectRef.current.contains(e.target as Node)) {
+          setIsMonthOpen(false);
+        }
+        if (yearSelectRef.current && !yearSelectRef.current.contains(e.target as Node)) {
+          setIsYearOpen(false);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const currentYear = new Date().getFullYear();
+  // Comprehensive years range: from current year down to 1920 (100+ years), scrolling in custom dropdown
+  const years = Array.from({ length: currentYear - 1920 + 1 }, (_, i) => currentYear - i);
+
+  // Auto-scroll the year dropdown to center on the active viewYear
+  useEffect(() => {
+    if (isYearOpen) {
+      const timer = setTimeout(() => {
+        selectedYearButtonRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, 30);
+      return () => clearTimeout(timer);
+    }
+  }, [isYearOpen]);
+
+  const prevMonth = () => {
+    setIsMonthOpen(false);
+    setIsYearOpen(false);
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(prev => prev - 1);
+    } else {
+      setViewMonth(prev => prev - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    setIsMonthOpen(false);
+    setIsYearOpen(false);
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(prev => prev + 1);
+    } else {
+      setViewMonth(prev => prev + 1);
+    }
+  };
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
+
+  const handleSelectDay = (day: number) => {
+    const yStr = String(viewYear);
+    const mStr = String(viewMonth + 1).padStart(2, "0");
+    const dStr = String(day).padStart(2, "0");
+    onChange(`${yStr}-${mStr}-${dStr}`);
+    setIsOpen(false);
+    setIsMonthOpen(false);
+    setIsYearOpen(false);
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange("");
+  };
+
+  const formatDisplay = (val: string) => {
+    if (!val) return "";
+    const parts = val.split("-");
+    if (parts.length !== 3) return val;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    return `${MONTH_NAMES[m]} ${d}, ${y}`;
+  };
+
+  const maxDate = max ? new Date(max) : new Date();
+
+  return (
+    <div ref={containerRef} className="relative w-full min-w-0">
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setIsMonthOpen(false);
+          setIsYearOpen(false);
+        }}
+        className={`w-full flex items-center justify-between px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all text-left focus:outline-hidden shadow-2xs cursor-pointer group ${
+          isOpen
+            ? "border-[#0A6B43] ring-2 ring-emerald-500/20 bg-white"
+            : hasError
+              ? "border-rose-300 bg-rose-50/30 text-gray-900"
+              : value
+                ? "border-gray-200 text-gray-900 bg-gray-50/80 hover:bg-white hover:border-gray-300"
+                : "border-gray-200 text-gray-400 bg-gray-50/80 hover:bg-white hover:border-gray-300"
+        } border`}
+      >
+        <span className="truncate block pr-2">
+          {value ? formatDisplay(value) : "Select Date of Birth"}
+        </span>
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${
+          isOpen ? "bg-emerald-100 text-[#0A6B43]" : "text-gray-400 group-hover:text-[#0A6B43]"
+        }`}>
+          <Calendar className="w-3.5 h-3.5" />
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="absolute left-0 top-full mt-1.5 w-full sm:w-[320px] bg-white border border-gray-200 rounded-xl sm:rounded-2xl shadow-xl z-50 p-3 sm:p-3.5 ring-1 ring-black/5"
+          >
+            {/* Top Branding Bar */}
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+              <span className="text-[10px] font-black text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3 h-3 text-[#0A6B43]" />
+                <span>Date of Birth</span>
+              </span>
+              <span className="text-[9px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80">
+                KK Youth
+              </span>
+            </div>
+
+            {/* Header: Month & Year Selector + Prev/Next buttons */}
+            <div className="flex items-center justify-between gap-1 mb-2.5 relative">
+              <button
+                type="button"
+                onClick={prevMonth}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50 border border-transparent hover:border-emerald-200 transition-colors cursor-pointer shrink-0"
+                title="Previous Month"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5 min-w-0">
+                {/* Custom Scrolling Month Dropdown */}
+                <div ref={monthSelectRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMonthOpen(!isMonthOpen);
+                      setIsYearOpen(false);
+                    }}
+                    className={`flex items-center gap-1 bg-gray-50/90 hover:bg-emerald-50/40 border text-xs font-bold text-gray-800 rounded-lg pl-2.5 pr-2 py-1 transition-all cursor-pointer ${
+                      isMonthOpen ? "border-[#0A6B43] ring-1 ring-emerald-500/20 bg-white" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span>{MONTH_NAMES[viewMonth]}</span>
+                    <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isMonthOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isMonthOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute left-0 top-full mt-1.5 w-36 max-h-44 overflow-y-auto custom-scrollbar bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1"
+                      >
+                        {MONTH_NAMES.map((name, idx) => {
+                          const isSelected = viewMonth === idx;
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => {
+                                setViewMonth(idx);
+                                setIsMonthOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-50 text-[#0A6B43] font-bold"
+                                  : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                              }`}
+                            >
+                              <span>{name}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Custom Scrolling Year Dropdown */}
+                <div ref={yearSelectRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsYearOpen(!isYearOpen);
+                      setIsMonthOpen(false);
+                    }}
+                    className={`flex items-center gap-1 bg-gray-50/90 hover:bg-emerald-50/40 border text-xs font-bold text-gray-800 rounded-lg pl-2.5 pr-2 py-1 transition-all cursor-pointer ${
+                      isYearOpen ? "border-[#0A6B43] ring-1 ring-emerald-500/20 bg-white" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span>{viewYear}</span>
+                    <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isYearOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isYearOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute right-0 sm:left-0 top-full mt-1.5 w-28 max-h-44 overflow-y-auto custom-scrollbar bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1"
+                      >
+                        {years.map(y => {
+                          const isSelected = viewYear === y;
+                          return (
+                            <button
+                              key={y}
+                              ref={isSelected ? selectedYearButtonRef : null}
+                              type="button"
+                              onClick={() => {
+                                setViewYear(y);
+                                setIsYearOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-50 text-[#0A6B43] font-bold"
+                                  : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                              }`}
+                            >
+                              <span>{y}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={nextMonth}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50 border border-transparent hover:border-emerald-200 transition-colors cursor-pointer shrink-0"
+                title="Next Month"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Day of Week Headers */}
+            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+              {DAYS_OF_WEEK.map((d, idx) => (
+                <span
+                  key={d}
+                  className={`text-[10px] font-extrabold py-1 ${
+                    idx === 0 ? "text-rose-400" : "text-gray-400"
+                  }`}
+                >
+                  {d}
+                </span>
+              ))}
+            </div>
+
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                <div key={`empty-${i}`} className="w-7 h-7 sm:w-8 sm:h-8" />
+              ))}
+
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const cellDate = new Date(viewYear, viewMonth, day);
+                const isFuture = cellDate.getTime() > maxDate.getTime();
+                const formattedCell = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const isSelected = value === formattedCell;
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    disabled={isFuture}
+                    onClick={() => handleSelectDay(day)}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 text-xs font-semibold rounded-lg flex items-center justify-center transition-all ${
+                      isSelected
+                        ? "bg-[#0A6B43] text-white font-bold shadow-xs scale-105 cursor-pointer"
+                        : isFuture
+                          ? "text-gray-300 cursor-not-allowed"
+                          : "text-gray-700 hover:bg-emerald-50 hover:text-[#0A6B43] cursor-pointer"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom Age Status Indicator & Actions */}
+            <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+              {value && calculateAge(value) !== "" ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-500 font-medium">
+                      Age: <strong className="text-gray-800">{calculateAge(value)} yrs</strong>
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                      Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
+                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                        : "text-rose-700 bg-rose-50 border-rose-200"
+                    }`}>
+                      {Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
+                        ? "KK Eligible"
+                        : "Ineligible (18-30)"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="text-[10px] text-gray-400 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </>
+              ) : (
+                <div className="w-full flex items-center justify-between text-[10px] text-gray-400">
+                  <span>Target youth age: 18 - 30</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="text-[#0A6B43] font-bold hover:underline cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const GENDER_OPTIONS: CustomSelectOption[] = [
+  { value: "Male", label: "Male" },
+  { value: "Female", label: "Female" }
+];
+
+const VOCATIONAL_SECTOR_OPTIONS = [
+  "Information & Communications Technology (ICT)",
+  "Agriculture, Forestry and Fishery",
+  "Automotive and Land Transportation",
+  "Construction",
+  "Electrical and Electronics",
+  "Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)",
+  "Heavy Equipment Operation",
+  "Metals and Engineering / Welding",
+  "Process Food and Beverages / Culinary",
+  "Tourism / Hotel and Restaurant Services",
+  "Social, Community Development and other Services / Caregiving",
+  "Human Health / Health Care",
+  "Visual and Performing Arts / Creative",
+  "Garments and Textiles",
+  "Wholesale and Retail / Sales",
+  "Logistics and Warehousing",
+  "Maritime",
+  "Utilities / Solar Power",
+  "Language and Culture",
+  "Entrepreneurship & Management"
+];
+
+const VERIFICATION_ID_TYPE_OPTIONS: CustomSelectOption[] = [
+  { value: "National ID", label: "National ID (PhilSys)" },
+  { value: "Student ID / Enrollment Receipt", label: "Student ID / Enrollment Receipt" },
+  { value: "SK Member Card", label: "Sangguniang Kabataan Member Card" },
+  { value: "Barangay Clearance", label: "Barangay Clearance" },
+  { value: "Voter's ID or Stub", label: "Voter's ID or Registration Stub" },
+  { value: "Birth Certificate", label: "PSA Birth Certificate" }
+];
+
 export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   onRegisterComplete,
   onBackToHome
@@ -316,7 +834,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
         {/* Stepper Progress - Anchored persistently at top */}
         {currentStep < 5 && (
-          <div className="mb-4 bg-white border border-gray-150 p-3 sm:p-4 rounded-2xl shadow-xs shrink-0 w-full max-w-2xl mx-auto" id="kk-reg-stepper">
+          <div className="mb-2.5 sm:mb-4 bg-white border border-gray-150 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs shrink-0 w-full max-w-2xl mx-auto" id="kk-reg-stepper">
             {/* Mobile View Progress */}
             <div className="flex justify-between items-center md:hidden mb-2">
               <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full uppercase tracking-wider">
@@ -393,7 +911,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         )}
 
         {/* Step Views Area */}
-        <div className="flex-1 min-h-0 flex flex-col w-full max-w-2xl mx-auto px-1 pt-3">
+        <div className="flex-1 min-h-0 flex flex-col w-full max-w-2xl mx-auto px-1.5 sm:px-2 pt-1 sm:pt-3">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -411,18 +929,18 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   LOCATION & PUROK SELECTION
                 </span>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Select Your Barangay & Purok</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-2">
+                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Select Your Barangay & Purok</h2>
+                <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1 sm:pb-2">
                   Please select your official residential area in San Luis, Pampanga
                 </p>
               </div>
 
               {/* Selection 2-Row Container */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar py-1 space-y-4 max-w-xl mx-auto w-full">
+              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 space-y-3.5 sm:space-y-4 max-w-xl mx-auto w-full">
                 {/* Row 1: Barangay Selection (2 Columns of Choices) */}
                 <div className="space-y-1.5 flex flex-col">
                   <div className="flex items-center justify-between px-0.5 shrink-0">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
                       <span>Select Barangay *</span>
                     </label>
@@ -433,7 +951,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     )}
                   </div>
 
-                  <div className="max-h-[190px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                  <div className="max-h-[160px] sm:max-h-[190px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg sm:rounded-xl p-1.5 sm:p-2 bg-gray-50/50">
                     <div className="grid grid-cols-2 gap-2">
                       {BARANGAYS.map((brgy) => {
                         const isSelected = selectedBarangay === brgy;
@@ -442,7 +960,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                             key={brgy}
                             type="button"
                             onClick={() => setSelectedBarangay(brgy)}
-                            className={`p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                            className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
                               ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
                               : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
                               }`}
@@ -471,7 +989,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 {/* Row 2: Purok Selection (2 Columns of Choices) */}
                 <div className="space-y-1.5 flex flex-col">
                   <div className="flex items-center justify-between px-0.5 shrink-0">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-[#0A6B43]" />
                       <span>Select Purok Sector *</span>
                     </label>
@@ -491,7 +1009,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                             key={purok}
                             type="button"
                             onClick={() => setRegPurok(purok)}
-                            className={`p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                            className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
                               ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
                               : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
                               }`}
@@ -528,26 +1046,26 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   PERSONAL PROFILE DETAILS
                 </span>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Tell Us About Yourself</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
+                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Tell Us About Yourself</h2>
+                <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Please provide your personal information to create your SiKap profile
                 </p>
               </div>
 
               {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 py-1">
-                <div className="w-full max-w-xl mx-auto space-y-3.5">
+              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                <div className="w-full max-w-xl mx-auto space-y-3.5 p-0.5">
 
                   {/* Row 1: Full Name */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Full Name *</label>
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Full Name *</label>
                     <input
                       type="text"
                       required
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
                       placeholder="Juan dela Cruz"
-                      className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                      className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                     />
                   </div>
 
@@ -555,7 +1073,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between h-4">
-                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Date of Birth *</label>
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Date of Birth *</label>
                         {regDOB && calculateAge(regDOB) !== "" && (
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
                             ? "text-emerald-700 bg-emerald-50 border-emerald-200"
@@ -567,16 +1085,11 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                           </span>
                         )}
                       </div>
-                      <input
-                        type="date"
-                        required
+                      <SiKapDatePicker
                         value={regDOB}
+                        onChange={handleDOBChange}
                         max={new Date().toISOString().split("T")[0]}
-                        onChange={(e) => handleDOBChange(e.target.value)}
-                        className={`w-full px-4 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all font-medium shadow-2xs ${regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30)
-                          ? "border-rose-300 bg-rose-50/30"
-                          : "border-gray-200"
-                          } ${regDOB ? "text-gray-900" : "text-gray-400"}`}
+                        hasError={!!(regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30))}
                       />
                       {regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30) && (
                         <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
@@ -587,33 +1100,21 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Gender *</label>
-                      <div className="relative">
-                        <select
-                          value={regGender}
-                          onChange={(e) => setRegGender(e.target.value)}
-                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regGender ? "text-gray-900" : "text-gray-400"
-                            }`}
-                        >
-                          <option value="" disabled hidden className="text-xs text-gray-400">Select Gender</option>
-                          <option value="Male" className="text-xs text-gray-900 py-1">Male</option>
-                          <option value="Female" className="text-xs text-gray-900 py-1">Female</option>
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
-                      </div>
+                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Gender *</label>
+                      <CustomSelect value={regGender} onChange={setRegGender} options={GENDER_OPTIONS} placeholder="Select Gender" />
                     </div>
                   </div>
 
                   {/* Row 3: Phone Number */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Phone Number *</label>
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Phone Number *</label>
                     <input
                       type="text"
                       required
                       value={regContact}
                       onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
                       placeholder="+63 9"
-                      className={`w-full px-4 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regContact && !isValidContactNumber(regContact) ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                      className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regContact && !isValidContactNumber(regContact) ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
                         }`}
                     />
                     {regContact && !isValidContactNumber(regContact) && (
@@ -626,7 +1127,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                   {/* Row 4: Email Address */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
                     <div className="relative">
                       <input
                         type="email"
@@ -634,7 +1135,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
                         placeholder="juan.delacruz@gmail.com"
-                        className={`w-full px-4 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${(regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
+                        className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${(regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
                           ? "border-rose-300 bg-rose-50/30"
                           : "border-gray-200"
                           }`}
@@ -661,7 +1162,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   {/* Row 5: Password & Confirm Password (2 Columns) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Password *</label>
+                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Password *</label>
                       <div className="relative">
                         <input
                           type={showPassword ? "text" : "password"}
@@ -669,7 +1170,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
                           placeholder="••••••••"
-                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && regPassword.length < 6 ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                          className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && regPassword.length < 6 ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
                             }`}
                         />
                         <button
@@ -691,7 +1192,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between h-4">
-                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Confirm Password *</label>
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Confirm Password *</label>
                         {regConfirmPassword && (
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${regPassword === regConfirmPassword
                             ? "text-emerald-700 bg-emerald-50 border-emerald-200"
@@ -708,7 +1209,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                           value={regConfirmPassword}
                           onChange={(e) => setRegConfirmPassword(e.target.value)}
                           placeholder="••••••••"
-                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regConfirmPassword && regPassword !== regConfirmPassword ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                          className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regConfirmPassword && regPassword !== regConfirmPassword ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
                             }`}
                         />
                         <button
@@ -742,44 +1243,31 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   EDUCATION & BACKGROUND
                 </span>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Educational Attainment & Status</h2>
+                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Educational Attainment & Status</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Tell us about your education to help us find relevant training opportunities
                 </p>
               </div>
 
               {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 py-1">
-                <div className="w-full max-w-xl mx-auto space-y-6">
+              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Highest Educational Attainment</label>
-                      <div className="relative">
-                        <select
-                          value={regEdu}
-                          onChange={(e) => setRegEdu(e.target.value)}
-                          className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regEdu ? "text-gray-900" : "text-gray-400"
-                            }`}
-                        >
-                          <option value="" disabled hidden className="text-xs text-gray-400">Select Educational Attainment</option>
-                          {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
-                            <option key={edu} value={edu} className="text-xs text-gray-900 py-1">{edu}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
-                      </div>
+                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Highest Educational Attainment</label>
+                      <CustomSelect value={regEdu} onChange={setRegEdu} options={[...EDUCATIONAL_ATTAINMENT_OPTIONS]} placeholder="Select Educational Attainment" />
                     </div>
 
                     <div className="space-y-1">
                       <div className="flex items-center justify-between h-4">
-                        <label className="text-[11px] font-black text-[#0A6B43] uppercase tracking-wide inline-flex items-center h-full">Youth Status</label>
+                        <label className="text-[10px] sm:text-[11px] font-black text-[#0A6B43] uppercase tracking-wide inline-flex items-center h-full">Youth Status</label>
                         <span className="text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border text-emerald-700 bg-emerald-50 border-emerald-200">System Target</span>
                       </div>
                       <input
                         type="text"
                         readOnly
                         value={regStatus}
-                        className="w-full py-2.5 px-4 border border-emerald-600 bg-emerald-50/80 rounded-xl text-sm font-medium text-emerald-950 cursor-not-allowed shadow-2xs"
+                        className="w-full py-2 sm:py-2.5 px-3.5 sm:px-4 border border-emerald-600 bg-emerald-50/80 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium text-emerald-950 cursor-not-allowed shadow-2xs"
                       />
                     </div>
                   </div>
@@ -795,7 +1283,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   {/* Demographics Toggles */}
                   <div className="space-y-1.5 flex flex-col">
                     <div className="flex items-center justify-between px-0.5 shrink-0">
-                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
                         <User className="w-3.5 h-3.5 text-[#0A6B43]" />
                         <span>Sectoral Demographics</span>
                       </label>
@@ -851,7 +1339,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               key={sector.key}
                               type="button"
                               onClick={sector.onClick}
-                              className={`p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${sector.isSelected
+                              className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${sector.isSelected
                                 ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
                                 : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
                                 }`}
@@ -889,55 +1377,25 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   INTERESTS & SKILLS MAPPING
                 </span>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Skills & Preferences</h2>
+                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Skills & Preferences</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Tell us about your skills and goals to find suitable training.
                 </p>
               </div>
 
               {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 py-1">
-                <div className="w-full max-w-xl mx-auto space-y-6">
+              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
 
                   {/* Preferred Vocational Sector */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Preferred Vocational Sector *</label>
-                    <div className="relative">
-                      <select
-                        value={regSector}
-                        onChange={(e) => setRegSector(e.target.value)}
-                        className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regSector ? "text-gray-900" : "text-gray-400"
-                          }`}
-                      >
-                        <option value="" disabled hidden className="text-xs text-gray-400">Select Preferred Vocational Sector</option>
-                        <option value="Information & Communications Technology (ICT)" className="text-xs text-gray-900 py-1">Information & Communications Technology (ICT)</option>
-                        <option value="Agriculture, Forestry and Fishery" className="text-xs text-gray-900 py-1">Agriculture, Forestry and Fishery</option>
-                        <option value="Automotive and Land Transportation" className="text-xs text-gray-900 py-1">Automotive and Land Transportation</option>
-                        <option value="Construction" className="text-xs text-gray-900 py-1">Construction</option>
-                        <option value="Electrical and Electronics" className="text-xs text-gray-900 py-1">Electrical and Electronics</option>
-                        <option value="Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)" className="text-xs text-gray-900 py-1">Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)</option>
-                        <option value="Heavy Equipment Operation" className="text-xs text-gray-900 py-1">Heavy Equipment Operation</option>
-                        <option value="Metals and Engineering / Welding" className="text-xs text-gray-900 py-1">Metals and Engineering / Welding</option>
-                        <option value="Process Food and Beverages / Culinary" className="text-xs text-gray-900 py-1">Process Food and Beverages / Culinary</option>
-                        <option value="Tourism / Hotel and Restaurant Services" className="text-xs text-gray-900 py-1">Tourism / Hotel and Restaurant Services</option>
-                        <option value="Social, Community Development and other Services / Caregiving" className="text-xs text-gray-900 py-1">Social, Community Development and other Services / Caregiving</option>
-                        <option value="Human Health / Health Care" className="text-xs text-gray-900 py-1">Human Health / Health Care</option>
-                        <option value="Visual and Performing Arts / Creative" className="text-xs text-gray-900 py-1">Visual and Performing Arts / Creative</option>
-                        <option value="Garments and Textiles" className="text-xs text-gray-900 py-1">Garments and Textiles</option>
-                        <option value="Wholesale and Retail / Sales" className="text-xs text-gray-900 py-1">Wholesale and Retail / Sales</option>
-                        <option value="Logistics and Warehousing" className="text-xs text-gray-900 py-1">Logistics and Warehousing</option>
-                        <option value="Maritime" className="text-xs text-gray-900 py-1">Maritime</option>
-                        <option value="Utilities / Solar Power" className="text-xs text-gray-900 py-1">Utilities / Solar Power</option>
-                        <option value="Language and Culture" className="text-xs text-gray-900 py-1">Language and Culture</option>
-                        <option value="Entrepreneurship & Management" className="text-xs text-gray-900 py-1">Entrepreneurship & Management</option>
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
-                    </div>
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Preferred Vocational Sector *</label>
+                    <CustomSelect value={regSector} onChange={setRegSector} options={VOCATIONAL_SECTOR_OPTIONS} placeholder="Select Preferred Vocational Sector" />
                   </div>
 
                   {/* 1. Skills (Multi-entry tags) */}
                   <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
                       Technical & Practical Skills *
                     </label>
                     <div className="flex gap-2">
@@ -947,7 +1405,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         onChange={(e) => setSkillInput(e.target.value)}
                         onKeyDown={handleAddSkill}
                         placeholder="Type a skill (e.g. Computer, Welding, Cooking) and press Enter"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                        className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                       />
                       <button
                         type="button"
@@ -980,7 +1438,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                   {/* 2. Experiences (Multi-entry tags) */}
                   <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
                       Past Work / Practical Experiences (Optional)
                     </label>
                     <div className="flex gap-2">
@@ -990,7 +1448,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         onChange={(e) => setExpInput(e.target.value)}
                         onKeyDown={handleAddExperience}
                         placeholder="e.g. Computer Shop Helper, Worked in a bakery, Talyer assistant"
-                        className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                        className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                       />
                       <button
                         type="button"
@@ -1023,7 +1481,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                   {/* 3. Primary Livelihood / Career Goal */}
                   <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
                       Primary Career / Livelihood Goal *
                     </label>
                     <input
@@ -1032,7 +1490,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                       value={regGoal}
                       onChange={(e) => setRegGoal(e.target.value)}
                       placeholder="e.g. I want to become an IT professional"
-                      className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                      className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                     />
                   </div>
                 </div>
@@ -1048,55 +1506,39 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
                   IDENTITY VERIFICATION
                 </span>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 tracking-tight leading-tight pb-1">Official KK Member Verification</h2>
+                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Official KK Member Verification</h2>
                 <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
                   Provide proof of identity to authorize your profile for official training referrals.
                 </p>
               </div>
 
               {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 py-1">
-                <div className="w-full max-w-xl mx-auto space-y-6">
-                  <form onSubmit={handleSubmit} className="space-y-6">
+              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
+                  <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-6">
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                       <div className="space-y-1">
-                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">Verification ID Type *</label>
-                        <div className="relative">
-                          <select
-                            value={regIdType}
-                            onChange={(e) => setRegIdType(e.target.value)}
-                            className={`w-full pl-4 pr-10 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden appearance-none transition-all font-medium shadow-2xs ${regIdType ? "text-gray-900" : "text-gray-400"
-                              }`}
-                          >
-                            <option value="" disabled hidden className="text-xs text-gray-400">Select Verification ID Type</option>
-                            <option value="National ID" className="text-xs text-gray-900 py-1">National ID (PhilSys)</option>
-                            <option value="Student ID / Enrollment Receipt" className="text-xs text-gray-900 py-1">Student ID / Enrollment Receipt</option>
-                            <option value="SK Member Card" className="text-xs text-gray-900 py-1">Sangguniang Kabataan Member Card</option>
-                            <option value="Barangay Clearance" className="text-xs text-gray-900 py-1">Barangay Clearance</option>
-                            <option value="Voter's ID or Stub" className="text-xs text-gray-900 py-1">Voter's ID or Registration Stub</option>
-                            <option value="Birth Certificate" className="text-xs text-gray-900 py-1">PSA Birth Certificate</option>
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-gray-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
-                        </div>
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Verification ID Type *</label>
+                        <CustomSelect value={regIdType} onChange={setRegIdType} options={VERIFICATION_ID_TYPE_OPTIONS} placeholder="Select Verification ID Type" />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">ID Number / Reference Number *</label>
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">ID Number / Reference Number *</label>
                         <input
                           type="text"
                           required
                           value={regIdNumber}
                           onChange={(e) => setRegIdNumber(e.target.value)}
                           placeholder="e.g., LRN, ID, or Reference Number"
-                          className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                          className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                         />
                       </div>
                     </div>
 
                     {/* Drag and Drop Upload Zone */}
                     <div className="space-y-1.5 text-xs font-semibold">
-                      <label className="text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
                         Upload Proof of ID / Document Image *
                       </label>
                       <div
@@ -1254,7 +1696,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(currentStep - 1)}
-                className="px-5 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer hover:border-gray-300"
+                className="px-4 sm:px-5 py-2 sm:py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold rounded-lg sm:rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer hover:border-gray-300"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -1267,7 +1709,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 type="button"
                 disabled={!isStepValid(currentStep)}
                 onClick={() => setCurrentStep(currentStep + 1)}
-                className={`px-6 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(currentStep)
+                className={`px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(currentStep)
                   ? "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer hover:-translate-y-0.5"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
@@ -1280,7 +1722,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 type="button"
                 disabled={!isStepValid(4) || isRegistering}
                 onClick={(e) => handleSubmit(e as any)}
-                className={`px-6 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(4) && !isRegistering
+                className={`px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(4) && !isRegistering
                   ? "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer hover:-translate-y-0.5"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}

@@ -601,6 +601,7 @@ export const SikapLogo: React.FC<{
   gap?: string;
   textScale?: number;
   disableHover?: boolean;
+  orientation?: "horizontal" | "vertical";
 }> = ({
   size = 40,
   logoSize,
@@ -609,19 +610,21 @@ export const SikapLogo: React.FC<{
   showSubtext = false,
   variant = "light",
   className = "",
-  textClassName = "pt-2",
+  textClassName = "",
   gap = "gap-2",
   textScale = 0.85,
-  disableHover = false
+  disableHover = false,
+  orientation = "horizontal"
 }) => {
     const effectiveLogoSize = logoSize ?? size;
     const effectiveTextSize = textSize ?? (size * textScale);
     const siColorClass = variant === "white" || variant === "dark" ? "text-white" : "text-[#0D6C43]";
     const kapColorClass = variant === "white" ? "text-[#F5A623]" : "text-[#D99427]";
     const subtextColorClass = variant === "dark" ? "text-gray-300" : variant === "white" ? "text-white/80" : "text-gray-500";
+    const isVertical = orientation === "vertical";
 
     return (
-      <div className={`flex items-center ${gap} select-none ${disableHover ? '' : 'group cursor-pointer transition-transform duration-200 hover:scale-105'} ${className}`}>
+      <div className={`flex ${isVertical ? 'flex-col items-center text-center' : 'items-center'} ${gap} select-none ${disableHover ? '' : 'group cursor-pointer transition-transform duration-200 hover:scale-105'} ${className}`}>
         {/* Official SiKap Emblem Logo */}
         <img
           src="/sikap-logo.png"
@@ -631,14 +634,14 @@ export const SikapLogo: React.FC<{
         />
 
         {showText && (
-          <div className={`flex flex-col justify-center leading-none transition-transform duration-200 ${textClassName}`}>
-            <div className="flex items-baseline font-sans">
-              <span className={`${siColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${effectiveTextSize}px` }}>Si</span>
-              <span className={`${kapColorClass} font-extrabold tracking-tight`} style={{ fontSize: `${effectiveTextSize}px` }}>Kap</span>
+          <div className={`flex flex-col ${isVertical ? 'items-center text-center' : 'justify-center'} leading-none transition-transform duration-200 ${textClassName}`}>
+            <div className="flex items-center justify-center font-sans leading-none">
+              <span className={`${siColorClass} font-extrabold tracking-tight leading-none`} style={{ fontSize: `${effectiveTextSize}px` }}>Si</span>
+              <span className={`${kapColorClass} font-extrabold tracking-tight leading-none`} style={{ fontSize: `${effectiveTextSize}px` }}>Kap</span>
             </div>
             {showSubtext && (
               <span
-                className={`font-bold tracking-[0.12em] uppercase mt-1 ${subtextColorClass}`}
+                className={`font-bold tracking-[0.12em] uppercase ${isVertical ? 'mt-1.5' : 'mt-1'} ${subtextColorClass}`}
                 style={{ fontSize: `${size * 0.22}px` }}
               >
                 Youth Skills & Livelihood Matching

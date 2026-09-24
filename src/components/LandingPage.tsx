@@ -14,11 +14,12 @@ import {
   Activity,
   Sparkles,
   ShieldCheck,
-  Plus
+  Plus,
+  MapPin
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
-import { motion, useInView, animate, useAnimation } from "motion/react";
+import { motion, AnimatePresence, useInView, animate, useAnimation } from "motion/react";
 
 // --- GLOBAL SCROLL VELOCITY TRACKER ---
 let globalScrollVelocity = 0;
@@ -31,18 +32,18 @@ if (typeof window !== 'undefined') {
     const currentTime = performance.now();
     const dt = currentTime - lastScrollTime;
     const dy = currentScrollY - lastScrollY;
-    
+
     if (dt > 0) {
-       globalScrollVelocity = Math.abs(dy / dt); // px per ms
+      globalScrollVelocity = Math.abs(dy / dt); // px per ms
     }
-    
+
     lastScrollY = currentScrollY;
     lastScrollTime = currentTime;
   }, { passive: true });
 
   setInterval(() => {
-     globalScrollVelocity *= 0.8; 
-     if (globalScrollVelocity < 0.1) globalScrollVelocity = 0;
+    globalScrollVelocity *= 0.8;
+    if (globalScrollVelocity < 0.1) globalScrollVelocity = 0;
   }, 100);
 }
 
@@ -67,14 +68,14 @@ const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction
       const speedFactor = getSpeedFactor();
       controls.start({
         ...target,
-        transition: { 
-          duration: duration * speedFactor, 
-          delay: delay * speedFactor, 
-          ease: "easeOut" 
+        transition: {
+          duration: duration * speedFactor,
+          delay: delay * speedFactor,
+          ease: "easeOut"
         }
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInView]);
 
   return (
@@ -108,7 +109,7 @@ const NumberCounter = ({ value, suffix = "", duration = 1, delay = 0, className 
       });
       return () => controls.stop();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInView, value]);
 
   return <span ref={ref} className={className}>{displayValue}{suffix}</span>;
@@ -191,12 +192,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Logo & Brand ID */}
             <div className="flex items-center cursor-pointer select-none group shrink-0" onClick={() => handleScrollToSection("hero")}>
               {/* Mobile Viewport Logo */}
-              <div className="sm:hidden">
-                <SikapLogo size={32} logoSize={38} textSize={24} showText={true} showSubtext={false} gap="gap-1" />
+              <div className="sm:hidden flex items-center">
+                <SikapLogo size={32} logoSize={36} textSize={24} showText={true} showSubtext={false} gap="gap-1.5" />
               </div>
               {/* Tablet & Desktop Viewport Logo */}
-              <div className="hidden sm:block">
-                <SikapLogo size={48} logoSize={58} textSize={38} showText={true} showSubtext={false} gap="gap-1.5" />
+              <div className="hidden sm:flex items-center">
+                <SikapLogo size={44} logoSize={50} textSize={34} showText={true} showSubtext={false} gap="gap-2" />
               </div>
             </div>
 
@@ -230,46 +231,47 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         />
 
         {/* Hero Content centered within the first 80vh */}
-        <div className="min-h-[80vh] flex items-center justify-center w-full relative z-10 pt-2 sm:pt-4 pb-4">
+        <div className="min-h-[80vh] flex items-center justify-center w-full relative z-10 pt-7 sm:pt-8 md:pt-10 lg:pt-4 pb-6 sm:pb-8">
           <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
 
               {/* Hero Left Content */}
-              <div className="lg:col-span-7 space-y-7 sm:space-y-8 text-center lg:text-left">
+              <div className="lg:col-span-7 space-y-4 sm:space-y-6 lg:space-y-8 text-center lg:text-left">
                 <FadeIn direction="left" delay={0.1}>
-                  <div className="inline-flex items-center bg-emerald-100/80 border border-emerald-200 text-[#075332] text-xs sm:text-sm font-black px-5 py-2 rounded-full uppercase tracking-wider shadow-2xs">
-                    San Luis, Pampanga
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-100/80 border border-emerald-200/90 text-[#075332] text-[11px] sm:text-xs lg:text-sm font-black px-3.5 py-1 sm:px-4.5 sm:py-1.5 rounded-full uppercase tracking-wider shadow-2xs mt-1.5 sm:mt-0">
+                    <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] shrink-0" />
+                    <span>San Luis, Pampanga</span>
                   </div>
                 </FadeIn>
 
                 <FadeIn direction="left" delay={0.2}>
-                  <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.05] tracking-tight">
+                  <h1 className="text-3xl sm:text-5xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.08] sm:leading-[1.05] tracking-tight">
                     <span className="block">Find the Right Path.</span>
                     <span className="block text-[#0A6B43] relative inline-block mt-1 sm:mt-2.5">
                       Build Your Future.
-                      <span className="absolute left-0 -bottom-1 sm:-bottom-0.5 lg:-bottom-0.5 w-full h-3 sm:h-3.5 lg:h-4 bg-emerald-100/90 -z-10 rounded-full"></span>
+                      <span className="absolute left-0 -bottom-0.5 sm:-bottom-0.5 lg:-bottom-0.5 w-full h-2.5 sm:h-3.5 lg:h-4 bg-emerald-100/90 -z-10 rounded-full"></span>
                     </span>
                   </h1>
                 </FadeIn>
 
                 <FadeIn direction="left" delay={0.3}>
-                  <p className="text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-medium">
+                  <p className="text-sm sm:text-lg lg:text-2xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-medium">
                     Find opportunities that turn your potential into possibilities.
                   </p>
                 </FadeIn>
 
                 <FadeIn direction="left" delay={0.4}>
-                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-1.5">
+                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-2.5 sm:gap-4 pt-1 sm:pt-1.5">
                     <button
                       onClick={onEnterLogin}
-                      className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-base sm:text-lg font-black px-9 py-4.5 rounded-2xl shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3"
+                      className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-sm sm:text-base lg:text-lg font-black px-6 sm:px-9 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-3 cursor-pointer"
                     >
-                      Sign In
-                      <ArrowRight className="w-5 h-5" />
+                      <span>Sign In</span>
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200" />
                     </button>
                     <button
                       onClick={() => handleScrollToSection("workflow")}
-                      className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 hover:border-emerald-300 text-base sm:text-lg font-bold px-8 py-4.5 rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                      className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 sm:border-2 hover:border-emerald-300 text-sm sm:text-base lg:text-lg font-bold px-5 sm:px-8 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
                     >
                       How SiKap Works
                     </button>
@@ -278,60 +280,60 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               {/* Hero Right Visual Column */}
-              <FadeIn direction="right" delay={0.6} className="lg:col-span-5 relative mt-5 lg:mt-0">
-                <div className="absolute -inset-3 bg-emerald-100/35 rounded-3xl blur-xl -z-10"></div>
+              <FadeIn direction="right" delay={0.6} className="lg:col-span-5 relative mt-6 lg:mt-0">
+                <div className="absolute -inset-2 sm:-inset-3 bg-emerald-100/35 rounded-3xl blur-xl -z-10"></div>
 
                 {/* Interactive Demo Matching Mockup Card */}
-                <div className="bg-white border-2 border-emerald-100/90 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-4 sm:space-y-5.5">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                    <div className="flex items-center gap-3 sm:gap-3.5">
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-800 font-black text-xs sm:text-sm shadow-inner border border-emerald-100 shrink-0">
+                <div className="bg-white border sm:border-2 border-emerald-100/90 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xl sm:shadow-2xl space-y-3 sm:space-y-5.5">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
+                    <div className="flex items-center gap-2.5 sm:gap-3.5">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center text-emerald-800 font-black text-xs sm:text-sm shadow-inner border border-emerald-100 shrink-0">
                         KK
                       </div>
                       <div>
-                        <h4 className="text-sm sm:text-lg font-black text-gray-900">Juan dela Cruz</h4>
-                        <p className="text-[11px] sm:text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
+                        <h4 className="text-xs sm:text-lg font-black text-gray-900">Juan dela Cruz</h4>
+                        <p className="text-[10px] sm:text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
                       </div>
                     </div>
-                    <span className="text-[10px] sm:text-sm bg-[#0A6B43] text-white px-3 sm:px-3.5 py-1 rounded-full font-black uppercase tracking-wider shadow-2xs shrink-0">
+                    <span className="text-[9px] sm:text-sm bg-[#0A6B43] text-white px-2.5 sm:px-3.5 py-0.5 sm:py-1 rounded-full font-black uppercase tracking-wider shadow-2xs shrink-0">
                       OSY Youth
                     </span>
                   </div>
 
-                  <div className="space-y-3.5 sm:space-y-4">
-                    <div className="bg-emerald-50/70 rounded-2xl p-3.5 sm:p-5 border border-emerald-100">
+                  <div className="space-y-2.5 sm:space-y-4">
+                    <div className="bg-emerald-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-emerald-100">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] sm:text-sm font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
-                        <span className="text-[10px] sm:text-sm font-black text-emerald-700 bg-white px-2 sm:px-2.5 py-0.5 rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
+                        <span className="text-[10px] sm:text-sm font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
+                        <span className="text-[9px] sm:text-sm font-black text-emerald-700 bg-white px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
                       </div>
-                      <p className="text-sm sm:text-lg font-black text-gray-900 mt-1.5 sm:mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
-                      <div className="flex items-center gap-3 sm:gap-4 mt-2 sm:mt-2.5 text-[11px] sm:text-sm text-gray-600 font-bold">
+                      <p className="text-xs sm:text-lg font-black text-gray-900 mt-1 sm:mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
+                      <div className="flex items-center gap-2 sm:gap-4 mt-1.5 sm:mt-2.5 text-[10px] sm:text-sm text-gray-600 font-bold">
                         <span className="flex items-center gap-1">⏱ 3 Months</span>
                         <span className="flex items-center gap-1">📍 TESDA GPSAT Campus</span>
                       </div>
                     </div>
 
-                    <div className="bg-amber-50/70 rounded-2xl p-3.5 sm:p-5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1.5">
+                    <div className="bg-amber-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1 sm:space-y-1.5">
                       <div className="flex items-center gap-1.5 font-black text-xs sm:text-base text-amber-900">
-                        <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-amber-500 text-amber-500 shrink-0" />
+                        <Sparkles className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 fill-amber-500 text-amber-500 shrink-0" />
                         Gemini Match Rationale
                       </div>
-                      <p className="text-gray-700 font-medium text-[11px] sm:text-sm leading-relaxed">
+                      <p className="text-gray-700 font-medium text-[10px] sm:text-sm leading-relaxed">
                         "Juan has hands-on skills in metal fabrication. This vocational program will officially certify his qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 sm:gap-2 text-[11px] sm:text-sm font-black text-gray-600 pt-0.5">
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-gray-200/60">✓ No Fees</span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-gray-200/60">✓ Free Tools</span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-gray-200/60">✓ Transport Allowance</span>
+                  <div className="flex flex-wrap gap-1 sm:gap-2 text-[10px] sm:text-sm font-black text-gray-600 pt-0.5">
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3.5 py-1 sm:py-2 rounded-lg sm:rounded-xl border border-gray-200/60">✓ No Fees</span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3.5 py-1 sm:py-2 rounded-lg sm:rounded-xl border border-gray-200/60">✓ Free Tools</span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3.5 py-1 sm:py-2 rounded-lg sm:rounded-xl border border-gray-200/60">✓ Transport Allowance</span>
                   </div>
                 </div>
 
                 {/* Mini overlap card - Visible & Optimized across all screen sizes */}
-                <div className="mt-3.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3.5 sm:p-5.5 rounded-2xl shadow-xl sm:shadow-2xl border border-emerald-700/80 flex items-center gap-3 sm:gap-4 max-w-full sm:max-w-[285px] z-10">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 text-white shadow-xs">
+                <div className="mt-2.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3 sm:p-5.5 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-emerald-700/80 flex items-center gap-2.5 sm:gap-4 max-w-full sm:max-w-[285px] z-10">
+                  <div className="w-7 h-7 sm:w-10 sm:h-10 bg-emerald-500 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 text-white shadow-xs">
                     ✓
                   </div>
                   <div className="min-w-0 flex-1">
@@ -577,16 +579,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="lg:col-span-7 divide-y divide-gray-200/70 border-t border-gray-200/70">
 
               {/* Step 01 */}
-              <FadeIn direction="right" delay={0.6} amount={0.3} className="py-8 sm:py-10 group">
-                <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">01</span>
+              <FadeIn direction="right" delay={0.6} amount={0.3} className="py-6 sm:py-8 group">
+                <div className="flex items-start gap-4 sm:gap-6">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                      01
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
                       Discover & Profile
                     </h3>
-                    <p className="text-sm text-gray-500 font-normal leading-relaxed">
+                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
                       KK Youth register their educational background, current competencies, barangay location, and livelihood aspirations through a simple, guided profiling process.
                     </p>
                   </div>
@@ -594,16 +598,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </FadeIn>
 
               {/* Step 02 */}
-              <FadeIn direction="right" delay={0.7} amount={0.3} className="py-8 sm:py-10 group">
-                <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">02</span>
+              <FadeIn direction="right" delay={0.7} amount={0.3} className="py-6 sm:py-8 group">
+                <div className="flex items-start gap-4 sm:gap-6">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                      02
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
                       Match & Recommend
                     </h3>
-                    <p className="text-sm text-gray-500 font-normal leading-relaxed">
+                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
                       SiKap's intelligent matching algorithm evaluates youth profiles against verified TESDA courses to highlight best-fit pathways with transparent, explainable rationales.
                     </p>
                   </div>
@@ -611,16 +617,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </FadeIn>
 
               {/* Step 03 */}
-              <FadeIn direction="right" delay={0.8} amount={0.3} className="py-8 sm:py-10 group">
-                <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">03</span>
+              <FadeIn direction="right" delay={0.8} amount={0.3} className="py-6 sm:py-8 group">
+                <div className="flex items-start gap-4 sm:gap-6">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                      03
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
                       Apply & Connect
                     </h3>
-                    <p className="text-sm text-gray-500 font-normal leading-relaxed">
+                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
                       Youth explore recommended programs, compare course details and schedules, and apply directly to partner training centers with real-time slot tracking.
                     </p>
                   </div>
@@ -628,16 +636,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </FadeIn>
 
               {/* Step 04 */}
-              <FadeIn direction="right" delay={0.9} amount={0.3} className="py-8 sm:py-10 group">
-                <div className="flex items-start gap-5 sm:gap-6">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 group-hover:bg-[#D1FAE5] group-hover:border-[#A7F3D0]">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-gray-700 transition-colors duration-300 group-hover:text-[#0A6B43]">04</span>
+              <FadeIn direction="right" delay={0.9} amount={0.3} className="py-6 sm:py-8 group">
+                <div className="flex items-start gap-4 sm:gap-6">
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                      04
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
                       Train & Certify
                     </h3>
-                    <p className="text-sm text-gray-500 font-normal leading-relaxed">
+                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
                       Partner training institutes confirm applications, automatically reserve cohort capacity, and guide candidates through skills training toward accredited certification.
                     </p>
                   </div>
@@ -691,30 +701,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 const isOpen = activeFaqIndex === i;
                 return (
                   <FadeIn key={i} direction="up" delay={0.4 + (i * 0.15)} amount={0.3}>
-                    <div className="py-6 sm:py-8 group">
+                    <div className="py-5 sm:py-7 group transition-colors duration-200">
                       <button
                         type="button"
                         onClick={() => toggleFaq(i)}
-                        className="w-full text-left flex items-start justify-between gap-6 cursor-pointer"
+                        className="w-full text-left flex items-start justify-between gap-4 sm:gap-6 cursor-pointer"
+                        aria-expanded={isOpen}
                       >
-                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors pr-2">
+                        <h3 className={`text-base sm:text-xl font-bold tracking-tight transition-colors duration-200 pr-2 ${isOpen ? "text-[#0A6B43]" : "text-gray-900 group-hover:text-[#0A6B43]"}`}>
                           {faq.q}
                         </h3>
-                        <div
-                          className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 transition-all duration-200 ${isOpen
-                            ? "bg-[#0A6B43] border-[#0A6B43] text-white rotate-45 shadow-xs"
+                        <motion.div
+                          animate={{ rotate: isOpen ? 45 : 0 }}
+                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${isOpen
+                            ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
                             : "bg-white border-gray-200 text-gray-500 group-hover:border-[#0A6B43] group-hover:text-[#0A6B43]"
                             }`}
                         >
-                          <Plus className="w-4 h-4 transition-transform duration-200" />
-                        </div>
+                          <Plus className="w-4 h-4" />
+                        </motion.div>
                       </button>
 
-                      {isOpen && (
-                        <div className="pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed animate-in fade-in duration-200">
-                          {faq.a}
-                        </div>
-                      )}
+                      <AnimatePresence initial={false}>
+                        {isOpen && (
+                          <motion.div
+                            key="content"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{
+                              height: "auto",
+                              opacity: 1,
+                              transition: {
+                                height: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+                                opacity: { duration: 0.25, delay: 0.05 }
+                              }
+                            }}
+                            exit={{
+                              height: 0,
+                              opacity: 0,
+                              transition: {
+                                height: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+                                opacity: { duration: 0.15 }
+                              }
+                            }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-3.5 sm:pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed">
+                              {faq.a}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </FadeIn>
                 );
@@ -760,7 +797,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </FadeIn>
               </div>
 
-              <FadeIn direction="up" delay={0.8} className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-4 shrink-0">
+              <FadeIn direction="up" delay={0.8} className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-3 sm:gap-4 shrink-0">
                 <motion.button
                   type="button"
                   onClick={onEnterLogin}
@@ -775,15 +812,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       ease: "easeInOut"
                     }
                   }}
-                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-base sm:text-lg px-8 py-3.5 rounded-2xl shadow-xl hover:shadow-2xl transition-colors inline-flex items-center justify-center gap-2.5 cursor-pointer"
+                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-colors inline-flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
                 >
                   Register
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </motion.button>
                 <button
                   type="button"
                   onClick={() => handleScrollToSection("workflow")}
-                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 font-bold text-base sm:text-lg px-8 py-3.5 rounded-2xl transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 font-bold text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl transition-all cursor-pointer inline-flex items-center justify-center gap-2"
                 >
                   How It Works
                 </button>
@@ -794,22 +831,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Minimalist Footer */}
-      <footer className="bg-[#0D1812] border-t border-emerald-950 pt-16 pb-8 mt-auto">
+      <footer className="bg-[#0D1812] border-t border-emerald-950 pt-14 sm:pt-16 pb-8 mt-auto">
         <FadeIn className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-8 md:gap-4">
+          <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-8 md:gap-4 text-center md:text-left">
 
             {/* Brand */}
-            <div className="flex flex-col items-center md:items-start gap-4">
-              <div className="cursor-pointer" onClick={() => handleScrollToSection("hero")}>
-                <SikapLogo size={40} variant="white" showText={true} />
+            <div className="flex flex-col items-center md:items-start gap-3.5 sm:gap-4 max-w-xl">
+              <div className="cursor-pointer inline-flex items-center justify-center" onClick={() => handleScrollToSection("hero")}>
+                <SikapLogo size={36} logoSize={42} textSize={28} variant="white" showText={true} />
               </div>
-              <p className="text-sm text-gray-400 font-medium text-justify max-w-xl">
+              <p className="text-sm text-gray-400 font-medium text-center md:text-left max-w-xl leading-relaxed">
                 SiKap helps young people in San Luis, Pampanga discover opportunities that fit their strengths and aspirations. By connecting youth profiles with relevant training programs, SiKap turns skills, interests, and goals into clearer pathways for learning, growth, and opportunity.
               </p>
             </div>
 
             {/* Links */}
-            <div className="flex flex-wrap justify-center md:justify-end gap-x-8 gap-y-4 text-sm font-bold text-gray-400 pt-2">
+            <div className="flex flex-wrap justify-center md:justify-end gap-x-6 sm:gap-x-8 gap-y-3 sm:gap-y-4 text-sm font-bold text-gray-400 pt-2">
               <button onClick={() => handleScrollToSection("hero")} className="hover:text-white transition-colors cursor-pointer">Home</button>
               <button onClick={() => handleScrollToSection("impact-map")} className="hover:text-white transition-colors cursor-pointer">Why It Matters</button>
               <button onClick={() => handleScrollToSection("opportunity")} className="hover:text-white transition-colors cursor-pointer">What SiKap Offers</button>
@@ -820,7 +857,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Bottom Sub-footer */}
-          <div className="mt-16 pt-8 border-t border-gray-900 flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-medium text-gray-500">
+          <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-gray-900 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 text-xs font-medium text-gray-500 text-center md:text-left">
             <p>© 2026 SiKap. All rights reserved.</p>
             <p className="text-emerald-500/80">Designed and developed by BITWISE</p>
           </div>
