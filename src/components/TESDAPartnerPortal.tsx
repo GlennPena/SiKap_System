@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
@@ -1379,47 +1380,47 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                   {/* Program Filter */}
                   <div className="relative">
-                    <select
+                    <CustomSelect
                       value={pipelineProgramFilter}
-                      onChange={(e) => setPipelineProgramFilter(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer truncate"
-                    >
-                      <option value="All">All Training Programs</option>
-                      {activePrograms.map(p => (
-                        <option key={p.id} value={p.title}>{p.title}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setPipelineProgramFilter(val)}
+                      options={[
+                        { value: "All", label: "All Training Programs" },
+                        ...activePrograms.map(p => ({ value: p.title, label: p.title }))
+                      ]}
+                      size="sm"
+                      placeholder="All Training Programs"
+                    />
                   </div>
 
                   {/* Barangay Filter */}
                   <div className="relative">
-                    <select
+                    <CustomSelect
                       value={pipelineBarangayFilter}
-                      onChange={(e) => setPipelineBarangayFilter(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                    >
-                      <option value="All">All Barangays (San Luis)</option>
-                      {uniqueBarangays.map(b => (
-                        <option key={b} value={b}>Brgy. {b}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setPipelineBarangayFilter(val)}
+                      options={[
+                        { value: "All", label: "All Barangays (San Luis)" },
+                        ...uniqueBarangays.map(b => ({ value: b, label: `Brgy. ${b}` }))
+                      ]}
+                      size="sm"
+                      placeholder="All Barangays"
+                    />
                   </div>
 
                   {/* Status Filter */}
                   <div className="relative">
-                    <select
+                    <CustomSelect
                       value={pipelineStatusFilter}
-                      onChange={(e) => setPipelineStatusFilter(e.target.value)}
+                      onChange={(val) => setPipelineStatusFilter(val)}
                       disabled={dashboardTab !== "all"}
-                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer ${
-                        dashboardTab !== "all" ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <option value="All">All Statuses</option>
-                      <option value="Pending">Pending Review</option>
-                      <option value="Enrolled">Enrolled</option>
-                      <option value="Declined">Declined</option>
-                    </select>
+                      options={[
+                        { value: "All", label: "All Statuses" },
+                        { value: "Pending", label: "Pending Review" },
+                        { value: "Enrolled", label: "Enrolled" },
+                        { value: "Declined", label: "Declined" }
+                      ]}
+                      size="sm"
+                      placeholder="All Statuses"
+                    />
                   </div>
                 </div>
 
@@ -1993,16 +1994,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
 
                 <div className="min-w-[160px]">
-                  <select
+                  <CustomSelect
                     value={programLevelFilter}
-                    onChange={(e) => setProgramLevelFilter(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="All">All Certifications</option>
-                    <option value="NC I">NC I Courses</option>
-                    <option value="NC II">NC II Courses</option>
-                    <option value="NC III">NC III Courses</option>
-                  </select>
+                    onChange={(val) => setProgramLevelFilter(val)}
+                    options={[
+                      { value: "All", label: "All Certifications" },
+                      { value: "NC I", label: "NC I Courses" },
+                      { value: "NC II", label: "NC II Courses" },
+                      { value: "NC III", label: "NC III Courses" }
+                    ]}
+                    size="sm"
+                    placeholder="All Certifications"
+                  />
                 </div>
               </div>
 
@@ -2210,28 +2213,28 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-slate-600 uppercase">Certification Level</label>
-                          <select
+                          <CustomSelect
                             value={progLevel}
-                            onChange={(e) => setProgLevel(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 bg-white rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                          >
-                            <option value="NC I">NC I</option>
-                            <option value="NC II">NC II</option>
-                            <option value="NC III">NC III</option>
-                          </select>
+                            onChange={(val) => setProgLevel(val)}
+                            options={[
+                              { value: "NC I", label: "NC I" },
+                              { value: "NC II", label: "NC II" },
+                              { value: "NC III", label: "NC III" }
+                            ]}
+                            size="sm"
+                            placeholder="Select Level"
+                          />
                         </div>
 
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-emerald-700 uppercase">Vocational Category *</label>
-                          <select
+                          <CustomSelect
                             value={progCategoryId}
-                            onChange={(e) => setProgCategoryId(e.target.value)}
-                            className="w-full p-2.5 border border-emerald-300 bg-emerald-50/60 font-bold rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                          >
-                            {CATEGORIES.map(cat => (
-                              <option key={cat.id} value={cat.id}>{cat.name}</option>
-                            ))}
-                          </select>
+                            onChange={(val) => setProgCategoryId(val)}
+                            options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
+                            size="sm"
+                            placeholder="Select Category"
+                          />
                         </div>
                       </div>
 
@@ -2276,15 +2279,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-slate-600 uppercase">Cost Model</label>
-                          <select
+                          <CustomSelect
                             value={progCost}
-                            onChange={(e) => setProgCost(e.target.value as any)}
-                            className="w-full p-2.5 border border-slate-200 bg-white rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                          >
-                            <option value="Free">Free (TESDA Subsidized)</option>
-                            <option value="Subsidized">Subsidized / Co-pay</option>
-                            <option value="With Fee">Fee-based</option>
-                          </select>
+                            onChange={(val) => setProgCost(val as any)}
+                            options={[
+                              { value: "Free", label: "Free (TESDA Subsidized)" },
+                              { value: "Subsidized", label: "Subsidized / Co-pay" },
+                              { value: "With Fee", label: "Fee-based" }
+                            ]}
+                            size="sm"
+                            placeholder="Select Cost"
+                          />
                         </div>
                       </div>
                     </div>
@@ -3538,28 +3543,28 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-slate-600 uppercase">Certification Level</label>
-                      <select
+                      <CustomSelect
                         value={progLevel}
-                        onChange={(e) => setProgLevel(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 bg-white rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                      >
-                        <option value="NC I">NC I</option>
-                        <option value="NC II">NC II</option>
-                        <option value="NC III">NC III</option>
-                      </select>
+                        onChange={(val) => setProgLevel(val)}
+                        options={[
+                          { value: "NC I", label: "NC I" },
+                          { value: "NC II", label: "NC II" },
+                          { value: "NC III", label: "NC III" }
+                        ]}
+                        size="sm"
+                        placeholder="Select Level"
+                      />
                     </div>
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-emerald-700 uppercase">Vocational Category *</label>
-                      <select
+                      <CustomSelect
                         value={progCategoryId}
-                        onChange={(e) => setProgCategoryId(e.target.value)}
-                        className="w-full p-2.5 border border-emerald-300 bg-emerald-50/60 font-bold rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                      >
-                        {CATEGORIES.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setProgCategoryId(val)}
+                        options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
+                        size="sm"
+                        placeholder="Select Category"
+                      />
                     </div>
                   </div>
 
@@ -3604,15 +3609,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-slate-600 uppercase">Cost Model</label>
-                      <select
+                      <CustomSelect
                         value={progCost}
-                        onChange={(e) => setProgCost(e.target.value as any)}
-                        className="w-full p-2.5 border border-slate-200 bg-white rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                      >
-                        <option value="Free">Free (TESDA Subsidized)</option>
-                        <option value="Subsidized">Subsidized / Co-pay</option>
-                        <option value="With Fee">Fee-based</option>
-                      </select>
+                        onChange={(val) => setProgCost(val as any)}
+                        options={[
+                          { value: "Free", label: "Free (TESDA Subsidized)" },
+                          { value: "Subsidized", label: "Subsidized / Co-pay" },
+                          { value: "With Fee", label: "Fee-based" }
+                        ]}
+                        size="sm"
+                        placeholder="Select Cost"
+                      />
                     </div>
                   </div>
                 </div>

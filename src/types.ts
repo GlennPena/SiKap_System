@@ -104,6 +104,29 @@ export const EDUCATIONAL_ATTAINMENT_OPTIONS = [
 
 export type EducationalAttainment = typeof EDUCATIONAL_ATTAINMENT_OPTIONS[number];
 
+export const VOCATIONAL_SECTOR_OPTIONS = [
+  "Information & Communications Technology (ICT)",
+  "Agriculture, Forestry and Fishery",
+  "Automotive and Land Transportation",
+  "Construction",
+  "Electrical and Electronics",
+  "Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)",
+  "Heavy Equipment Operation",
+  "Metals and Engineering / Welding",
+  "Process Food and Beverages / Culinary",
+  "Tourism / Hotel and Restaurant Services",
+  "Social, Community Development and other Services / Caregiving",
+  "Human Health / Health Care",
+  "Visual and Performing Arts / Creative",
+  "Garments and Textiles",
+  "Wholesale and Retail / Sales",
+  "Logistics and Warehousing",
+  "Maritime",
+  "Utilities / Solar Power",
+  "Language and Culture",
+  "Entrepreneurship & Management"
+] as const;
+
 export function normalizeEducationalAttainment(val?: string | null): EducationalAttainment {
   if (!val) return "College Level";
   const v = val.trim().toLowerCase();

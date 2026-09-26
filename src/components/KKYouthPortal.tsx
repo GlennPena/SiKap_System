@@ -11,6 +11,7 @@ import {
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
+import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
@@ -2636,23 +2637,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Purok / Zone *</label>
-                          <select
+                          <CustomSelect
                             disabled={!isEditingProfile || isUnverified}
                             value={editPurok}
-                            onChange={(e) => setEditPurok(e.target.value)}
-                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
-                              isEditingProfile
-                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
-                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
-                            }`}
-                          >
-                            {["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"].map(p => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                            {editPurok && !["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"].includes(editPurok) && (
-                              <option value={editPurok}>{editPurok}</option>
-                            )}
-                          </select>
+                            onChange={(val) => setEditPurok(val)}
+                            options={["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"]}
+                            size="sm"
+                            placeholder="Select Purok"
+                          />
                         </div>
                       </div>
 
@@ -2660,58 +2652,44 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Educational Attainment *</label>
-                          <select
+                          <CustomSelect
                             disabled={!isEditingProfile || isUnverified}
                             value={normalizeEducationalAttainment(editEdu)}
-                            onChange={(e) => setEditEdu(e.target.value)}
-                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
-                              isEditingProfile
-                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
-                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
-                            }`}
-                          >
-                            {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
-                              <option key={edu} value={edu}>{edu}</option>
-                            ))}
-                          </select>
+                            onChange={(val) => setEditEdu(val)}
+                            options={EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))}
+                            size="sm"
+                            placeholder="Select Educational Attainment"
+                          />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Current Youth Status *</label>
-                          <select
+                          <CustomSelect
                             disabled={!isEditingProfile || isUnverified}
                             value={editStatus}
-                            onChange={(e) => setEditStatus(e.target.value)}
-                            className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
-                              isEditingProfile
-                                ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
-                                : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
-                            }`}
-                          >
-                            <option value="Out-of-school">Out-of-School Youth (OSY)</option>
-                            <option value="In-school">In-School Youth</option>
-                            <option value="Employed">Employed</option>
-                            <option value="Self-employed">Self-Employed / Freelance</option>
-                            <option value="Unemployed">Unemployed Jobseeker</option>
-                            <option value="Working Student">Working Student</option>
-                            <option value="Graduate">TVET / College Graduate</option>
-                          </select>
+                            onChange={(val) => setEditStatus(val)}
+                            options={[
+                              { value: "Out-of-school", label: "Out-of-School Youth (OSY)" },
+                              { value: "In-school", label: "In-School Youth" },
+                              { value: "Employed", label: "Employed" },
+                              { value: "Self-employed", label: "Self-Employed / Freelance" },
+                              { value: "Unemployed", label: "Unemployed Jobseeker" },
+                              { value: "Working Student", label: "Working Student" },
+                              { value: "Graduate", label: "TVET / College Graduate" }
+                            ]}
+                            size="sm"
+                            placeholder="Select Status"
+                          />
                         </div>
                       </div>
 
                       {/* Row 5: Preferred Vocational Sector */}
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-400 uppercase block">Preferred Vocational Sector *</label>
-                        <select
+                        <CustomSelect
                           disabled={!isEditingProfile || isUnverified}
                           value={editSector}
-                          onChange={(e) => setEditSector(e.target.value)}
-                          className={`w-full p-2.5 border rounded-lg text-xs font-bold ${
-                            isEditingProfile
-                              ? "bg-white border-emerald-300 text-gray-900 focus:ring-1 focus:ring-emerald-500"
-                              : "bg-gray-50 border-gray-200 text-gray-700 cursor-default"
-                          }`}
-                        >
-                          {[
+                          onChange={(val) => setEditSector(val)}
+                          options={[
                             "Information & Communications Technology (ICT)",
                             "IT & Digital",
                             "Agriculture, Forestry and Fishery",
@@ -2734,10 +2712,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             "Language and Culture",
                             "Entrepreneurship & Management",
                             "General / Multi-Sector"
-                          ].filter((v, i, a) => a.indexOf(v) === i).map(sec => (
-                            <option key={sec} value={sec}>{sec}</option>
-                          ))}
-                        </select>
+                          ]}
+                          size="sm"
+                          placeholder="Select Vocational Sector"
+                        />
                       </div>
 
                       {/* Row 6: Livelihood & Career Goal */}

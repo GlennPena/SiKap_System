@@ -5,6 +5,7 @@ import {
   Award,
   Briefcase,
   ChevronRight,
+  ChevronLeft,
   FileText,
   Landmark,
   LogOut,
@@ -50,7 +51,9 @@ import {
   Menu
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
+import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import {
   YouthProfile,
   ReferralPipelineItem,
@@ -208,6 +211,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   // Print Report Modal State
   const [isPrintReportModalOpen, setIsPrintReportModalOpen] = useState(false);
 
+  // Pagination state for Recent Youth Registrations on Executive Dashboard
+  const [recentRegPage, setRecentRegPage] = useState(1);
+  const RECENT_REG_PER_PAGE = 5;
+
   // Search & Filter state for KK Youth Directory
   const [youthSearch, setYouthSearch] = useState("");
   const [purokFilter, setPurokFilter] = useState("All");
@@ -215,15 +222,21 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   const [statusFilter, setStatusFilter] = useState("All");
   const [specialFilter, setSpecialFilter] = useState("All");
   const [youthViewMode, setYouthViewMode] = useState<"table" | "grid">("table");
+  const [directoryPage, setDirectoryPage] = useState(1);
+  const DIRECTORY_PER_PAGE = 6;
 
-  // Search & Filter state for TESDA Programs
+  // Search & Filter state for TESDA Programs (aligned with TESDA account forms & catalog)
   const [tesdaSearch, setTesdaSearch] = useState("");
-  const [tesdaTypeFilter, setTesdaTypeFilter] = useState("All");
+  const [tesdaLevelFilter, setTesdaLevelFilter] = useState("All");
+  const [tesdaCategoryFilter, setTesdaCategoryFilter] = useState("All");
   const [tesdaCostFilter, setTesdaCostFilter] = useState("All");
+  const [tesdaAvailabilityFilter, setTesdaAvailabilityFilter] = useState("All");
 
   // Search & Filter state for SK Council Oversight
   const [councilSearch, setCouncilSearch] = useState("");
   const [councilRoleFilter, setCouncilRoleFilter] = useState("All");
+  const [councilPage, setCouncilPage] = useState(1);
+  const COUNCIL_PER_PAGE = 6;
 
   // Local copy of councilors for immediate fallback & sync
   const [localCouncilorsList, setLocalCouncilorsList] = useState<Councilor[]>(councilors);
@@ -386,6 +399,14 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     );
   }, [youthProfiles, cleanBrgy]);
 
+  // Dynamic pagination calculation for Recent Youth Registrations (max 5 per page)
+  const totalRecentRegPages = Math.ceil(localYouthProfiles.length / RECENT_REG_PER_PAGE) || 1;
+  const currentRecentRegPage = Math.min(Math.max(1, recentRegPage), totalRecentRegPages);
+  const paginatedRecentYouth = useMemo(() => {
+    const startIndex = (currentRecentRegPage - 1) * RECENT_REG_PER_PAGE;
+    return localYouthProfiles.slice(startIndex, startIndex + RECENT_REG_PER_PAGE);
+  }, [localYouthProfiles, currentRecentRegPage]);
+
   // Dynamic local referrals
   const localReferrals = useMemo(() => {
     return referrals.filter(r => 
@@ -426,6 +447,19 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       return matchesSearch && matchesRole;
     });
   }, [localCouncilors, councilSearch, councilRoleFilter]);
+
+  // Reset council pagination when search or filter changes
+  useEffect(() => {
+    setCouncilPage(1);
+  }, [councilSearch, councilRoleFilter]);
+
+  // Dynamic pagination calculation for SK Councilors
+  const totalCouncilPages = Math.ceil(filteredCouncilors.length / COUNCIL_PER_PAGE) || 1;
+  const currentCouncilPage = Math.min(Math.max(1, councilPage), totalCouncilPages);
+  const paginatedCouncilors = useMemo(() => {
+    const startIndex = (currentCouncilPage - 1) * COUNCIL_PER_PAGE;
+    return filteredCouncilors.slice(startIndex, startIndex + COUNCIL_PER_PAGE);
+  }, [filteredCouncilors, currentCouncilPage]);
 
   // List of unique puroks in this barangay for dropdown filter
   const uniquePuroks = useMemo(() => {
@@ -480,22 +514,84 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     });
   }, [localYouthProfiles, youthSearch, purokFilter, eduFilter, statusFilter, specialFilter]);
 
-  // Filtered TESDA Programs
+  // Reset directory pagination when search or filters change
+  useEffect(() => {
+    setDirectoryPage(1);
+  }, [youthSearch, purokFilter, eduFilter, statusFilter, specialFilter]);
+
+  // Dynamic pagination calculation for KK Youth Directory (max 6 per page)
+  const totalDirectoryPages = Math.ceil(filteredYouthProfiles.length / DIRECTORY_PER_PAGE) || 1;
+  const currentDirectoryPage = Math.min(Math.max(1, directoryPage), totalDirectoryPages);
+  const paginatedDirectoryYouth = useMemo(() => {
+    const startIndex = (currentDirectoryPage - 1) * DIRECTORY_PER_PAGE;
+    return filteredYouthProfiles.slice(startIndex, startIndex + DIRECTORY_PER_PAGE);
+  }, [filteredYouthProfiles, currentDirectoryPage]);
+
+  // Category options for TESDA filter dropdown
+  const tesdaCategoryOptions = useMemo(() => {
+    return [
+      { value: "All", label: "All Vocational Categories" },
+      ...CATEGORIES.map(c => ({ value: c.name, label: c.name }))
+    ];
+  }, []);
+
+  const isAnyTesdaFilterActive = useMemo(() => {
+    return (
+      tesdaSearch.trim() !== "" ||
+      tesdaLevelFilter !== "All" ||
+      tesdaCategoryFilter !== "All" ||
+      tesdaCostFilter !== "All" ||
+      tesdaAvailabilityFilter !== "All"
+    );
+  }, [tesdaSearch, tesdaLevelFilter, tesdaCategoryFilter, tesdaCostFilter, tesdaAvailabilityFilter]);
+
+  const handleResetTesdaFilters = () => {
+    setTesdaSearch("");
+    setTesdaLevelFilter("All");
+    setTesdaCategoryFilter("All");
+    setTesdaCostFilter("All");
+    setTesdaAvailabilityFilter("All");
+  };
+
+  // Filtered TESDA Programs (aligned with TESDA account forms & catalog)
   const filteredPrograms = useMemo(() => {
     return programs.filter(p => {
-      const q = tesdaSearch.toLowerCase();
+      const q = tesdaSearch.toLowerCase().trim();
       const catName = typeof p.category === "string" ? p.category : p.category?.name || "";
-      const matchesSearch = 
+      const matchedCatObj = CATEGORIES.find(c => c.id === p.categoryId);
+      const resolvedCatName = catName || matchedCatObj?.name || "";
+
+      // 1. Search Query: title, provider, venue/location, trainer/instructor, or vocational sector
+      const matchesSearch = !q ||
         p.title.toLowerCase().includes(q) ||
         p.provider.toLowerCase().includes(q) ||
-        p.location.toLowerCase().includes(q) ||
-        catName.toLowerCase().includes(q);
-      
-      const matchesType = tesdaTypeFilter === "All" || p.type === tesdaTypeFilter;
+        (p.location && p.location.toLowerCase().includes(q)) ||
+        (p.instructor && p.instructor.toLowerCase().includes(q)) ||
+        resolvedCatName.toLowerCase().includes(q);
+
+      // 2. Certification Level: NC I, NC II, NC III
+      const matchesLevel = tesdaLevelFilter === "All" ||
+        p.title.toUpperCase().includes(tesdaLevelFilter.toUpperCase());
+
+      // 3. Vocational Category / Sector
+      const matchesCategory = tesdaCategoryFilter === "All" ||
+        resolvedCatName.toLowerCase().includes(tesdaCategoryFilter.toLowerCase()) ||
+        (matchedCatObj && matchedCatObj.name.toLowerCase().includes(tesdaCategoryFilter.toLowerCase()));
+
+      // 4. Cost Model: Free (TESDA Subsidized), Subsidized, With Fee
       const matchesCost = tesdaCostFilter === "All" || p.cost === tesdaCostFilter;
-      return matchesSearch && matchesType && matchesCost;
+
+      // 5. Slot Availability: Open Slots vs Full / Waitlist
+      let matchesAvailability = true;
+      if (tesdaAvailabilityFilter === "Open") {
+        matchesAvailability = p.slotsRemaining > 0 && p.activeStatus !== "Full" && p.activeStatus !== "Closed";
+      } else if (tesdaAvailabilityFilter === "Full") {
+        matchesAvailability = p.slotsRemaining <= 0 || p.activeStatus === "Full" || p.activeStatus === "Closed";
+      }
+
+      return matchesSearch && matchesLevel && matchesCategory && matchesCost && matchesAvailability;
     });
-  }, [programs, tesdaSearch, tesdaTypeFilter, tesdaCostFilter]);
+  }, [programs, tesdaSearch, tesdaLevelFilter, tesdaCategoryFilter, tesdaCostFilter, tesdaAvailabilityFilter]);
 
   // KK Members Census statistics
   const kkMembersSummary = useMemo(() => {
@@ -1044,7 +1140,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </span>
               </div>
               <h1 className="text-sm sm:text-base font-black text-gray-900 mt-0.5 truncate block">
-                Good day, {captainInfo.name.split(" ")[0]} 👋
+                Good day, {captainInfo.name.split(" ")[0]}
               </h1>
             </div>
           </div>
@@ -1263,26 +1359,26 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
               </div>
 
-              {/* 4 Executive KPI Stat Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 4 Executive KPI Stat Cards - 2-column stack on smaller screens */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 
                 {/* Stat 1: Total KK Youth */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:border-emerald-300 transition-all space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Registered KK Youth</span>
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100">
-                      <Users className="w-4.5 h-4.5" />
+                <div className="bg-white border border-gray-150 rounded-2xl p-3 sm:p-5 shadow-xs hover:border-emerald-300 transition-all flex flex-col justify-between space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">Registered KK Youth</span>
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0">
+                      <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-gray-900">{localYouthProfiles.length}</span>
-                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                      <span className="text-xl sm:text-2xl font-black text-gray-900">{localYouthProfiles.length}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-md border border-emerald-100">
                         Census Logged
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-500 font-medium mt-1">
-                      Ages 15–30 residing in {formattedBrgyName}
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
+                      Ages 15–30 in {formattedBrgyName}
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -1291,22 +1387,22 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
 
                 {/* Stat 2: OSY Youth */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:border-amber-300 transition-all space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Out-of-School (OSY)</span>
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100">
-                      <AlertCircle className="w-4.5 h-4.5" />
+                <div className="bg-white border border-gray-150 rounded-2xl p-3 sm:p-5 shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">Out-of-School (OSY)</span>
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100 shrink-0">
+                      <AlertCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-amber-600">{kkMembersSummary.outOfSchool}</span>
-                      <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                      <span className="text-xl sm:text-2xl font-black text-amber-600">{kkMembersSummary.outOfSchool}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-amber-800 bg-amber-50 px-1.5 sm:px-2 py-0.5 rounded-md border border-amber-200">
                         {localYouthProfiles.length > 0 ? Math.round((kkMembersSummary.outOfSchool / localYouthProfiles.length) * 100) : 0}% of Total
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-500 font-medium mt-1">
-                      High priority for TESDA livelihood programs
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
+                      Priority for TESDA livelihood
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -1320,21 +1416,21 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
 
                 {/* Stat 3: SK Council Appointees */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:border-teal-300 transition-all space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">SK Council Officers</span>
-                    <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-800 flex items-center justify-center border border-teal-100">
-                      <Users2 className="w-4.5 h-4.5" />
+                <div className="bg-white border border-gray-150 rounded-2xl p-3 sm:p-5 shadow-xs hover:border-teal-300 transition-all flex flex-col justify-between space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">SK Council Officers</span>
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-teal-50 text-teal-800 flex items-center justify-center border border-teal-100 shrink-0">
+                      <Users2 className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-gray-900">
+                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                      <span className="text-xl sm:text-2xl font-black text-gray-900">
                         {localCouncilors.length + (localSKChair ? 1 : 0)}
                       </span>
-                      <span className="text-xs font-bold text-gray-400">/ 12 Total</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 12 Total</span>
                     </div>
-                    <p className="text-[11px] text-gray-500 font-medium mt-1">
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
                       {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length} Appointees
                     </p>
                   </div>
@@ -1347,22 +1443,22 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
 
                 {/* Stat 4: Municipal TESDA Programs */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:border-emerald-300 transition-all space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">TESDA Courses Open</span>
-                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100">
-                      <Briefcase className="w-4.5 h-4.5" />
+                <div className="bg-white border border-gray-150 rounded-2xl p-3 sm:p-5 shadow-xs hover:border-emerald-300 transition-all flex flex-col justify-between space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">TESDA Courses Open</span>
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 shrink-0">
+                      <Briefcase className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                     </div>
                   </div>
                   <div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-black text-gray-900">{programs.length}</span>
-                      <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                      <span className="text-xl sm:text-2xl font-black text-gray-900">{programs.length}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-blue-700 bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded-md border border-blue-100">
                         San Luis
                       </span>
                     </div>
-                    <p className="text-[11px] text-gray-500 font-medium mt-1">
-                      {localReferrals.length} local youth applications submitted
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
+                      {localReferrals.length} youth applications
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -1376,20 +1472,26 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Col 1 & 2: KATIPUNAN NG KABATAAN CENSUS & ACTIVITY STATUS */}
-                <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-xs lg:col-span-2 space-y-6">
-                  <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
-                    <div>
-                      <h3 className="font-black text-gray-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                        <Users className="w-4 h-4 text-[#0A6B43]" />
-                        Katipunan ng Kabataan Demographics & Activity
-                      </h3>
-                      <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
-                        Census distribution of youth residing in {formattedBrgyName}
-                      </p>
+                <div className="bg-white border border-gray-150 p-4 sm:p-6 rounded-2xl shadow-xs lg:col-span-2 space-y-5 sm:space-y-6">
+                  <div className="border-b border-gray-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
+                        <Users className="w-4 h-4 shrink-0" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-black text-gray-900 text-xs sm:text-sm uppercase tracking-wider leading-snug">
+                          Katipunan ng Kabataan Demographics & Activity
+                        </h3>
+                        <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                          Census distribution of youth residing in {formattedBrgyName}
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-[9px] font-black uppercase text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
-                      Live Census Ledger
-                    </span>
+                    <div className="flex items-center self-start sm:self-center shrink-0">
+                      <span className="text-[9px] font-black uppercase text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md whitespace-nowrap">
+                        Live Census Ledger
+                      </span>
+                    </div>
                   </div>
 
                   {localYouthProfiles.length > 0 ? (
@@ -1575,26 +1677,87 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               </div>
 
               {/* RECENT YOUTH REGISTRATIONS TABLE */}
-              <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-xs space-y-4">
-                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <div className="bg-white border border-gray-150 p-4 sm:p-6 rounded-2xl shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
                   <div>
-                    <h3 className="font-black text-gray-900 text-xs uppercase tracking-wider">
+                    <h3 className="font-black text-gray-900 text-xs sm:text-sm uppercase tracking-wider">
                       Recent Youth Registrations
                     </h3>
-                    <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-semibold mt-0.5">
                       Latest Katipunan ng Kabataan registrants in {formattedBrgyName}
                     </p>
                   </div>
                   <button
                     onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
-                    className="text-xs font-bold text-[#0A6B43] hover:text-emerald-800 flex items-center gap-1 hover:underline uppercase tracking-wider cursor-pointer"
+                    className="text-xs font-bold text-[#0A6B43] hover:text-emerald-800 flex items-center gap-1 hover:underline uppercase tracking-wider cursor-pointer self-start sm:self-auto"
                   >
-                    Full Directory ({localYouthProfiles.length}) <ChevronRight className="w-4 h-4" />
+                    Full Directory ({localYouthProfiles.length}) <ChevronRight className="w-4 h-4 shrink-0" />
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                {/* MOBILE VIEW: Responsive Youth Registration Cards (under md screens) */}
+                <div className="md:hidden space-y-3">
+                  {paginatedRecentYouth.length > 0 ? (
+                    paginatedRecentYouth.map((y) => (
+                      <div
+                        key={y.id}
+                        className="p-3.5 bg-gray-50/80 hover:bg-emerald-50/30 rounded-xl border border-gray-200/90 transition-all space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black text-xs shrink-0">
+                              {y.name.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="block font-bold text-gray-950 text-xs truncate" title={y.name}>
+                                {y.name}
+                              </span>
+                              <span className="text-[10px] text-gray-500">
+                                {y.age} y/o · <strong className="text-gray-800">{y.purok}</strong>
+                              </span>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border shrink-0 ${
+                            y.currentStatus.toLowerCase().includes("out-of-school")
+                              ? "bg-amber-50 text-amber-800 border-amber-200"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          }`}>
+                            {y.currentStatus}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <span className="bg-white text-gray-700 border border-gray-200 px-2 py-0.5 rounded-md text-[9px] font-bold truncate max-w-[130px]">
+                              {y.educationalAttainment}
+                            </span>
+                            <span className={`font-black text-[10px] px-2 py-0.5 rounded-md border shrink-0 ${
+                              y.matchScore >= 80 
+                                ? "text-emerald-700 bg-emerald-50 border-emerald-200" 
+                                : "text-amber-700 bg-amber-50 border-amber-200"
+                            }`}>
+                              {y.matchScore}% Match
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setSelectedYouth(y)}
+                            className="px-3 py-1 bg-[#1C2B20] hover:bg-emerald-800 text-white font-bold uppercase text-[9px] tracking-wider rounded-lg transition-all shadow-2xs shrink-0 cursor-pointer"
+                          >
+                            View Dossier
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-gray-400 font-semibold text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                      No youth registrants recorded yet.
+                    </div>
+                  )}
+                </div>
+
+                {/* DESKTOP VIEW: Full Scrollable Table (md screens and up) */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse min-w-[650px]">
                     <thead>
                       <tr className="border-b border-gray-150 text-gray-400 font-bold text-[10px] bg-gray-50 uppercase tracking-widest">
                         <th className="py-3 px-4 pl-5">Full Name</th>
@@ -1606,8 +1769,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                      {localYouthProfiles.length > 0 ? (
-                        localYouthProfiles.slice(0, 5).map((y) => (
+                      {paginatedRecentYouth.length > 0 ? (
+                        paginatedRecentYouth.map((y) => (
                           <tr key={y.id} className="hover:bg-gray-50/60 transition-colors">
                             <td className="py-3 px-4 pl-5 font-bold text-gray-950 text-xs">
                               <div className="flex items-center gap-2.5">
@@ -1663,6 +1826,56 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls for Recent Youth Registrations (max 5 per page) */}
+                {totalRecentRegPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs">
+                    <span className="text-[11px] text-gray-500 font-medium">
+                      Showing <strong>{(currentRecentRegPage - 1) * RECENT_REG_PER_PAGE + 1}</strong>–<strong>{Math.min(currentRecentRegPage * RECENT_REG_PER_PAGE, localYouthProfiles.length)}</strong> of <strong>{localYouthProfiles.length}</strong> registrants
+                    </span>
+                    <div className="flex items-center gap-1.5 self-center sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setRecentRegPage(p => Math.max(1, p - 1))}
+                        disabled={currentRecentRegPage <= 1}
+                        className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 text-gray-700 font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer text-xs shadow-2xs"
+                        aria-label="Previous page of recent registrations"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Prev</span>
+                      </button>
+
+                      <div className="flex items-center gap-1 px-1">
+                        {Array.from({ length: totalRecentRegPages }, (_, i) => i + 1).map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            onClick={() => setRecentRegPage(pageNum)}
+                            className={`w-7 h-7 rounded-lg text-xs font-black transition-all flex items-center justify-center cursor-pointer ${
+                              pageNum === currentRecentRegPage
+                                ? "bg-[#0A6B43] text-white shadow-xs"
+                                : "text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200"
+                            }`}
+                            aria-label={`Go to page ${pageNum}`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setRecentRegPage(p => Math.min(totalRecentRegPages, p + 1))}
+                        disabled={currentRecentRegPage >= totalRecentRegPages}
+                        className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 text-gray-700 font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer text-xs shadow-2xs"
+                        aria-label="Next page of recent registrations"
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -1674,59 +1887,66 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {currentScreen === BarangayCaptainScreen.YOUTH_DIRECTORY && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      Official Census Registry
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      • {formattedBrgyName}
-                    </span>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                   </div>
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                    <Users className="w-6 h-6 text-[#0A6B43]" />
-                    Katipunan ng Kabataan Directory
-                  </h2>
-                  <p className="text-xs text-gray-500 font-medium mt-1">
-                    Comprehensive roster of all registered youth residents in {formattedBrgyName}. View-only audit mode enabled.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                        Official Census Registry
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
+                        • {formattedBrgyName}
+                      </span>
+                    </div>
+                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
+                      Katipunan ng Kabataan Directory
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
+                      Comprehensive roster of all registered youth residents in {formattedBrgyName}. View-only audit mode enabled.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+                <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto pt-3 sm:pt-0 border-t border-gray-100 sm:border-0 shrink-0">
                   {/* View Switcher */}
                   <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-bold">
                     <button
+                      type="button"
                       onClick={() => setYouthViewMode("table")}
-                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`p-1.5 px-2.5 sm:px-2 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
                         youthViewMode === "table"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800"
                       }`}
                       title="Table View"
                     >
-                      <Table className="w-4 h-4" />
-                      <span className="hidden md:inline">Table</span>
+                      <Table className="w-4 h-4 shrink-0" />
+                      <span className="text-[11px] sm:text-xs sm:inline">Table</span>
                     </button>
                     <button
+                      type="button"
                       onClick={() => setYouthViewMode("grid")}
-                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                      className={`p-1.5 px-2.5 sm:px-2 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
                         youthViewMode === "grid"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800"
                       }`}
                       title="Grid Cards View"
                     >
-                      <LayoutGrid className="w-4 h-4" />
-                      <span className="hidden md:inline">Grid</span>
+                      <LayoutGrid className="w-4 h-4 shrink-0" />
+                      <span className="text-[11px] sm:text-xs sm:inline">Grid</span>
                     </button>
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => setIsPrintReportModalOpen(true)}
-                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                    className="bg-[#0A6B43] hover:bg-[#075332] text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shrink-0"
                   >
-                    <Printer className="w-4 h-4" />
+                    <Printer className="w-4 h-4 shrink-0" />
                     <span>Print Census Sheet</span>
                   </button>
                 </div>
@@ -1758,46 +1978,46 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
                   {/* Purok Filter */}
                   <div className="relative">
-                    <select
+                    <CustomSelect
                       value={purokFilter}
-                      onChange={(e) => setPurokFilter(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs font-semibold"
-                    >
-                      <option value="All">All Puroks ({uniquePuroks.length})</option>
-                      {uniquePuroks.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setPurokFilter(val)}
+                      options={[
+                        { value: "All", label: `All Puroks (${uniquePuroks.length})` },
+                        ...uniquePuroks.map(p => ({ value: p, label: p }))
+                      ]}
+                      size="sm"
+                      placeholder="Select Purok"
+                    />
                   </div>
 
-                  {/* Status Filter */}
+                  {/* Education Level Filter */}
                   <div className="relative">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs font-semibold"
-                    >
-                      <option value="All">All Activity Statuses</option>
-                      <option value="Out-of-school">Out-of-school (OSY)</option>
-                      <option value="In-school">In-school / Student</option>
-                      <option value="Employed">Employed</option>
-                      <option value="Self-employed">Self-employed</option>
-                      <option value="College Graduate">College Graduate</option>
-                    </select>
+                    <CustomSelect
+                      value={eduFilter}
+                      onChange={(val) => setEduFilter(val)}
+                      options={[
+                        { value: "All", label: "All Education Levels" },
+                        ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
+                      ]}
+                      size="sm"
+                      placeholder="Education Level"
+                    />
                   </div>
 
                   {/* Special Vulnerability Filter */}
                   <div className="relative">
-                    <select
+                    <CustomSelect
                       value={specialFilter}
-                      onChange={(e) => setSpecialFilter(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs font-semibold"
-                    >
-                      <option value="All">All Demographics</option>
-                      <option value="Solo Parent">Solo Parents</option>
-                      <option value="PWD">PWD Youth</option>
-                      <option value="Indigenous">Indigenous</option>
-                    </select>
+                      onChange={(val) => setSpecialFilter(val)}
+                      options={[
+                        { value: "All", label: "All Demographics" },
+                        { value: "Solo Parent", label: "Solo Parents" },
+                        { value: "PWD", label: "PWD Youth" },
+                        { value: "Indigenous", label: "Indigenous" }
+                      ]}
+                      size="sm"
+                      placeholder="Demographics"
+                    />
                   </div>
 
                 </div>
@@ -1807,12 +2027,12 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   <span className="text-gray-500 font-medium">
                     Showing <strong>{filteredYouthProfiles.length}</strong> of <strong>{localYouthProfiles.length}</strong> youth records in {formattedBrgyName}
                   </span>
-                  {(youthSearch || purokFilter !== "All" || statusFilter !== "All" || specialFilter !== "All") && (
+                  {(youthSearch || purokFilter !== "All" || eduFilter !== "All" || specialFilter !== "All") && (
                     <button
                       onClick={() => {
                         setYouthSearch("");
                         setPurokFilter("All");
-                        setStatusFilter("All");
+                        setEduFilter("All");
                         setSpecialFilter("All");
                       }}
                       className="text-emerald-700 font-bold hover:underline text-[11px] cursor-pointer"
@@ -1825,7 +2045,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* DIRECTORY DISPLAY (TABLE OR GRID) */}
               {filteredYouthProfiles.length === 0 ? (
-                <div className="bg-white border border-gray-150 rounded-2xl p-12 text-center max-w-md mx-auto space-y-3 shadow-xs">
+                <div className="bg-white border border-gray-150 rounded-2xl p-8 sm:p-12 text-center max-w-md mx-auto space-y-3 shadow-xs">
                   <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 mx-auto">
                     <Search className="w-6 h-6" />
                   </div>
@@ -1837,7 +2057,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     onClick={() => {
                       setYouthSearch("");
                       setPurokFilter("All");
-                      setStatusFilter("All");
+                      setEduFilter("All");
                       setSpecialFilter("All");
                     }}
                     className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
@@ -1845,151 +2065,278 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     Reset All Filters
                   </button>
                 </div>
-              ) : youthViewMode === "table" ? (
-                /* TABLE VIEW */
-                <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b border-gray-150 text-gray-400 font-black text-[10px] bg-gray-50 uppercase tracking-widest">
-                          <th className="py-3.5 px-4 pl-5">Full Name</th>
-                          <th className="py-3.5 px-4">Age / Purok</th>
-                          <th className="py-3.5 px-4">Current Status</th>
-                          <th className="py-3.5 px-4">Education Profile</th>
-                          <th className="py-3.5 px-4">Preferred Sector</th>
-                          <th className="py-3.5 px-4 text-center">CBF Score</th>
-                          <th className="py-3.5 px-4 text-right pr-5">Dossier</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                        {filteredYouthProfiles.map((y) => (
-                          <tr key={y.id} className="hover:bg-gray-50/60 transition-colors">
-                            <td className="py-3.5 px-4 pl-5 font-bold text-gray-950 text-xs">
-                              <div className="flex items-center gap-2.5">
+              ) : (
+                <div className="space-y-4">
+                  {youthViewMode === "table" ? (
+                    /* TABLE VIEW: Responsive Mobile Cards on <md, Clean Table on >=md */
+                    <div className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-xs">
+                      {/* Mobile Cards for Table View */}
+                      <div className="md:hidden p-3.5 sm:p-4 space-y-3">
+                        {paginatedDirectoryYouth.map((y) => (
+                          <div
+                            key={y.id}
+                            className="p-3.5 bg-gray-50/80 hover:bg-emerald-50/30 rounded-xl border border-gray-200/90 transition-all space-y-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
                                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black text-xs shrink-0">
                                   {y.name.charAt(0)}
                                 </div>
-                                <div>
-                                  <span className="block font-extrabold text-gray-900">{y.name}</span>
-                                  <span className="text-[10px] text-gray-400">{y.contactNumber || "No contact"}</span>
+                                <div className="min-w-0">
+                                  <span className="block font-bold text-gray-950 text-xs truncate" title={y.name}>
+                                    {y.name}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500">
+                                    {y.age} y/o · <strong className="text-gray-800">{y.purok}</strong>
+                                  </span>
                                 </div>
                               </div>
-                            </td>
-                            <td className="py-3.5 px-4 text-gray-600">
-                              {y.age} y/o · <strong className="text-gray-900">{y.purok}</strong>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border shrink-0 ${
                                 y.currentStatus.toLowerCase().includes("out-of-school")
                                   ? "bg-amber-50 text-amber-800 border-amber-200"
                                   : "bg-emerald-50 text-emerald-800 border-emerald-200"
                               }`}>
                                 {y.currentStatus}
                               </span>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                {y.educationalAttainment}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-gray-700 font-bold max-w-[140px] truncate" title={y.sectorPreference}>
-                              {y.sectorPreference || "Technical Vocational"}
-                            </td>
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`font-black text-xs px-2.5 py-1 rounded-lg border ${
-                                y.matchScore >= 80
-                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-600 bg-white/70 p-2 rounded-lg border border-gray-150">
+                              <div>
+                                <span className="text-gray-400 block text-[9px] uppercase font-bold">Education:</span>
+                                <span className="font-semibold text-gray-800 truncate block">{y.educationalAttainment}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-400 block text-[9px] uppercase font-bold">Sector:</span>
+                                <span className="font-semibold text-emerald-700 truncate block">{y.sectorPreference || "Technical"}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/60">
+                              <span className={`font-black text-[10px] px-2 py-0.5 rounded-md border shrink-0 ${
+                                y.matchScore >= 80 
+                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200" 
                                   : "text-amber-700 bg-amber-50 border-amber-200"
                               }`}>
-                                {y.matchScore}%
+                                {y.matchScore}% CBF Match
                               </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right pr-5">
                               <button
                                 onClick={() => setSelectedYouth(y)}
-                                className="px-3 py-1.5 bg-[#1C2B20] hover:bg-emerald-800 text-white font-black uppercase text-[10px] tracking-wider rounded-lg transition-all shadow-xs cursor-pointer"
+                                className="px-3 py-1 bg-[#1C2B20] hover:bg-emerald-800 text-white font-bold uppercase text-[9px] tracking-wider rounded-lg transition-all shadow-2xs shrink-0 cursor-pointer"
                               >
                                 View Dossier
                               </button>
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                /* GRID VIEW */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredYouthProfiles.map((y) => (
-                    <div
-                      key={y.id}
-                      className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-4"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase border ${
-                            y.currentStatus.toLowerCase().includes("out-of-school")
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          }`}>
-                            {y.currentStatus}
-                          </span>
-                          <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">
-                            {y.matchScore}% CBF Match
-                          </span>
-                        </div>
+                      </div>
 
-                        <div className="flex items-center gap-3 pt-1">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-teal-900 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
-                            {y.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="font-extrabold text-gray-900 text-sm truncate" title={y.name}>
-                              {y.name}
-                            </h3>
-                            <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
-                              {y.age} y/o · {y.purok}
-                            </p>
-                          </div>
-                        </div>
+                      {/* Desktop Table View */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                          <thead>
+                            <tr className="border-b border-gray-150 text-gray-400 font-black text-[10px] bg-gray-50 uppercase tracking-widest">
+                              <th className="py-3.5 px-4 pl-5">Full Name</th>
+                              <th className="py-3.5 px-4">Age / Purok</th>
+                              <th className="py-3.5 px-4">Current Status</th>
+                              <th className="py-3.5 px-4">Education Profile</th>
+                              <th className="py-3.5 px-4">Preferred Sector</th>
+                              <th className="py-3.5 px-4 text-center">CBF Score</th>
+                              <th className="py-3.5 px-4 text-right pr-5">Dossier</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                            {paginatedDirectoryYouth.map((y) => (
+                              <tr key={y.id} className="hover:bg-gray-50/60 transition-colors">
+                                <td className="py-3.5 px-4 pl-5 font-bold text-gray-950 text-xs">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black text-xs shrink-0">
+                                      {y.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <span className="block font-extrabold text-gray-900">{y.name}</span>
+                                      <span className="text-[10px] text-gray-400">{y.contactNumber || "No contact"}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-600">
+                                  {y.age} y/o · <strong className="text-gray-900">{y.purok}</strong>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                                    y.currentStatus.toLowerCase().includes("out-of-school")
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  }`}>
+                                    {y.currentStatus}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                    {y.educationalAttainment}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-gray-700 font-bold max-w-[140px] truncate" title={y.sectorPreference}>
+                                  {y.sectorPreference || "Technical Vocational"}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className={`font-black text-xs px-2.5 py-1 rounded-lg border ${
+                                    y.matchScore >= 80
+                                      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                      : "text-amber-700 bg-amber-50 border-amber-200"
+                                  }`}>
+                                    {y.matchScore}%
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right pr-5">
+                                  <button
+                                    onClick={() => setSelectedYouth(y)}
+                                    className="px-3 py-1.5 bg-[#1C2B20] hover:bg-emerald-800 text-white font-black uppercase text-[10px] tracking-wider rounded-lg transition-all shadow-xs cursor-pointer"
+                                  >
+                                    View Dossier
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    /* GRID VIEW */
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+                      {paginatedDirectoryYouth.map((y) => (
+                        <div
+                          key={y.id}
+                          className="bg-white border border-gray-150 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 sm:space-y-4"
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase border ${
+                                y.currentStatus.toLowerCase().includes("out-of-school")
+                                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              }`}>
+                                {y.currentStatus}
+                              </span>
+                              <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">
+                                {y.matchScore}% CBF Match
+                              </span>
+                            </div>
 
-                        <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-150 space-y-1.5 text-xs text-gray-700">
-                          <div className="flex justify-between">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase">Education:</span>
-                            <span className="font-semibold text-gray-800 truncate max-w-[150px]">{y.educationalAttainment}</span>
+                            <div className="flex items-center gap-3 pt-1">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-teal-900 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                                {y.name.charAt(0)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-extrabold text-gray-900 text-sm truncate" title={y.name}>
+                                  {y.name}
+                                </h3>
+                                <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                                  {y.age} y/o · {y.purok}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-150 space-y-1.5 text-xs text-gray-700">
+                              <div className="flex justify-between">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">Education:</span>
+                                <span className="font-semibold text-gray-800 truncate max-w-[150px]">{y.educationalAttainment}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">Sector:</span>
+                                <span className="font-bold text-emerald-700 truncate max-w-[150px]">{y.sectorPreference || "Technical"}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">Contact:</span>
+                                <span
+                                  onClick={() => {
+                                    if (y.contactNumber) {
+                                      navigator.clipboard?.writeText(y.contactNumber);
+                                      showToast("Contact number copied to clipboard!", "success");
+                                    }
+                                  }}
+                                  className="font-mono text-[11px] text-gray-800 hover:text-[#0A6B43] cursor-pointer"
+                                  title="Click to copy"
+                                >
+                                  {y.contactNumber || "N/A"}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase">Sector:</span>
-                            <span className="font-bold text-emerald-700 truncate max-w-[150px]">{y.sectorPreference || "Technical"}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase">Contact:</span>
-                            <span
-                              onClick={() => {
-                                if (y.contactNumber) {
-                                  navigator.clipboard?.writeText(y.contactNumber);
-                                  showToast("Contact number copied to clipboard!", "success");
-                                }
-                              }}
-                              className="font-mono text-[11px] text-gray-800 hover:text-[#0A6B43] cursor-pointer"
-                              title="Click to copy"
-                            >
-                              {y.contactNumber || "N/A"}
-                            </span>
-                          </div>
+
+                          <button
+                            onClick={() => setSelectedYouth(y)}
+                            className="w-full py-2 bg-slate-100 hover:bg-emerald-50 text-slate-800 hover:text-emerald-800 text-xs font-bold rounded-xl border border-slate-200 hover:border-emerald-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Inspect Dossier
+                          </button>
                         </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Unified Pagination Controls for KK Youth Directory */}
+                  <div className="p-3.5 sm:p-4 px-4 sm:px-6 bg-white border border-gray-150 rounded-2xl shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <span className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                      Showing <strong>{((currentDirectoryPage - 1) * DIRECTORY_PER_PAGE) + 1}</strong> to <strong>{Math.min(currentDirectoryPage * DIRECTORY_PER_PAGE, filteredYouthProfiles.length)}</strong> of <strong>{filteredYouthProfiles.length}</strong> youth records
+                    </span>
+                    <div className="flex items-center gap-1.5 self-center sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setDirectoryPage(p => Math.max(1, p - 1))}
+                        disabled={currentDirectoryPage <= 1}
+                        className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 text-gray-700 font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer text-xs shadow-2xs"
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Prev</span>
+                      </button>
+
+                      <div className="flex items-center gap-1 px-1">
+                        {Array.from({ length: totalDirectoryPages }, (_, i) => i + 1).map((pg) => {
+                          if (
+                            pg === 1 ||
+                            pg === totalDirectoryPages ||
+                            (pg >= currentDirectoryPage - 1 && pg <= currentDirectoryPage + 1)
+                          ) {
+                            return (
+                              <button
+                                key={pg}
+                                type="button"
+                                onClick={() => setDirectoryPage(pg)}
+                                className={`w-7 h-7 rounded-lg text-xs font-black transition-all flex items-center justify-center cursor-pointer ${
+                                  pg === currentDirectoryPage
+                                    ? "bg-[#0A6B43] text-white shadow-xs"
+                                    : "text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200"
+                                }`}
+                                aria-label={`Go to page ${pg}`}
+                              >
+                                {pg}
+                              </button>
+                            );
+                          } else if (
+                            (pg === 2 && currentDirectoryPage > 3) ||
+                            (pg === totalDirectoryPages - 1 && currentDirectoryPage < totalDirectoryPages - 2)
+                          ) {
+                            return <span key={pg} className="px-1 text-gray-400 font-bold">...</span>;
+                          }
+                          return null;
+                        })}
                       </div>
 
                       <button
-                        onClick={() => setSelectedYouth(y)}
-                        className="w-full py-2 bg-slate-100 hover:bg-emerald-50 text-slate-800 hover:text-emerald-800 text-xs font-bold rounded-xl border border-slate-200 hover:border-emerald-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        type="button"
+                        onClick={() => setDirectoryPage(p => Math.min(totalDirectoryPages, p + 1))}
+                        disabled={currentDirectoryPage >= totalDirectoryPages}
+                        className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 text-gray-700 font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer text-xs shadow-2xs"
+                        aria-label="Next page"
                       >
-                        <FileText className="w-3.5 h-3.5" />
-                        Inspect Dossier
+                        <span>Next</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
               )}
 
@@ -2000,193 +2347,310 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* SCREEN 3: SK COUNCIL & GOVERNANCE OVERSIGHT                           */}
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.SK_COUNCIL && (
-            <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
               
-              <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      Sangguniang Barangay Oversight
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      • {formattedBrgyName}
-                    </span>
+              {/* Header Card */}
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+                    <Users2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                   </div>
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                    <Users2 className="w-6 h-6 text-[#0A6B43]" />
-                    Sangguniang Kabataan Council Roster
-                  </h2>
-                  <p className="text-xs text-gray-500 font-medium mt-1">
-                    Oversight of SK officials, appointed officers, and administrative access for {formattedBrgyName}.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                        Sangguniang Barangay Oversight
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
+                        • {formattedBrgyName}
+                      </span>
+                    </div>
+                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
+                      Sangguniang Kabataan Council Roster
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
+                      Oversight of SK officials, appointed officers, and administrative access for {formattedBrgyName}.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Council Summary Badge */}
+                <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200/80 px-3 py-2 rounded-xl shrink-0 self-start sm:self-auto">
+                  <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                  <span className="text-xs font-bold text-emerald-950">
+                    <strong>{localCouncilors.length + (localSKChair ? 1 : 0)}</strong> Total Officials
+                  </span>
                 </div>
               </div>
 
               {/* SK Chairperson Spotlight Banner */}
-              <div className="bg-gradient-to-r from-[#1C2B20] to-[#122417] text-white p-6 rounded-2xl shadow-md border border-emerald-800/40 relative overflow-hidden">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-xl shadow-md shrink-0">
+              <div className="bg-gradient-to-br from-[#1C2B20] via-[#162f20] to-[#0f2115] text-white p-4 sm:p-6 rounded-2xl shadow-md border border-emerald-800/40 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-lg sm:text-xl shadow-md shrink-0">
                       {localSKChair ? localSKChair.name.charAt(0) : "SK"}
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-900/60 border border-amber-500/40 px-2.5 py-0.5 rounded-md">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-900/60 border border-amber-500/40 px-2 py-0.5 rounded-md">
                           Ex-Officio Sangguniang Barangay Member
                         </span>
-                        <span className="text-[10px] font-bold text-emerald-300">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-emerald-300 bg-emerald-900/40 border border-emerald-700/50 px-2 py-0.5 rounded-md">
                           {localSKChair?.status || "Active"}
                         </span>
                       </div>
-                      <h3 className="text-lg font-black text-white">
+                      <h3 className="text-base sm:text-lg font-black text-white truncate" title={localSKChair ? localSKChair.name : "SK Chairperson Seat Pending"}>
                         {localSKChair ? localSKChair.name : "SK Chairperson Seat Pending"}
                       </h3>
-                      <p className="text-xs text-emerald-100/80 font-medium">
+                      <p className="text-[11px] sm:text-xs text-emerald-100/80 font-medium line-clamp-2">
                         Presiding Officer of the Sangguniang Kabataan and youth representative to the Barangay Council.
                       </p>
-                      <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
-                        <span className="text-emerald-200 font-mono">
-                          Email: <strong className="text-white">{localSKChair?.email || "chairperson@sanluispampanga.gov.ph"}</strong>
-                        </span>
-                        <span className="text-emerald-200">
-                          Jurisdiction: <strong className="text-white">{formattedBrgyName}</strong>
-                        </span>
-                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  {/* Chairperson Contact & Action */}
+                  <div className="flex flex-col sm:items-end gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-emerald-800/60 shrink-0">
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-200/90 font-mono truncate">
+                      <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate max-w-[220px] sm:max-w-none">{localSKChair?.email || "chairperson@sanluispampanga.gov.ph"}</span>
+                    </div>
                     <button
+                      type="button"
                       onClick={() => {
                         if (localSKChair?.email) {
                           navigator.clipboard?.writeText(localSKChair.email);
                           showToast("Chairperson email copied!", "success");
                         }
                       }}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto px-3.5 py-1.5 sm:py-2 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white text-xs font-bold rounded-xl border border-white/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <Copy className="w-3.5 h-3.5 text-amber-400" />
-                      Copy Email
+                      <Copy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Copy Email</span>
                     </button>
                   </div>
                 </div>
               </div>
 
               {/* Council Members Toolbar & Grid */}
-              <div className="bg-white p-4 rounded-2xl border border-gray-150 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-150 shadow-xs space-y-3 sm:space-y-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
                   {/* Search */}
-                  <div className="relative flex-1 max-w-md">
+                  <div className="relative flex-1">
                     <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Search council member name or email..."
+                      placeholder="Search member by name, email, or role..."
                       value={councilSearch}
                       onChange={(e) => setCouncilSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden text-xs"
+                      className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden text-xs font-medium"
                     />
+                    {councilSearch && (
+                      <button
+                        onClick={() => setCouncilSearch("")}
+                        className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  {/* Role filter */}
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {["All", "SK Councilor", "Secretary", "Treasurer"].map((rf) => (
-                      <button
-                        key={rf}
-                        onClick={() => setCouncilRoleFilter(rf)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          councilRoleFilter === rf
-                            ? "bg-[#0A6B43] text-white shadow-2xs font-extrabold"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        {rf === "All" ? "All Appointees" : rf}
-                      </button>
-                    ))}
+                  {/* Role filter with CustomSelect */}
+                  <div className="w-full sm:w-56 shrink-0">
+                    <CustomSelect
+                      value={councilRoleFilter}
+                      onChange={(val) => setCouncilRoleFilter(val)}
+                      options={[
+                        { value: "All", label: `All Appointees (${localCouncilors.length})` },
+                        { value: "SK Councilor", label: "SK Councilor" },
+                        { value: "Secretary", label: "Secretary" },
+                        { value: "Treasurer", label: "Treasurer" }
+                      ]}
+                      size="sm"
+                      placeholder="All Appointees"
+                    />
                   </div>
                 </div>
 
+                {/* Filter Summary Banner */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs">
+                  <span className="text-gray-500 font-medium">
+                    Showing <strong>{filteredCouncilors.length}</strong> of <strong>{localCouncilors.length}</strong> council members in {formattedBrgyName}
+                  </span>
+                  {(councilSearch || councilRoleFilter !== "All") && (
+                    <button
+                      onClick={() => {
+                        setCouncilSearch("");
+                        setCouncilRoleFilter("All");
+                      }}
+                      className="text-emerald-700 font-bold hover:underline text-[11px] cursor-pointer"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
                 {filteredCouncilors.length === 0 ? (
-                  <div className="p-10 text-center text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-2xl">
-                    No council members registered or matching filter in {formattedBrgyName}.
+                  <div className="bg-gray-50/60 border-2 border-dashed border-gray-200 rounded-2xl p-8 sm:p-12 text-center max-w-md mx-auto space-y-3">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 mx-auto">
+                      <Users2 className="w-6 h-6" />
+                    </div>
+                    <h4 className="font-bold text-gray-800 text-sm">No Council Members Found</h4>
+                    <p className="text-xs text-gray-500 font-medium">
+                      No SK council members match your search criteria in {formattedBrgyName}.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCouncilSearch("");
+                        setCouncilRoleFilter("All");
+                      }}
+                      className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    >
+                      Reset Filters
+                    </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-                    {filteredCouncilors.map((c) => {
-                      const isSecretary = c.role.toLowerCase().includes("secretary");
-                      const isTreasurer = c.role.toLowerCase().includes("treasurer");
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 pt-1">
+                      {paginatedCouncilors.map((c) => {
+                        const isSecretary = c.role.toLowerCase().includes("secretary");
+                        const isTreasurer = c.role.toLowerCase().includes("treasurer");
 
-                      const roleBadgeClass = isSecretary
-                        ? "bg-amber-50 text-amber-900 border-amber-200"
-                        : isTreasurer
-                        ? "bg-indigo-50 text-indigo-900 border-indigo-200"
-                        : "bg-emerald-50 text-emerald-900 border-emerald-200";
+                        const roleBadgeClass = isSecretary
+                          ? "bg-amber-50 text-amber-900 border-amber-200"
+                          : isTreasurer
+                          ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                          : "bg-emerald-50 text-[#0A6B43] border-emerald-200";
 
-                      return (
-                        <div
-                          key={c.id}
-                          className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs hover:border-emerald-300 transition-all space-y-3"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase border ${roleBadgeClass}`}>
-                              {c.role}
-                            </span>
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                              {c.status}
-                            </span>
+                        const avatarGradient = isSecretary
+                          ? "from-amber-600 to-amber-800"
+                          : isTreasurer
+                          ? "from-indigo-600 to-indigo-800"
+                          : "from-emerald-600 to-teal-800";
+
+                        return (
+                          <div
+                            key={c.id}
+                            className="bg-white border border-gray-200/90 rounded-2xl p-4 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between gap-3 group"
+                          >
+                            {/* Top Header: Role Badges + Active Status */}
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border ${roleBadgeClass}`}>
+                                  {c.role}
+                                </span>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50/80 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  {c.status || "Active"}
+                                </span>
+                              </div>
+
+                              {/* Member Avatar & Name */}
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0 tracking-wider`}>
+                                  {c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="font-black text-gray-900 text-sm sm:text-base leading-tight truncate group-hover:text-[#0A6B43] transition-colors" title={c.name}>
+                                    {c.name}
+                                  </h4>
+                                  <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                                    <span>{formattedBrgyName}</span>
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Contact & Term Details */}
+                            <div className="pt-3 border-t border-gray-100 space-y-2 text-xs">
+                              {/* Email Row */}
+                              <div className="flex items-center justify-between gap-2 min-w-0">
+                                <div className="flex items-center gap-1.5 text-gray-500 shrink-0">
+                                  <Mail className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  <span className="text-[11px] font-semibold text-gray-400 uppercase">Email</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(c.email);
+                                    showToast("Email copied to clipboard!", "success");
+                                  }}
+                                  className="font-mono text-xs text-gray-800 hover:text-[#0A6B43] hover:underline cursor-pointer truncate max-w-[180px] sm:max-w-[200px] text-right font-medium"
+                                  title="Click to copy email"
+                                >
+                                  {c.email}
+                                </button>
+                              </div>
+
+                              {/* Contact Row */}
+                              <div className="flex items-center justify-between gap-2 min-w-0">
+                                <div className="flex items-center gap-1.5 text-gray-500 shrink-0">
+                                  <Phone className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  <span className="text-[11px] font-semibold text-gray-400 uppercase">Phone</span>
+                                </div>
+                                {c.contactNumber ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(c.contactNumber!);
+                                      showToast("Contact number copied!", "success");
+                                    }}
+                                    className="text-xs font-semibold text-gray-800 hover:text-[#0A6B43] hover:underline cursor-pointer text-right"
+                                    title="Click to copy phone number"
+                                  >
+                                    {c.contactNumber}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400 italic">Unlisted</span>
+                                )}
+                              </div>
+
+                              {/* Term Row */}
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/70 text-[11px] text-gray-400">
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="w-3 h-3 text-gray-400" />
+                                  <span>Appointed Term</span>
+                                </div>
+                                <span className="font-semibold text-gray-600">{c.dateCreated || "Active Term"}</span>
+                              </div>
+                            </div>
                           </div>
+                        );
+                      })}
+                    </div>
 
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                              {c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-extrabold text-gray-900 text-sm truncate" title={c.name}>
-                                {c.name}
-                              </h4>
-                              <p className="text-[11px] text-gray-400 truncate">
-                                {formattedBrgyName}
-                              </p>
-                            </div>
+                    {/* Pagination Bar */}
+                    {totalCouncilPages > 1 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs">
+                        <span className="text-gray-500 font-medium order-2 sm:order-1">
+                          Showing page <strong>{currentCouncilPage}</strong> of <strong>{totalCouncilPages}</strong> ({filteredCouncilors.length} members)
+                        </span>
+                        <div className="flex items-center gap-1.5 order-1 sm:order-2">
+                          <button
+                            type="button"
+                            disabled={currentCouncilPage <= 1}
+                            onClick={() => setCouncilPage(p => Math.max(1, p - 1))}
+                            className="p-1.5 px-3 border border-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all flex items-center gap-1"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <span>Prev</span>
+                          </button>
+                          <div className="px-2 font-bold text-[#0A6B43]">
+                            {currentCouncilPage} / {totalCouncilPages}
                           </div>
-
-                          <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-150 space-y-1.5 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase">Email:</span>
-                              <span
-                                onClick={() => {
-                                  navigator.clipboard?.writeText(c.email);
-                                  showToast("Email copied to clipboard!", "success");
-                                }}
-                                className="font-mono text-[11px] text-gray-800 hover:text-[#0A6B43] hover:underline cursor-pointer truncate max-w-[170px]"
-                                title="Click to copy"
-                              >
-                                {c.email}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase">Contact:</span>
-                              <span
-                                onClick={() => {
-                                  if (c.contactNumber) {
-                                    navigator.clipboard?.writeText(c.contactNumber);
-                                    showToast("Contact copied to clipboard!", "success");
-                                  }
-                                }}
-                                className="font-semibold text-[11px] text-gray-800 hover:text-[#0A6B43] cursor-pointer"
-                                title="Click to copy"
-                              >
-                                {c.contactNumber || "N/A"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between pt-1 border-t border-gray-200/50 text-[10px] text-gray-400">
-                              <span>Appointed:</span>
-                              <span className="font-semibold text-gray-600">{c.dateCreated || "Active Term"}</span>
-                            </div>
-                          </div>
+                          <button
+                            type="button"
+                            disabled={currentCouncilPage >= totalCouncilPages}
+                            onClick={() => setCouncilPage(p => Math.min(totalCouncilPages, p + 1))}
+                            className="p-1.5 px-3 border border-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all flex items-center gap-1"
+                          >
+                            <span>Next</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -2199,27 +2663,32 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {currentScreen === BarangayCaptainScreen.APPLICATIONS && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      Direct Program Applications
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      • {formattedBrgyName}
-                    </span>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                   </div>
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                    <FileText className="w-6 h-6 text-[#0A6B43]" />
-                    TESDA Program Applications & Enrollees
-                  </h2>
-                  <p className="text-xs text-gray-500 font-medium mt-1">
-                    Track Katipunan ng Kabataan youth from {formattedBrgyName} who applied directly for technical courses and training certifications.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                        Direct Program Applications
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
+                        • {formattedBrgyName}
+                      </span>
+                    </div>
+                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
+                      TESDA Program Applications & Enrollees
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
+                      Track Katipunan ng Kabataan youth from {formattedBrgyName} who applied directly for technical courses and training certifications.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="text-xs font-bold text-gray-500">
-                  Total Applications: <strong className="text-emerald-700 text-sm">{localReferrals.length} Youth</strong>
+                <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200/80 px-3 py-2 rounded-xl shrink-0 self-start sm:self-auto">
+                  <span className="text-xs font-bold text-gray-600">Total Applications:</span>
+                  <strong className="text-emerald-800 text-xs sm:text-sm font-extrabold">{localReferrals.length} Youth</strong>
                 </div>
               </div>
 
@@ -2303,139 +2772,234 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {currentScreen === BarangayCaptainScreen.TESDA_PROGRAMS && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                      Technical Vocational Directory
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      • San Luis & Pampanga
-                    </span>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+                    <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
                   </div>
-                  <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                    <Briefcase className="w-6 h-6 text-blue-600" />
-                    TESDA Municipal Programs & Courses
-                  </h2>
-                  <p className="text-xs text-gray-500 font-medium mt-1">
-                    Directory of certified skills programs available for Katipunan ng Kabataan youth in your jurisdiction.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
+                        Technical Vocational Directory
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
+                        • San Luis & Pampanga
+                      </span>
+                    </div>
+                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
+                      TESDA Municipal Programs & Courses
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
+                      Directory of certified skills programs available for Katipunan ng Kabataan youth in your jurisdiction.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="text-xs font-bold text-gray-500">
-                  Active Listings: <strong className="text-blue-700 text-sm">{programs.length} Programs</strong>
+                <div className="flex items-center gap-2 bg-blue-50/80 border border-blue-200/80 px-3 py-2 rounded-xl shrink-0 self-start sm:self-auto">
+                  <span className="text-xs font-bold text-gray-600">Active Listings:</span>
+                  <strong className="text-blue-700 text-xs sm:text-sm font-extrabold">{programs.length} Programs</strong>
                 </div>
               </div>
 
-              {/* SEARCH & FILTERS PANEL */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-semibold bg-white p-4 rounded-2xl border border-gray-150 shadow-xs">
-                {/* Search Programs */}
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search program title, provider, location..."
-                    value={tesdaSearch}
-                    onChange={(e) => setTesdaSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden text-xs"
-                  />
+              {/* SEARCH & FILTERS PANEL (Aligned with TESDA Course Forms & Catalog) */}
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 text-xs font-semibold">
+                  {/* Search Programs */}
+                  <div className="sm:col-span-2 lg:col-span-4 relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search courses, provider, venue, trainer..."
+                      value={tesdaSearch}
+                      onChange={(e) => setTesdaSearch(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden text-xs"
+                    />
+                    {tesdaSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTesdaSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter: Certification Level (NC I, NC II, NC III) */}
+                  <div className="lg:col-span-2">
+                    <CustomSelect
+                      value={tesdaLevelFilter}
+                      onChange={(val) => setTesdaLevelFilter(val)}
+                      options={[
+                        { value: "All", label: "All Certifications" },
+                        { value: "NC I", label: "NC I Courses" },
+                        { value: "NC II", label: "NC II Courses" },
+                        { value: "NC III", label: "NC III Courses" }
+                      ]}
+                      size="sm"
+                      placeholder="All Certifications"
+                    />
+                  </div>
+
+                  {/* Filter: Vocational Category / Sector */}
+                  <div className="lg:col-span-2">
+                    <CustomSelect
+                      value={tesdaCategoryFilter}
+                      onChange={(val) => setTesdaCategoryFilter(val)}
+                      options={tesdaCategoryOptions}
+                      size="sm"
+                      placeholder="All Categories"
+                    />
+                  </div>
+
+                  {/* Filter: Cost Model */}
+                  <div className="lg:col-span-2">
+                    <CustomSelect
+                      value={tesdaCostFilter}
+                      onChange={(val) => setTesdaCostFilter(val)}
+                      options={[
+                        { value: "All", label: "All Costs" },
+                        { value: "Free", label: "Free (TESDA Subsidized)" },
+                        { value: "Subsidized", label: "Subsidized / Co-pay" },
+                        { value: "With Fee", label: "Fee-based" }
+                      ]}
+                      size="sm"
+                      placeholder="All Costs"
+                    />
+                  </div>
+
+                  {/* Filter: Slot Availability */}
+                  <div className="lg:col-span-2">
+                    <CustomSelect
+                      value={tesdaAvailabilityFilter}
+                      onChange={(val) => setTesdaAvailabilityFilter(val)}
+                      options={[
+                        { value: "All", label: "All Availability" },
+                        { value: "Open", label: "Open Slots Only" },
+                        { value: "Full", label: "Full / Waitlist" }
+                      ]}
+                      size="sm"
+                      placeholder="All Availability"
+                    />
+                  </div>
                 </div>
 
-                {/* Filter Program Type */}
-                <div className="relative">
-                  <select
-                    value={tesdaTypeFilter}
-                    onChange={(e) => setTesdaTypeFilter(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs"
-                  >
-                    <option value="All">All Program Types</option>
-                    <option value="Training">Training Courses</option>
-                    <option value="Employment">Employment Programs</option>
-                    <option value="Entrepreneurship">Entrepreneurship Grants</option>
-                  </select>
-                </div>
+                {/* Filter Summary & Quick Reset Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs">
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <span className="font-medium text-[11px]">
+                      Showing <strong className="text-gray-900 font-bold">{filteredPrograms.length}</strong> of <strong className="text-gray-700 font-bold">{programs.length}</strong> municipal courses
+                    </span>
+                  </div>
 
-                {/* Filter Program Cost */}
-                <div className="relative">
-                  <select
-                    value={tesdaCostFilter}
-                    onChange={(e) => setTesdaCostFilter(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs"
-                  >
-                    <option value="All">All Costs</option>
-                    <option value="Free">Free / 100% Scholarship</option>
-                    <option value="Subsidized">Subsidized</option>
-                    <option value="With Fee">With Fee</option>
-                  </select>
+                  {isAnyTesdaFilterActive && (
+                    <button
+                      type="button"
+                      onClick={handleResetTesdaFilters}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Reset Filters</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
               {/* PROGRAM CARDS GRID */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {filteredPrograms.length > 0 ? (
-                  filteredPrograms.map((prog) => (
-                    <div
-                      key={prog.id}
-                      className="border border-gray-200 hover:border-emerald-400 rounded-2xl p-5 bg-white transition-all shadow-xs hover:shadow-md relative flex flex-col justify-between space-y-4"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-start">
-                          <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md border ${
-                            prog.type === "Training"
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
-                              : prog.type === "Employment"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}>
-                            {prog.type}
-                          </span>
-                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                            prog.cost === "Free"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : prog.cost === "Subsidized"
-                              ? "bg-indigo-100 text-indigo-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}>
-                            {prog.cost}
-                          </span>
+                  filteredPrograms.map((prog) => {
+                    const certLevelMatch = prog.title.match(/NC\s*(?:I{1,3}|IV)/i);
+                    const certLevel = certLevelMatch ? certLevelMatch[0].toUpperCase() : null;
+                    const catName = typeof prog.category === "string" ? prog.category : prog.category?.name || "";
+                    const matchedCatObj = CATEGORIES.find(c => c.id === prog.categoryId);
+                    const resolvedCat = catName || matchedCatObj?.name || "Technical-Vocational";
+                    const isOpen = prog.slotsRemaining > 0 && prog.activeStatus !== "Full" && prog.activeStatus !== "Closed";
+
+                    return (
+                      <div
+                        key={prog.id}
+                        className="border border-gray-200 hover:border-emerald-400 rounded-2xl p-5 bg-white transition-all shadow-xs hover:shadow-md relative flex flex-col justify-between space-y-4"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md border ${
+                              certLevel
+                                ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}>
+                              {certLevel ? `${certLevel} Certified` : "TESDA Course"}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                                prog.cost === "Free"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  : prog.cost === "Subsidized"
+                                  ? "bg-indigo-50 text-indigo-800 border-indigo-200"
+                                  : "bg-gray-50 text-gray-800 border-gray-200"
+                              }`}>
+                                {prog.cost === "Free" ? "100% Free" : prog.cost}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <h4 className="font-extrabold text-sm text-gray-900 line-clamp-1" title={prog.title}>
+                              {prog.title}
+                            </h4>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider line-clamp-1" title={resolvedCat}>
+                              {resolvedCat}
+                            </p>
+                          </div>
+
+                          <div className="pt-2 border-t border-gray-100 space-y-1.5 text-[11px] font-semibold text-gray-600">
+                            <p className="flex items-center gap-1.5 text-gray-500 truncate" title={prog.provider}>
+                              <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="truncate">{prog.provider}</span>
+                            </p>
+                            <p className="flex items-center gap-1.5 truncate" title={prog.location}>
+                              <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="truncate">{prog.location}</span>
+                            </p>
+                            <p className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span>Duration: <strong className="text-gray-800">{prog.trainingHours} hours</strong></span>
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="space-y-1">
-                          <h4 className="font-extrabold text-sm text-gray-900 line-clamp-1" title={prog.title}>
-                            {prog.title}
-                          </h4>
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                            {prog.provider}
-                          </p>
-                        </div>
-
-                        <div className="pt-2 border-t border-gray-100 space-y-2 text-[11px] font-semibold text-gray-600">
-                          <p className="flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" /> {prog.location}
-                          </p>
-                          <p className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" /> Duration: <strong className="text-gray-800">{prog.trainingHours} hours</strong>
-                          </p>
+                        <div className="pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold">
+                          <div>
+                            <p className="text-gray-400 uppercase tracking-wider text-[8px] font-black">Remaining Slots</p>
+                            <p className={`text-xs font-black mt-0.5 ${isOpen ? "text-emerald-700" : "text-red-600"}`}>
+                              {isOpen ? `${prog.slotsRemaining} / ${prog.slotsTotal} Open` : "Full / Waitlist"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setSelectedProgram(prog)}
+                            className="px-3 py-1.5 bg-gray-50 hover:bg-emerald-50 text-emerald-800 font-bold text-[11px] rounded-lg border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer"
+                          >
+                            View Details
+                          </button>
                         </div>
                       </div>
-
-                      <div className="pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold">
-                        <div>
-                          <p className="text-gray-400 uppercase tracking-wider text-[8px] font-black">Remaining Slots</p>
-                          <p className="text-xs font-black text-gray-800 mt-0.5">{prog.slotsRemaining} / {prog.slotsTotal}</p>
-                        </div>
-                        <button
-                          onClick={() => setSelectedProgram(prog)}
-                          className="px-3 py-1.5 bg-gray-50 hover:bg-emerald-50 text-emerald-800 font-bold text-[11px] rounded-lg border border-gray-200 hover:border-emerald-300 transition-colors cursor-pointer"
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <div className="col-span-full py-12 text-center text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-2xl bg-white">
-                    No TESDA programs match your current search filters.
+                  <div className="col-span-full py-12 text-center text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-2xl bg-white space-y-2">
+                    <p className="text-sm font-bold text-gray-600">No TESDA courses match your current search and filters</p>
+                    <p className="text-xs text-gray-400">Try changing the certification level, vocational sector, cost, or search query.</p>
+                    {isAnyTesdaFilterActive && (
+                      <button
+                        type="button"
+                        onClick={handleResetTesdaFilters}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 transition-colors cursor-pointer mt-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Reset All Filters</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2466,7 +3030,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
 
                 {/* Sub-Tab Navigation Pills */}
-                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full">
+                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full no-scrollbar">
                   {[
                     { id: "profile", label: "Executive Profile", icon: <Shield className="w-3.5 h-3.5 shrink-0" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
@@ -2493,21 +3057,28 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               {profileActiveTab === "profile" && (
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
                   {/* Left Column: Form with View/Edit mode */}
-                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6 space-y-6 shadow-xs">
+                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-xs">
                     <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                      <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                          <User className="w-4 h-4 text-[#0A6B43]" />
-                          Punong Barangay Official Details
-                        </h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-100">
+                            <User className="w-4 h-4 shrink-0" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-black text-gray-900 text-sm sm:text-base tracking-tight leading-snug truncate">
+                              Punong Barangay Official Details
+                            </h3>
+                            <p className="text-[11px] text-gray-500 font-medium">Executive identity & credentials</p>
+                          </div>
+                        </div>
                         {!isEditingProfile && (
                           <button
                             type="button"
                             onClick={() => setIsEditingProfile(true)}
-                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-2xs"
                           >
                             <Edit className="w-3.5 h-3.5" />
-                            Edit Profile Details
+                            <span>Edit Profile Details</span>
                           </button>
                         )}
                       </div>
@@ -3057,10 +3628,20 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           <div className="bg-white border border-gray-150 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
             <div className="bg-[#1C2B20] text-white p-6 flex justify-between items-start shrink-0">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-black/35 px-2 py-0.5 rounded">
-                  {selectedProgram.type} · {selectedProgram.cost}
-                </span>
-                <h3 className="text-base font-black mt-2 leading-snug">{selectedProgram.title}</h3>
+                <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-950/70 border border-emerald-700/50 px-2 py-0.5 rounded">
+                    {selectedProgram.title.match(/NC\s*(?:I{1,3}|IV)/i)?.[0]?.toUpperCase() || "TESDA Certified"}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-black/40 border border-amber-500/30 px-2 py-0.5 rounded">
+                    {selectedProgram.cost === "Free" ? "100% Free (TESDA Scholarship)" : selectedProgram.cost}
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                    selectedProgram.slotsRemaining > 0 ? "bg-emerald-900/60 text-emerald-200 border border-emerald-600/40" : "bg-red-950/60 text-red-300 border border-red-700/40"
+                  }`}>
+                    {selectedProgram.slotsRemaining > 0 ? `${selectedProgram.slotsRemaining} Slots Open` : "Full / Closed"}
+                  </span>
+                </div>
+                <h3 className="text-base font-black leading-snug">{selectedProgram.title}</h3>
                 <p className="text-xs text-emerald-200 font-semibold mt-0.5">{selectedProgram.provider}</p>
               </div>
               <button
@@ -3093,7 +3674,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase block">Category / Sector</span>
                   <p className="text-xs font-bold text-gray-800 mt-0.5">
-                    {typeof selectedProgram.category === "string" ? selectedProgram.category : selectedProgram.category?.name || "Vocational"}
+                    {typeof selectedProgram.category === "string" 
+                      ? selectedProgram.category 
+                      : selectedProgram.category?.name || CATEGORIES.find(c => c.id === selectedProgram.categoryId)?.name || "Technical-Vocational"}
                   </p>
                 </div>
               </div>
@@ -3126,23 +3709,23 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* MODAL 3: EXECUTIVE PRINTABLE CENSUS REPORT                                */}
       {/* ========================================================================= */}
       {isPrintReportModalOpen && (
-        <div id="printable-census-modal-backdrop" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden">
-          <div id="printable-census-modal-card" className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in zoom-in-95 duration-150">
+        <div id="printable-census-modal-backdrop" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-hidden">
+          <div id="printable-census-modal-card" className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in zoom-in-95 duration-150">
             
             {/* Header with Print & Excel Action Controls */}
-            <div className="relative bg-[#1C2B20] text-white p-4 sm:p-5 pr-14 sm:pr-16 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print border-b border-emerald-900/60">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shadow-xs">
-                  <Printer className="w-5 h-5" />
+            <div className="relative bg-[#1C2B20] text-white p-3.5 sm:p-5 pr-12 sm:pr-16 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print border-b border-emerald-900/60">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shadow-xs shrink-0">
+                  <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-2">
+                  <h3 className="text-xs sm:text-base font-black tracking-tight text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
                     Executive Census Summary Sheet
-                    <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-800 text-emerald-200 px-2 py-0.5 rounded-md">
+                    <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest bg-emerald-800 text-emerald-200 px-1.5 sm:px-2 py-0.5 rounded-md">
                       {formattedBrgyName}
                     </span>
                   </h3>
-                  <p className="text-[11px] text-emerald-200/90 font-medium">
+                  <p className="text-[10px] sm:text-[11px] text-emerald-200/90 font-medium line-clamp-1">
                     Official Barangay Youth Governance & Demographic Audit Documentation
                   </p>
                 </div>
@@ -3154,22 +3737,22 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <button
                   type="button"
                   onClick={handleExportCensusExcel}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/50"
+                  className="px-3 sm:px-3.5 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/50"
                   title="Export styled spreadsheet pre-configured for US Letter printing (.xls)"
                 >
                   <Download className="w-3.5 h-3.5 text-white" />
-                  <span>Export Excel (.xls)</span>
+                  <span>Export Excel</span>
                 </button>
 
                 {/* Print / Save as PDF Button */}
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] sm:text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                   title="Print official multi-page document on US Letter paper size or save as PDF"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print / PDF (Letter)</span>
+                  <span>Print / PDF</span>
                 </button>
               </div>
 
@@ -3177,7 +3760,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPrintReportModalOpen(false)}
-                className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-all flex items-center justify-center"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-1.5 sm:p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer transition-all flex items-center justify-center"
                 aria-label="Close census report modal"
                 title="Close census report"
               >
@@ -3186,25 +3769,25 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
             </div>
 
             {/* Printable Content View */}
-            <div className="flex-1 p-6 sm:p-10 print:p-0 print:space-y-5 overflow-y-auto space-y-6 text-xs text-gray-800 bg-white" id="printable-census-report">
+            <div className="flex-1 p-4 sm:p-8 md:p-10 print:p-0 print:space-y-5 overflow-y-auto space-y-5 sm:space-y-6 text-xs text-gray-800 bg-white" id="printable-census-report">
               
               {/* Document Letterhead */}
               <div className="text-center border-b-2 border-emerald-900 pb-4 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Republic of the Philippines · Province of Pampanga</p>
-                <h2 className="text-base font-black text-gray-950 uppercase tracking-tight">MUNICIPALITY OF SAN LUIS</h2>
-                <h3 className="text-sm font-extrabold text-[#0A6B43] uppercase tracking-wider">{formattedBrgyName.toUpperCase()}</h3>
-                <p className="text-[10px] text-gray-400 font-semibold pt-1">
+                <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500">Republic of the Philippines · Province of Pampanga</p>
+                <h2 className="text-sm sm:text-base font-black text-gray-950 uppercase tracking-tight">MUNICIPALITY OF SAN LUIS</h2>
+                <h3 className="text-xs sm:text-sm font-extrabold text-[#0A6B43] uppercase tracking-wider">{formattedBrgyName.toUpperCase()}</h3>
+                <p className="text-[9px] sm:text-[10px] text-gray-400 font-semibold pt-1">
                   OFFICE OF THE PUNONG BARANGAY · SIKAP YOUTH GOVERNANCE SYSTEM
                 </p>
               </div>
 
               {/* Report Meta Details */}
-              <div className="flex justify-between items-center text-[11px] font-semibold bg-gray-50 p-3.5 rounded-xl border border-gray-150">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 text-[10px] sm:text-[11px] font-semibold bg-gray-50 p-3 sm:p-3.5 rounded-xl border border-gray-150">
                 <div>
                   <p>Punong Barangay: <strong>Hon. {captainInfo.name}</strong></p>
                   <p className="mt-0.5">Barangay: <strong>{formattedBrgyName}</strong></p>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <p>Census Date: <strong>{new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong></p>
                   <p className="mt-0.5">SK Presiding Officer: <strong>{localSKChair?.name || "SK Chairperson"}</strong></p>
                 </div>
@@ -3212,30 +3795,30 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* Statistical Summary Table (Strictly OSY & Livelihood Focused) */}
               <div className="space-y-2">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
                   I. Katipunan ng Kabataan Census Summary
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 text-center">
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <span className="text-[9px] font-bold text-gray-500 uppercase">Total Registered Youth</span>
-                    <p className="text-lg font-black text-gray-900 mt-0.5">{localYouthProfiles.length}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-2.5 sm:gap-3 text-center">
+                  <div className="p-2.5 sm:p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[9px] font-bold text-gray-500 uppercase">Total Registered</span>
+                    <p className="text-base sm:text-lg font-black text-gray-900 mt-0.5">{localYouthProfiles.length}</p>
                     <span className="text-[8px] text-gray-400 font-bold">KK Registry</span>
                   </div>
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                  <div className="p-2.5 sm:p-3 bg-amber-50 rounded-xl border border-amber-200">
                     <span className="text-[9px] font-bold text-amber-800 uppercase">Out-of-School (OSY)</span>
-                    <p className="text-lg font-black text-amber-900 mt-0.5">{kkMembersSummary.outOfSchool}</p>
+                    <p className="text-base sm:text-lg font-black text-amber-900 mt-0.5">{kkMembersSummary.outOfSchool}</p>
                     <span className="text-[8px] text-amber-700 font-bold">Primary Priority</span>
                   </div>
-                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                    <span className="text-[9px] font-bold text-emerald-800 uppercase">OSY Density Rate</span>
-                    <p className="text-lg font-black text-emerald-900 mt-0.5">
+                  <div className="p-2.5 sm:p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <span className="text-[9px] font-bold text-emerald-800 uppercase">OSY Density</span>
+                    <p className="text-base sm:text-lg font-black text-emerald-900 mt-0.5">
                       {localYouthProfiles.length > 0 ? ((kkMembersSummary.outOfSchool / localYouthProfiles.length) * 100).toFixed(1) : "0.0"}%
                     </p>
                     <span className="text-[8px] text-emerald-700 font-bold">Demographic Share</span>
                   </div>
-                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200">
-                    <span className="text-[9px] font-bold text-blue-800 uppercase">TVET Matching Target</span>
-                    <p className="text-lg font-black text-blue-900 mt-0.5">{kkMembersSummary.outOfSchool}</p>
+                  <div className="p-2.5 sm:p-3 bg-blue-50 rounded-xl border border-blue-200">
+                    <span className="text-[9px] font-bold text-blue-800 uppercase">TVET Matching</span>
+                    <p className="text-base sm:text-lg font-black text-blue-900 mt-0.5">{kkMembersSummary.outOfSchool}</p>
                     <span className="text-[8px] text-blue-700 font-bold">TESDA Scholarship</span>
                   </div>
                 </div>
@@ -3243,7 +3826,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* Purok-wise Counts */}
               <div className="space-y-2">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
                   II. Purok Population Distribution
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 print:grid-cols-3 gap-2">
@@ -3258,27 +3841,29 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* Skills Gaps Table */}
               <div className="space-y-2">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
+                <h4 className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-900 border-b border-gray-200 pb-1">
                   III. Identified Technical Competency Gaps
                 </h4>
-                <table className="w-full text-left text-xs border border-gray-200">
-                  <thead className="bg-gray-100 text-gray-700 font-bold uppercase text-[9px]">
-                    <tr>
-                      <th className="p-2 border-b">Skill Deficiency Area</th>
-                      <th className="p-2 border-b text-center">Youth Count Lacking</th>
-                      <th className="p-2 border-b text-center">Severity Impact</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {localSkillsGaps.map(gap => (
-                      <tr key={gap.skill}>
-                        <td className="p-2 font-semibold text-gray-800">{gap.skill}</td>
-                        <td className="p-2 text-center font-bold">{gap.count} youth</td>
-                        <td className="p-2 text-center text-amber-700 font-black">{gap.percentage}% of youth</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border border-gray-200 min-w-[320px]">
+                    <thead className="bg-gray-100 text-gray-700 font-bold uppercase text-[9px]">
+                      <tr>
+                        <th className="p-2 border-b">Skill Deficiency Area</th>
+                        <th className="p-2 border-b text-center">Youth Count Lacking</th>
+                        <th className="p-2 border-b text-center">Severity Impact</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {localSkillsGaps.map(gap => (
+                        <tr key={gap.skill}>
+                          <td className="p-2 font-semibold text-gray-800">{gap.skill}</td>
+                          <td className="p-2 text-center font-bold">{gap.count} youth</td>
+                          <td className="p-2 text-center text-amber-700 font-black">{gap.percentage}% of youth</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* SECTION IV: OFFICIAL ATTESTATION & SIGN-OFF BLOCK */}
@@ -3286,27 +3871,27 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-6 text-center">
                   Official Barangay Katipunan ng Kabataan Verification & Executive Attestation
                 </div>
-                <div className="grid grid-cols-2 gap-8 text-center census-signoff-grid">
-                  <div>
-                    <div className="border-b border-gray-400 pb-1 w-48 mx-auto font-black text-gray-900 text-xs uppercase tracking-wide">
+                <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-6 sm:gap-8 text-center justify-items-center items-center census-signoff-grid">
+                  <div className="w-full max-w-[240px] mx-auto flex flex-col items-center">
+                    <div className="border-b border-gray-400 pb-1 w-48 max-w-full mx-auto font-black text-gray-900 text-xs uppercase tracking-wide text-center">
                       {localSKChair?.name || "HON. SK CHAIRPERSON"}
                     </div>
-                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider mt-1">
+                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider mt-1 text-center">
                       SK Chairperson
                     </p>
-                    <p className="text-[9px] text-gray-500 font-semibold">
+                    <p className="text-[9px] text-gray-500 font-semibold text-center">
                       Sangguniang Kabataan · {formattedBrgyName}
                     </p>
                   </div>
 
-                  <div>
-                    <div className="border-b border-gray-400 pb-1 w-48 mx-auto font-black text-gray-900 text-xs uppercase tracking-wide">
+                  <div className="w-full max-w-[240px] mx-auto flex flex-col items-center">
+                    <div className="border-b border-gray-400 pb-1 w-48 max-w-full mx-auto font-black text-gray-900 text-xs uppercase tracking-wide text-center">
                       Hon. {captainInfo.name || "HON. PUNONG BARANGAY"}
                     </div>
-                    <p className="text-[10px] font-black text-gray-900 uppercase tracking-wider mt-1">
+                    <p className="text-[10px] font-black text-gray-900 uppercase tracking-wider mt-1 text-center">
                       Punong Barangay
                     </p>
-                    <p className="text-[9px] text-gray-500 font-semibold">
+                    <p className="text-[9px] text-gray-500 font-semibold text-center">
                       Barangay Government of {formattedBrgyName}
                     </p>
                   </div>

@@ -12,12 +12,13 @@ import {
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
   SKOfficialScreen, UserRole, SkillGapData, Councilor,
-  EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment
+  EDUCATIONAL_ATTAINMENT_OPTIONS, VOCATIONAL_SECTOR_OPTIONS, normalizeEducationalAttainment
 } from "../types";
 import {
   MetricCard, FlameMatchScore, PathwayTimeline,
   OpportunityCard, EmptyState, Toast, ConfirmationModal, SikapLogo
 } from "./ReusableComponents";
+import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge } from "../lib/utils";
 import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
@@ -1555,7 +1556,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         (p.type && p.type.toLowerCase().includes(q)) ||
         (p.eligibility && p.eligibility.toLowerCase().includes(q));
       
-      const matchesType = progSectorFilter === "All" || (p.type && p.type.toLowerCase().includes(progSectorFilter.toLowerCase()));
+      const catName = typeof p.category === "string" ? p.category : p.category?.name || "";
+      const matchesType = progSectorFilter === "All" ||
+        catName.toLowerCase().includes(progSectorFilter.toLowerCase()) ||
+        p.title.toLowerCase().includes(progSectorFilter.toLowerCase()) ||
+        (p.type && p.type.toLowerCase().includes(progSectorFilter.toLowerCase()));
       return matchesSearch && matchesType;
     });
   }, [programs, progSearchQuery, progSectorFilter]);
@@ -2278,50 +2283,56 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   />
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <select
+                  <CustomSelect
                     value={eduFilter}
-                    onChange={(e) => setEduFilter(e.target.value)}
-                    className="p-2 border border-gray-200 rounded-lg text-xs focus:outline-hidden text-gray-600 bg-white"
-                  >
-                    <option value="All">All Education</option>
-                    {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
-                      <option key={edu} value={edu}>{edu}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEduFilter(val)}
+                    options={[
+                      { value: "All", label: "All Education" },
+                      ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
+                    ]}
+                    size="sm"
+                    placeholder="All Education"
+                  />
 
-                  <select
+                  <CustomSelect
                     value={ageFilter}
-                    onChange={(e) => setAgeFilter(e.target.value)}
-                    className="p-2 border border-gray-200 rounded-lg text-xs focus:outline-hidden text-gray-600 bg-white"
-                  >
-                    <option value="All">All Ages</option>
-                    <option value="15-20">15–20 y/o</option>
-                    <option value="21-25">21–25 y/o</option>
-                    <option value="26-30">26–30 y/o</option>
-                  </select>
+                    onChange={(val) => setAgeFilter(val)}
+                    options={[
+                      { value: "All", label: "All Ages" },
+                      { value: "15-20", label: "15–20 y/o" },
+                      { value: "21-25", label: "21–25 y/o" },
+                      { value: "26-30", label: "26–30 y/o" }
+                    ]}
+                    size="sm"
+                    placeholder="All Ages"
+                  />
 
-                  <select
+                  <CustomSelect
                     value={purokFilter}
-                    onChange={(e) => setPurokFilter(e.target.value)}
-                    className="p-2 border border-gray-200 rounded-lg text-xs focus:outline-hidden text-gray-600 bg-white"
-                  >
-                    <option value="All">All Puroks</option>
-                    <option value="Purok 1">Purok 1</option>
-                    <option value="Purok 2">Purok 2</option>
-                    <option value="Purok 3">Purok 3</option>
-                    <option value="Purok 4">Purok 4</option>
-                  </select>
+                    onChange={(val) => setPurokFilter(val)}
+                    options={[
+                      { value: "All", label: "All Puroks" },
+                      { value: "Purok 1", label: "Purok 1" },
+                      { value: "Purok 2", label: "Purok 2" },
+                      { value: "Purok 3", label: "Purok 3" },
+                      { value: "Purok 4", label: "Purok 4" }
+                    ]}
+                    size="sm"
+                    placeholder="All Puroks"
+                  />
 
-                  <select
+                  <CustomSelect
                     value={matchStatusFilter}
-                    onChange={(e) => setMatchStatusFilter(e.target.value)}
-                    className="p-2 border border-gray-200 rounded-lg text-xs focus:outline-hidden text-gray-600 bg-white"
-                  >
-                    <option value="All">All AI Matches</option>
-                    <option value="Excellent">Excellent (&ge;90%)</option>
-                    <option value="Good">Good (75%-89%)</option>
-                    <option value="Fair">Fair (50%-74%)</option>
-                  </select>
+                    onChange={(val) => setMatchStatusFilter(val)}
+                    options={[
+                      { value: "All", label: "All AI Matches" },
+                      { value: "Excellent", label: "Excellent (≥90%)" },
+                      { value: "Good", label: "Good (75%-89%)" },
+                      { value: "Fair", label: "Fair (50%-74%)" }
+                    ]}
+                    size="sm"
+                    placeholder="All AI Matches"
+                  />
                 </div>
               </div>
 
@@ -2855,14 +2866,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-gray-500 uppercase">Gender *</label>
-                          <select
+                          <CustomSelect
                             value={regSex}
-                            onChange={(e) => setRegSex(e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                          >
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                          </select>
+                            onChange={(val) => setRegSex(val)}
+                            options={[
+                              { value: "Male", label: "Male" },
+                              { value: "Female", label: "Female" }
+                            ]}
+                            size="sm"
+                            placeholder="Select Gender"
+                          />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-gray-500 uppercase">Age *</label>
@@ -2878,16 +2891,18 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         </div>
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-gray-500 uppercase">Purok *</label>
-                          <select
+                          <CustomSelect
                             value={regPurok}
-                            onChange={(e) => setRegPurok(e.target.value)}
-                            className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                          >
-                            <option value="Purok 1">Purok 1</option>
-                            <option value="Purok 2">Purok 2</option>
-                            <option value="Purok 3">Purok 3</option>
-                            <option value="Purok 4">Purok 4</option>
-                          </select>
+                            onChange={(val) => setRegPurok(val)}
+                            options={[
+                              { value: "Purok 1", label: "Purok 1" },
+                              { value: "Purok 2", label: "Purok 2" },
+                              { value: "Purok 3", label: "Purok 3" },
+                              { value: "Purok 4", label: "Purok 4" }
+                            ]}
+                            size="sm"
+                            placeholder="Select Purok"
+                          />
                         </div>
                       </div>
                     </div>
@@ -2974,15 +2989,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-gray-500 uppercase">Highest Attainment</label>
-                        <select
+                        <CustomSelect
                           value={regEdu}
-                          onChange={(e) => setRegEdu(e.target.value)}
-                          className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
-                        >
-                          {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
-                            <option key={edu} value={edu}>{edu}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setRegEdu(val)}
+                          options={EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))}
+                          size="sm"
+                          placeholder="Select Education"
+                        />
                       </div>
 
                       <div className="space-y-1">
@@ -3034,32 +3047,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="sm:col-span-1 space-y-1">
                         <label className="text-[11px] font-bold text-gray-500 uppercase block">Preferred Vocational Sector *</label>
-                        <select
+                        <CustomSelect
                           value={regSector}
-                          onChange={(e) => setRegSector(e.target.value)}
-                          className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500"
-                        >
-                          <option value="Information & Communications Technology (ICT)">Information & Communications Technology (ICT)</option>
-                          <option value="Agriculture, Forestry and Fishery">Agriculture, Forestry and Fishery</option>
-                          <option value="Automotive and Land Transportation">Automotive and Land Transportation</option>
-                          <option value="Construction">Construction</option>
-                          <option value="Electrical and Electronics">Electrical and Electronics</option>
-                          <option value="Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)">Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)</option>
-                          <option value="Heavy Equipment Operation">Heavy Equipment Operation</option>
-                          <option value="Metals and Engineering / Welding">Metals and Engineering / Welding</option>
-                          <option value="Process Food and Beverages / Culinary">Process Food and Beverages / Culinary</option>
-                          <option value="Tourism / Hotel and Restaurant Services">Tourism / Hotel and Restaurant Services</option>
-                          <option value="Social, Community Development and other Services / Caregiving">Social, Community Development and other Services / Caregiving</option>
-                          <option value="Human Health / Health Care">Human Health / Health Care</option>
-                          <option value="Visual and Performing Arts / Creative">Visual and Performing Arts / Creative</option>
-                          <option value="Garments and Textiles">Garments and Textiles</option>
-                          <option value="Wholesale and Retail / Sales">Wholesale and Retail / Sales</option>
-                          <option value="Logistics and Warehousing">Logistics and Warehousing</option>
-                          <option value="Maritime">Maritime</option>
-                          <option value="Utilities / Solar Power">Utilities / Solar Power</option>
-                          <option value="Language and Culture">Language and Culture</option>
-                          <option value="Entrepreneurship & Management">Entrepreneurship & Management</option>
-                        </select>
+                          onChange={(val) => setRegSector(val)}
+                          options={VOCATIONAL_SECTOR_OPTIONS.map(sec => ({ value: sec, label: sec }))}
+                          size="sm"
+                          placeholder="Select Sector"
+                        />
                       </div>
 
                       <div className="sm:col-span-2 space-y-1">
@@ -3188,19 +3182,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <select
+                  <CustomSelect
                     value={progSectorFilter}
-                    onChange={(e) => setProgSectorFilter(e.target.value)}
-                    className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="All">All Sectors ({programs.length})</option>
-                    <option value="IT">IT & Technology</option>
-                    <option value="Tourism">Tourism & Hospitality</option>
-                    <option value="Automotive">Automotive & Transport</option>
-                    <option value="Construction">Construction & Metals</option>
-                    <option value="Agriculture">Agriculture</option>
-                    <option value="Health">Health & Social Care</option>
-                  </select>
+                    onChange={(val) => setProgSectorFilter(val)}
+                    options={[
+                      { value: "All", label: `All Sectors (${programs.length})` },
+                      { value: "IT", label: "IT & Technology" },
+                      { value: "Tourism", label: "Tourism & Hospitality" },
+                      { value: "Automotive", label: "Automotive & Transport" },
+                      { value: "Construction", label: "Construction & Metals" },
+                      { value: "Agriculture", label: "Agriculture" },
+                      { value: "Health", label: "Health & Social Care" }
+                    ]}
+                    size="sm"
+                    placeholder="All Sectors"
+                  />
                 </div>
               </div>
 
@@ -3348,18 +3344,20 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
+                  <CustomSelect
                     value={analyticsSectorFilter}
-                    onChange={(e) => setAnalyticsSectorFilter(e.target.value)}
-                    className="p-2 border border-gray-200 bg-white rounded-xl text-xs font-bold text-gray-700 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                  >
-                    <option value="All">All Sector Categories</option>
-                    <option value="IT">IT & Digital Technologies</option>
-                    <option value="Food">Food, Culinary & Baking</option>
-                    <option value="Trades">Construction, Welding & Electrical</option>
-                    <option value="Automotive">Automotive & Engine Mechanics</option>
-                    <option value="Agriculture">Agriculture & Agribusiness</option>
-                  </select>
+                    onChange={(val) => setAnalyticsSectorFilter(val)}
+                    options={[
+                      { value: "All", label: "All Sector Categories" },
+                      { value: "IT", label: "IT & Digital Technologies" },
+                      { value: "Food", label: "Food, Culinary & Baking" },
+                      { value: "Trades", label: "Construction, Welding & Electrical" },
+                      { value: "Automotive", label: "Automotive & Engine Mechanics" },
+                      { value: "Agriculture", label: "Agriculture & Agribusiness" }
+                    ]}
+                    size="sm"
+                    placeholder="All Sector Categories"
+                  />
                   <button
                     type="button"
                     onClick={handleExportSkillsGapExcel}
@@ -4804,28 +4802,32 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase block">Category</label>
-                  <select
+                  <CustomSelect
                     value={annCategory}
-                    onChange={(e) => setAnnCategory(e.target.value as any)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs bg-white focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="Program Update">Program Update</option>
-                    <option value="Event">Event</option>
-                    <option value="Reminder">Reminder</option>
-                    <option value="General">General</option>
-                  </select>
+                    onChange={(val) => setAnnCategory(val as any)}
+                    options={[
+                      { value: "Program Update", label: "Program Update" },
+                      { value: "Event", label: "Event" },
+                      { value: "Reminder", label: "Reminder" },
+                      { value: "General", label: "General" }
+                    ]}
+                    size="sm"
+                    placeholder="Select Category"
+                  />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase block">Target Audience</label>
-                  <select
+                  <CustomSelect
                     value={annAudience}
-                    onChange={(e) => setAnnAudience(e.target.value as any)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs bg-white focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="All KK members">All KK members</option>
-                    <option value="OSY only">OSY only</option>
-                  </select>
+                    onChange={(val) => setAnnAudience(val as any)}
+                    options={[
+                      { value: "All KK members", label: "All KK members" },
+                      { value: "OSY only", label: "OSY only" }
+                    ]}
+                    size="sm"
+                    placeholder="Select Audience"
+                  />
                 </div>
               </div>
 
@@ -4977,15 +4979,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase block">Assigned Official Role *</label>
-                  <select
+                  <CustomSelect
                     value={councilorRole}
-                    onChange={(e) => setCouncilorRole(e.target.value as any)}
-                    className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden font-bold text-gray-800"
-                  >
-                    <option value="SK Councilor">SK Councilor</option>
-                    <option value="Secretary">Secretary</option>
-                    <option value="Treasurer">Treasurer</option>
-                  </select>
+                    onChange={(val) => setCouncilorRole(val as any)}
+                    options={[
+                      { value: "SK Councilor", label: "SK Councilor" },
+                      { value: "Secretary", label: "Secretary" },
+                      { value: "Treasurer", label: "Treasurer" }
+                    ]}
+                    size="sm"
+                    placeholder="Select Role"
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase block">Assigned Barangay</label>
@@ -5098,15 +5102,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase block">Assigned Role *</label>
-                <select
+                <CustomSelect
                   value={editCouncilorRole}
-                  onChange={(e) => setEditCouncilorRole(e.target.value as any)}
-                  className="w-full p-2.5 border border-gray-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden font-semibold text-gray-700"
-                >
-                  <option value="SK Councilor">SK Councilor</option>
-                  <option value="Secretary">Secretary</option>
-                  <option value="Treasurer">Treasurer</option>
-                </select>
+                  onChange={(val) => setEditCouncilorRole(val as any)}
+                  options={[
+                    { value: "SK Councilor", label: "SK Councilor" },
+                    { value: "Secretary", label: "Secretary" },
+                    { value: "Treasurer", label: "Treasurer" }
+                  ]}
+                  size="sm"
+                  placeholder="Select Role"
+                />
               </div>
 
               <div className="pt-3 border-t border-gray-100 flex justify-end gap-2.5">

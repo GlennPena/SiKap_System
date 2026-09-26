@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 
 interface SuperAdminPortalProps {
@@ -1819,60 +1820,64 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
                   <div>
                     <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Barangay Zone (17)</label>
-                    <select
+                    <CustomSelect
                       value={youthBrgyFilter}
-                      onChange={(e) => setYouthBrgyFilter(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                    >
-                      <option value="All">All 17 Barangays</option>
-                      {barangays.map(b => (
-                        <option key={b.name} value={b.name}>{b.name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setYouthBrgyFilter(val)}
+                      options={[
+                        { value: "All", label: "All 17 Barangays" },
+                        ...barangays.map(b => ({ value: b.name, label: b.name }))
+                      ]}
+                      size="sm"
+                      placeholder="All 17 Barangays"
+                    />
                   </div>
 
                   <div>
                     <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Livelihood / Education Status</label>
-                    <select
+                    <CustomSelect
                       value={youthStatusFilter}
-                      onChange={(e) => setYouthStatusFilter(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                    >
-                      <option value="All">All Statuses</option>
-                      <option value="Out-of-school">Out-of-school (OSY)</option>
-                      <option value="In-school">In-school</option>
-                      <option value="Employed">Employed</option>
-                      <option value="Self-employed">Self-employed</option>
-                      <option value="Graduate">Graduate</option>
-                    </select>
+                      onChange={(val) => setYouthStatusFilter(val)}
+                      options={[
+                        { value: "All", label: "All Statuses" },
+                        { value: "Out-of-school", label: "Out-of-school (OSY)" },
+                        { value: "In-school", label: "In-school" },
+                        { value: "Employed", label: "Employed" },
+                        { value: "Self-employed", label: "Self-employed" },
+                        { value: "Graduate", label: "Graduate" }
+                      ]}
+                      size="sm"
+                      placeholder="All Statuses"
+                    />
                   </div>
 
                   <div>
                     <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Special Sector / Demographics</label>
-                    <select
+                    <CustomSelect
                       value={youthDemographicFilter}
-                      onChange={(e) => setYouthDemographicFilter(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                    >
-                      <option value="All">All Sectors</option>
-                      <option value="Solo Parent">Solo Parent</option>
-                      <option value="PWD">Person with Disability (PWD)</option>
-                      <option value="Indigenous">Indigenous Youth</option>
-                    </select>
+                      onChange={(val) => setYouthDemographicFilter(val)}
+                      options={[
+                        { value: "All", label: "All Sectors" },
+                        { value: "Solo Parent", label: "Solo Parent" },
+                        { value: "PWD", label: "Person with Disability (PWD)" },
+                        { value: "Indigenous", label: "Indigenous Youth" }
+                      ]}
+                      size="sm"
+                      placeholder="All Sectors"
+                    />
                   </div>
 
                   <div>
                     <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Educational Attainment</label>
-                    <select
+                    <CustomSelect
                       value={youthEduFilter}
-                      onChange={(e) => setYouthEduFilter(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                    >
-                      <option value="All">All Attainments</option>
-                      {EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => (
-                        <option key={edu} value={edu}>{edu}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setYouthEduFilter(val)}
+                      options={[
+                        { value: "All", label: "All Attainments" },
+                        ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
+                      ]}
+                      size="sm"
+                      placeholder="All Attainments"
+                    />
                   </div>
                 </div>
 
@@ -2121,17 +2126,19 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
+                  <CustomSelect
                     value={brgyStatusFilter}
-                    onChange={(e) => setBrgyStatusFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="All">All 17 Barangays</option>
-                    <option value="Fully Assigned">Fully Assigned ({brgyCoverageSummary.fullyCovered})</option>
-                    <option value="Needs SK Chairperson">Needs SK Chairperson ({brgyCoverageSummary.needsSk})</option>
-                    <option value="Needs Barangay Captain">Needs Barangay Captain ({brgyCoverageSummary.needsCap})</option>
-                    <option value="Needs Assignment">Needs Any Assignment ({brgyCoverageSummary.needsAny})</option>
-                  </select>
+                    onChange={(val) => setBrgyStatusFilter(val)}
+                    options={[
+                      { value: "All", label: "All 17 Barangays" },
+                      { value: "Fully Assigned", label: `Fully Assigned (${brgyCoverageSummary.fullyCovered})` },
+                      { value: "Needs SK Chairperson", label: `Needs SK Chairperson (${brgyCoverageSummary.needsSk})` },
+                      { value: "Needs Barangay Captain", label: `Needs Barangay Captain (${brgyCoverageSummary.needsCap})` },
+                      { value: "Needs Assignment", label: `Needs Any Assignment (${brgyCoverageSummary.needsAny})` }
+                    ]}
+                    size="sm"
+                    placeholder="All 17 Barangays"
+                  />
 
                   {/* View Mode Switcher */}
                   <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
@@ -2790,18 +2797,20 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <select
+                  <CustomSelect
                     value={auditCategoryFilter}
-                    onChange={(e) => setAuditCategoryFilter(e.target.value)}
-                    className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="All">All Event Categories ({auditLogs.length})</option>
-                    <option value="User Provisioning">User Provisioning</option>
-                    <option value="Youth Registration">Youth Registration</option>
-                    <option value="Application & Enrollment">Application & Enrollment</option>
-                    <option value="Program Update">Program Updates</option>
-                    <option value="Announcement">Announcements</option>
-                  </select>
+                    onChange={(val) => setAuditCategoryFilter(val)}
+                    options={[
+                      { value: "All", label: `All Event Categories (${auditLogs.length})` },
+                      { value: "User Provisioning", label: "User Provisioning" },
+                      { value: "Youth Registration", label: "Youth Registration" },
+                      { value: "Application & Enrollment", label: "Application & Enrollment" },
+                      { value: "Program Update", label: "Program Updates" },
+                      { value: "Announcement", label: "Announcements" }
+                    ]}
+                    size="sm"
+                    placeholder="All Event Categories"
+                  />
                 </div>
               </div>
 
@@ -2994,27 +3003,27 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[11px] font-bold text-slate-700 uppercase">Assigned Official Role</label>
-                        <select
+                        <CustomSelect
                           value={role}
-                          onChange={handleRoleChange}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                        >
-                          <option value="SK Chairperson">SK Chairperson</option>
-                          <option value="Barangay Captain">Barangay Captain</option>
-                        </select>
+                          onChange={(val) => handleRoleChange({ target: { value: val } } as any)}
+                          options={[
+                            { value: "SK Chairperson", label: "SK Chairperson" },
+                            { value: "Barangay Captain", label: "Barangay Captain" }
+                          ]}
+                          size="md"
+                          placeholder="Select Role"
+                        />
                       </div>
 
                       <div className="space-y-1.5">
                         <label className="text-[11px] font-bold text-slate-700 uppercase">Barangay Assignment</label>
-                        <select
+                        <CustomSelect
                           value={barangayAssignment}
-                          onChange={(e) => setBarangayAssignment(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                        >
-                          {barangays.map(b => (
-                            <option key={b.name} value={b.name}>{b.name}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setBarangayAssignment(val)}
+                          options={barangays.map(b => ({ value: b.name, label: b.name }))}
+                          size="md"
+                          placeholder="Select Barangay"
+                        />
                       </div>
                     </div>
                   </div>
@@ -4150,20 +4159,18 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
               {/* Action Controls */}
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Scope Filter Dropdown */}
-                <div className="flex items-center gap-1.5 bg-[#0D241C] border border-emerald-800/80 rounded-xl px-2.5 py-1.5 text-xs text-emerald-100">
-                  <span className="text-[10px] uppercase font-extrabold text-emerald-400">Zone:</span>
-                  <select
+                <div className="flex items-center gap-1.5">
+                  <CustomSelect
                     value={selectedReportBarangay}
-                    onChange={(e) => setSelectedReportBarangay(e.target.value)}
-                    className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
-                  >
-                    <option value="All" className="text-slate-900">All 17 Barangays</option>
-                    {barangays.map((b) => (
-                      <option key={b.name} value={b.name} className="text-slate-900">
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedReportBarangay(val)}
+                    options={[
+                      { value: "All", label: "Zone: All 17 Barangays" },
+                      ...barangays.map((b) => ({ value: b.name, label: `Zone: ${b.name}` }))
+                    ]}
+                    size="sm"
+                    placeholder="Select Zone"
+                    buttonClassName="bg-[#0D241C] border-emerald-800/80 text-emerald-100 font-bold hover:bg-[#123026]"
+                  />
                 </div>
 
                 {/* Export Excel (.xls) Formatted Table Button */}
