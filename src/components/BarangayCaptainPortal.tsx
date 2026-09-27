@@ -50,7 +50,7 @@ import {
   ShieldAlert,
   Menu
 } from "lucide-react";
-import { SikapLogo } from "./ReusableComponents";
+import { SikapLogo, NotificationBellButton } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
@@ -1197,18 +1197,13 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
                 return (
                   <>
-                    <button
+                    <NotificationBellButton
+                      isOpen={showNotifications}
                       onClick={() => setShowNotifications(!showNotifications)}
-                      className={`relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl border border-slate-200 transition-all cursor-pointer ${
-                        showNotifications ? "ring-2 ring-emerald-500 bg-white" : ""
-                      }`}
+                      unreadCount={!notificationsRead ? activeNotifs.length : 0}
                       title="Barangay Governance Notifications"
-                    >
-                      <Bell className="w-4 h-4" />
-                      {!notificationsRead && activeNotifs.length > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                      )}
-                    </button>
+                      size="sm"
+                    />
 
                     {showNotifications && (
                       <>

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { formatContactNumber } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
-import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo } from "./ReusableComponents";
+import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo, NotificationBellButton } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
@@ -1182,18 +1182,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                 return (
                   <>
-                    <button
+                    <NotificationBellButton
+                      isOpen={showNotifications}
                       onClick={() => setShowNotifications(!showNotifications)}
-                      className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
-                        showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
-                      }`}
+                      unreadCount={!notificationsRead ? notificationsList.length : 0}
                       title="Notifications"
-                    >
-                      <Bell className="w-5 h-5" />
-                      {!notificationsRead && notificationsList.length > 0 && (
-                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                      )}
-                    </button>
+                      size="sm"
+                    />
 
                     {showNotifications && (
                       <>

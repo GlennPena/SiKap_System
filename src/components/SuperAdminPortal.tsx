@@ -10,7 +10,7 @@ import {
   LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
-import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 
@@ -1465,18 +1465,13 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
 
                 return (
                   <>
-                    <button
+                    <NotificationBellButton
+                      isOpen={showNotifications}
                       onClick={() => setShowNotifications(!showNotifications)}
-                      className={`relative p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200 transition-all cursor-pointer ${
-                        showNotifications ? "ring-2 ring-emerald-500 bg-emerald-50 text-[#0A6B43]" : ""
-                      }`}
+                      unreadCount={!notificationsRead ? systemAlerts.length : 0}
                       title="System Central Alerts"
-                    >
-                      <Bell className="w-4.5 h-4.5" />
-                      {!notificationsRead && systemAlerts.length > 0 && (
-                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                      )}
-                    </button>
+                      size="sm"
+                    />
 
                     {showNotifications && (
                       <>

@@ -9,7 +9,7 @@ import {
   Lock, EyeOff, Edit, ShieldAlert, Copy, Menu
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
-import { MetricCard, SikapLogo, ConfirmationModal } from "./ReusableComponents";
+import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
@@ -1064,20 +1064,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 return (
                   <>
-                    <button
+                    <NotificationBellButton
+                      isOpen={showNotifications}
                       onClick={() => setShowNotifications(!showNotifications)}
-                      className={`relative p-2.5 text-slate-600 hover:text-[#0A6B43] bg-slate-100/80 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer ${
-                        showNotifications ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
-                      }`}
+                      unreadCount={!notificationsRead ? activeNotifs.length : 0}
                       title="TESDA Notifications"
-                    >
-                      <Bell className="w-4 h-4" />
-                      {!notificationsRead && activeNotifs.length > 0 && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center ring-2 ring-white">
-                          {activeNotifs.length}
-                        </span>
-                      )}
-                    </button>
+                    />
 
                     {showNotifications && (
                       <>
@@ -1255,7 +1247,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               )}
 
               {/* KPI Metric Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 <MetricCard
                   title="Published Courses"
                   value={activePrograms.length}
@@ -1287,13 +1279,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               </div>
 
               {/* View Selector Tabs & Global Search */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs space-y-4">
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   {/* Segment Tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl flex-wrap">
+                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto scrollbar-none w-full sm:w-auto shrink-0 max-w-full">
                     <button
                       onClick={() => setDashboardTab("all")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         dashboardTab === "all"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
@@ -1303,7 +1295,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </button>
                     <button
                       onClick={() => setDashboardTab("pending")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                         dashboardTab === "pending"
                           ? "bg-white text-amber-700 shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
@@ -1318,7 +1310,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </button>
                     <button
                       onClick={() => setDashboardTab("enrolled")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         dashboardTab === "enrolled"
                           ? "bg-white text-emerald-700 shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
@@ -1328,7 +1320,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </button>
                     <button
                       onClick={() => setDashboardTab("programs")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         dashboardTab === "programs"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
@@ -1341,7 +1333,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         setDashboardTab("archived");
                         fetchArchivedData();
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                         dashboardTab === "archived"
                           ? "bg-white text-emerald-800 shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
@@ -1356,7 +1348,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleNewProgramClick}
-                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      className="w-full sm:w-auto px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add Course
@@ -1475,65 +1467,78 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           {/* Program Accordion Header */}
                           <div 
                             onClick={() => toggleProgramExpand(title)}
-                            className="p-4 bg-gradient-to-r from-[#112F24] via-[#164132] to-[#1A4B3A] text-white border-b border-emerald-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-all hover:brightness-105 shadow-xs"
+                            className="p-3.5 sm:p-4 bg-gradient-to-r from-[#112F24] via-[#164132] to-[#1A4B3A] text-white border-b border-emerald-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-all hover:brightness-105 shadow-xs"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center justify-center font-black shrink-0 shadow-xs">
-                                <BookOpen className="w-5 h-5" />
+                            <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center justify-center font-black shrink-0 shadow-xs mt-0.5 sm:mt-0">
+                                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="font-extrabold text-sm text-white truncate" title={title}>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                  <h3 className="font-extrabold text-xs sm:text-sm text-white break-words sm:truncate" title={title}>
                                     {title}
                                   </h3>
-                                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
+                                  <span className="text-[10px] font-black px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-400/30 shrink-0">
                                     {programApplicants.length} Candidate{programApplicants.length !== 1 ? "s" : ""}
                                   </span>
                                   {isProgramDurationDone(originalProgram) && (
-                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1">
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1 shrink-0">
                                       <Clock className="w-3 h-3 text-purple-300" /> Term Ended
                                     </span>
                                   )}
+                                  {slotsRemaining !== undefined && (
+                                    <span className={`sm:hidden text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
+                                      slotsRemaining > 5
+                                        ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/30"
+                                        : slotsRemaining > 0
+                                        ? "bg-amber-500/20 text-amber-200 border-amber-400/30"
+                                        : "bg-red-500/20 text-red-200 border-red-400/30"
+                                    }`}>
+                                      {slotsRemaining} / {slotsTotal} Slots Left
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-2.5 text-xs text-emerald-200/80 mt-1 flex-wrap font-medium">
+                                <div className="flex items-center gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs text-emerald-200/80 mt-1.5 sm:mt-1 flex-wrap font-medium">
                                   {originalProgram?.trainingHours && (
-                                    <span className="bg-emerald-950/70 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-700/40">
+                                    <span className="bg-emerald-950/70 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-700/40 shrink-0">
                                       ⏱ {originalProgram.trainingHours} Hours
                                     </span>
                                   )}
                                   {originalProgram && (
-                                    <span className="bg-emerald-950/80 text-emerald-200 px-2.5 py-0.5 rounded-md border border-emerald-700/50 flex items-center gap-1.5 font-bold">
-                                      <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                      <span>{getProgramFullSchedule(originalProgram)}</span>
+                                    <span className="bg-emerald-950/80 text-emerald-200 px-2 sm:px-2.5 py-0.5 rounded-md border border-emerald-700/50 flex items-center gap-1 sm:gap-1.5 font-bold shrink-0 max-w-full">
+                                      <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+                                      <span className="truncate">{getProgramFullSchedule(originalProgram)}</span>
                                     </span>
                                   )}
                                   {originalProgram?.location && (
-                                    <span className="truncate">📍 {originalProgram.location}</span>
+                                    <span className="truncate max-w-[200px] sm:max-w-none">📍 {originalProgram.location}</span>
                                   )}
                                 </div>
                               </div>
                             </div>
 
                             {/* Right Capacity Indicator & Actions */}
-                            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                              {originalProgram && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setProgramToArchive(originalProgram);
-                                  }}
-                                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
-                                    isProgramDurationDone(originalProgram)
-                                      ? "bg-amber-500 hover:bg-amber-600 text-white animate-pulse"
-                                      : "bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/40"
-                                  }`}
-                                  title={isProgramDurationDone(originalProgram) ? "Training Concluded: Archive Term & Enrollees" : "Conclude & Archive Program Term"}
-                                >
-                                  <Archive className="w-3.5 h-3.5" />
-                                  <span>{isProgramDurationDone(originalProgram) ? "Archive Term & Enrollees" : "Archive"}</span>
-                                </button>
-                              )}
+                            <div className="flex items-center justify-between md:justify-end gap-2.5 sm:gap-4 shrink-0 pt-1 md:pt-0 border-t border-emerald-800/30 md:border-t-0">
+                              <div className="flex items-center gap-2">
+                                {originalProgram && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setProgramToArchive(originalProgram);
+                                    }}
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 shadow-xs cursor-pointer ${
+                                      isProgramDurationDone(originalProgram)
+                                        ? "bg-amber-500 hover:bg-amber-600 text-white animate-pulse"
+                                        : "bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/40"
+                                    }`}
+                                    title={isProgramDurationDone(originalProgram) ? "Training Concluded: Archive Term & Enrollees" : "Conclude & Archive Program Term"}
+                                  >
+                                    <Archive className="w-3.5 h-3.5" />
+                                    <span>{isProgramDurationDone(originalProgram) ? "Archive Term" : "Archive"}</span>
+                                  </button>
+                                )}
+                              </div>
 
                               {slotsRemaining !== undefined && (
                                 <div className="text-right hidden sm:block">
@@ -1555,7 +1560,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 </div>
                               )}
 
-                              <div className="w-8 h-8 rounded-lg bg-white/10 text-emerald-200 flex items-center justify-center border border-white/10">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 text-emerald-200 flex items-center justify-center border border-white/10 shrink-0">
                                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               </div>
                             </div>
@@ -1695,18 +1700,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {activePrograms.map((prog) => (
                     <div key={prog.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
-                      <div className="p-5">
-                        <div className="flex justify-between items-start gap-2 mb-3">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                      <div className="p-4 sm:p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-3">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-md shrink-0">
                             {prog.cost} · {prog.trainingHours}h
                           </span>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {isProgramDurationDone(prog) && (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1">
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1 shrink-0">
                                 <Clock className="w-3 h-3 text-purple-600" /> Ended
                               </span>
                             )}
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                               prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
                             }`}>
                               {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Left` : "Full Capacity"}
@@ -1714,18 +1719,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           </div>
                         </div>
 
-                        <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-[#0A6B43] transition-colors leading-tight mb-2">
+                        <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-[#0A6B43] transition-colors leading-snug sm:leading-tight mb-2 break-words">
                           {prog.title}
                         </h3>
 
                         <div className="space-y-2 text-xs text-slate-600 mb-4">
                           {/* Schedule & Timeslot Badge */}
-                          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
+                          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                               <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule & Timeslot</p>
-                                <p className="text-xs font-black text-slate-900 truncate">
+                                <p className="text-xs font-black text-slate-900 break-words sm:truncate">
                                   {getProgramFullSchedule(prog)}
                                 </p>
                               </div>
@@ -1747,18 +1752,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                           <div className="flex items-center gap-2">
                             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{prog.location || "San Luis Municipal Center"}</span>
+                            <span className="break-words sm:truncate">{prog.location || "San Luis Municipal Center"}</span>
                           </div>
                           {prog.instructor && (
                             <div className="flex items-center gap-2">
                               <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate">Trainer: {prog.instructor}</span>
+                              <span className="break-words sm:truncate">Trainer: {prog.instructor}</span>
                             </div>
                           )}
                           {(prog.startDate || prog.endDate) && (
                             <div className="flex items-center gap-2">
                               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
+                              <span className="break-words sm:truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
                             </div>
                           )}
                         </div>
@@ -2024,18 +2029,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     return (
                       <div key={prog.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col justify-between group">
-                        <div className="p-6">
-                          <div className="flex justify-between items-start gap-2 mb-3">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                        <div className="p-4 sm:p-6">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-md shrink-0">
                               {prog.type || "Training"} Course
                             </span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {isProgramDurationDone(prog) && (
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1">
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1 shrink-0">
                                   <Clock className="w-3 h-3 text-purple-600" /> Term Ended
                                 </span>
                               )}
-                              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                              <span className={`text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full shrink-0 ${
                                 prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
                               }`}>
                                 {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Open` : "Full"}
@@ -2043,22 +2048,22 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             </div>
                           </div>
 
-                          <h3 className="text-base font-extrabold text-slate-900 group-hover:text-[#0A6B43] transition-colors leading-tight mb-2">
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 group-hover:text-[#0A6B43] transition-colors leading-snug sm:leading-tight mb-2 break-words">
                             {prog.title}
                           </h3>
 
-                          <p className="text-xs text-slate-500 font-medium mb-4">
+                          <p className="text-xs text-slate-500 font-medium mb-3 sm:mb-4">
                             ⏱ {prog.trainingHours} Training Hours · {prog.cost}
                           </p>
 
                           <div className="space-y-2 text-xs text-slate-600 mb-5">
                             {/* Schedule & Timeslot Badge */}
-                            <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
+                            <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule & Timeslot</p>
-                                  <p className="text-xs font-black text-slate-900 truncate">
+                                  <p className="text-xs font-black text-slate-900 break-words sm:truncate">
                                     {getProgramFullSchedule(prog)}
                                   </p>
                                 </div>
@@ -2080,18 +2085,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                              <span className="truncate">{prog.location || "San Luis Municipal Hub"}</span>
+                              <span className="break-words sm:truncate">{prog.location || "San Luis Municipal Hub"}</span>
                             </div>
                             {prog.instructor && (
                               <div className="flex items-center gap-2">
                                 <User className="w-4 h-4 text-slate-400 shrink-0" />
-                                <span className="truncate">Instructor: {prog.instructor}</span>
+                                <span className="break-words sm:truncate">Instructor: {prog.instructor}</span>
                               </div>
                             )}
                             {(prog.startDate || prog.endDate) && (
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-                                <span className="truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
+                                <span className="break-words sm:truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
                               </div>
                             )}
                           </div>
@@ -2167,18 +2172,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {(currentScreen === TESDAPartnerScreen.ADD_PROGRAM || currentScreen === TESDAPartnerScreen.EDIT_PROGRAM) && (
             <div className="space-y-6">
               {/* Back Button & Header */}
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center items-start gap-3 sm:gap-4">
                 <button
+                  type="button"
                   onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
-                  className="text-slate-600 hover:text-[#0A6B43] font-bold text-xs flex items-center gap-1.5 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 sm:gap-2 text-slate-600 hover:text-[#0A6B43] hover:border-emerald-300 font-bold text-xs bg-white border border-slate-200 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0 active:scale-95"
                 >
-                  <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+                  <ArrowLeft className="w-4 h-4 text-slate-500" />
+                  <span>Back to Dashboard</span>
                 </button>
-                <div>
-                  <h2 className="text-lg font-black text-slate-900">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight leading-tight sm:leading-snug">
                     {editingProgramId ? "Modify Training Course" : "Post New Technical-Vocational Course"}
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium">
+                  <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 leading-normal sm:leading-relaxed">
                     Configure curriculum parameters, schedules, capacity, and candidate prerequisites
                   </p>
                 </div>
@@ -2186,7 +2193,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* Form Layout: Expanded Form */}
               <div className="max-w-4xl mx-auto w-full">
-                <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 md:p-8">
+                <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-sm p-4 sm:p-6 md:p-8">
                   <form onSubmit={handleAddProgramSubmit} className="space-y-6">
                     
                     {/* Section 1: Course Info */}
@@ -2407,25 +2414,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Start Time</label>
-                            <input
-                              type="time"
-                              value={progStartTime}
-                              onChange={(e) => setProgStartTime(e.target.value)}
-                              className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
-                            />
-                          </div>
+                          <SiKapTimePicker
+                            label="Start Time"
+                            badgeText="Training Start"
+                            value={progStartTime}
+                            onChange={(val) => setProgStartTime(val)}
+                            placeholder="Select start time"
+                          />
 
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">End Time</label>
-                            <input
-                              type="time"
-                              value={progEndTime}
-                              onChange={(e) => setProgEndTime(e.target.value)}
-                              className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
-                            />
-                          </div>
+                          <SiKapTimePicker
+                            label="End Time"
+                            badgeText="Training End"
+                            value={progEndTime}
+                            onChange={(val) => setProgEndTime(val)}
+                            placeholder="Select end time"
+                          />
                         </div>
 
                         {/* Live Schedule Preview */}
@@ -2456,25 +2459,22 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Start Date</label>
-                          <input
-                            type="date"
-                            value={progStartDate}
-                            onChange={(e) => setProgStartDate(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                          />
-                        </div>
+                        <SiKapDatePicker
+                          label="Start Date"
+                          badgeText="Course Start"
+                          value={progStartDate}
+                          onChange={(val) => setProgStartDate(val)}
+                          placeholder="Select start date"
+                        />
 
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">End Date</label>
-                          <input
-                            type="date"
-                            value={progEndDate}
-                            onChange={(e) => setProgEndDate(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                          />
-                        </div>
+                        <SiKapDatePicker
+                          label="End Date"
+                          badgeText="Course End"
+                          value={progEndDate}
+                          min={progStartDate || undefined}
+                          onChange={(val) => setProgEndDate(val)}
+                          placeholder="Select end date"
+                        />
 
                         <div className="space-y-1">
                           <label className="text-[11px] font-bold text-slate-600 uppercase">Trainer / Instructor</label>
@@ -2595,17 +2595,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
 
                     {/* Actions */}
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
-                        className="px-5 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                        className="px-5 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-7 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                        className="px-7 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer text-center"
                       >
                         {editingProgramId ? "Save Changes" : "Publish Training Course"}
                       </button>
@@ -3737,25 +3737,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Start Time</label>
-                        <input
-                          type="time"
-                          value={progStartTime}
-                          onChange={(e) => setProgStartTime(e.target.value)}
-                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
+                      <SiKapTimePicker
+                        label="Start Time"
+                        badgeText="Training Start"
+                        value={progStartTime}
+                        onChange={(val) => setProgStartTime(val)}
+                        placeholder="Select start time"
+                      />
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">End Time</label>
-                        <input
-                          type="time"
-                          value={progEndTime}
-                          onChange={(e) => setProgEndTime(e.target.value)}
-                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
+                      <SiKapTimePicker
+                        label="End Time"
+                        badgeText="Training End"
+                        value={progEndTime}
+                        onChange={(val) => setProgEndTime(val)}
+                        placeholder="Select end time"
+                      />
                     </div>
 
                     {/* Live Schedule Preview */}
@@ -3786,25 +3782,22 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Start Date</label>
-                      <input
-                        type="date"
-                        value={progStartDate}
-                        onChange={(e) => setProgStartDate(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
+                    <SiKapDatePicker
+                      label="Start Date"
+                      badgeText="Course Start"
+                      value={progStartDate}
+                      onChange={(val) => setProgStartDate(val)}
+                      placeholder="Select start date"
+                    />
 
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">End Date</label>
-                      <input
-                        type="date"
-                        value={progEndDate}
-                        onChange={(e) => setProgEndDate(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
+                    <SiKapDatePicker
+                      label="End Date"
+                      badgeText="Course End"
+                      value={progEndDate}
+                      min={progStartDate || undefined}
+                      onChange={(val) => setProgEndDate(val)}
+                      placeholder="Select end date"
+                    />
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-slate-600 uppercase">Trainer / Instructor</label>

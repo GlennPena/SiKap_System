@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import { TESDAProgram } from "../types";
 import { getProgramFullSchedule, formatProgramDateRange } from "../lib/cbf-matcher";
+import { motion, AnimatePresence } from "motion/react";
+import { calculateAge } from "../lib/utils";
 
 // Flame match score component
 export const FlameMatchScore: React.FC<{ score: number; className?: string; hasPrograms?: boolean }> = ({ score, className = "", hasPrograms = true }) => {
@@ -85,13 +87,13 @@ export const MetricCard: React.FC<{
   const currentTheme = themes[accent];
 
   return (
-    <div className={`bg-white p-5 rounded-xl border ${currentTheme.border} transition-all duration-200 hover:shadow-md ${currentTheme.shadow} flex items-start justify-between`} id={`metric-${title.toLowerCase().replace(/\s+/g, "-")}`}>
-      <div>
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1">{title}</span>
-        <h3 className="text-3xl font-bold text-gray-800 tracking-tight leading-none mb-1.5">{value}</h3>
-        <span className="text-xs text-gray-500 block">{subtitle}</span>
+    <div className={`bg-white p-3.5 sm:p-5 rounded-xl border ${currentTheme.border} transition-all duration-200 hover:shadow-md ${currentTheme.shadow} flex items-start justify-between gap-2`} id={`metric-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+      <div className="min-w-0 flex-1">
+        <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-0.5 sm:mb-1 truncate">{title}</span>
+        <h3 className="text-2xl sm:text-3xl font-bold text-gray-800 tracking-tight leading-none mb-1 sm:mb-1.5">{value}</h3>
+        <span className="text-[10px] sm:text-xs text-gray-500 block truncate">{subtitle}</span>
       </div>
-      <div className={`p-2.5 rounded-lg ${currentTheme.bg} ${currentTheme.text}`}>
+      <div className={`p-2 sm:p-2.5 rounded-lg shrink-0 ${currentTheme.bg} ${currentTheme.text}`}>
         {icon}
       </div>
     </div>
@@ -653,5 +655,869 @@ export const SikapLogo: React.FC<{
     );
   };
 
+const DATE_PICKER_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+const DATE_PICKER_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+export interface SiKapDatePickerProps {
+  value: string; // "YYYY-MM-DD"
+  onChange: (val: string) => void;
+  min?: string;
+  max?: string;
+  placeholder?: string;
+  label?: string;
+  badgeText?: string;
+  hasError?: boolean;
+  className?: string;
+  disabled?: boolean;
+  showAgeIndicator?: boolean;
+  align?: "left" | "right";
+}
+
+export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
+  value,
+  onChange,
+  min,
+  max,
+  placeholder = "Select Date",
+  label = "Select Date",
+  badgeText = "Calendar",
+  hasError = false,
+  className = "",
+  disabled = false,
+  showAgeIndicator = false,
+  align = "left",
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isMonthOpen, setIsMonthOpen] = useState(false);
+  const [isYearOpen, setIsYearOpen] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const monthSelectRef = useRef<HTMLDivElement>(null);
+  const yearSelectRef = useRef<HTMLDivElement>(null);
+  const selectedYearButtonRef = useRef<HTMLButtonElement>(null);
+
+  const initialDate = value ? new Date(value) : (max ? new Date(max) : new Date());
+  const [viewYear, setViewYear] = useState<number>(initialDate.getFullYear());
+  const [viewMonth, setViewMonth] = useState<number>(initialDate.getMonth());
+
+  useEffect(() => {
+    if (value) {
+      const parts = value.split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        if (!isNaN(y) && !isNaN(m)) {
+          setViewYear(y);
+          setViewMonth(m);
+        }
+      }
+    }
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setIsMonthOpen(false);
+        setIsYearOpen(false);
+      } else {
+        if (monthSelectRef.current && !monthSelectRef.current.contains(e.target as Node)) {
+          setIsMonthOpen(false);
+        }
+        if (yearSelectRef.current && !yearSelectRef.current.contains(e.target as Node)) {
+          setIsYearOpen(false);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const currentYear = new Date().getFullYear();
+  const maxYear = max ? new Date(max).getFullYear() : currentYear + 15;
+  const minYear = min ? Math.min(new Date(min).getFullYear(), currentYear - 50) : 1920;
+  const years = Array.from({ length: Math.max(1, maxYear - minYear + 1) }, (_, i) => maxYear - i);
+
+  useEffect(() => {
+    if (isYearOpen) {
+      const timer = setTimeout(() => {
+        selectedYearButtonRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, 30);
+      return () => clearTimeout(timer);
+    }
+  }, [isYearOpen]);
+
+  const prevMonth = () => {
+    setIsMonthOpen(false);
+    setIsYearOpen(false);
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(prev => prev - 1);
+    } else {
+      setViewMonth(prev => prev - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    setIsMonthOpen(false);
+    setIsYearOpen(false);
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(prev => prev + 1);
+    } else {
+      setViewMonth(prev => prev + 1);
+    }
+  };
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
+
+  const handleSelectDay = (day: number) => {
+    const yStr = String(viewYear);
+    const mStr = String(viewMonth + 1).padStart(2, "0");
+    const dStr = String(day).padStart(2, "0");
+    onChange(`${yStr}-${mStr}-${dStr}`);
+    setIsOpen(false);
+    setIsMonthOpen(false);
+    setIsYearOpen(false);
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange("");
+  };
+
+  const formatDisplay = (val: string) => {
+    if (!val) return "";
+    const parts = val.split("-");
+    if (parts.length !== 3) return val;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    return `${DATE_PICKER_MONTHS[m]} ${d}, ${y}`;
+  };
+
+  const minDate = min ? new Date(min) : null;
+  const maxDate = max ? new Date(max) : null;
+
+  return (
+    <div ref={containerRef} className={`relative w-full min-w-0 ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setIsOpen(!isOpen);
+          setIsMonthOpen(false);
+          setIsYearOpen(false);
+        }}
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left focus:outline-hidden shadow-2xs group ${
+          disabled
+            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+            : isOpen
+              ? "border-[#0A6B43] ring-2 ring-emerald-500/20 bg-white cursor-pointer"
+              : hasError
+                ? "border-rose-300 bg-rose-50/30 text-gray-900 cursor-pointer"
+                : value
+                  ? "border-gray-200 text-gray-900 bg-white hover:border-gray-300 cursor-pointer"
+                  : "border-gray-200 text-gray-400 bg-white hover:border-gray-300 cursor-pointer"
+        } border`}
+      >
+        <span className="truncate block pr-2">
+          {value ? formatDisplay(value) : placeholder}
+        </span>
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${
+          isOpen ? "bg-emerald-100 text-[#0A6B43]" : "text-gray-400 group-hover:text-[#0A6B43]"
+        }`}>
+          <Calendar className="w-3.5 h-3.5" />
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1.5 w-full sm:w-[320px] bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-3 sm:p-3.5 ring-1 ring-black/5`}
+          >
+            {/* Top Branding Bar */}
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+              <span className="text-[10px] font-black text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-3 h-3 text-[#0A6B43]" />
+                <span>{label}</span>
+              </span>
+              <span className="text-[9px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80">
+                {badgeText}
+              </span>
+            </div>
+
+            {/* Header: Month & Year Selector + Prev/Next buttons */}
+            <div className="flex items-center justify-between gap-1 mb-2.5 relative">
+              <button
+                type="button"
+                onClick={prevMonth}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50 border border-transparent hover:border-emerald-200 transition-colors cursor-pointer shrink-0"
+                title="Previous Month"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5 min-w-0">
+                {/* Month Dropdown */}
+                <div ref={monthSelectRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMonthOpen(!isMonthOpen);
+                      setIsYearOpen(false);
+                    }}
+                    className={`flex items-center gap-1 bg-gray-50/90 hover:bg-emerald-50/40 border text-xs font-bold text-gray-800 rounded-lg pl-2.5 pr-2 py-1 transition-all cursor-pointer ${
+                      isMonthOpen ? "border-[#0A6B43] ring-1 ring-emerald-500/20 bg-white" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span>{DATE_PICKER_MONTHS[viewMonth]}</span>
+                    <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isMonthOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isMonthOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute left-0 top-full mt-1.5 w-36 max-h-44 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1"
+                      >
+                        {DATE_PICKER_MONTHS.map((name, idx) => {
+                          const isSelected = viewMonth === idx;
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => {
+                                setViewMonth(idx);
+                                setIsMonthOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-50 text-[#0A6B43] font-bold"
+                                  : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                              }`}
+                            >
+                              <span>{name}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Year Dropdown */}
+                <div ref={yearSelectRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsYearOpen(!isYearOpen);
+                      setIsMonthOpen(false);
+                    }}
+                    className={`flex items-center gap-1 bg-gray-50/90 hover:bg-emerald-50/40 border text-xs font-bold text-gray-800 rounded-lg pl-2.5 pr-2 py-1 transition-all cursor-pointer ${
+                      isYearOpen ? "border-[#0A6B43] ring-1 ring-emerald-500/20 bg-white" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span>{viewYear}</span>
+                    <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isYearOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isYearOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute right-0 sm:left-0 top-full mt-1.5 w-28 max-h-44 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1"
+                      >
+                        {years.map(y => {
+                          const isSelected = viewYear === y;
+                          return (
+                            <button
+                              key={y}
+                              ref={isSelected ? selectedYearButtonRef : null}
+                              type="button"
+                              onClick={() => {
+                                setViewYear(y);
+                                setIsYearOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-50 text-[#0A6B43] font-bold"
+                                  : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                              }`}
+                            >
+                              <span>{y}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={nextMonth}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50 border border-transparent hover:border-emerald-200 transition-colors cursor-pointer shrink-0"
+                title="Next Month"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Day of Week Headers */}
+            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+              {DATE_PICKER_DAYS.map((d, idx) => (
+                <span
+                  key={d}
+                  className={`text-[10px] font-extrabold py-1 ${
+                    idx === 0 ? "text-rose-400" : "text-gray-400"
+                  }`}
+                >
+                  {d}
+                </span>
+              ))}
+            </div>
+
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                <div key={`empty-${i}`} className="w-7 h-7 sm:w-8 sm:h-8" />
+              ))}
+
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const cellDate = new Date(viewYear, viewMonth, day);
+                const isPastMin = minDate && cellDate < new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+                const isFutureMax = maxDate && cellDate > new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
+                const isDisabled = Boolean(isPastMin || isFutureMax);
+
+                const formattedCell = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const isSelected = value === formattedCell;
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => handleSelectDay(day)}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 text-xs font-semibold rounded-lg flex items-center justify-center transition-all ${
+                      isSelected
+                        ? "bg-[#0A6B43] text-white font-bold shadow-xs scale-105 cursor-pointer"
+                        : isDisabled
+                          ? "text-gray-300 cursor-not-allowed"
+                          : "text-gray-700 hover:bg-emerald-50 hover:text-[#0A6B43] cursor-pointer"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom Actions & Age Indicator */}
+            <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+              {showAgeIndicator && value && calculateAge(value) !== "" ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-500 font-medium">
+                      Age: <strong className="text-gray-800">{calculateAge(value)} yrs</strong>
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                      Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
+                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                        : "text-rose-700 bg-rose-50 border-rose-200"
+                    }`}>
+                      {Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
+                        ? "KK Eligible"
+                        : "Ineligible (18-30)"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="text-[10px] text-gray-400 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </>
+              ) : (
+                <div className="w-full flex items-center justify-between text-[10px] text-gray-400">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      const yStr = String(today.getFullYear());
+                      const mStr = String(today.getMonth() + 1).padStart(2, "0");
+                      const dStr = String(today.getDate()).padStart(2, "0");
+                      onChange(`${yStr}-${mStr}-${dStr}`);
+                      setIsOpen(false);
+                    }}
+                    className="text-gray-500 hover:text-[#0A6B43] font-semibold cursor-pointer"
+                  >
+                    Today
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {value && (
+                      <button
+                        type="button"
+                        onClick={handleClear}
+                        className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(false)}
+                      className="text-[#0A6B43] font-bold hover:underline cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export interface SiKapTimePickerProps {
+  value: string; // "HH:MM" 24-hour format
+  onChange: (val: string) => void;
+  placeholder?: string;
+  label?: string;
+  badgeText?: string;
+  hasError?: boolean;
+  className?: string;
+  disabled?: boolean;
+  align?: "left" | "right";
+}
+
+export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
+  value,
+  onChange,
+  placeholder = "Select Time",
+  label = "Schedule Time",
+  badgeText,
+  hasError = false,
+  className = "",
+  disabled = false,
+  align = "left",
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Parse 24-hour "HH:MM" into 12-hour components
+  const parseTime = (timeStr: string) => {
+    if (!timeStr || !timeStr.includes(":")) {
+      return { hour12: 8, minute: 0, period: "AM" as "AM" | "PM" };
+    }
+    const parts = timeStr.split(":");
+    const h24 = parseInt(parts[0], 10);
+    const m = parseInt(parts[1] || "0", 10);
+    const period: "AM" | "PM" = h24 >= 12 ? "PM" : "AM";
+    const hour12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return { hour12, minute: m, period };
+  };
+
+  const [selectedHour, setSelectedHour] = useState<number>(() => parseTime(value).hour12);
+  const [selectedMinute, setSelectedMinute] = useState<number>(() => parseTime(value).minute);
+  const [selectedPeriod, setSelectedPeriod] = useState<"AM" | "PM">(() => parseTime(value).period);
+
+  useEffect(() => {
+    if (value) {
+      const parsed = parseTime(value);
+      setSelectedHour(parsed.hour12);
+      setSelectedMinute(parsed.minute);
+      setSelectedPeriod(parsed.period);
+    }
+  }, [value]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const formatDisplayTime = (timeStr: string) => {
+    if (!timeStr || !timeStr.includes(":")) return "";
+    const { hour12, minute, period } = parseTime(timeStr);
+    const mStr = minute < 10 ? `0${minute}` : `${minute}`;
+    return `${hour12}:${mStr} ${period}`;
+  };
+
+  const getSessionType = (h24: number) => {
+    if (h24 < 12) return "Morning";
+    if (h24 < 17) return "Afternoon";
+    return "Evening";
+  };
+
+  const commitTime = (h12: number, m: number, p: "AM" | "PM") => {
+    let h24 = h12 % 12;
+    if (p === "PM") h24 += 12;
+    const time24 = `${String(h24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    onChange(time24);
+  };
+
+  const handleHourSelect = (h: number) => {
+    setSelectedHour(h);
+    commitTime(h, selectedMinute, selectedPeriod);
+  };
+
+  const handleMinuteSelect = (m: number) => {
+    setSelectedMinute(m);
+    commitTime(selectedHour, m, selectedPeriod);
+  };
+
+  const handlePeriodSelect = (p: "AM" | "PM") => {
+    setSelectedPeriod(p);
+    commitTime(selectedHour, selectedMinute, p);
+  };
+
+  const handlePresetSelect = (h24: number, m: number) => {
+    const p: "AM" | "PM" = h24 >= 12 ? "PM" : "AM";
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    setSelectedHour(h12);
+    setSelectedMinute(m);
+    setSelectedPeriod(p);
+    const time24 = `${String(h24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    onChange(time24);
+  };
+
+  const handleNow = () => {
+    const now = new Date();
+    const h24 = now.getHours();
+    // round minute to nearest 5
+    const m = Math.round(now.getMinutes() / 5) * 5 % 60;
+    handlePresetSelect(h24, m);
+  };
+
+  const currentH24 = (selectedHour % 12) + (selectedPeriod === "PM" ? 12 : 0);
+  const activeSession = getSessionType(currentH24);
+
+  const hoursList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const minutesList = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+  return (
+    <div ref={containerRef} className={`relative w-full min-w-0 ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setIsOpen(!isOpen);
+        }}
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left focus:outline-hidden shadow-2xs group ${
+          disabled
+            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+            : isOpen
+              ? "border-[#0A6B43] ring-2 ring-emerald-500/20 bg-white cursor-pointer"
+              : hasError
+                ? "border-rose-300 bg-rose-50/30 text-gray-900 cursor-pointer"
+                : value
+                  ? "border-gray-200 text-gray-900 bg-white hover:border-gray-300 cursor-pointer"
+                  : "border-gray-200 text-gray-400 bg-white hover:border-gray-300 cursor-pointer"
+        } border`}
+      >
+        <span className="truncate block pr-2">
+          {value ? formatDisplayTime(value) : placeholder}
+        </span>
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${
+          isOpen ? "bg-emerald-100 text-[#0A6B43]" : "text-gray-400 group-hover:text-[#0A6B43]"
+        }`}>
+          <Clock className="w-3.5 h-3.5" />
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1.5 w-full sm:w-[320px] bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-3 sm:p-3.5 ring-1 ring-black/5`}
+          >
+            {/* Header Bar */}
+            <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-gray-100">
+              <span className="text-[10px] font-black text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-[#0A6B43]" />
+                <span>{label}</span>
+              </span>
+              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                activeSession === "Morning" ? "bg-amber-50 text-amber-800 border-amber-200" :
+                activeSession === "Afternoon" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                "bg-purple-50 text-purple-800 border-purple-200"
+              }`}>
+                {badgeText || activeSession}
+              </span>
+            </div>
+
+            {/* Time Selection Display & AM/PM Toggle */}
+            <div className="flex items-center justify-between bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100/80 mb-3">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected Time</p>
+                <p className="text-base font-black text-[#0A6B43]">
+                  {selectedHour}:{selectedMinute < 10 ? `0${selectedMinute}` : selectedMinute} {selectedPeriod}
+                </p>
+              </div>
+
+              {/* AM / PM Pill Selector */}
+              <div className="flex items-center p-0.5 bg-white rounded-lg border border-gray-200 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handlePeriodSelect("AM")}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    selectedPeriod === "AM"
+                      ? "bg-[#0A6B43] text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  AM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePeriodSelect("PM")}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    selectedPeriod === "PM"
+                      ? "bg-[#0A6B43] text-white shadow-xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  PM
+                </button>
+              </div>
+            </div>
+
+            {/* Hour Selector Grid */}
+            <div className="mb-2.5">
+              <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                <span>Hour</span>
+                <span className="text-[9px] text-[#0A6B43] font-semibold">{selectedHour} {selectedPeriod}</span>
+              </div>
+              <div className="grid grid-cols-6 gap-1 text-center">
+                {hoursList.map(h => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => handleHourSelect(h)}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      selectedHour === h
+                        ? "bg-[#0A6B43] text-white shadow-xs scale-105"
+                        : "text-gray-700 bg-gray-50/70 hover:bg-emerald-50 hover:text-[#0A6B43]"
+                    }`}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Minute Selector Grid */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                <span>Minute</span>
+                <span className="text-[9px] text-[#0A6B43] font-semibold">:{selectedMinute < 10 ? `0${selectedMinute}` : selectedMinute}</span>
+              </div>
+              <div className="grid grid-cols-6 gap-1 text-center">
+                {minutesList.map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleMinuteSelect(m)}
+                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      selectedMinute === m
+                        ? "bg-[#0A6B43] text-white shadow-xs scale-105"
+                        : "text-gray-700 bg-gray-50/70 hover:bg-emerald-50 hover:text-[#0A6B43]"
+                    }`}
+                  >
+                    {m < 10 ? `0${m}` : m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Session Presets */}
+            <div className="pt-2 border-t border-gray-100 mb-2.5">
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Session Presets</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect(8, 0)}
+                  className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer truncate"
+                  title="8:00 AM (Morning)"
+                >
+                  🌅 8:00 AM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect(13, 0)}
+                  className="px-1.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer truncate"
+                  title="1:00 PM (Afternoon)"
+                >
+                  ☀️ 1:00 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect(17, 30)}
+                  className="px-1.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer truncate"
+                  title="5:30 PM (Evening)"
+                >
+                  🌙 5:30 PM
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={handleNow}
+                className="text-[10px] text-gray-500 hover:text-[#0A6B43] font-semibold cursor-pointer"
+              >
+                Current Time
+              </button>
+              <div className="flex items-center gap-2">
+                {value && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange("");
+                    }}
+                    className="text-[10px] text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="px-3 py-1 bg-[#0A6B43] hover:bg-[#075332] text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer shadow-xs"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export interface NotificationBellButtonProps {
+  isOpen: boolean;
+  onClick: () => void;
+  unreadCount?: number;
+  className?: string;
+  title?: string;
+  size?: "sm" | "md" | "lg";
+}
+
+export const NotificationBellButton: React.FC<NotificationBellButtonProps> = ({
+  isOpen,
+  onClick,
+  unreadCount = 0,
+  className = "",
+  title = "Notifications",
+  size = "md"
+}) => {
+  const [isRinging, setIsRinging] = useState(false);
+  const [rippleKey, setRippleKey] = useState(0);
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setIsRinging(true);
+    setRippleKey((prev) => prev + 1);
+    onClick();
+    setTimeout(() => setIsRinging(false), 700);
+  };
+
+  const sizeClasses = {
+    sm: "p-2 rounded-lg",
+    md: "p-2.5 rounded-xl",
+    lg: "p-3 rounded-2xl"
+  }[size];
+
+  const iconSizes = {
+    sm: "w-4 h-4",
+    md: "w-4.5 h-4.5",
+    lg: "w-5 h-5"
+  }[size];
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={`relative inline-flex items-center justify-center transition-all cursor-pointer group active:scale-90 select-none overflow-visible ${sizeClasses} ${
+        isOpen
+          ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-400 shadow-sm"
+          : "text-slate-600 hover:text-[#0A6B43] bg-slate-100/80 hover:bg-emerald-50/80"
+      } ${className}`}
+      title={title}
+      aria-label={title}
+    >
+      {/* Ripple pulse wave expanding on click */}
+      {isRinging && (
+        <span
+          key={rippleKey}
+          className="absolute inset-0 rounded-xl bg-emerald-500/25 animate-pulse-wave pointer-events-none"
+        />
+      )}
+
+      {/* Bell icon with dynamic ringing rotation animation */}
+      <span
+        className={`inline-flex items-center justify-center origin-top ${
+          isRinging ? "animate-bell-ring" : "group-hover:rotate-12 group-hover:scale-105 transition-transform duration-200"
+        }`}
+      >
+        <Bell
+          className={`${iconSizes} transition-colors ${
+            isOpen ? "fill-emerald-600/20 text-[#0A6B43]" : "text-current"
+          }`}
+        />
+      </span>
+
+      {/* Unread Counter Badge with bounce animation */}
+      {unreadCount > 0 && (
+        <span
+          className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-amber-500 text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center ring-2 ring-white shadow-xs ${
+            isRinging ? "animate-badge-bounce" : ""
+          }`}
+        >
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </button>
+  );
+};
+
 export { CustomSelect } from "./CustomSelect";
 export type { CustomSelectOption, CustomSelectProps } from "./CustomSelect";
+
+

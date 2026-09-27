@@ -16,7 +16,8 @@ import {
 } from "../types";
 import {
   MetricCard, FlameMatchScore, PathwayTimeline,
-  OpportunityCard, EmptyState, Toast, ConfirmationModal, SikapLogo
+  OpportunityCard, EmptyState, Toast, ConfirmationModal, SikapLogo,
+  SiKapDatePicker, SiKapTimePicker, NotificationBellButton
 } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
@@ -1845,18 +1846,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                 return (
                   <>
-                    <button
+                    <NotificationBellButton
+                      isOpen={showNotificationsDropdown}
                       onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
-                      className={`relative p-2 text-gray-500 hover:text-[#0A6B43] bg-gray-50 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer ${
-                        showNotificationsDropdown ? "bg-emerald-50 text-[#0A6B43] ring-2 ring-emerald-300" : ""
-                      }`}
+                      unreadCount={!notificationsRead ? activeSystemNotifications.length : 0}
                       title="System Notifications"
-                    >
-                      <Bell className="w-5 h-5" />
-                      {!notificationsRead && activeSystemNotifications.length > 0 && (
-                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
-                      )}
-                    </button>
+                      size="sm"
+                    />
 
                     {/* Notification Dropdown Menu */}
                     {showNotificationsDropdown && (
@@ -2915,19 +2911,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             <span className="text-[9px] text-emerald-600 font-bold uppercase">Auto-calculates age</span>
                           )}
                         </div>
-                        <input
-                          type="date"
+                        <SiKapDatePicker
                           value={regDOB}
                           max={new Date().toISOString().split("T")[0]}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          label="Date of Birth"
+                          badgeText="KK Youth"
+                          showAgeIndicator={true}
+                          placeholder="Select date of birth"
+                          onChange={(val) => {
                             setRegDOB(val);
                             if (val) {
                               const age = calculateAge(val);
                               if (age !== "") setRegAge(age);
+                            } else {
+                              setRegAge("");
                             }
                           }}
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-gray-600"
                         />
                       </div>
                       <div className="space-y-1">
@@ -4838,25 +4837,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   Event Date & Time Schedule (Picker)
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase block">Select Date</label>
-                    <input
-                      type="date"
-                      value={annEventDatePicker}
-                      onChange={(e) => setAnnEventDatePicker(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]}
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-800 font-semibold focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase block">Select Time</label>
-                    <input
-                      type="time"
-                      value={annEventTimePicker}
-                      onChange={(e) => setAnnEventTimePicker(e.target.value)}
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-800 font-semibold focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </div>
+                  <SiKapDatePicker
+                    label="Select Date"
+                    badgeText="SK Event"
+                    value={annEventDatePicker}
+                    onChange={(val) => setAnnEventDatePicker(val)}
+                    min={new Date().toISOString().split("T")[0]}
+                    placeholder="Choose event date"
+                  />
+                  <SiKapTimePicker
+                    label="Select Time"
+                    badgeText="SK Schedule"
+                    value={annEventTimePicker}
+                    onChange={(val) => setAnnEventTimePicker(val)}
+                    placeholder="Choose event time"
+                  />
                 </div>
 
                 {annEventDatePicker && (
