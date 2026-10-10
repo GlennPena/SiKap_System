@@ -8,6 +8,7 @@ function mapToPipelineItem(r: any) {
   const formattedDate = r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
   return {
     id: r.id,
+    youthId: r.youthId || r.youth?.id || "",
     youthName: r.youth?.name || "Youth Member",
     purok: r.youth?.purok || "",
     barangay: r.youth?.barangay?.name || "",
@@ -16,7 +17,19 @@ function mapToPipelineItem(r: any) {
     matchScore: r.matchScore,
     applicationDate: formattedDate,
     referralDate: formattedDate,
-    status: r.status
+    status: r.status,
+    program: r.program ? {
+      id: r.program.id,
+      title: r.program.title,
+      provider: r.program.provider,
+      location: r.program.location,
+      trainingHours: r.program.trainingHours,
+      cost: r.program.cost,
+      slotsTotal: r.program.slotsTotal,
+      slotsRemaining: r.program.slotsRemaining,
+      eligibility: r.program.eligibility,
+      activeStatus: r.program.activeStatus
+    } : undefined
   };
 }
 
@@ -57,7 +70,7 @@ export async function GET(request: Request) {
           { status: "Archived" },
           { program: { activeStatus: "Closed" } }
         ];
-      } else {
+      } else if (roleStr === "TESDA_PARTNER") {
         whereClause.program = { activeStatus: { not: "Closed" } };
         whereClause.status = { not: "Archived" };
       }

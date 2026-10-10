@@ -235,6 +235,7 @@ export interface SKAnnouncement {
 
 export interface ProgramApplication {
   id: string;
+  youthId?: string;
   youthName: string;
   purok: string;
   barangay: string;
@@ -244,6 +245,7 @@ export interface ProgramApplication {
   applicationDate?: string;
   referralDate?: string; // backwards compatibility alias
   status: "Pending" | "Enrolled" | "Declined" | "Archived";
+  program?: Partial<TESDAProgram>;
 }
 
 // Backwards compatibility alias

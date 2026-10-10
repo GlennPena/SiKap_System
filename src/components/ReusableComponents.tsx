@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell, UserCheck, Briefcase, Award, TrendingUp } from "lucide-react";
 import { TESDAProgram } from "../types";
 import { getProgramFullSchedule, formatProgramDateRange } from "../lib/cbf-matcher";
 import { motion, AnimatePresence } from "motion/react";
@@ -87,13 +87,13 @@ export const MetricCard: React.FC<{
   const currentTheme = themes[accent];
 
   return (
-    <div className={`bg-white p-3.5 sm:p-5 rounded-xl border ${currentTheme.border} transition-all duration-200 hover:shadow-md ${currentTheme.shadow} flex items-start justify-between gap-2`} id={`metric-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+    <div className={`bg-white p-3 sm:p-5 rounded-xl border ${currentTheme.border} transition-all duration-200 hover:shadow-md ${currentTheme.shadow} flex items-start justify-between gap-2`} id={`metric-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <div className="min-w-0 flex-1">
-        <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-0.5 sm:mb-1 truncate">{title}</span>
+        <span title={title} className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-0.5 sm:mb-1 truncate">{title}</span>
         <h3 className="text-2xl sm:text-3xl font-bold text-gray-800 tracking-tight leading-none mb-1 sm:mb-1.5">{value}</h3>
-        <span className="text-[10px] sm:text-xs text-gray-500 block truncate">{subtitle}</span>
+        <span title={typeof subtitle === "string" ? subtitle : undefined} className="text-[10px] sm:text-xs text-gray-500 block truncate">{subtitle}</span>
       </div>
-      <div className={`p-2 sm:p-2.5 rounded-lg shrink-0 ${currentTheme.bg} ${currentTheme.text}`}>
+      <div className={`p-1.5 sm:p-2.5 rounded-lg shrink-0 ${currentTheme.bg} ${currentTheme.text}`}>
         {icon}
       </div>
     </div>
@@ -354,143 +354,191 @@ export const PathwayTimeline: React.FC<{
   currentStep: number; // 1, 2, 3, 4, or 5 (5 = all steps completed including step 4 plan saved)
   onStepClick?: (step: number) => void;
   isMobile?: boolean;
-}> = ({ currentStep, onStepClick, isMobile = false }) => {
+}> = ({ currentStep, onStepClick, isMobile }) => {
   const steps = [
     {
       num: 1,
       title: "Register Profile",
       desc: "Katipunan ng Kabataan details encoded",
-      sub: "Done ✓"
+      sub: "Done ✓",
+      icon: UserCheck
     },
     {
       num: 2,
       title: "Enroll in TESDA",
       desc: "Apply directly to matched program",
-      sub: "Action needed"
+      sub: "Action needed",
+      icon: Briefcase
     },
     {
       num: 3,
       title: "Complete Training",
       desc: "Complete 3-month course & pass NC II exam",
-      sub: "Est. 3 months"
+      sub: "Est. 3 months",
+      icon: Award
     },
     {
       num: 4,
       title: "Livelihood Placement",
       desc: "Apprenticeship or starting enterprise",
-      sub: "Career Plan Strategy"
+      sub: "Career Plan Strategy",
+      icon: TrendingUp
     }
   ];
 
-  if (isMobile) {
-    // Vertical timeline for mobile view
-    return (
-      <div className="space-y-6" id="pathway-timeline-mobile">
-        {steps.map((step) => {
-          const isCompleted = step.num < currentStep;
-          const isActive = step.num === currentStep;
+  // Mobile Vertical Timeline
+  const renderVerticalTimeline = () => (
+    <div className="space-y-1.5" id="pathway-timeline-mobile">
+      {steps.map((step, idx) => {
+        const isCompleted = step.num < currentStep;
+        const isActive = step.num === currentStep;
+        const isLast = idx === steps.length - 1;
+        const StepIcon = step.icon;
 
-          return (
-            <div
-              key={step.num}
-              onClick={() => onStepClick?.(step.num)}
-              className={`flex gap-4 cursor-pointer group ${onStepClick ? "" : "pointer-events-none"}`}
-            >
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all relative z-10 ${isCompleted
-                    ? "bg-[#0A6B43] border-[#0A6B43] text-white"
+        return (
+          <div
+            key={step.num}
+            onClick={() => onStepClick?.(step.num)}
+            className={`flex items-start gap-3.5 transition-all ${onStepClick ? "cursor-pointer group" : ""}`}
+          >
+            {/* Stepper Icon Column */}
+            <div className="flex flex-col items-center shrink-0 self-stretch">
+              <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all shrink-0 relative z-10 shadow-xs ${
+                  isCompleted
+                    ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-emerald-100"
                     : isActive
-                      ? "bg-white border-[#0A6B43] text-[#0A6B43] shadow-md ring-4 ring-emerald-100 animate-pulse font-bold"
+                      ? "bg-white border-[#0A6B43] text-[#0A6B43] shadow-md ring-4 ring-emerald-100 font-extrabold"
                       : "bg-white border-gray-300 text-gray-400"
-                    }`}
-                >
-                  {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{step.num}</span>}
-                </div>
-                {step.num < 4 && (
-                  <div
-                    className={`w-1 h-12 rounded-full transition-all ${isCompleted ? "bg-[#0A6B43]" : "bg-gray-200"
-                      }`}
-                  />
+                }`}
+              >
+                {isCompleted ? (
+                  <Check className="w-4 h-4 stroke-[3]" />
+                ) : isActive ? (
+                  <StepIcon className="w-4 h-4 text-[#0A6B43] animate-pulse" />
+                ) : (
+                  <span className="text-xs font-bold text-gray-400">{step.num}</span>
                 )}
               </div>
-              <div className="flex-1 pt-0.5 pb-4">
-                <div className="flex items-center gap-2">
-                  <h4 className={`text-sm font-bold ${isActive ? "text-gray-900" : isCompleted ? "text-gray-700" : "text-gray-400"}`}>
-                    {step.title}
-                  </h4>
-                  {isActive && (
-                    <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                      {step.sub}
-                    </span>
-                  )}
-                  {isCompleted && (
-                    <span className="text-[#0A6B43] text-xs font-semibold">
-                      {step.num === 4 ? "Plan Saved ✓" : "Done ✓"}
-                    </span>
+              {!isLast && (
+                <div
+                  className={`w-0.5 flex-1 min-h-[36px] my-1 rounded-full transition-colors ${
+                    isCompleted ? "bg-[#0A6B43]" : "bg-gray-200"
+                  }`}
+                />
+              )}
+            </div>
+
+            {/* Stepper Content Column */}
+            <div className={`flex-1 min-w-0 ${!isLast ? "pb-4" : "pb-1"} pt-1`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className={`text-xs sm:text-sm font-bold ${isActive ? "text-gray-900" : isCompleted ? "text-gray-800" : "text-gray-400"}`}>
+                  {step.title}
+                </h4>
+                {isActive && (
+                  <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
+                    {step.sub}
+                  </span>
+                )}
+                {isCompleted && (
+                  <span className="bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0">
+                    {step.num === 4 ? "Plan Saved ✓" : "Done ✓"}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{step.desc}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Desktop Horizontal Timeline (Top-anchored items-start ensures mathematical icon center alignment)
+  const renderHorizontalTimeline = () => {
+    const progressPercent = currentStep >= 5 ? 100 : Math.max(0, ((Math.min(currentStep, 4) - 1) / 3) * 100);
+
+    return (
+      <div className="w-full py-2.5" id="pathway-timeline-desktop">
+        <div className="relative flex justify-between items-start w-full">
+          {/* Connecting track & progress line - centered exactly at icon center (top 18px for h-9 icon) */}
+          <div className="absolute top-[18px] left-[10%] right-[10%] h-1 bg-gray-200 rounded-full z-0">
+            <div
+              className="h-full bg-[#0A6B43] rounded-full transition-all duration-500 shadow-xs"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {steps.map((step) => {
+            const isCompleted = step.num < currentStep;
+            const isActive = step.num === currentStep;
+            const StepIcon = step.icon;
+
+            return (
+              <div
+                key={step.num}
+                onClick={() => onStepClick?.(step.num)}
+                className={`flex flex-col items-center text-center flex-1 relative z-10 ${onStepClick ? "cursor-pointer group" : ""}`}
+              >
+                {/* Top circle anchored at top-0 */}
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all shrink-0 ${
+                    isCompleted
+                      ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
+                      : isActive
+                        ? "bg-white border-[#0A6B43] text-[#0A6B43] font-extrabold shadow-md ring-4 ring-emerald-100/80"
+                        : "bg-white border-gray-300 text-gray-400"
+                  }`}
+                >
+                  {isCompleted ? (
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  ) : isActive ? (
+                    <StepIcon className="w-4 h-4 text-[#0A6B43] animate-pulse" />
+                  ) : (
+                    <span className="text-xs font-bold text-gray-400">{step.num}</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{step.desc}</p>
+
+                {/* Text Labels below circle */}
+                <div className="mt-2.5 px-1.5 w-full">
+                  <span className={`text-xs font-bold block leading-snug ${isActive ? "text-gray-900" : isCompleted ? "text-gray-700" : "text-gray-400"}`}>
+                    {step.title}
+                  </span>
+                  <span className={`text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full ${
+                    isActive
+                      ? "bg-blue-50 text-blue-700 border border-blue-200 font-extrabold"
+                      : isCompleted
+                        ? "bg-emerald-50 text-[#0A6B43] font-bold border border-emerald-100"
+                        : "text-gray-400 font-medium"
+                  }`}>
+                    {isActive ? step.sub : isCompleted ? (step.num === 4 ? "Plan Saved ✓" : "Done ✓") : step.sub}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     );
+  };
+
+  if (isMobile === true) {
+    return renderVerticalTimeline();
+  }
+  if (isMobile === false) {
+    return renderHorizontalTimeline();
   }
 
-  const progressPercent = currentStep >= 5 ? 100 : Math.max(0, ((Math.min(currentStep, 4) - 1) / 3) * 100);
-
-  // Horizontal timeline for desktop view
+  // Automatic responsive behavior when isMobile is not explicitly set:
   return (
-    <div className="w-full py-2" id="pathway-timeline-desktop">
-      <div className="relative flex justify-between items-center w-full">
-        {/* Connecting track & progress line */}
-        <div className="absolute top-[18px] left-[12%] right-[12%] h-1 bg-gray-200 rounded-full z-0">
-          <div
-            className="h-full bg-[#0A6B43] rounded-full transition-all duration-500 shadow-xs"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-
-        {steps.map((step) => {
-          const isCompleted = step.num < currentStep;
-          const isActive = step.num === currentStep;
-
-          return (
-            <div
-              key={step.num}
-              onClick={() => onStepClick?.(step.num)}
-              className="flex flex-col items-center text-center flex-1 relative z-10 cursor-pointer"
-            >
-              <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${isCompleted
-                  ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
-                  : isActive
-                    ? "bg-white border-[#0A6B43] text-[#0A6B43] font-extrabold shadow-md ring-4 ring-emerald-100/80"
-                    : "bg-white border-gray-300 text-gray-400"
-                  }`}
-              >
-                {isCompleted ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{step.num}</span>}
-              </div>
-              <div className="mt-2.5 px-2">
-                <span className={`text-xs font-bold block ${isActive ? "text-gray-900" : isCompleted ? "text-gray-700" : "text-gray-400"}`}>
-                  {step.title}
-                </span>
-                <span className={`text-[10px] mt-0.5 inline-block px-2 py-0.5 rounded-full ${isActive
-                  ? "bg-blue-50 text-blue-700 border border-blue-200 font-extrabold"
-                  : isCompleted
-                    ? "bg-emerald-50 text-[#0A6B43] font-bold border border-emerald-100"
-                    : "text-gray-400 font-medium"
-                  }`}>
-                  {isActive ? step.sub : isCompleted ? (step.num === 4 ? "Plan Saved ✓" : "Done ✓") : step.sub}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+    <>
+      <div className="block sm:hidden">
+        {renderVerticalTimeline()}
       </div>
-    </div>
+      <div className="hidden sm:block">
+        {renderHorizontalTimeline()}
+      </div>
+    </>
   );
 };
 
