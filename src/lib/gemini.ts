@@ -6,10 +6,10 @@ import { YouthProfile, TESDAProgram, SkillGapData } from "../types";
  */
 async function generateContentWithFallback(ai: GoogleGenAI, prompt: string): Promise<string> {
   const modelsToTry = Array.from(new Set([
-    "gemini-3.5-flash",
     process.env.GEMINI_MODEL,
     "gemini-3.6-flash",
-    "gemini-3.1-flash-lite"
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash"
   ].filter(Boolean))) as string[];
 
   for (const model of modelsToTry) {

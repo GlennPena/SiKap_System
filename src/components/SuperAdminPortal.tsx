@@ -13,6 +13,7 @@ import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, Refer
 import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { isProgramEnded } from "../lib/utils";
 
 interface SuperAdminPortalProps {
   youthProfiles: YouthProfile[];
@@ -3911,7 +3912,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
               <div>
                 <h4 className="text-xs font-extrabold uppercase text-slate-900 mb-2 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-[#0A6B43]" />
-                  SK Councilors Roster ({selectedBrgyDetails.councilors.length})
+                  SK Councilors Roster ({selectedBrgyDetails.councilors.length}/11 Capacity)
                 </h4>
                 {selectedBrgyDetails.councilors.length > 0 ? (
                   <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
@@ -3919,6 +3920,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
                           <th className="p-3 pl-4">Councilor Name</th>
+                          <th className="p-3">Official Role</th>
                           <th className="p-3">Email Address</th>
                           <th className="p-3 text-center">Status</th>
                           <th className="p-3 text-right pr-4">Registered Date</th>
@@ -3928,6 +3930,17 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                         {selectedBrgyDetails.councilors.map((c, i) => (
                           <tr key={i} className="hover:bg-slate-50">
                             <td className="p-3 pl-4 font-bold text-slate-900">{c.name}</td>
+                            <td className="p-3">
+                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                c.role?.toLowerCase().includes("secretary")
+                                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                                  : c.role?.toLowerCase().includes("treasurer")
+                                  ? "bg-teal-50 text-teal-800 border-teal-200"
+                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              }`}>
+                                {c.role || "SK Councilor"}
+                              </span>
+                            </td>
                             <td className="p-3 text-slate-500">{c.email}</td>
                             <td className="p-3 text-center">
                               <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.2 rounded-full ${
@@ -4507,9 +4520,20 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                               {enrolledCount}
                             </td>
                             <td className="py-2.5 px-3 text-center">
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${p.activeStatus === "Closed" ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
-                                {p.activeStatus || "Active"}
-                              </span>
+                              {(() => {
+                                const isEnded = isProgramEnded(p);
+                                return (
+                                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                    isEnded
+                                      ? "bg-purple-100 text-purple-800 border-purple-300"
+                                      : p.activeStatus === "Closed"
+                                        ? "bg-red-50 text-red-700 border-red-200"
+                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }`}>
+                                    {isEnded ? "Term Ended" : p.activeStatus || "Active"}
+                                  </span>
+                                );
+                              })()}
                             </td>
                           </tr>
                         );

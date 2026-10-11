@@ -166,6 +166,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: `Cannot apply: "${program.title}" is already at full capacity!` }, { status: 400 });
     }
 
+    // Check if program schedule/term has concluded
+    if (program.activeStatus === "Closed" || (program.endDate && new Date(program.endDate).getTime() < Date.now())) {
+      return NextResponse.json({ success: false, error: `Cannot apply: "${program.title}" training schedule has concluded!` }, { status: 400 });
+    }
+
     const newReferral = await db.referral.create({
       data: {
         youthId,

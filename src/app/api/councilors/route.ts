@@ -95,6 +95,42 @@ export async function POST(request: Request) {
       if (defaultBrgy) barangayId = defaultBrgy.id;
     }
 
+    // Council Quota Check: 7 SK Councilors, 2 Secretaries, 2 Treasurers (Max 11 per barangay)
+    const targetRole = role || "SK Councilor";
+    const existingInBrgy = await db.councilor.findMany({
+      where: { barangayId }
+    });
+
+    if (existingInBrgy.length >= 11) {
+      return NextResponse.json({
+        success: false,
+        message: "Council roster is at full capacity (Maximum of 11 members: 7 Councilors, 2 Secretaries, 2 Treasurers)."
+      }, { status: 400 });
+    }
+
+    const councilorsCount = existingInBrgy.filter(c => c.role === "SK Councilor").length;
+    const secretariesCount = existingInBrgy.filter(c => c.role === "Secretary").length;
+    const treasurersCount = existingInBrgy.filter(c => c.role === "Treasurer").length;
+
+    if (targetRole === "SK Councilor" && councilorsCount >= 7) {
+      return NextResponse.json({
+        success: false,
+        message: "Quota reached: Maximum of 7 SK Councilors allowed per barangay."
+      }, { status: 400 });
+    }
+    if (targetRole === "Secretary" && secretariesCount >= 2) {
+      return NextResponse.json({
+        success: false,
+        message: "Quota reached: Maximum of 2 Secretaries allowed per barangay."
+      }, { status: 400 });
+    }
+    if (targetRole === "Treasurer" && treasurersCount >= 2) {
+      return NextResponse.json({
+        success: false,
+        message: "Quota reached: Maximum of 2 Treasurers allowed per barangay."
+      }, { status: 400 });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create User record for auth login
@@ -115,7 +151,7 @@ export async function POST(request: Request) {
         userId: newUser.id,
         name,
         email,
-        role: role || "SK Councilor",
+        role: targetRole,
         contactNumber: contactNumber || null,
         status: "Active",
         barangayId: barangayId
@@ -126,7 +162,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       data: mapToCouncilor(newCouncilor),
-      message: `Account created for ${role || "SK Councilor"} ${name}!`
+      message: `Account created for ${targetRole} ${name}!`
     }, { status: 201 });
 
   } catch (error: any) {
@@ -147,6 +183,31 @@ export async function PUT(request: Request) {
     const { id, name, email, role, contactNumber, status } = body;
 
     if (!id) return NextResponse.json({ success: false, message: "Missing ID" }, { status: 400 });
+
+    const existingCouncilor = await db.councilor.findUnique({ where: { id } });
+    if (!existingCouncilor) {
+      return NextResponse.json({ success: false, message: "Councilor not found" }, { status: 404 });
+    }
+
+    // Role reassignment quota check if changing role
+    if (role && role !== existingCouncilor.role) {
+      const otherMembers = await db.councilor.findMany({
+        where: { barangayId: existingCouncilor.barangayId, id: { not: id } }
+      });
+      const cCount = otherMembers.filter(c => c.role === "SK Councilor").length;
+      const sCount = otherMembers.filter(c => c.role === "Secretary").length;
+      const tCount = otherMembers.filter(c => c.role === "Treasurer").length;
+
+      if (role === "SK Councilor" && cCount >= 7) {
+        return NextResponse.json({ success: false, message: "Cannot reassign: Maximum 7 SK Councilors reached." }, { status: 400 });
+      }
+      if (role === "Secretary" && sCount >= 2) {
+        return NextResponse.json({ success: false, message: "Cannot reassign: Maximum 2 Secretaries reached." }, { status: 400 });
+      }
+      if (role === "Treasurer" && tCount >= 2) {
+        return NextResponse.json({ success: false, message: "Cannot reassign: Maximum 2 Treasurers reached." }, { status: 400 });
+      }
+    }
 
     const updated = await db.councilor.update({
       where: { id },

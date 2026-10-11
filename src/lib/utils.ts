@@ -111,3 +111,19 @@ export function calculateAge(dobInput: string | Date | null | undefined): number
   return age >= 0 ? age : "";
 }
 
+/**
+ * Determines whether a TESDA program's active term has concluded/ended based on
+ * activeStatus ("Closed") or if its endDate is in the past.
+ */
+export function isProgramEnded(prog?: { activeStatus?: string; endDate?: string | Date | null } | null): boolean {
+  if (!prog) return false;
+  if (prog.activeStatus === "Closed") return true;
+  if (!prog.endDate) return false;
+  try {
+    const end = new Date(prog.endDate);
+    end.setHours(23, 59, 59, 999);
+    return !isNaN(end.getTime()) && end.getTime() < Date.now();
+  } catch {
+    return false;
+  }
+}

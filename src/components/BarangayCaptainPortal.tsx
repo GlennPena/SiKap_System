@@ -54,6 +54,7 @@ import { SikapLogo, NotificationBellButton } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
+import { isProgramEnded } from "../lib/utils";
 import {
   YouthProfile,
   ReferralPipelineItem,
@@ -1426,7 +1427,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 12 Total</span>
                     </div>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length} Appointees
+                      {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length}/11 Appointees (7 Councilors, 2 Sec, 2 Treas)
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -2454,10 +2455,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       value={councilRoleFilter}
                       onChange={(val) => setCouncilRoleFilter(val)}
                       options={[
-                        { value: "All", label: `All Appointees (${localCouncilors.length})` },
-                        { value: "SK Councilor", label: "SK Councilor" },
-                        { value: "Secretary", label: "Secretary" },
-                        { value: "Treasurer", label: "Treasurer" }
+                        { value: "All", label: `All Appointees (${localCouncilors.length}/11)` },
+                        { value: "SK Councilor", label: `SK Councilor (${localCouncilors.filter(c => c.role === "SK Councilor").length}/7)` },
+                        { value: "Secretary", label: `Secretary (${localCouncilors.filter(c => c.role === "Secretary").length}/2)` },
+                        { value: "Treasurer", label: `Treasurer (${localCouncilors.filter(c => c.role === "Treasurer").length}/2)` }
                       ]}
                       size="sm"
                       placeholder="All Appointees"
@@ -2910,7 +2911,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     const catName = typeof prog.category === "string" ? prog.category : prog.category?.name || "";
                     const matchedCatObj = CATEGORIES.find(c => c.id === prog.categoryId);
                     const resolvedCat = catName || matchedCatObj?.name || "Technical-Vocational";
-                    const isOpen = prog.slotsRemaining > 0 && prog.activeStatus !== "Full" && prog.activeStatus !== "Closed";
+                    const isEnded = isProgramEnded(prog);
+                    const isOpen = !isEnded && prog.slotsRemaining > 0 && prog.activeStatus !== "Full" && prog.activeStatus !== "Closed";
 
                     return (
                       <div
@@ -2927,15 +2929,22 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                               {certLevel ? `${certLevel} Certified` : "TESDA Course"}
                             </span>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                                prog.cost === "Free"
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                  : prog.cost === "Subsidized"
-                                  ? "bg-indigo-50 text-indigo-800 border-indigo-200"
-                                  : "bg-gray-50 text-gray-800 border-gray-200"
-                              }`}>
-                                {prog.cost === "Free" ? "100% Free" : prog.cost}
-                              </span>
+                              {isEnded ? (
+                                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-1">
+                                  <Clock className="w-2.5 h-2.5 text-purple-600" />
+                                  Term Ended
+                                </span>
+                              ) : (
+                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                                  prog.cost === "Free"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : prog.cost === "Subsidized"
+                                    ? "bg-indigo-50 text-indigo-800 border-indigo-200"
+                                    : "bg-gray-50 text-gray-800 border-gray-200"
+                                }`}>
+                                  {prog.cost === "Free" ? "100% Free" : prog.cost}
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -2959,7 +2968,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                             </p>
                             <p className="flex items-center gap-1.5">
                               <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                              <span>Duration: <strong className="text-gray-800">{prog.trainingHours} hours</strong></span>
+                              <span>Duration: <strong className="text-gray-800">{prog.trainingHours} hours {isEnded ? "(Concluded)" : ""}</strong></span>
                             </p>
                           </div>
                         </div>
@@ -2967,8 +2976,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                         <div className="pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold">
                           <div>
                             <p className="text-gray-400 uppercase tracking-wider text-[8px] font-black">Remaining Slots</p>
-                            <p className={`text-xs font-black mt-0.5 ${isOpen ? "text-emerald-700" : "text-red-600"}`}>
-                              {isOpen ? `${prog.slotsRemaining} / ${prog.slotsTotal} Open` : "Full / Waitlist"}
+                            <p className={`text-xs font-black mt-0.5 ${isEnded ? "text-purple-700" : isOpen ? "text-emerald-700" : "text-red-600"}`}>
+                              {isEnded ? "Ended / Concluded" : isOpen ? `${prog.slotsRemaining} / ${prog.slotsTotal} Open` : "Full / Waitlist"}
                             </p>
                           </div>
                           <button
@@ -3024,8 +3033,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   </div>
                 </div>
 
-                {/* Sub-Tab Navigation Pills */}
-                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full no-scrollbar">
+                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                   {[
                     { id: "profile", label: "Executive Profile", icon: <Shield className="w-3.5 h-3.5 shrink-0" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
@@ -3630,11 +3638,18 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-black/40 border border-amber-500/30 px-2 py-0.5 rounded">
                     {selectedProgram.cost === "Free" ? "100% Free (TESDA Scholarship)" : selectedProgram.cost}
                   </span>
-                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
-                    selectedProgram.slotsRemaining > 0 ? "bg-emerald-900/60 text-emerald-200 border border-emerald-600/40" : "bg-red-950/60 text-red-300 border border-red-700/40"
-                  }`}>
-                    {selectedProgram.slotsRemaining > 0 ? `${selectedProgram.slotsRemaining} Slots Open` : "Full / Closed"}
-                  </span>
+                  {isProgramEnded(selectedProgram) ? (
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-purple-900/70 text-purple-200 border border-purple-500/50 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-purple-300" />
+                      Training Term Concluded
+                    </span>
+                  ) : (
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                      selectedProgram.slotsRemaining > 0 ? "bg-emerald-900/60 text-emerald-200 border border-emerald-600/40" : "bg-red-950/60 text-red-300 border border-red-700/40"
+                    }`}>
+                      {selectedProgram.slotsRemaining > 0 ? `${selectedProgram.slotsRemaining} Slots Open` : "Full / Closed"}
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-base font-black leading-snug">{selectedProgram.title}</h3>
                 <p className="text-xs text-emerald-200 font-semibold mt-0.5">{selectedProgram.provider}</p>
