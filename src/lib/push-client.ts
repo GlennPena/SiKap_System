@@ -54,8 +54,8 @@ export async function getPushSubscriptionStatus(): Promise<{
 
   const permission = Notification.permission;
   try {
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
     return {
       supported: true,
       permission,
@@ -129,8 +129,8 @@ export async function unsubscribeUserFromPush(): Promise<{ success: boolean; err
   if (!isPushSupported()) return { success: true };
 
   try {
-    const reg = await navigator.serviceWorker.ready;
-    const subscription = await reg.pushManager.getSubscription();
+    const reg = await navigator.serviceWorker.getRegistration();
+    const subscription = reg ? await reg.pushManager.getSubscription() : null;
 
     if (subscription) {
       const endpoint = subscription.endpoint;
