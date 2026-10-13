@@ -7,7 +7,7 @@ import {
   CheckCircle, ShieldAlert, Sparkles, AlertTriangle, TrendingUp, Users2, Trash2, Edit, X, RefreshCw,
   ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
   LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight, ChevronLeft,
-  Printer, Download, Menu, Clock
+  Printer, Download, Menu, Clock, Loader2
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
@@ -60,6 +60,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   currentUser
 }) => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
   const [currentScreen, setCurrentScreen] = useState<SKOfficialScreen>(SKOfficialScreen.DASHBOARD);
   const [selectedYouthId, setSelectedYouthId] = useState<string | null>("y-01"); // Default to Juan
   
@@ -1895,11 +1906,24 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             </div>
           </div>
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-colors font-semibold"
+            type="button"
+            disabled={isLoggingOut}
+            onClick={handleSignOut}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-all font-semibold ${
+              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              <>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </>
+            )}
           </button>
         </div>
       </aside>

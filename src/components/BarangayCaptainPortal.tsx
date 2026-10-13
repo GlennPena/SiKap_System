@@ -9,6 +9,7 @@ import {
   FileText,
   Landmark,
   LogOut,
+  Loader2,
   TrendingUp,
   Users,
   Search,
@@ -94,6 +95,17 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   // Navigation State
   const [currentScreen, setCurrentScreen] = useState<BarangayCaptainScreen>(BarangayCaptainScreen.DASHBOARD);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
   
   // Selected Profile for Dossier Modal
   const [selectedYouth, setSelectedYouth] = useState<YouthProfile | null>(null);
@@ -1105,11 +1117,24 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           </div>
 
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-colors font-bold uppercase tracking-wider cursor-pointer"
+            type="button"
+            disabled={isLoggingOut}
+            onClick={handleSignOut}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-all font-bold uppercase tracking-wider ${
+              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              <>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </>
+            )}
           </button>
         </div>
       </aside>
@@ -3251,11 +3276,24 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
                       <div className="pt-2">
                         <button
-                          onClick={onLogout}
-                          className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                          type="button"
+                          disabled={isLoggingOut}
+                          onClick={handleSignOut}
+                          className={`w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-all flex items-center justify-center gap-2 ${
+                            isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                          }`}
                         >
-                          <LogOut className="w-3.5 h-3.5" />
-                          Sign Out of Official Portal
+                          {isLoggingOut ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-red-700" />
+                              <span>Signing out...</span>
+                            </>
+                          ) : (
+                            <>
+                              <LogOut className="w-3.5 h-3.5" />
+                              <span>Sign Out of Official Portal</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

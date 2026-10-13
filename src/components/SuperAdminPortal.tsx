@@ -7,7 +7,7 @@ import {
   Lock, Bell, Search, Filter, MapPin, Sparkles, AlertTriangle, ChevronRight, ChevronLeft,
   User, Mail, Phone, Calendar, CheckCircle, X, Layers, ExternalLink, ShieldCheck,
   Key, Power, Ban, FileText, History, Clock, Tag, Award, GraduationCap, CheckCircle as CheckIcon,
-  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu
+  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu, Loader2
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
@@ -49,6 +49,17 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
     "dashboard" | "youth_masterlist" | "barangays" | "tesda_records" | "audit_logs" | "create_account" | "create_tesda" | "profile"
   >("dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
 
   // Profile Tab State
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
@@ -1372,11 +1383,24 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
             </div>
           </div>
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-xs text-red-300 hover:text-white rounded-xl transition-all font-bold cursor-pointer"
+            type="button"
+            disabled={isLoggingOut}
+            onClick={handleSignOut}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-xs text-red-300 hover:text-white rounded-xl transition-all font-bold ${
+              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out Central
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              <>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out Central</span>
+              </>
+            )}
           </button>
         </div>
       </aside>
@@ -3511,11 +3535,23 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
                       <div className="pt-2 border-t border-slate-100">
                         <button
                           type="button"
-                          onClick={onLogout}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-colors cursor-pointer"
+                          disabled={isLoggingOut}
+                          onClick={handleSignOut}
+                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
+                            isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                          }`}
                         >
-                          <LogOut className="w-3.5 h-3.5" />
-                          Sign Out Central Administration
+                          {isLoggingOut ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
+                              <span>Signing out...</span>
+                            </>
+                          ) : (
+                            <>
+                              <LogOut className="w-3.5 h-3.5" />
+                              <span>Sign Out Central Administration</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

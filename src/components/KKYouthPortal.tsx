@@ -6,7 +6,7 @@ import {
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
   BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
-  Tag, Compass, FileText, Layers, Activity, Menu
+  Tag, Compass, FileText, Layers, Activity, Menu, Loader2
 } from "lucide-react";
 import { formatContactNumber, isProgramEnded } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
@@ -46,6 +46,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
   const [activeTab, setActiveTab] = useState<YouthScreen>(YouthScreen.HOME);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
   const [showAddSkillModal, setShowAddSkillModal] = useState(false);
   const [newSkillInput, setNewSkillInput] = useState("");
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -1104,11 +1115,24 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
           </div>
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-colors font-semibold"
+            type="button"
+            disabled={isLoggingOut}
+            onClick={handleSignOut}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-all font-semibold ${
+              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              <>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </>
+            )}
           </button>
         </div>
       </aside>

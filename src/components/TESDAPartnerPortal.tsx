@@ -6,7 +6,7 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
   Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive, Calculator,
-  Lock, EyeOff, Edit, ShieldAlert, Copy, Menu
+  Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
@@ -38,6 +38,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 }) => {
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
   
   // Dashboard Sub-tabs
   const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs" | "archived">("all");
@@ -970,11 +981,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           </div>
           
           <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 border border-red-500/30 rounded-xl transition-all text-xs font-bold cursor-pointer"
+            type="button"
+            disabled={isLoggingOut}
+            onClick={handleSignOut}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 border border-red-500/30 rounded-xl transition-all text-xs font-bold ${
+              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
+                <span>Signing out...</span>
+              </>
+            ) : (
+              <>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </>
+            )}
           </button>
         </div>
       </aside>
@@ -2913,11 +2937,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <div className="pt-2 border-t border-slate-100">
                         <button
                           type="button"
-                          onClick={onLogout}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-colors"
+                          disabled={isLoggingOut}
+                          onClick={handleSignOut}
+                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
+                            isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                          }`}
                         >
-                          <LogOut className="w-3.5 h-3.5" />
-                          Sign Out of Institutional Portal
+                          {isLoggingOut ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
+                              <span>Signing out...</span>
+                            </>
+                          ) : (
+                            <>
+                              <LogOut className="w-3.5 h-3.5" />
+                              <span>Sign Out of Institutional Portal</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
