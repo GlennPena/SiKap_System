@@ -60,7 +60,7 @@ const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction
   const isInView = useInView(ref, { once: true, margin: margin as any, amount });
   const controls = useAnimation();
 
-  const initial = direction === "up" ? { opacity: 0, y: 30 } : direction === "left" ? { opacity: 0, x: -30 } : { opacity: 0, x: 30 };
+  const initial = direction === "up" ? { opacity: 0, y: 24 } : direction === "left" ? { opacity: 0, x: -12 } : { opacity: 0, x: 12 };
   const target = direction === "up" ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 };
 
   useEffect(() => {
@@ -182,7 +182,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   return (
-    <div className="bg-[#FAFBF9] min-h-screen text-gray-800" id="landing-page-root">
+    <div className="bg-[#FAFBF9] min-h-screen text-gray-800 w-full max-w-full overflow-x-hidden" id="landing-page-root">
 
       {/* Non-sticky Header */}
       <header className="relative w-full z-40 bg-white border-b border-emerald-100/80 shadow-2xs transition-all duration-200">
@@ -281,7 +281,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               {/* Hero Right Visual Column */}
               <FadeIn direction="right" delay={0.6} className="lg:col-span-5 relative mt-6 lg:mt-0">
-                <div className="absolute -inset-2 sm:-inset-3 bg-emerald-100/35 rounded-3xl blur-xl -z-10"></div>
+                <div className="absolute inset-0 sm:-inset-2 bg-emerald-100/35 rounded-3xl blur-lg -z-10"></div>
 
                 {/* Interactive Demo Matching Mockup Card */}
                 <div className="bg-white border sm:border-2 border-emerald-100/90 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xl sm:shadow-2xl space-y-3 sm:space-y-5.5">
@@ -556,7 +556,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Dynamic Workflow / Road map Section */}
-      <section id="workflow" className="py-20 sm:py-28 bg-white border-b border-gray-100">
+      <section id="workflow" className="py-20 sm:py-28 bg-white border-b border-gray-100 overflow-hidden">
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
 
@@ -831,7 +831,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Minimalist Footer */}
-      <footer className="bg-[#0D1812] border-t border-emerald-950 pt-14 sm:pt-16 pb-8 mt-auto">
+      <footer className="bg-[#0D1812] border-t border-emerald-950 pt-14 sm:pt-16 pb-8 mt-auto overflow-hidden">
         <FadeIn className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-8 md:gap-4 text-center md:text-left">
 

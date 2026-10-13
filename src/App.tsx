@@ -325,7 +325,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-sans antialiased" id="sikap-application-root">
+    <div className="font-sans antialiased w-full max-w-full overflow-x-hidden" id="sikap-application-root">
       {/* Toast Alert stack */}
       <aside
         aria-label="Notifications"

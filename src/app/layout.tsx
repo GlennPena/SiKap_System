@@ -24,7 +24,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased min-h-screen bg-[#FAFAF8] text-[#1C2B20]">
+      <body className="antialiased min-h-screen bg-[#FAFAF8] text-[#1C2B20] overflow-x-hidden w-full max-w-full">
         {children}
       </body>
     </html>
