@@ -18,7 +18,7 @@ import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
-import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Sparkles } from "lucide-react";
+import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 const MatchBadge: React.FC = () => {
@@ -135,6 +135,9 @@ export default function App() {
     } else if (status === "unauthenticated") {
       setCurrentUserRole(null);
     }
+    if (status === "authenticated") {
+      setIsLoggingIn(false);
+    }
   }, [session, status]);
 
   // New Super Admin & Councilor states
@@ -206,39 +209,49 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Standard login trigger
   const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoggingIn) return;
     if (!email.trim() || !password.trim()) {
       addToast("Please input valid credentials", "error");
       return;
     }
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      rememberMe: rememberMe ? "true" : "false",
-      redirect: false,
-    });
+    setIsLoggingIn(true);
+    try {
+      const res = await signIn("credentials", {
+        email,
+        password,
+        rememberMe: rememberMe ? "true" : "false",
+        redirect: false,
+      });
 
-    if (res?.error) {
-      addToast("Invalid credentials", "error");
-    } else {
-      if (typeof window !== "undefined") {
-        if (rememberMe) {
-          localStorage.setItem("sikap_remember_me", "true");
-          sessionStorage.removeItem("sikap_session_active");
-        } else {
-          localStorage.removeItem("sikap_remember_me");
-          sessionStorage.setItem("sikap_session_active", "true");
+      if (res?.error) {
+        addToast("Invalid credentials", "error");
+        setIsLoggingIn(false);
+      } else {
+        if (typeof window !== "undefined") {
+          if (rememberMe) {
+            localStorage.setItem("sikap_remember_me", "true");
+            sessionStorage.removeItem("sikap_session_active");
+          } else {
+            localStorage.removeItem("sikap_remember_me");
+            sessionStorage.setItem("sikap_session_active", "true");
+          }
         }
+        addToast("Successfully logged in!", "success");
       }
-      addToast("Successfully logged in!", "success");
+    } catch {
+      addToast("An error occurred during login", "error");
+      setIsLoggingIn(false);
     }
   };
 
   const handleLogout = async () => {
+    setIsLoggingIn(false);
     if (typeof window !== "undefined") {
       localStorage.removeItem("sikap_remember_me");
       sessionStorage.removeItem("sikap_session_active");
@@ -519,8 +532,9 @@ export default function App() {
                             type="email"
                             placeholder="juan.delacruz@gmail.com"
                             value={email}
+                            disabled={isLoggingIn}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900"
+                            className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
                           />
                         </div>
 
@@ -529,8 +543,9 @@ export default function App() {
                             <label className="text-sm lg:text-base font-semibold text-gray-700">Password</label>
                             <button
                               type="button"
+                              disabled={isLoggingIn}
                               onClick={() => setIsForgotPasswordOpen(true)}
-                              className="text-xs sm:text-sm font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer"
+                              className="text-xs sm:text-sm font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Forgot?
                             </button>
@@ -540,13 +555,15 @@ export default function App() {
                               type={showPassword ? "text" : "password"}
                               placeholder="••••••••"
                               value={password}
+                              disabled={isLoggingIn}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900"
+                              className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
                             />
                             <button
                               type="button"
+                              disabled={isLoggingIn}
                               onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center disabled:opacity-50"
                             >
                               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
@@ -558,8 +575,9 @@ export default function App() {
                               id="remember-me-checkbox"
                               type="checkbox"
                               checked={rememberMe}
+                              disabled={isLoggingIn}
                               onChange={(e) => setRememberMe(e.target.checked)}
-                              className="h-4 w-4 sm:h-4.5 sm:w-4.5 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43]"
+                              className="h-4 w-4 sm:h-4.5 sm:w-4.5 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43] disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <label htmlFor="remember-me-checkbox" className="text-sm lg:text-base text-gray-600 font-medium select-none cursor-pointer">
                               Remember me
@@ -569,12 +587,22 @@ export default function App() {
 
                         <div className="pt-2 lg:pt-3">
                           <motion.button
-                            whileHover={{ scale: 1.015 }}
-                            whileTap={{ scale: 0.985 }}
+                            whileHover={isLoggingIn ? {} : { scale: 1.015 }}
+                            whileTap={isLoggingIn ? {} : { scale: 0.985 }}
                             type="submit"
-                            className="w-full py-3.5 sm:py-4 lg:py-4.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-base lg:text-lg font-bold rounded-2xl shadow-md transition-colors cursor-pointer"
+                            disabled={isLoggingIn}
+                            className={`w-full py-3.5 sm:py-4 lg:py-4.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-base lg:text-lg font-bold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2.5 ${
+                              isLoggingIn ? "opacity-80 cursor-not-allowed" : "cursor-pointer"
+                            }`}
                           >
-                            Login
+                            {isLoggingIn ? (
+                              <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span>Logging in...</span>
+                              </>
+                            ) : (
+                              <span>Login</span>
+                            )}
                           </motion.button>
                         </div>
                       </form>
