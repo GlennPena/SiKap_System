@@ -5,7 +5,7 @@ const smtpHost = process.env.SMTP_HOST || "";
 const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
 const smtpUser = process.env.SMTP_USER || "";
 const smtpPass = process.env.SMTP_PASS || "";
-const emailFrom = process.env.EMAIL_FROM || "SiKap System <no-reply@sikap.gov.ph>";
+const emailFrom = process.env.EMAIL_FROM || "SiKap System <sikapofficial.system@gmail.com>";
 
 // Create reusable transporter if SMTP credentials are provided
 let transporter: nodemailer.Transporter | null = null;
@@ -93,11 +93,18 @@ export async function sendEmailToUser(
   });
 }
 
+function getAppUrl(): string {
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "https://si-kap-system.vercel.app";
+}
+
 /**
  * Base email layout wrapper with SiKap green branding.
  */
 function wrapEmailTemplate(title: string, bodyContent: string, actionButton?: { label: string; url: string }): string {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3001";
+  const appUrl = getAppUrl();
   const buttonHtml = actionButton ? `
     <div style="margin: 28px 0; text-align: center;">
       <a href="${actionButton.url}" style="background-color: #0A6B43; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
@@ -157,7 +164,7 @@ export function buildReferralStatusEmail(params: {
   programTitle: string;
   status: string;
 }): { subject: string; html: string; text: string } {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3001";
+  const appUrl = getAppUrl();
   let statusBadge = "";
   let message = "";
   let subject = "";
@@ -214,7 +221,7 @@ export function buildNewRegistrationEmail(params: {
   age: number;
   currentStatus: string;
 }): { subject: string; html: string; text: string } {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3001";
+  const appUrl = getAppUrl();
   const subject = `📋 New KK Youth Registered: ${params.youthName} (${params.barangayName})`;
 
   const html = wrapEmailTemplate(
@@ -260,7 +267,7 @@ export function buildAnnouncementEmail(params: {
   category: string;
   barangayName?: string;
 }): { subject: string; html: string; text: string } {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3001";
+  const appUrl = getAppUrl();
   const subject = `📢 Announcement: ${params.title}`;
 
   const html = wrapEmailTemplate(
@@ -292,7 +299,7 @@ export function buildPasswordResetEmail(params: {
   resetCode: string;
   expiresInMinutes: number;
 }): { subject: string; html: string; text: string } {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || "http://localhost:3001";
+  const appUrl = getAppUrl();
   const subject = `🔐 Password Recovery Verification Code: ${params.resetCode}`;
 
   const html = wrapEmailTemplate(

@@ -540,7 +540,7 @@ Barangay: ${createdCredentials.barangay || "Municipal Hub"}
 Email: ${createdCredentials.email}
 Temporary Password: ${createdCredentials.pass}
 -----------------------------------
-Please sign in at http://localhost:3001 and change your password immediately.`;
+Please sign in at ${window.location.origin} and change your password immediately.`;
     
     navigator.clipboard.writeText(text);
     setCopied(true);

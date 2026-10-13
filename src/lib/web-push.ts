@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 
 const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 const privateVapidKey = process.env.VAPID_PRIVATE_KEY || "";
-const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@sikap.gov.ph";
+const vapidSubject = process.env.VAPID_SUBJECT || "mailto:sikapofficial.system@gmail.com";
 
 if (publicVapidKey && privateVapidKey) {
   try {
