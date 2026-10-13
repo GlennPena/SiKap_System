@@ -832,7 +832,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F8FAF9] flex font-sans text-slate-800 antialiased" id="tesda-portal-container">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#F8FAF9] flex font-sans text-slate-800 antialiased w-full" id="tesda-portal-container">
       {/* Mobile Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
         <div
@@ -844,7 +844,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-screen shrink-0 bg-[#112F24] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#112F24] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -951,7 +951,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         </div>
 
         {/* User Info & Logout Footer */}
-        <div className="p-4 border-t border-emerald-900/50 bg-[#0c241b] shrink-0">
+        <div className="p-4 sm:p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/50 bg-[#0c241b] shrink-0">
           <div
             onClick={() => {
               setCurrentScreen(TESDAPartnerScreen.SETTINGS);
@@ -980,7 +980,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       </aside>
 
       {/* Main Viewport */}
-      <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
         {/* Sticky Header */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">

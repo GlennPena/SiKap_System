@@ -1795,7 +1795,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   }, [pendingCount, localAnnouncements, mostCriticalGapItem, programs, designatedBarangay]);
 
   return (
-    <div className="h-screen overflow-hidden bg-[#FAFAF8] flex" id="sk-portal-container">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex w-full" id="sk-portal-container">
       {/* Mobile Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
         <div
@@ -1807,7 +1807,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-screen shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -1877,7 +1877,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           </nav>
         </div>
 
-        <div className="p-6 border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
+        <div className="p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
           <div
             onClick={() => {
               setCurrentScreen(SKOfficialScreen.SETTINGS);
@@ -1905,7 +1905,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
         {/* Sticky Topbar */}
         <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-2xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">

@@ -999,7 +999,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   };
 
   return (
-    <div className="flex h-screen bg-[#FAFAF8] text-slate-800 font-sans antialiased overflow-hidden" id="captain-portal-container">
+    <div className="flex h-[100dvh] max-h-[100dvh] w-full bg-[#FAFAF8] text-slate-800 font-sans antialiased overflow-hidden" id="captain-portal-container">
       
       {/* Mobile Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
@@ -1014,7 +1014,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* SIDEBAR NAVIGATION (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       {/* ========================================================================= */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-screen shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -1082,7 +1082,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         </div>
 
         {/* Bottom User Area & Logout Button (ALWAYS VISIBLE & NON-SCROLLABLE) */}
-        <div className="p-6 border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
+        <div className="p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
           <div
             onClick={() => {
               setCurrentScreen(BarangayCaptainScreen.PROFILE);
@@ -1117,7 +1117,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* ========================================================================= */}
       {/* MAIN VIEWPORT & STICKY TOPBAR                                            */}
       {/* ========================================================================= */}
-      <main className="flex-1 h-screen flex flex-col min-w-0 overflow-y-auto">
+      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
         
         {/* Sticky Topbar */}
         <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-2xs">

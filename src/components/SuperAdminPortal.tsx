@@ -1266,7 +1266,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 flex font-sans text-slate-800" id="super-admin-portal-root">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-slate-50 flex font-sans text-slate-800 w-full" id="super-admin-portal-root">
       
       {/* Mobile Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
@@ -1281,7 +1281,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
       {/* SIDEBAR - Signature SiKap Emerald Theme (Responsive Drawer on Mobile) */}
       {/* ============================================================ */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-68 h-screen shrink-0 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-68 h-[100dvh] max-h-[100dvh] shrink-0 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -1354,7 +1354,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
         </div>
 
         {/* User Info & Logout */}
-        <div className="p-5 border-t border-emerald-800/40 bg-[#0B1E16] shrink-0">
+        <div className="p-4 sm:p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-800/40 bg-[#0B1E16] shrink-0">
           <div
             onClick={() => {
               setActiveTab("profile");
@@ -1384,7 +1384,7 @@ Please sign in at http://localhost:3001 and change your password immediately.`;
       {/* ============================================================ */}
       {/* MAIN CONTENT AREA */}
       {/* ============================================================ */}
-      <main className="flex-1 h-screen flex flex-col min-w-0 bg-slate-50/70 overflow-y-auto">
+      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 bg-slate-50/70 overflow-y-auto pb-12 sm:pb-6">
         
         {/* Sticky Top Header */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between z-10 shadow-xs">
