@@ -64,7 +64,8 @@ import {
   Councilor,
   BarangayCaptainScreen,
   EDUCATIONAL_ATTAINMENT_OPTIONS,
-  normalizeEducationalAttainment
+  normalizeEducationalAttainment,
+  getSkillGapCriticality
 } from "../types";
 
 interface BarangayCaptainPortalProps {
@@ -1645,17 +1646,18 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <div className="space-y-3 text-xs">
                       {localSkillsGaps.map((gap) => {
                         const maxCount = Math.max(...localSkillsGaps.map(g => g.count), 1);
+                        const crit = getSkillGapCriticality(gap.percentage, gap.count);
                         return (
-                          <div key={gap.skill} className="space-y-1">
-                            <div className="flex justify-between font-bold">
+                          <div key={gap.skill} className="space-y-1.5">
+                            <div className="flex justify-between items-center font-bold gap-2">
                               <span className="text-gray-700 truncate max-w-[170px]" title={gap.skill}>{gap.skill}</span>
-                              <span className="text-amber-700 font-black bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[10px]">
-                                {gap.count} youth lacking
+                              <span className={`font-black border px-1.5 py-0.5 rounded text-[10px] shrink-0 ${crit.badgeClass}`}>
+                                {gap.count} youth ({gap.percentage}%)
                               </span>
                             </div>
-                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`w-full h-1.5 rounded-full overflow-hidden ${crit.trackClass}`}>
                               <div
-                                className="h-full bg-gradient-to-r from-amber-500 to-[#0A6B43] rounded-full"
+                                className={`h-full rounded-full transition-all duration-300 ${crit.barClass}`}
                                 style={{ width: `${(gap.count / maxCount) * 100}%` }}
                               />
                             </div>

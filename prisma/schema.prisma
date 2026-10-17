@@ -139,6 +139,7 @@ model YouthProfile {
   verificationIdNumberEnc String?        // AES-256-GCM Encrypted
   verificationIdImageEnc  String?        // AES-256-GCM Encrypted
   savedCareerPlan         String?        // JSON or formatted text of Gemini Career Plan
+  savedMatchAdvice        String?        // JSON text of Cached Featured AI Match Advice
   referrals               Referral[]
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt

@@ -64,7 +64,8 @@ function mapToClientProfile(y: any) {
     verificationIdType: y.verificationIdType,
     verificationIdNumber: safeDecrypt(y.verificationIdNumberEnc),
     verificationIdImage: safeDecrypt(y.verificationIdImageEnc),
-    savedCareerPlan: y.savedCareerPlan ? (typeof y.savedCareerPlan === "string" && (y.savedCareerPlan.startsWith("{") || y.savedCareerPlan.startsWith("[")) ? JSON.parse(y.savedCareerPlan) : y.savedCareerPlan) : null
+    savedCareerPlan: y.savedCareerPlan ? (typeof y.savedCareerPlan === "string" && (y.savedCareerPlan.startsWith("{") || y.savedCareerPlan.startsWith("[")) ? JSON.parse(y.savedCareerPlan) : y.savedCareerPlan) : null,
+    savedMatchAdvice: y.savedMatchAdvice ? (typeof y.savedMatchAdvice === "string" && (y.savedMatchAdvice.startsWith("{") || y.savedMatchAdvice.startsWith("[")) ? JSON.parse(y.savedMatchAdvice) : y.savedMatchAdvice) : null
   };
 }
 
@@ -324,6 +325,22 @@ export async function PUT(request: Request) {
       await db.$executeRawUnsafe(
         `UPDATE "YouthProfile" SET "savedCareerPlan" = $1, "updatedAt" = NOW() WHERE "id" = $2`,
         planStringToSave,
+        body.id
+      );
+    }
+
+    let adviceStringToSave: string | null = null;
+    if (body.savedMatchAdvice !== undefined) {
+       adviceStringToSave = typeof body.savedMatchAdvice === "object" && body.savedMatchAdvice !== null
+         ? JSON.stringify(body.savedMatchAdvice)
+         : body.savedMatchAdvice;
+       delete updateData.savedMatchAdvice;
+    }
+
+    if (adviceStringToSave !== null) {
+      await db.$executeRawUnsafe(
+        `UPDATE "YouthProfile" SET "savedMatchAdvice" = $1, "updatedAt" = NOW() WHERE "id" = $2`,
+        adviceStringToSave,
         body.id
       );
     }

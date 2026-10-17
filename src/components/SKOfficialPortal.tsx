@@ -12,7 +12,8 @@ import {
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
   SKOfficialScreen, UserRole, SkillGapData, Councilor,
-  EDUCATIONAL_ATTAINMENT_OPTIONS, VOCATIONAL_SECTOR_OPTIONS, normalizeEducationalAttainment
+  EDUCATIONAL_ATTAINMENT_OPTIONS, VOCATIONAL_SECTOR_OPTIONS, normalizeEducationalAttainment,
+  getSkillGapCriticality
 } from "../types";
 import {
   MetricCard, FlameMatchScore, PathwayTimeline,
@@ -848,8 +849,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <td class="text-center font-bold text-num" style="color: #b45309;">${gap.count}</td>
               <td class="text-center font-bold text-pct">${gap.percentage}%</td>
               <td class="text-center">
-                <span style="color: ${gap.percentage >= 30 ? '#dc2626' : '#b45309'}; font-weight: bold;">
-                  ${gap.percentage >= 30 ? 'Critical Gap' : 'Moderate'}
+                <span style="color: ${gap.percentage >= 30 ? '#dc2626' : gap.percentage >= 15 ? '#b45309' : '#047857'}; font-weight: bold;">
+                  ${gap.percentage >= 30 ? 'Critical Gap' : gap.percentage >= 15 ? 'Moderate Gap' : 'Low Gap'}
                 </span>
                 <span style="font-size: 8pt; color: #047857; display: block;">(${gap.availableSlots} Slots Avail)</span>
               </td>
@@ -2433,15 +2434,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       ) : (
                         localSkillsGaps.slice(0, 3).map((gap) => {
                           const maxCount = Math.max(...localSkillsGaps.map(g => g.count), 1);
+                          const crit = getSkillGapCriticality(gap.percentage, gap.count);
                           return (
-                            <div key={gap.skill} className="space-y-1">
-                              <div className="flex justify-between text-xs font-semibold">
-                                <span className="text-gray-700">{gap.skill}</span>
-                                <span className="text-gray-500">{gap.count} youth</span>
+                            <div key={gap.skill} className="space-y-1.5">
+                              <div className="flex justify-between items-center text-xs font-semibold gap-2">
+                                <div className="flex items-center gap-1.5 truncate min-w-0">
+                                  <span className="text-gray-700 truncate" title={gap.skill}>{gap.skill}</span>
+                                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 border ${crit.badgeClass}`}>
+                                    {crit.level}
+                                  </span>
+                                </div>
+                                <span className="text-gray-500 shrink-0 font-medium text-[11px]">{gap.count} youth ({gap.percentage}%)</span>
                               </div>
-                              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div className={`w-full h-2 rounded-full overflow-hidden ${crit.trackClass}`}>
                                 <div
-                                  className="h-full bg-linear-to-r from-emerald-500 to-[#0A6B43] rounded-full"
+                                  className={`h-full rounded-full transition-all duration-300 ${crit.barClass}`}
                                   style={{ width: `${(gap.count / maxCount) * 100}%` }}
                                 />
                               </div>
@@ -3868,25 +3875,42 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 <>
                   {/* Insights KPI summaries */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
-                    <div className="bg-white border border-[#D1FAE5] p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 hover:border-amber-300 transition-colors">
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-50 text-amber-700 shrink-0 border border-amber-100 flex items-center justify-center">
-                        <AlertTriangle className="w-5 h-5 text-amber-600" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block truncate">Most Critical Gap</span>
-                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">
-                            {mostCriticalGapItem.percentage}%
-                          </span>
+                    {(() => {
+                      const crit = getSkillGapCriticality(mostCriticalGapItem.percentage, mostCriticalGapItem.count);
+                      return (
+                        <div className={`bg-white border p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 transition-colors ${
+                          crit.level === "Critical" ? "border-red-200 hover:border-red-400" :
+                          crit.level === "Moderate" ? "border-amber-200 hover:border-amber-400" :
+                          "border-[#D1FAE5] hover:border-emerald-300"
+                        }`}>
+                          <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 border flex items-center justify-center ${
+                            crit.level === "Critical" ? "bg-red-50 text-red-600 border-red-100" :
+                            crit.level === "Moderate" ? "bg-amber-50 text-amber-700 border-amber-100" :
+                            "bg-emerald-50 text-[#0A6B43] border-emerald-100"
+                          }`}>
+                            <AlertTriangle className={`w-5 h-5 ${
+                              crit.level === "Critical" ? "text-red-600" :
+                              crit.level === "Moderate" ? "text-amber-600" :
+                              "text-emerald-600"
+                            }`} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block truncate">Most Critical Gap</span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border shrink-0 ${crit.badgeClass}`}>
+                                {mostCriticalGapItem.percentage}% ({crit.level})
+                              </span>
+                            </div>
+                            <h4 className="font-extrabold text-gray-800 text-sm mt-0.5 truncate" title={mostCriticalGapItem.skill}>
+                              {mostCriticalGapItem.skill}
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                              <strong>{mostCriticalGapItem.count}</strong> registered youth identified with this competency deficiency.
+                            </p>
+                          </div>
                         </div>
-                        <h4 className="font-extrabold text-gray-800 text-sm mt-0.5 truncate" title={mostCriticalGapItem.skill}>
-                          {mostCriticalGapItem.skill}
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                          <strong>{mostCriticalGapItem.count}</strong> registered youth identified with this competency deficiency.
-                        </p>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     <div className="bg-white border border-[#D1FAE5] p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 hover:border-emerald-300 transition-colors">
                       <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-[#0A6B43] shrink-0 border border-emerald-100 flex items-center justify-center">
@@ -3956,46 +3980,68 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             </span>
                           </div>
 
+                          {/* Criticality Rating Legend for Academic & Executive Triage */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2.5 bg-gray-50/90 rounded-xl border border-gray-200/80 text-[11px]">
+                            <div className="flex items-center gap-1.5 text-gray-600 font-bold uppercase tracking-wider text-[10px]">
+                              <span>Gap Criticality Rating:</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] font-bold">
+                              <div className="flex items-center gap-1.5 text-red-700 bg-red-50/90 px-2 py-0.5 rounded-md border border-red-200/70 shadow-2xs">
+                                <span className="w-2.5 h-2.5 rounded-full bg-red-500 ring-1 ring-red-300" />
+                                <span>Critical Gap (≥30%)</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-amber-800 bg-amber-50/90 px-2 py-0.5 rounded-md border border-amber-200/70 shadow-2xs">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-1 ring-amber-300" />
+                                <span>Moderate Gap (15–29%)</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-emerald-800 bg-emerald-50/90 px-2 py-0.5 rounded-md border border-emerald-200/70 shadow-2xs">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1 ring-emerald-300" />
+                                <span>Low Gap (&lt;15%)</span>
+                              </div>
+                            </div>
+                          </div>
+
                           {filteredGaps.length === 0 ? (
                             <div className="text-center py-8 px-4 text-xs text-gray-400 bg-gray-50/60 rounded-xl border border-gray-100">
                               No competency gaps found under the "{analyticsSectorFilter}" sector category.
                             </div>
                           ) : (
                             <div className="space-y-3.5 sm:space-y-4">
-                              {filteredGaps.map((gap) => (
-                                <div key={gap.skill} className="space-y-2 bg-gray-50/50 p-3 sm:p-3.5 rounded-xl border border-gray-100/80">
-                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-bold text-gray-800 text-xs sm:text-sm leading-snug">{gap.skill}</span>
-                                      {gap.percentage >= 30 && (
-                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 shrink-0">
-                                          Critical Gap
+                              {filteredGaps.map((gap) => {
+                                const crit = getSkillGapCriticality(gap.percentage, gap.count);
+                                return (
+                                  <div key={gap.skill} className="space-y-2 bg-gray-50/50 p-3 sm:p-3.5 rounded-xl border border-gray-150/80 hover:border-gray-250 transition-colors">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold text-gray-800 text-xs sm:text-sm leading-snug">{gap.skill}</span>
+                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border shrink-0 ${crit.badgeClass}`}>
+                                          {crit.label}
                                         </span>
-                                      )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-xs shrink-0 flex-wrap">
+                                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                          {gap.availableSlots} Slots Available
+                                        </span>
+                                        <span className="text-gray-700 font-black text-xs">
+                                          {gap.count} youth <span className="text-gray-400 font-medium">({gap.percentage}%)</span>
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs shrink-0 flex-wrap">
-                                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                                        {gap.availableSlots} Slots Available
-                                      </span>
-                                      <span className="text-gray-700 font-black text-xs">
-                                        {gap.count} youth <span className="text-gray-400 font-medium">({gap.percentage}%)</span>
-                                      </span>
+
+                                    <div className={`w-full h-2.5 sm:h-3 rounded-full overflow-hidden ${crit.trackClass}`}>
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-500 ${crit.barClass}`}
+                                        style={{ width: `${Math.max(8, (gap.count / maxCount) * 100)}%` }}
+                                      />
+                                    </div>
+
+                                    <div className="flex items-start gap-1.5 text-[11px] text-emerald-950 bg-emerald-50/80 p-2 sm:p-2.5 rounded-lg border border-emerald-100 font-medium leading-relaxed">
+                                      <span className="text-[10px] font-black uppercase text-[#0A6B43] shrink-0 mt-0.5">Action:</span>
+                                      <span>{gap.recommendedAction}</span>
                                     </div>
                                   </div>
-
-                                  <div className="w-full h-2.5 sm:h-3 bg-gray-200/70 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-linear-to-r from-emerald-500 to-[#0A6B43] rounded-full transition-all duration-500"
-                                      style={{ width: `${Math.max(8, (gap.count / maxCount) * 100)}%` }}
-                                    />
-                                  </div>
-
-                                  <div className="flex items-start gap-1.5 text-[11px] text-emerald-950 bg-emerald-50/80 p-2 sm:p-2.5 rounded-lg border border-emerald-100 font-medium leading-relaxed">
-                                    <span className="text-[10px] font-black uppercase text-[#0A6B43] shrink-0 mt-0.5">Action:</span>
-                                    <span>{gap.recommendedAction}</span>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -6477,8 +6523,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <td className="p-2 text-center font-bold text-amber-900">{gap.count} youth</td>
                           <td className="p-2 text-center text-amber-700 font-black">{gap.percentage}%</td>
                           <td className="p-2 text-center">
-                            <span className={`inline-block font-bold text-[9px] px-2 py-0.5 rounded ${gap.percentage >= 30 ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                              {gap.percentage >= 30 ? 'Critical' : 'Moderate'}
+                            <span className={`inline-block font-bold text-[9px] px-2 py-0.5 rounded border ${
+                              gap.percentage >= 30
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : gap.percentage >= 15
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              {gap.percentage >= 30 ? 'Critical' : gap.percentage >= 15 ? 'Moderate' : 'Low'}
                             </span>
                             <span className="block text-[8px] text-emerald-700 font-bold mt-0.5">({gap.availableSlots} Slots Avail)</span>
                           </td>

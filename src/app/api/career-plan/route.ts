@@ -12,10 +12,19 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { youthProfile, program } = body;
+    const { youthProfile, program, translatePlan } = body;
 
     if (!youthProfile) {
       return NextResponse.json({ success: false, error: "Missing youthProfile payload" }, { status: 400 });
+    }
+
+    if (translatePlan) {
+      const { translateCareerPlanToTagalog } = await import("@/lib/gemini");
+      const translated = await translateCareerPlanToTagalog(translatePlan, youthProfile);
+      return NextResponse.json({
+        success: true,
+        data: translated
+      });
     }
 
     // Generate real-time Gemini long-term career roadmap

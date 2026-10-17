@@ -15,7 +15,7 @@ import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
-import { GeminiLongTermCareerPlan } from "../lib/gemini";
+import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan } from "../lib/gemini";
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -262,6 +262,42 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeminiLongTermCareerPlan | null>(currentSavedPlan);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
+  const [careerPlanLang, setCareerPlanLang] = useState<"en" | "tl">("en");
+  const [translatedPlanTl, setTranslatedPlanTl] = useState<GeminiLongTermCareerPlan | null>(null);
+  const [isTranslatingPlan, setIsTranslatingPlan] = useState<boolean>(false);
+
+  const handleToggleCareerPlanLang = async (lang: "en" | "tl") => {
+    if (lang === "en") {
+      setCareerPlanLang("en");
+      return;
+    }
+    setCareerPlanLang("tl");
+    const plan = currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || generatedPlan;
+    if (plan && !translatedPlanTl) {
+      const fallback = getFallbackTagalogCareerPlan(plan, youthProfile);
+      setTranslatedPlanTl(fallback);
+
+      setIsTranslatingPlan(true);
+      try {
+        const res = await fetch("/api/career-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            youthProfile,
+            translatePlan: plan
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          setTranslatedPlanTl(data.data);
+        }
+      } catch (err) {
+        console.warn("Using local Tagalog translation fallback for career plan:", err);
+      } finally {
+        setIsTranslatingPlan(false);
+      }
+    }
+  };
 
   useEffect(() => {
     const parsed = parseCareerPlan(youthProfile.savedCareerPlan);
@@ -398,8 +434,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return youthProfile.age + Math.max(0, years);
   }, [youthProfile.age, youthProfile.registeredDate]);
 
-  const [liveGeminiAdvice, setLiveGeminiAdvice] = useState<string>("");
-  const [liveGeminiBullets, setLiveGeminiBullets] = useState<string[]>([]);
+  const [liveGeminiAdvice, setLiveGeminiAdvice] = useState<string>(youthProfile?.savedMatchAdvice?.careerAdvice || "");
+  const [liveGeminiBullets, setLiveGeminiBullets] = useState<string[]>(youthProfile?.savedMatchAdvice?.bulletAdvice || []);
+  const [featuredAdviceTl, setFeaturedAdviceTl] = useState<string>(youthProfile?.savedMatchAdvice?.careerAdviceTl || "");
+  const [featuredBulletsTl, setFeaturedBulletsTl] = useState<string[]>(youthProfile?.savedMatchAdvice?.bulletAdviceTl || []);
+  const [featuredLang, setFeaturedLang] = useState<"en" | "tl">("en");
+  const [isLoadingFeaturedAI, setIsLoadingFeaturedAI] = useState<boolean>(!youthProfile?.savedMatchAdvice?.careerAdvice);
   const [viewingProgramModal, setViewingProgramModal] = useState<{
     program: TESDAProgram;
     matchScore?: number;
@@ -464,6 +504,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   useEffect(() => {
     // Only fetch AI match rationale once actual youth profile is resolved and has a registered barangay
     if (!youthProfile || youthProfile.id === "empty-youth-profile" || !youthProfile.barangay) {
+      setIsLoadingFeaturedAI(false);
       return;
     }
     // Target the actionable uncompleted program first so Gemini provides advice on the next upskilling course
@@ -472,6 +513,44 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       : scoredPrograms.map(sp => sp.program);
 
     if (targetProgramsForAdvice.length > 0) {
+      const targetProg = targetProgramsForAdvice[0];
+      const savedAdvice = youthProfile.savedMatchAdvice;
+
+      // 1. Check if database already has saved match advice for this specific top program
+      if (
+        savedAdvice &&
+        savedAdvice.careerAdvice &&
+        (savedAdvice.programId === targetProg.id || savedAdvice.programTitle === targetProg.title)
+      ) {
+        setLiveGeminiAdvice(savedAdvice.careerAdvice);
+        setLiveGeminiBullets(Array.isArray(savedAdvice.bulletAdvice) ? savedAdvice.bulletAdvice : []);
+        setFeaturedAdviceTl(savedAdvice.careerAdviceTl || "");
+        setFeaturedBulletsTl(Array.isArray(savedAdvice.bulletAdviceTl) ? savedAdvice.bulletAdviceTl : []);
+        setIsLoadingFeaturedAI(false);
+        return;
+      }
+
+      // 2. Check local client cache as an instant fallback
+      const localKey = `sikap_saved_advice_${youthProfile.id}_${targetProg.id}`;
+      try {
+        const cached = localStorage.getItem(localKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.careerAdvice) {
+            setLiveGeminiAdvice(parsed.careerAdvice);
+            setLiveGeminiBullets(parsed.bulletAdvice || []);
+            setFeaturedAdviceTl(parsed.careerAdviceTl || "");
+            setFeaturedBulletsTl(parsed.bulletAdviceTl || []);
+            setIsLoadingFeaturedAI(false);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore storage read issues
+      }
+
+      // 3. If no saved advice exists for this program, generate fresh advice and persist to DB
+      setIsLoadingFeaturedAI(true);
       fetch("/api/match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -488,11 +567,36 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             if (Array.isArray(data.bulletAdvice) && data.bulletAdvice.length > 0) {
               setLiveGeminiBullets(data.bulletAdvice);
             }
+            if (data.careerAdviceTl) setFeaturedAdviceTl(data.careerAdviceTl);
+            if (Array.isArray(data.bulletAdviceTl) && data.bulletAdviceTl.length > 0) {
+              setFeaturedBulletsTl(data.bulletAdviceTl);
+            }
+
+            // Also cache in localStorage for immediate client-side retrieval
+            try {
+              const advicePayload = {
+                programId: targetProg.id,
+                programTitle: targetProg.title,
+                careerAdvice: data.careerAdvice,
+                bulletAdvice: data.bulletAdvice,
+                careerAdviceTl: data.careerAdviceTl,
+                bulletAdviceTl: data.bulletAdviceTl,
+                generatedAt: new Date().toISOString()
+              };
+              localStorage.setItem(localKey, JSON.stringify(advicePayload));
+            } catch (storageErr) {
+              // ignore
+            }
           }
         })
-        .catch(err => console.error("Error fetching Gemini advice:", err));
+        .catch(err => console.error("Error fetching Gemini advice:", err))
+        .finally(() => {
+          setIsLoadingFeaturedAI(false);
+        });
+    } else {
+      setIsLoadingFeaturedAI(false);
     }
-  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, uncompletedScoredPrograms, scoredPrograms]);
+  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, youthProfile?.savedMatchAdvice, uncompletedScoredPrograms, scoredPrograms]);
 
   const skChairpersonName = useMemo(() => {
     return "Your SK Chairperson";
@@ -1638,8 +1742,43 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider text-[#D97706] bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
-                                Featured AI Match for You
+                                {featuredLang === "tl" ? "Tampok na AI Match para sa Iyo" : "Featured AI Match for You"}
                               </span>
+
+                              {/* Language Toggle for OSY */}
+                              <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-250 text-[10px] font-bold">
+                                <button
+                                  type="button"
+                                  onClick={() => setFeaturedLang("en")}
+                                  className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                    featuredLang === "en"
+                                      ? "bg-white text-gray-900 shadow-2xs font-extrabold"
+                                      : "text-gray-500 hover:text-gray-800"
+                                  }`}
+                                  title="Basahin sa Ingles (English)"
+                                >
+                                  English
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFeaturedLang("tl")}
+                                  className={`px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                                    featuredLang === "tl"
+                                      ? "bg-[#0A6B43] text-white shadow-2xs font-extrabold"
+                                      : "text-gray-600 hover:text-gray-900"
+                                  }`}
+                                  title="Isalin sa simpleng Tagalog para sa mga OSY"
+                                >
+                                  <span>🇵🇭</span>
+                                  <span>Tagalog</span>
+                                </button>
+                              </div>
+
+                              {featuredLang === "tl" && (
+                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                                  Simpleng Tagalog para sa OSY
+                                </span>
+                              )}
                             </div>
                             <h4 className="font-extrabold text-gray-900 text-base sm:text-lg mt-1 leading-snug">{featuredProg.title}</h4>
                             <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
@@ -1659,47 +1798,116 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           </div>
                         </div>
 
-                        <div className="bg-emerald-50/90 p-3.5 sm:p-4 rounded-xl border border-emerald-200/80 space-y-2 shadow-2xs">
-                          <div className="flex items-center justify-between flex-wrap gap-1">
-                            <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                              Gemini Match Rationale
-                            </span>
-                            <span className="text-[10px] font-bold text-emerald-700/80">
-                              Powered by Google Gemini
-                            </span>
-                          </div>
-                          <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                            &ldquo;{liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} has practical background skills in ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "vocational trades"}. This ${featuredProg.title} program will officially certify their qualifications under TESDA and unlock formal job opportunities in ${youthProfile.sectorPreference || "their target industry"}.`}&rdquo;
-                          </p>
-                        </div>
-
-                        {/* Personalized 3-Bullet Advice Pathway */}
-                        <div className="bg-linear-to-br from-[#F0FDF4] to-[#E8F5EF] p-3.5 sm:p-4 rounded-xl border border-[#9FE1CB]/70 space-y-2.5 shadow-2xs">
-                          <div className="flex items-center justify-between flex-wrap gap-1">
-                            <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-                              <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
-                              Gemini Personalized 3-Step Pathway
-                            </span>
-                            <span className="text-[10px] font-extrabold text-[#D97706] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                              AI Action Plan
-                            </span>
-                          </div>
-                          <ul className="space-y-2 text-xs text-emerald-950 font-medium">
-                            {(liveGeminiBullets && liveGeminiBullets.length === 3 ? liveGeminiBullets : [
-                              `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early course modules.`,
-                              `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
-                              `Utilize direct TESDA program applications in Barangay ${youthProfile.barangay || "San Luis"} to achieve "${youthProfile.livelihoodGoal || "certified employment"}".`
-                            ]).map((bullet, bIdx) => (
-                              <li key={bIdx} className="flex items-start gap-2.5 bg-white/80 p-2.5 sm:p-3 rounded-xl border border-emerald-100/80 shadow-2xs">
-                                <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-extrabold text-[10px] shrink-0 mt-0.5 shadow-2xs">
-                                  {bIdx + 1}
+                        {isLoadingFeaturedAI ? (
+                          <div className="space-y-3.5 animate-in fade-in duration-300">
+                            {/* Loading Gemini Match Rationale Skeleton */}
+                            <div className="bg-emerald-50/70 p-3.5 sm:p-4 rounded-xl border border-emerald-200/80 space-y-2.5 shadow-2xs">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-2">
+                                  <Loader2 className="w-3.5 h-3.5 text-[#0A6B43] animate-spin" />
+                                  <span>{featuredLang === "tl" ? "Sinusuri ang Iyong Profile at Kasanayan..." : "Analyzing Youth Profile & Competencies..."}</span>
                                 </span>
-                                <span className="leading-relaxed text-emerald-950 font-semibold">{bullet}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1 animate-pulse">
+                                  <Sparkles className="w-3 h-3 text-amber-500" />
+                                  <span>Google Gemini AI Generating</span>
+                                </span>
+                              </div>
+                              <div className="space-y-2 animate-pulse pt-1">
+                                <div className="h-3 bg-emerald-200/70 rounded-full w-full"></div>
+                                <div className="h-3 bg-emerald-200/70 rounded-full w-11/12"></div>
+                                <div className="h-3 bg-emerald-200/50 rounded-full w-4/5"></div>
+                              </div>
+                              <p className="text-[11px] text-emerald-900 font-medium italic pt-0.5">
+                                ⚡ {featuredLang === "tl"
+                                  ? `Bumubuo ang Google Gemini AI ng personalized na payo para sa iyo sa Barangay ${youthProfile.barangay || "San Luis"}...`
+                                  : `Google Gemini AI is formulating personalized match advice for your profile in Barangay ${youthProfile.barangay || "San Luis"}...`}
+                              </p>
+                            </div>
+
+                            {/* Loading 3-Step Pathway Skeleton */}
+                            <div className="bg-linear-to-br from-[#F0FDF4] to-[#E8F5EF] p-3.5 sm:p-4 rounded-xl border border-[#9FE1CB]/70 space-y-2.5 shadow-2xs">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                                  <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  <span>{featuredLang === "tl" ? "Inihahanda ang 3 Hakbang na Plano..." : "Building 3-Step Action Plan..."}</span>
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-400">
+                                  {featuredLang === "tl" ? "Saglit lamang..." : "Please wait..."}
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                {[1, 2, 3].map((step) => (
+                                  <div key={step} className="flex items-center gap-2.5 bg-white/70 p-2.5 rounded-xl border border-emerald-100/70 animate-pulse">
+                                    <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                      {step}
+                                    </span>
+                                    <div className="h-3 bg-emerald-100/90 rounded-full w-3/4"></div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Gemini Match Rationale */}
+                            <div className="bg-emerald-50/90 p-3.5 sm:p-4 rounded-xl border border-emerald-200/80 space-y-2 shadow-2xs">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                                  {featuredLang === "tl" ? "Paliwanag ng Gemini AI sa Kursong Ito" : "Gemini Match Rationale"}
+                                </span>
+                                <span className="text-[10px] font-bold text-emerald-700/80">
+                                  Powered by Google Gemini
+                                </span>
+                              </div>
+                              <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
+                                &ldquo;{
+                                  featuredLang === "tl"
+                                    ? (featuredAdviceTl || `Bilang miyembro ng Katipunan ng Kabataan sa Barangay ${youthProfile.barangay || "San Luis"}, si ${youthProfile.name.split(' ')[0]} ay may praktikal na kasanayan sa ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "mga bokasyonal na gawain"}. Ang kursong ${featuredProg.title} ay magbibigay sa iyo ng opisyal na sertipiko mula sa TESDA upang makapasok sa trabaho sa ${youthProfile.sectorPreference || "napiling hanapbuhay"}.`)
+                                    : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} has practical background skills in ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "vocational trades"}. This ${featuredProg.title} program will officially certify their qualifications under TESDA and unlock formal job opportunities in ${youthProfile.sectorPreference || "their target industry"}.`)
+                                }&rdquo;
+                              </p>
+                            </div>
+
+                            {/* Personalized 3-Bullet Advice Pathway */}
+                            <div className="bg-linear-to-br from-[#F0FDF4] to-[#E8F5EF] p-3.5 sm:p-4 rounded-xl border border-[#9FE1CB]/70 space-y-2.5 shadow-2xs">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                                  <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  {featuredLang === "tl" ? "3 Hakbang na Plano para sa Iyo" : "Gemini Personalized 3-Step Pathway"}
+                                </span>
+                                <span className="text-[10px] font-extrabold text-[#D97706] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  {featuredLang === "tl" ? "Plano ng AI" : "AI Action Plan"}
+                                </span>
+                              </div>
+                              <ul className="space-y-2 text-xs text-emerald-950 font-medium">
+                                {(featuredLang === "tl"
+                                  ? (featuredBulletsTl && featuredBulletsTl.length === 3
+                                      ? featuredBulletsTl
+                                      : [
+                                          `Gamitin ang iyong mga natutunang kasanayan sa ${youthProfile.skills.slice(0, 2).join(" at ") || youthProfile.sectorPreference || "bokasyonal na larangan"} sa simula ng kurso.`,
+                                          `Tapusin ang pagsasanay sa ${featuredProg.provider || "TESDA GPSAT"} para makakuha ng pambansang sertipikasyon (NC II).`,
+                                          `Gamitin ang tulong ng SK sa Barangay ${youthProfile.barangay || "San Luis"} para makapasok sa trabaho at maabot ang pangarap na "${youthProfile.livelihoodGoal || "matatag na hanapbuhay"}".`
+                                        ])
+                                  : (liveGeminiBullets && liveGeminiBullets.length === 3
+                                      ? liveGeminiBullets
+                                      : [
+                                          `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early course modules.`,
+                                          `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
+                                          `Utilize the support and referrals of the SK in Barangay ${youthProfile.barangay || "San Luis"} to enter employment and achieve your dream of "${youthProfile.livelihoodGoal || "sustainable livelihood"}".`
+                                        ])
+                                ).map((bullet, bIdx) => (
+                                  <li key={bIdx} className="flex items-start gap-2.5 bg-white/80 p-2.5 sm:p-3 rounded-xl border border-emerald-100/80 shadow-2xs">
+                                    <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-extrabold text-[10px] shrink-0 mt-0.5 shadow-2xs">
+                                      {bIdx + 1}
+                                    </span>
+                                    <span className="leading-relaxed text-emerald-950 font-semibold">{bullet}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </>
+                        )}
 
                         {featuredProg.requiredDocuments && featuredProg.requiredDocuments.length > 0 && (
                           <div className="bg-amber-50/70 p-3 sm:p-3.5 rounded-xl border border-amber-200">
@@ -2299,6 +2507,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               // STEP 4 IS UNLOCKED: Step 3 is completed!
                               const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
                               const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
+                              const displayPlan = (careerPlanLang === "tl" && planToShow)
+                                ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
+                                : planToShow;
 
                               return (
                                 <div className="space-y-5 sm:space-y-6 w-full">
@@ -2329,12 +2540,43 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                           <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
                                             Google Gemini AI • Step 4 Career Strategy
                                           </span>
+                                          {planToShow && (
+                                            <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleToggleCareerPlanLang("en")}
+                                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                                                  careerPlanLang === "en"
+                                                    ? "bg-white text-slate-900 shadow-xs"
+                                                    : "text-emerald-200 hover:text-white"
+                                                }`}
+                                              >
+                                                English
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleToggleCareerPlanLang("tl")}
+                                                disabled={isTranslatingPlan}
+                                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                                                  careerPlanLang === "tl"
+                                                    ? "bg-amber-400 text-slate-950 font-black shadow-xs"
+                                                    : "text-emerald-200 hover:text-white"
+                                                }`}
+                                              >
+                                                {isTranslatingPlan ? (
+                                                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                                ) : (
+                                                  <span>🇵🇭 Tagalog</span>
+                                                )}
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                         <h4 className="text-base sm:text-lg md:text-xl font-black text-white leading-snug">
-                                          {planToShow?.roadmapTitle || `Post-Graduation Career Roadmap`}
+                                          {displayPlan?.roadmapTitle || (careerPlanLang === "tl" ? "Plano para sa Trabaho at Negosyo" : `Post-Graduation Career Roadmap`)}
                                         </h4>
                                         <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
-                                          {planToShow?.summary || `A pragmatic, real-life career action plan tailored for your transition from ${app.programTitle} into employment and entrepreneurship in San Luis, Pampanga.`}
+                                          {displayPlan?.summary || (careerPlanLang === "tl" ? `Praktikal at totoong gabay sa hanapbuhay mula sa ${app.programTitle} patungo sa trabaho o negosyo sa San Luis, Pampanga.` : `A pragmatic, real-life career action plan tailored for your transition from ${app.programTitle} into employment and entrepreneurship in San Luis, Pampanga.`)}
                                         </p>
                                       </div>
 
@@ -2342,7 +2584,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         {isSaved ? (
                                           <span className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
                                             <BookmarkCheck className="w-4 h-4 text-emerald-300" />
-                                            Saved Official Career Roadmap ✓
+                                            {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
                                           </span>
                                         ) : planToShow ? (
                                           <button
@@ -2353,12 +2595,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             {isSavingPlan ? (
                                               <>
                                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                Saving...
+                                                {careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}
                                               </>
                                             ) : (
                                               <>
                                                 <Bookmark className="w-3.5 h-3.5" />
-                                                Save Plan to KK Digital ID Card
+                                                {careerPlanLang === "tl" ? "I-save sa KK Digital ID Card" : "Save Plan to KK Digital ID Card"}
                                               </>
                                             )}
                                           </button>
@@ -2371,12 +2613,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             {isGeneratingPlan ? (
                                               <>
                                                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
-                                                Gemini is generating plan...
+                                                {careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}
                                               </>
                                             ) : (
                                               <>
                                                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                                Generate Gemini Post-Graduation Career Plan
+                                                {careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}
                                               </>
                                             )}
                                           </button>
@@ -2385,20 +2627,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     </div>
 
                                     {/* Display Generated Plan Content */}
-                                    {planToShow ? (
+                                    {planToShow && displayPlan ? (
                                       <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
                                         {/* Phase 1: Immediate 30 Days */}
                                         <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-2.5">
                                           <div className="flex items-center gap-2 flex-wrap">
                                             <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
-                                              Phase 1 • First 30 Days
+                                              {careerPlanLang === "tl" ? "Yugto 1 • Unang 30 Araw" : "Phase 1 • First 30 Days"}
                                             </span>
                                             <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
-                                              Credentialing & Jobseeker Registration
+                                              {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & Jobseeker Registration"}
                                             </h6>
                                           </div>
                                           <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                                            {planToShow.immediate30Days.map((stepItem: string, sIdx: number) => (
+                                            {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => (
                                               <li key={sIdx} className="bg-black/25 p-3 rounded-xl border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2.5 font-medium">
                                                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 shadow-2xs">
                                                   {sIdx + 1}
@@ -2416,19 +2658,21 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             <div className="space-y-2.5">
                                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
                                                 <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md w-fit">
-                                                  Track A • Wage Employment
+                                                  {careerPlanLang === "tl" ? "Opsyon A • Trabaho at Suweldo" : "Track A • Wage Employment"}
                                                 </span>
                                                 <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-400/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
-                                                  💰 {planToShow.employmentTrack.estimatedSalary}
+                                                  💰 {displayPlan.employmentTrack.estimatedSalary}
                                                 </span>
                                               </div>
                                               <p className="text-xs text-emerald-100 font-medium leading-relaxed">
-                                                📍 <strong>Target Placement:</strong> {planToShow.employmentTrack.targetLocations}
+                                                📍 <strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}
                                               </p>
                                               <div className="space-y-1.5">
-                                                <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">Recommended Entry Job Roles:</span>
+                                                <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
+                                                  {careerPlanLang === "tl" ? "Mga Trabahong Bagay Sayo:" : "Recommended Entry Job Roles:"}
+                                                </span>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                  {planToShow.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
+                                                  {displayPlan.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
                                                     <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-lg text-white border border-white/10 shadow-2xs flex items-center gap-1">
                                                       💼 {role}
                                                     </span>
@@ -2437,7 +2681,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                               </div>
                                             </div>
                                             <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-xs text-emerald-100">
-                                              {planToShow.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
+                                              {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
                                                 <p key={stIdx} className="flex items-start gap-2 text-[11px] sm:text-xs leading-relaxed">
                                                   <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
                                                   <span>{step}</span>
@@ -2451,24 +2695,26 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             <div className="space-y-2.5">
                                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
                                                 <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md w-fit">
-                                                  Track B • Self-Employment & Freelance
+                                                  {careerPlanLang === "tl" ? "Opsyon B • Sariling Negosyo at Raket" : "Track B • Self-Employment & Freelance"}
                                                 </span>
                                                 <span className="text-[11px] font-bold text-amber-200 bg-amber-400/15 border border-amber-300/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
-                                                  🛠️ Starter Grants Available
+                                                  🛠️ {careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}
                                                 </span>
                                               </div>
                                               <p className="text-xs text-emerald-100 font-medium leading-relaxed">
-                                                🏪 <strong>Business Concept:</strong> {planToShow.entrepreneurshipTrack.businessConcept}
+                                                🏪 <strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}
                                               </p>
                                               <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
                                                 <p className="text-xs text-amber-100 leading-relaxed font-medium">
-                                                  🎁 <strong>Funding & Grants:</strong> {planToShow.entrepreneurshipTrack.starterFunding}
+                                                  🎁 <strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}
                                                 </p>
                                               </div>
                                             </div>
                                             <div className="pt-2.5 border-t border-white/10 space-y-1.5">
-                                              <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">Initial Services to Offer:</span>
-                                              {planToShow.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
+                                              <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
+                                                {careerPlanLang === "tl" ? "Mga Serbisyo o Produktong Pwedeng Simulan:" : "Initial Services to Offer:"}
+                                              </span>
+                                              {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
                                                 <p key={sIdx} className="text-[11px] sm:text-xs text-emerald-100 flex items-start gap-2 font-medium leading-relaxed">
                                                   <span className="text-amber-400 font-bold shrink-0 mt-0.5">★</span>
                                                   <span>{srv}</span>
@@ -2481,10 +2727,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         {/* Phase 3 & Local Support Grid */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 text-xs bg-black/25 p-3.5 sm:p-4.5 rounded-xl border border-white/10">
                                           <div className="space-y-2">
-                                            <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider block flex items-center gap-1.5">
-                                              <span>📈</span> 1–2 Year Long-Term Elevation:
+                                            <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                                              <span>📈</span> {careerPlanLang === "tl" ? "1–2 Taon na Pag-asenso sa Karera:" : "1–2 Year Long-Term Elevation:"}
                                             </span>
-                                            {planToShow.longTerm1To2Years.map((milestone: string, mIdx: number) => (
+                                            {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
                                               <p key={mIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
                                                 <span className="text-purple-400 shrink-0 mt-0.5">◆</span>
                                                 <span>{milestone}</span>
@@ -2492,10 +2738,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             ))}
                                           </div>
                                           <div className="space-y-2">
-                                            <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider block flex items-center gap-1.5">
-                                              <span>🤝</span> Local Support Contacts in San Luis:
+                                            <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
+                                              <span>🤝</span> {careerPlanLang === "tl" ? "Mga Malalapit na Tanggapan sa San Luis:" : "Local Support Contacts in San Luis:"}
                                             </span>
-                                            {planToShow.localSupportContacts.map((contact: string, cIdx: number) => (
+                                            {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
                                               <p key={cIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
                                                 <span className="text-emerald-400 shrink-0 mt-0.5">📍</span>
                                                 <span>{contact}</span>
@@ -3753,7 +3999,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </span>
                 </div>
                 <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                  "{liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`}"
+                  "{featuredLang === "tl" && featuredAdviceTl
+                    ? featuredAdviceTl
+                    : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`)}"
                 </p>
               </div>
 

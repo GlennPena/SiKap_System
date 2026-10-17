@@ -95,6 +95,68 @@ export interface SkillGapData {
   recommendedAction: string;
 }
 
+export type SkillGapCriticalityLevel = "Critical" | "Moderate" | "Low" | "None";
+
+export interface SkillGapCriticalityInfo {
+  level: SkillGapCriticalityLevel;
+  label: string;
+  badgeClass: string;
+  barClass: string;
+  trackClass: string;
+  textClass: string;
+  dotClass: string;
+  hexColor: string;
+}
+
+export const getSkillGapCriticality = (percentage: number, count: number): SkillGapCriticalityInfo => {
+  if (count === 0) {
+    return {
+      level: "None",
+      label: "No Gap",
+      badgeClass: "bg-gray-100 text-gray-500 border-gray-200",
+      barClass: "bg-gray-300",
+      trackClass: "bg-gray-100",
+      textClass: "text-gray-500",
+      dotClass: "bg-gray-400",
+      hexColor: "#9ca3af"
+    };
+  }
+  if (percentage >= 30) {
+    return {
+      level: "Critical",
+      label: "Critical Gap",
+      badgeClass: "bg-red-100 text-red-700 border-red-200",
+      barClass: "bg-linear-to-r from-red-600 via-rose-500 to-red-500 shadow-xs shadow-red-500/25",
+      trackClass: "bg-red-100/40",
+      textClass: "text-red-700",
+      dotClass: "bg-red-500",
+      hexColor: "#dc2626"
+    };
+  }
+  if (percentage >= 15) {
+    return {
+      level: "Moderate",
+      label: "Moderate Gap",
+      badgeClass: "bg-amber-100 text-amber-800 border-amber-200",
+      barClass: "bg-linear-to-r from-amber-500 via-amber-400 to-orange-500 shadow-xs shadow-amber-500/25",
+      trackClass: "bg-amber-100/40",
+      textClass: "text-amber-800",
+      dotClass: "bg-amber-500",
+      hexColor: "#d97706"
+    };
+  }
+  return {
+    level: "Low",
+    label: "Low Gap",
+    badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    barClass: "bg-linear-to-r from-emerald-500 to-teal-600 shadow-xs shadow-emerald-500/20",
+    trackClass: "bg-emerald-100/40",
+    textClass: "text-emerald-800",
+    dotClass: "bg-emerald-500",
+    hexColor: "#059669"
+  };
+};
+
 export const EDUCATIONAL_ATTAINMENT_OPTIONS = [
   "College Level",
   "Senior High School Graduate",
@@ -188,6 +250,17 @@ export interface YouthProfile {
   verificationIdNumber?: string;
   verificationIdImage?: string;
   savedCareerPlan?: any;
+  savedMatchAdvice?: SavedMatchAdvice | null;
+}
+
+export interface SavedMatchAdvice {
+  programId: string;
+  programTitle: string;
+  careerAdvice: string;
+  bulletAdvice: string[];
+  careerAdviceTl: string;
+  bulletAdviceTl: string[];
+  generatedAt?: string;
 }
 
 export interface TESDAProgram {
