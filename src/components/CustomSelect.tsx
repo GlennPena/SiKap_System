@@ -62,8 +62,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     if (isOpen && direction === "auto" && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      // If less than 220px below and more space above, open upward
-      if (spaceBelow < 220 && rect.top > spaceBelow) {
+      // If less than 280px below and more space above, open upward
+      if (spaceBelow < 280 && rect.top > spaceBelow) {
         setOpenUpward(true);
       } else {
         setOpenUpward(false);
@@ -143,10 +143,12 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         aria-expanded={isOpen}
         aria-label={ariaLabel || placeholder}
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between bg-gray-50/80 border text-left font-medium transition-all focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs ${
-          disabled ? "opacity-50 cursor-not-allowed bg-gray-100" : "cursor-pointer hover:bg-gray-100/70"
+        className={`w-full flex items-center justify-between border text-left font-medium transition-all focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs ${
+          disabled
+            ? "cursor-default bg-gray-50 text-gray-500 border-gray-200"
+            : "cursor-pointer bg-gray-50/80 hover:bg-gray-100/70 text-gray-800 border-gray-200"
         } ${sizeStyles[size]} ${
-          value ? "text-gray-900 border-gray-200" : "text-gray-400 border-gray-200"
+          value ? (disabled ? "text-gray-500" : "text-gray-800") : "text-gray-400"
         } ${isOpen ? "ring-2 ring-emerald-500/20 border-[#0A6B43] bg-white" : ""} ${buttonClassName}`}
       >
         <span className="truncate block pr-1">
@@ -167,8 +169,15 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             exit={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
             role="listbox"
-            className={`absolute left-0 right-0 w-full max-h-52 sm:max-h-60 overflow-y-auto custom-scrollbar bg-white border border-gray-200 rounded-lg sm:rounded-xl shadow-xl z-50 py-1 ${
-              openUpward ? "bottom-full mb-1.5" : "top-full mt-1.5"
+            style={{
+              maxHeight: typeof window !== "undefined" && buttonRef.current
+                ? openUpward
+                  ? Math.min(220, Math.max(120, buttonRef.current.getBoundingClientRect().top - 24))
+                  : Math.min(220, Math.max(120, window.innerHeight - buttonRef.current.getBoundingClientRect().bottom - 36))
+                : 220
+            }}
+            className={`absolute left-0 right-0 w-full overflow-y-auto custom-scrollbar bg-white border border-gray-200 rounded-lg sm:rounded-xl shadow-xl z-50 py-1 ${
+              openUpward ? "bottom-full mb-2" : "top-full mt-2"
             } ${menuClassName}`}
           >
             {normalizedOptions.map(opt => {

@@ -732,6 +732,7 @@ export interface SiKapDatePickerProps {
   badgeText?: string;
   hasError?: boolean;
   className?: string;
+  buttonClassName?: string;
   disabled?: boolean;
   showAgeIndicator?: boolean;
   align?: "left" | "right";
@@ -747,6 +748,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
   badgeText = "Calendar",
   hasError = false,
   className = "",
+  buttonClassName = "",
   disabled = false,
   showAgeIndicator = false,
   align = "left",
@@ -877,15 +879,15 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
         }}
         className={`w-full flex items-center justify-between pl-3 sm:pl-4 pr-9 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all text-left focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs group relative cursor-pointer ${
           disabled
-            ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+            ? "bg-gray-50 text-gray-500 border-gray-200 cursor-default"
             : isOpen
               ? "border-[#0A6B43] ring-2 ring-emerald-500/20 bg-gray-50/80"
               : hasError
                 ? "border-rose-300 bg-rose-50/30 text-gray-900"
                 : value
-                  ? "border-gray-200 text-gray-900 bg-gray-50/80 hover:border-gray-300"
+                  ? "border-gray-200 text-gray-800 bg-gray-50/80 hover:border-gray-300"
                   : "border-gray-200 text-gray-400 bg-gray-50/80 hover:border-gray-300"
-        }`}
+        } ${buttonClassName}`}
       >
         <span className="truncate block pr-1">
           {value ? formatDisplay(value) : placeholder}

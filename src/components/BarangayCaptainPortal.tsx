@@ -1035,7 +1035,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* Logo & Barangay Brand */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
-              <SikapLogo size={32} variant="white" showText={true} />
+              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
               <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
                 <span className="text-xs font-black text-amber-400 uppercase tracking-widest block leading-none">Captain</span>
                 <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={formattedBrgyName}>
@@ -1073,16 +1073,16 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     setCurrentScreen(item.id);
                     setIsMobileNavOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                     isActive
-                      ? "bg-emerald-950/90 text-amber-400 border-l-4 border-[#0A6B43] shadow-inner font-extrabold"
-                      : "text-gray-300 hover:bg-[#25392a] hover:text-white"
+                      ? "bg-emerald-950/90 text-amber-400 border-l-4 border-[#0A6B43] shadow-inner"
+                      : "border-l-4 border-transparent text-gray-300 hover:bg-[#25392a] hover:text-white"
                   }`}
                 >
                   <span className={isActive ? "text-amber-400" : "text-emerald-400"}>{item.icon}</span>
                   <span className="flex-1 truncate">{item.label}</span>
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs ${
+                    <span className={`text-xs font-black px-2 py-0.5 rounded-full shadow-2xs ${
                       isActive ? "bg-amber-400 text-slate-950" : "bg-emerald-900 text-emerald-200"
                     }`}>
                       {item.badge}
@@ -1108,10 +1108,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               {captainInfo.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold leading-none group-hover:text-amber-400 transition-colors text-white truncate">
+              <p className="text-sm font-bold leading-none group-hover:text-amber-400 transition-colors text-white truncate">
                 {captainInfo.name}
               </p>
-              <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider mt-0.5 truncate">
+              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-0.5 truncate">
                 Barangay Captain
               </p>
             </div>
@@ -1121,7 +1121,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
             type="button"
             disabled={isLoggingOut}
             onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-all font-bold uppercase tracking-wider ${
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-sm text-red-300 rounded-lg transition-all font-bold uppercase tracking-wider ${
               isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
             }`}
           >

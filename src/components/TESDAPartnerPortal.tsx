@@ -863,7 +863,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {/* Brand Header */}
           <div className="p-5 sm:p-6 border-b border-emerald-900/50 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <SikapLogo size={32} variant="white" showText={true} />
+              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
               <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-700/40">
                 Partner
               </span>
@@ -880,11 +880,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </button>
           </div>
 
-          <p className="px-5 sm:px-6 text-[11px] text-emerald-300/70 font-medium pt-2">TESDA Training & Livelihood Hub</p>
+          <p className="px-5 sm:px-6 text-[13px] text-emerald-300/70 font-medium pt-2">TESDA Training & Livelihood Hub</p>
 
           {/* Navigation Links */}
           <div className="px-4 py-4 space-y-1.5">
-            <p className="px-3 text-[10px] font-black uppercase tracking-wider text-emerald-400/60 mb-2">Main Portals</p>
+            <p className="px-3 text-xs font-black uppercase tracking-wider text-emerald-400/60 mb-2">Main Portals</p>
             
             <button
               onClick={() => {
@@ -892,10 +892,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 setDashboardTab("all");
                 setIsMobileNavOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.DASHBOARD
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
+                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -903,7 +903,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <span>Dashboard & Pipeline</span>
               </div>
               {pendingReferralsCount > 0 && (
-                <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-2 py-0.2 rounded-full shadow-xs">
+                <span className="bg-amber-500 text-slate-950 font-black text-xs px-2 py-0.2 rounded-full shadow-xs">
                   {pendingReferralsCount}
                 </span>
               )}
@@ -914,17 +914,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
                 setIsMobileNavOpen(false);
               }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.PROGRAMS
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
+                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
                 <BookOpen className="w-4 h-4 text-emerald-400" />
                 <span>Published Courses</span>
               </div>
-              <span className="text-[10px] font-bold text-emerald-300/80 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800/40">
+              <span className="text-xs font-bold text-emerald-300/80 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800/40">
                 {activePrograms.length}
               </span>
             </button>
@@ -934,10 +934,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 handleNewProgramClick();
                 setIsMobileNavOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.ADD_PROGRAM || currentScreen === TESDAPartnerScreen.EDIT_PROGRAM
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
+                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
               }`}
             >
               <Plus className="w-4 h-4 text-emerald-400" />
@@ -949,10 +949,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 setCurrentScreen(TESDAPartnerScreen.SETTINGS);
                 setIsMobileNavOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 currentScreen === TESDAPartnerScreen.SETTINGS
                   ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
+                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
               }`}
             >
               <Bell className="w-4 h-4 text-emerald-400" />
@@ -975,8 +975,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {currentUser?.name?.charAt(0).toUpperCase() || "T"}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-emerald-100 truncate">{currentUser?.name || "TESDA Officer"}</p>
-              <p className="text-[10px] text-emerald-300/70 truncate">{currentUser?.email || "GPSAT Guagua / San Luis"}</p>
+              <p className="text-sm font-bold text-emerald-100 truncate">{currentUser?.name || "TESDA Officer"}</p>
+              <p className="text-xs text-emerald-300/70 truncate">{currentUser?.email || "GPSAT Guagua / San Luis"}</p>
             </div>
           </div>
           
@@ -984,7 +984,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             type="button"
             disabled={isLoggingOut}
             onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 border border-red-500/30 rounded-xl transition-all text-xs font-bold ${
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 border border-red-500/30 rounded-xl transition-all text-sm font-bold ${
               isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
             }`}
           >

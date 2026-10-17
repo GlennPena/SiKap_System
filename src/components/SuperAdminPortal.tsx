@@ -1277,7 +1277,7 @@ Please sign in at ${window.location.origin} and change your password immediately
   };
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-slate-50 flex font-sans text-slate-800 w-full" id="super-admin-portal-root">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex font-sans antialiased text-slate-800 w-full" id="super-admin-portal-root">
       
       {/* Mobile Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
@@ -1305,7 +1305,7 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black tracking-tight text-white block truncate">SiKap System</span>
+                  <span className="text-lg font-black tracking-tight text-white block truncate">SiKap System</span>
                   <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 shrink-0">MYDO</span>
                 </div>
                 <span className="text-[11px] font-bold text-emerald-300 block tracking-tight truncate">Super Admin Command</span>
@@ -1345,16 +1345,16 @@ Please sign in at ${window.location.origin} and change your password immediately
                     if (item.id === "create_account") setRole("SK Chairperson");
                     if (item.id === "create_tesda") setRole("TESDA Representative");
                   }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                     isActive
-                      ? "bg-emerald-800/80 text-amber-300 border-l-4 border-amber-400 shadow-xs font-extrabold"
-                      : "text-emerald-100/80 hover:bg-emerald-800/40 hover:text-white"
+                      ? "bg-emerald-800/80 text-amber-300 border-l-4 border-amber-400 shadow-xs"
+                      : "border-l-4 border-transparent text-emerald-100/80 hover:bg-emerald-800/40 hover:text-white"
                   }`}
                 >
                   <span className={isActive ? "text-amber-400" : "text-emerald-300"}>{item.icon}</span>
                   <span className="flex-1 truncate">{item.label}</span>
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.2 rounded-full shadow-xs">
+                    <span className="bg-amber-400 text-slate-950 text-xs font-black px-2 py-0.2 rounded-full shadow-xs">
                       {item.badge}
                     </span>
                   )}
@@ -1378,15 +1378,15 @@ Please sign in at ${window.location.origin} and change your password immediately
               ADM
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate">Super Administrator</p>
-              <p className="text-[10px] text-emerald-300 font-medium">Municipal MYDO Authority</p>
+              <p className="text-sm font-bold text-white truncate">Super Administrator</p>
+              <p className="text-xs text-emerald-300 font-medium">Municipal MYDO Authority</p>
             </div>
           </div>
           <button
             type="button"
             disabled={isLoggingOut}
             onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-xs text-red-300 hover:text-white rounded-xl transition-all font-bold ${
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-sm text-red-300 hover:text-white rounded-xl transition-all font-bold ${
               isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
             }`}
           >

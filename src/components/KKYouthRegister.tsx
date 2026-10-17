@@ -429,7 +429,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full min-h-0" id="kk-youth-self-registration-flow">
+    <div className="flex flex-col h-full w-full min-h-0 font-sans antialiased" id="kk-youth-self-registration-flow">
       <div className="w-full flex flex-col h-full min-h-0">
 
         {/* Stepper Progress - Anchored persistently at top */}

@@ -24,13 +24,15 @@ interface NotificationSettingsCardProps {
   userEmail?: string;
   addToast?: (msg: string, type: "success" | "error" | "info") => void;
   compact?: boolean;
+  className?: string;
 }
 
 export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> = ({
   userRole = "KK_YOUTH",
   userEmail,
   addToast = () => {},
-  compact = false
+  compact = false,
+  className
 }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -265,65 +267,65 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
   }
 
   return (
-    <div className="bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5 sm:space-y-6 animate-in fade-in duration-150">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+    <div className={className || "bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5 sm:space-y-6 animate-in fade-in duration-150"}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
         <div>
-          <h3 className="font-extrabold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-            <Bell className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-[#0A6B43] shrink-0" />
-            <span>Notifications & Off-Site Alerts</span>
+          <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+            <Bell className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+            <span>Alerts & Notifications</span>
           </h3>
-          <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">
-            Configure how and where SiKap sends you important account and application updates
+          <p className="text-sm text-gray-400 font-medium mt-0.5 leading-relaxed">
+            Manage how SiKap sends account and application updates.
           </p>
         </div>
 
         <button
           onClick={() => handleSendTest("all")}
           disabled={testing || loading}
-          className="self-start sm:self-auto px-3.5 py-2 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] text-xs font-bold rounded-xl border border-gray-200 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-2xs"
+          className="self-center sm:self-center px-4 py-2 h-9 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] text-sm font-bold rounded-lg border border-gray-200 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-2xs"
           title="Send a sample notification to verify settings"
         >
-          {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-[#0A6B43]" />}
+          {testing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-[#0A6B43]" />}
           <span>Send Test Alert</span>
         </button>
       </div>
 
       {loading ? (
-        <div className="py-8 flex items-center justify-center text-xs text-gray-400 gap-2">
+        <div className="py-8 flex items-center justify-center text-sm text-gray-400 gap-2">
           <RefreshCw className="w-4 h-4 animate-spin text-[#0A6B43]" />
           Loading notification preferences...
         </div>
       ) : (
         <div className="space-y-5 sm:space-y-6">
           {/* Channel 1: Web Push Notifications */}
-          <div className="p-3.5 sm:p-4 rounded-xl border border-emerald-100 bg-emerald-50/30 space-y-3">
+          <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-3">
             <div className="flex items-start justify-between gap-3 sm:gap-4 min-w-0">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
-                <div className="p-2 sm:p-2.5 bg-emerald-100/80 rounded-xl text-[#0A6B43] shrink-0 mt-0.5">
-                  <Smartphone className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+                <div className="p-2 sm:p-2.5 bg-emerald-100 text-[#0A6B43] rounded-xl shrink-0 mt-0.5">
+                  <Smartphone className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                    <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">Web Push Notifications</h4>
+                    <h4 className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Web Push Notifications</h4>
                     {pushStatus.subscribed && pushEnabled ? (
-                      <span className="text-[10px] bg-emerald-100 text-[#0A6B43] px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shrink-0">
-                        <CheckCircle className="w-3 h-3" /> Connected
+                      <span className="text-xs bg-emerald-100 text-[#0A6B43] px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shrink-0">
+                        <CheckCircle className="w-3.5 h-3.5" /> Connected
                       </span>
                     ) : pushStatus.permission === "denied" ? (
-                      <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shrink-0">
-                        <AlertTriangle className="w-3 h-3" /> Blocked
+                      <span className="text-xs bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shrink-0">
+                        <AlertTriangle className="w-3.5 h-3.5" /> Blocked
                       </span>
                     ) : (
-                      <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-bold shrink-0">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full font-bold shrink-0">
                         Inactive
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] sm:text-xs text-gray-600 font-medium leading-relaxed mt-1 break-words">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                     Receive instant system alerts on your Android device or PC even when the browser or tab is completely closed.
                   </p>
                   {pushStatus.permission === "denied" && (
-                    <p className="text-[10px] sm:text-[11px] text-red-600 font-semibold mt-1 break-words">
+                    <p className="text-xs sm:text-[13px] text-red-600 font-semibold mt-1 break-words">
                       Notifications are blocked in your browser settings. Click the lock icon in your address bar to allow notifications.
                     </p>
                   )}
@@ -351,28 +353,28 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
           </div>
 
           {/* Channel 2: Transactional Email Alerts */}
-          <div className="p-3.5 sm:p-4 rounded-xl border border-gray-150 bg-gray-50/50 space-y-3">
+          <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 space-y-3">
             <div className="flex items-start justify-between gap-3 sm:gap-4 min-w-0">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
                 <div className="p-2 sm:p-2.5 bg-gray-200/80 rounded-xl text-gray-700 shrink-0 mt-0.5">
-                  <Mail className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+                  <Mail className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                    <h4 className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">Email Notifications</h4>
+                    <h4 className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Email Notifications</h4>
                     {emailEnabled ? (
-                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shrink-0">
-                        <CheckCircle className="w-3 h-3" /> Enabled
+                      <span className="text-xs bg-emerald-100 text-[#0A6B43] px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 shrink-0">
+                        <CheckCircle className="w-3.5 h-3.5" /> Enabled
                       </span>
                     ) : (
-                      <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-bold shrink-0">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full font-bold shrink-0">
                         Disabled
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] sm:text-xs text-gray-600 font-medium leading-relaxed mt-1 break-words">
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                     Receive official notices and paper-trail updates sent directly to your registered email address
-                    {userEmail && <strong className="text-gray-800 break-all"> ({userEmail})</strong>}.
+                    {userEmail && <strong className="text-gray-700 font-semibold break-all"> ({userEmail})</strong>}.
                   </p>
                 </div>
               </div>
@@ -403,16 +405,17 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
 
           {/* Granular Preferences Section */}
           <div className="space-y-3 pt-2">
-            <h4 className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-gray-400">
-              {isTESDA ? "TESDA Partner Notification Triggers" : isBarangayGov ? "Barangay Governance Alerts" : "Youth Notification Triggers"}
-            </h4>
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5 text-[#0A6B43]" />
+              <span>{isTESDA ? "TESDA Partner Notification Triggers" : isBarangayGov ? "Barangay Governance Alerts" : "Youth Notification Triggers"}</span>
+            </div>
 
             {/* Trigger 1: Application / Referral Updates */}
             {isYouth && (
-              <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors min-w-0">
+              <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-gray-800 leading-tight">TESDA Application & Enrollment Updates</p>
-                  <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                  <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">TESDA Application & Enrollment Updates</p>
+                  <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                     Notify me immediately when TESDA approves, accepts, or requests physical document submissions for my course applications.
                   </p>
                 </div>
@@ -424,17 +427,17 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                     setNotifyOnApplicationStatus(next);
                     savePreferences({ notifyOnApplicationStatus: next });
                   }}
-                  className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0 ml-2"
+                  className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
                 />
               </label>
             )}
 
             {isTESDA && (
               <>
-                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors min-w-0">
+                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-800 leading-tight">New Course Applications & Referrals</p>
-                    <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">New Course Applications & Referrals</p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                       Receive instant pop-up alerts and emails when KK Youth submit applications or are referred by SK to your published training courses.
                     </p>
                   </div>
@@ -446,14 +449,14 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                       setNotifyOnApplicationStatus(next);
                       savePreferences({ notifyOnApplicationStatus: next });
                     }}
-                    className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0 ml-2"
+                    className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
                   />
                 </label>
 
-                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors min-w-0">
+                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-800 leading-tight">Course Slot Capacity & Quota Alerts</p>
-                    <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Course Slot Capacity & Quota Alerts</p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                       Get notified when training slots for your courses are nearly full, reach maximum quota, or when waitlisted youth apply.
                     </p>
                   </div>
@@ -465,7 +468,7 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                       setNotifyOnNewRegistrations(next);
                       savePreferences({ notifyOnNewRegistrations: next });
                     }}
-                    className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0 ml-2"
+                    className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
                   />
                 </label>
               </>
@@ -473,10 +476,10 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
 
             {isBarangayGov && (
               <>
-                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors min-w-0">
+                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-800 leading-tight">New KK Youth Self-Registration Alerts</p>
-                    <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">New KK Youth Self-Registration Alerts</p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                       Receive immediate email and push alerts when an Out-of-School Youth (OSY) or KK resident registers in your barangay.
                     </p>
                   </div>
@@ -488,14 +491,14 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                       setNotifyOnNewRegistrations(next);
                       savePreferences({ notifyOnNewRegistrations: next });
                     }}
-                    className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0 ml-2"
+                    className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
                   />
                 </label>
 
-                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors min-w-0">
+                <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-800 leading-tight">TESDA Referral & Pipeline Updates</p>
-                    <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">TESDA Referral & Pipeline Updates</p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                       Get notified when TESDA accepts, enrolls, or processes training applications for youth from your barangay.
                     </p>
                   </div>
@@ -507,19 +510,19 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                       setNotifyOnApplicationStatus(next);
                       savePreferences({ notifyOnApplicationStatus: next });
                     }}
-                    className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0 ml-2"
+                    className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
                   />
                 </label>
               </>
             )}
 
             {/* Trigger: Announcements */}
-            <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-150 rounded-xl cursor-pointer transition-colors min-w-0">
+            <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-gray-800 leading-tight">
+                <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">
                   {isTESDA ? "Municipal Livelihood & SK Announcements" : "SK Announcements & Community Notices"}
                 </p>
-                <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
                   {isTESDA
                     ? "Receive updates regarding municipal training initiatives, SK community events, and partner coordination notices in San Luis."
                     : "Get notified whenever new livelihood programs, training dates, or community events are posted."}
@@ -533,15 +536,15 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                   setNotifyOnAnnouncements(next);
                   savePreferences({ notifyOnAnnouncements: next });
                 }}
-                className="w-4.5 h-4.5 rounded-sm text-emerald-600 focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0 ml-2"
+                className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
               />
             </label>
           </div>
 
-          <div className="p-3 bg-blue-50/60 border border-blue-150 rounded-xl text-blue-800 text-xs flex items-start gap-2.5 min-w-0">
-            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <p className="leading-relaxed text-[11px] sm:text-xs">
-              <strong>Tip for Mobile Users:</strong> On Android devices, push alerts appear in your notification tray even when your browser is closed. On iOS (iPhones), add SiKap to your Home Screen to receive native push notifications.
+          <div className="p-3.5 bg-emerald-50/50 border border-emerald-100 rounded-xl text-gray-700 text-sm flex items-start gap-2.5 min-w-0 font-medium">
+            <Info className="w-4.5 h-4.5 text-[#0A6B43] shrink-0 mt-0.5" />
+            <p className="leading-relaxed text-xs sm:text-sm text-gray-600">
+              <strong className="text-gray-800 font-bold">Tip for Mobile Users:</strong> On Android devices, push alerts appear in your notification tray even when your browser is closed. On iOS (iPhones), add SiKap to your Home Screen to receive native push notifications.
             </p>
           </div>
         </div>

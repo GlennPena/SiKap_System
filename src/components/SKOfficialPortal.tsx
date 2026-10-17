@@ -1807,7 +1807,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   }, [pendingCount, localAnnouncements, mostCriticalGapItem, programs, designatedBarangay]);
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex w-full" id="sk-portal-container">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex w-full font-sans antialiased" id="sk-portal-container">
       {/* Mobile Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
         <div
@@ -1826,7 +1826,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
-              <SikapLogo size={32} variant="white" showText={true} />
+              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
               <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
                 <span className="text-xs font-black text-[#D99427] uppercase tracking-widest block leading-none">Official</span>
                 <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={designatedBarangay.replace(/^Barangay\s+/i, "")}>
@@ -1870,16 +1870,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       setEduFilter("All");
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all text-left ${
                     isActive
                       ? "bg-emerald-950/80 text-[#D97706] border-l-4 border-[#0A6B43]"
-                      : "text-gray-300 hover:bg-[#25392a] hover:text-white"
+                      : "border-l-4 border-transparent text-gray-300 hover:bg-[#25392a] hover:text-white"
                   }`}
                 >
                   {item.icon}
                   <span className="flex-1">{item.label}</span>
                   {item.badge !== undefined && item.badge > 0 && (
-                    <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-md">
+                    <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md">
                       {item.badge}
                     </span>
                   )}
@@ -1902,15 +1902,15 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {settingsName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
             </div>
             <div>
-              <p className="text-xs font-bold leading-none group-hover:text-[#D99427] transition-colors">{settingsName}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{settingsPos}</p>
+              <p className="text-sm font-bold leading-none group-hover:text-[#D99427] transition-colors">{settingsName}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{settingsPos}</p>
             </div>
           </div>
           <button
             type="button"
             disabled={isLoggingOut}
             onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-all font-semibold ${
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-sm text-red-300 rounded-lg transition-all font-semibold ${
               isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
             }`}
           >
