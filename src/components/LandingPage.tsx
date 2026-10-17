@@ -12,10 +12,12 @@ import {
   Building2,
   HelpCircle,
   Activity,
-  Sparkles,
   ShieldCheck,
   Plus,
-  MapPin
+  MapPin,
+  Clock,
+  Check,
+  Target
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
@@ -271,7 +273,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </button>
                     <button
                       onClick={() => handleScrollToSection("workflow")}
-                      className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 sm:border-2 hover:border-emerald-300 text-sm sm:text-base lg:text-lg font-bold px-5 sm:px-8 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-2xs transition-all flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
+                      className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 hover:text-[#0A6B43] border border-gray-200 sm:border-2 hover:border-[#0A6B43] text-sm sm:text-base lg:text-lg font-bold px-5 sm:px-8 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-2xs hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
                     >
                       How SiKap Works
                     </button>
@@ -308,14 +310,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
                       <p className="text-xs sm:text-lg font-black text-gray-900 mt-1 sm:mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
                       <div className="flex items-center gap-2 sm:gap-4 mt-1.5 sm:mt-2.5 text-[10px] sm:text-sm text-gray-600 font-bold">
-                        <span className="flex items-center gap-1">⏱ 3 Months</span>
-                        <span className="flex items-center gap-1">📍 TESDA GPSAT Campus</span>
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
+                          <span>3 Months</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
+                          <span>TESDA GPSAT Campus</span>
+                        </span>
                       </div>
                     </div>
 
                     <div className="bg-amber-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1 sm:space-y-1.5">
                       <div className="flex items-center gap-1.5 font-black text-xs sm:text-base text-amber-900">
-                        <Sparkles className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 fill-amber-500 text-amber-500 shrink-0" />
+                        <Target className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-700 shrink-0" />
                         Gemini Match Rationale
                       </div>
                       <p className="text-gray-700 font-medium text-[10px] sm:text-sm leading-relaxed">
@@ -325,16 +333,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div className="flex flex-wrap gap-1 sm:gap-2 text-[10px] sm:text-sm font-black text-gray-600 pt-0.5">
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3.5 py-1 sm:py-2 rounded-lg sm:rounded-xl border border-gray-200/60">✓ No Fees</span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3.5 py-1 sm:py-2 rounded-lg sm:rounded-xl border border-gray-200/60">✓ Free Tools</span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3.5 py-1 sm:py-2 rounded-lg sm:rounded-xl border border-gray-200/60">✓ Transport Allowance</span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                      <span>No Fees</span>
+                    </span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                      <span>Free Tools</span>
+                    </span>
+                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                      <span>Transport Allowance</span>
+                    </span>
                   </div>
                 </div>
 
                 {/* Mini overlap card - Visible & Optimized across all screen sizes */}
                 <div className="mt-2.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3 sm:p-5.5 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-emerald-700/80 flex items-center gap-2.5 sm:gap-4 max-w-full sm:max-w-[285px] z-10">
-                  <div className="w-7 h-7 sm:w-10 sm:h-10 bg-emerald-500 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 text-white shadow-xs">
-                    ✓
+                  <div className="w-7 h-7 sm:w-10 sm:h-10 bg-emerald-500 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 text-white shadow-xs">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs sm:text-base font-black leading-tight text-white">Authorized Portals</p>
@@ -454,7 +471,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Out-of-School Youth</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
                     Young Filipinos facing barriers to education, skills development, and employment.
                   </p>
                 </FadeIn>
@@ -469,7 +486,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Want to Return to Education</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
                     Nearly half of interviewed out-of-school youth expressed interest in returning to formal education.
                   </p>
                 </FadeIn>
@@ -484,7 +501,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Plan to Pursue Employment</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
                     Many young people are looking for pathways toward work and greater economic participation.
                   </p>
                 </FadeIn>
@@ -499,7 +516,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <h4 className="text-sm sm:text-base font-extrabold text-gray-900">San Luis Barangays</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-xs text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
                     Bridging local youth directly to verified TESDA institute cohorts and sustainable careers.
                   </p>
                 </FadeIn>
@@ -798,29 +815,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <FadeIn direction="up" delay={0.8} className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-3 sm:gap-4 shrink-0">
-                <motion.button
+                <button
                   type="button"
                   onClick={onEnterLogin}
-                  whileHover={{ y: -2 }}
-                  animate={{ y: [0, -10, 0, -5, 0] }}
-                  transition={{
-                    y: {
-                      duration: 0.6,
-                      repeat: Infinity,
-                      repeatDelay: 5,
-                      delay: 2,
-                      ease: "easeInOut"
-                    }
-                  }}
-                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-colors inline-flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
+                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
                 >
-                  Register
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                </motion.button>
+                  <span>Register</span>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100" />
+                </button>
                 <button
                   type="button"
                   onClick={() => handleScrollToSection("workflow")}
-                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 font-bold text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 hover:border-emerald-500/50 font-bold text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer inline-flex items-center justify-center gap-2"
                 >
                   How It Works
                 </button>

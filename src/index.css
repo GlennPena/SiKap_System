@@ -87,6 +87,7 @@ select:focus {
 
 
 
+
 /* Explicit US Letter Paper Configuration for Multi-Page Reports */
 @page {
   size: letter portrait;

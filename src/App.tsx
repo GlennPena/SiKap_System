@@ -18,7 +18,7 @@ import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
-import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Target, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 const MatchBadge: React.FC = () => {
@@ -427,7 +427,7 @@ export default function App() {
 
                       <div className="bg-amber-50/70 rounded-2xl p-5 border border-amber-200/70 text-sm text-amber-950 leading-relaxed space-y-2">
                         <div className="flex items-center gap-1.5 font-black text-sm text-amber-900">
-                          <Sparkles className="w-5 h-5 fill-amber-500 text-amber-500 shrink-0" />
+                          <Target className="w-5 h-5 text-amber-700 shrink-0" />
                           Gemini Match Rationale
                         </div>
                         <p className="text-gray-700 font-medium text-xs leading-relaxed">
@@ -451,9 +451,9 @@ export default function App() {
                 className={`${isSelfRegistering ? 'flex' : 'hidden md:flex'} absolute top-2 sm:top-3 md:top-5 lg:top-7 left-0 w-full justify-center z-50 pointer-events-auto`}
               >
                 <SikapLogo
-                  size={isSelfRegistering ? 36 : 42}
-                  logoSize={isSelfRegistering ? 44 : 52}
-                  textSize={isSelfRegistering ? 30 : 36}
+                  size={42}
+                  logoSize={52}
+                  textSize={36}
                   showText={true}
                   showSubtext={false}
                   gap="gap-1.5"

@@ -742,7 +742,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
   onChange,
   min,
   max,
-  placeholder = "Select Date",
+  placeholder = "Select date",
   label = "Select Date",
   badgeText = "Calendar",
   hasError = false,
@@ -875,25 +875,25 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
           setIsMonthOpen(false);
           setIsYearOpen(false);
         }}
-        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left focus:outline-hidden shadow-2xs group ${
+        className={`w-full flex items-center justify-between pl-3 sm:pl-4 pr-9 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all text-left focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs group relative cursor-pointer ${
           disabled
             ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
             : isOpen
-              ? "border-[#0A6B43] ring-2 ring-emerald-500/20 bg-white cursor-pointer"
+              ? "border-[#0A6B43] ring-2 ring-emerald-500/20 bg-gray-50/80"
               : hasError
-                ? "border-rose-300 bg-rose-50/30 text-gray-900 cursor-pointer"
+                ? "border-rose-300 bg-rose-50/30 text-gray-900"
                 : value
-                  ? "border-gray-200 text-gray-900 bg-white hover:border-gray-300 cursor-pointer"
-                  : "border-gray-200 text-gray-400 bg-white hover:border-gray-300 cursor-pointer"
-        } border`}
+                  ? "border-gray-200 text-gray-900 bg-gray-50/80 hover:border-gray-300"
+                  : "border-gray-200 text-gray-400 bg-gray-50/80 hover:border-gray-300"
+        }`}
       >
-        <span className="truncate block pr-2">
+        <span className="truncate block pr-1">
           {value ? formatDisplay(value) : placeholder}
         </span>
-        <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors shrink-0 ${
-          isOpen ? "bg-emerald-100 text-[#0A6B43]" : "text-gray-400 group-hover:text-[#0A6B43]"
+        <div className={`w-4 h-4 flex items-center justify-center shrink-0 absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${
+          isOpen ? "text-[#0A6B43]" : "text-gray-400 group-hover:text-gray-600"
         }`}>
-          <Calendar className="w-3.5 h-3.5" />
+          <Calendar className="w-4 h-4" />
         </div>
       </button>
 

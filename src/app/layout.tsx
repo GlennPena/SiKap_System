@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "@/index.css";
 
 export const metadata: Metadata = {
-  title: "SiKap System • Youth Skills Profiling & Matchmaking | San Luis, Pampanga",
+  title: "SiKap | San Luis",
   description: "Dynamic youth skills profiling, matchmaking, and decision-support platform for SK Officials, KK Youth Members, and TESDA Partners in San Luis, Pampanga.",
   icons: {
     icon: "/sikap-logo.png",

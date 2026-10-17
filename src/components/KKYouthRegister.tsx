@@ -8,7 +8,7 @@ import {
   Eye, EyeOff, AlertCircle
 } from "lucide-react";
 import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
-import { SikapLogo, SiKapDatePicker } from "./ReusableComponents";
+import { SiKapDatePicker } from "./ReusableComponents";
 import { formatContactNumber, isValidContactNumber, calculateAge } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -73,9 +73,8 @@ const CustomSelect: React.FC<{
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between pl-3 sm:pl-4 pr-9 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all text-left focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs cursor-pointer ${
-          value ? "text-gray-900 border-gray-200" : "text-gray-400 border-gray-200"
-        } ${className}`}
+        className={`w-full flex items-center justify-between pl-3 sm:pl-4 pr-9 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all text-left focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden shadow-2xs cursor-pointer ${value ? "text-gray-900 border-gray-200" : "text-gray-400 border-gray-200"
+          } ${className}`}
       >
         <span className="truncate block pr-1">{selectedOption ? selectedOption.label : placeholder}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 absolute right-3 top-1/2 -translate-y-1/2 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
@@ -100,11 +99,10 @@ const CustomSelect: React.FC<{
                     onChange(opt.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-medium transition-colors flex items-center justify-between gap-2 cursor-pointer ${
-                    isSelected
-                      ? "bg-emerald-50 text-[#0A6B43] font-bold"
-                      : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
-                  }`}
+                  className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-medium transition-colors flex items-center justify-between gap-2 cursor-pointer ${isSelected
+                    ? "bg-emerald-50 text-[#0A6B43] font-bold"
+                    : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                    }`}
                 >
                   <span className="break-words line-clamp-2 leading-snug">{opt.label}</span>
                   {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
@@ -526,769 +524,772 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               {/* Step 0: Barangay & Purok Selection */}
               {currentStep === 0 && (
                 <div className="flex-1 flex flex-col min-h-0 w-full" id="step-location-select">
-              {/* Non-scrollable Step Header */}
-              <div className="text-center space-y-1.5 mb-3 shrink-0">
-                <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
-                  LOCATION & PUROK SELECTION
-                </span>
-                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Select Your Barangay & Purok</h2>
-                <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1 sm:pb-2">
-                  Please select your official residential area in San Luis, Pampanga
-                </p>
-              </div>
-
-              {/* Selection 2-Row Container */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 space-y-3.5 sm:space-y-4 max-w-xl mx-auto w-full">
-                {/* Row 1: Barangay Selection (2 Columns of Choices) */}
-                <div className="space-y-1.5 flex flex-col">
-                  <div className="flex items-center justify-between px-0.5 shrink-0">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
-                      <span>Select Barangay *</span>
-                    </label>
-                    {selectedBarangay && (
-                      <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 truncate">
-                        {selectedBarangay}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="max-h-[160px] sm:max-h-[190px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg sm:rounded-xl p-1.5 sm:p-2 bg-gray-50/50">
-                    <div className="grid grid-cols-2 gap-2">
-                      {BARANGAYS.map((brgy) => {
-                        const isSelected = selectedBarangay === brgy;
-                        return (
-                          <button
-                            key={brgy}
-                            type="button"
-                            onClick={() => setSelectedBarangay(brgy)}
-                            className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
-                              ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
-                              : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
-                              }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0 pr-1">
-                              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
-                                }`}>
-                                <MapPin className="w-3 h-3" />
-                              </div>
-                              <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
-                                {brgy}
-                              </span>
-                            </div>
-                            {isSelected && (
-                              <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Row 2: Purok Selection (2 Columns of Choices) */}
-                <div className="space-y-1.5 flex flex-col">
-                  <div className="flex items-center justify-between px-0.5 shrink-0">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-[#0A6B43]" />
-                      <span>Select Purok Sector *</span>
-                    </label>
-                    {regPurok && (
-                      <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                        {regPurok}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
-                    <div className="grid grid-cols-2 gap-2">
-                      {["Purok 1", "Purok 2", "Purok 3", "Purok 4"].map((purok) => {
-                        const isSelected = regPurok === purok;
-                        return (
-                          <button
-                            key={purok}
-                            type="button"
-                            onClick={() => setRegPurok(purok)}
-                            className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
-                              ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
-                              : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
-                              }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0 pr-1">
-                              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
-                                }`}>
-                                <MapPin className="w-3 h-3" />
-                              </div>
-                              <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
-                                {purok}
-                              </span>
-                            </div>
-                            {isSelected && (
-                              <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 1: Personal Info Form */}
-          {currentStep === 1 && (
-            <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-personal-info">
-              {/* Non-scrollable Step Header */}
-              <div className="text-center space-y-1.5 mb-3 shrink-0">
-                <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
-                  PERSONAL PROFILE DETAILS
-                </span>
-                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Tell Us About Yourself</h2>
-                <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
-                  Please provide your personal information to create your SiKap profile
-                </p>
-              </div>
-
-              {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
-                <div className="w-full max-w-xl mx-auto space-y-3.5 p-0.5">
-
-                  {/* Row 1: Full Name */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Full Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={regName}
-                      onChange={(e) => setRegName(e.target.value)}
-                      placeholder="Juan dela Cruz"
-                      className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                    />
-                  </div>
-
-                  {/* Row 2: Date of Birth & Gender (2 Columns) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between h-4">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Date of Birth *</label>
-                        {regDOB && calculateAge(regDOB) !== "" && (
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
-                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                            : "text-rose-700 bg-rose-50 border-rose-200"
-                            }`}>
-                            {Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
-                              ? `${calculateAge(regDOB)} yrs`
-                              : `${calculateAge(regDOB)} yrs (Ineligible)`}
-                          </span>
-                        )}
-                      </div>
-                      <SiKapDatePicker
-                        value={regDOB}
-                        onChange={handleDOBChange}
-                        max={new Date().toISOString().split("T")[0]}
-                        hasError={!!(regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30))}
-                        label="Date of Birth"
-                        badgeText="KK Youth"
-                        showAgeIndicator={true}
-                      />
-                      {regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30) && (
-                        <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>Ineligible age: KK membership requires age 18 to 30 (Calculated: {calculateAge(regDOB)} yrs).</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Gender *</label>
-                      <CustomSelect value={regGender} onChange={setRegGender} options={GENDER_OPTIONS} placeholder="Select Gender" />
-                    </div>
-                  </div>
-
-                  {/* Row 3: Phone Number */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Phone Number *</label>
-                    <input
-                      type="text"
-                      required
-                      value={regContact}
-                      onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
-                      placeholder="+63 9"
-                      className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regContact && !isValidContactNumber(regContact) ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
-                        }`}
-                    />
-                    {regContact && !isValidContactNumber(regContact) && (
-                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        <span>Incomplete number: Must be 11 digits starting with +63 9 (e.g. +63 912 345 6789).</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Row 4: Email Address */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
-                    <div className="relative">
-                      <input
-                        type="email"
-                        required
-                        value={regEmail}
-                        onChange={(e) => setRegEmail(e.target.value)}
-                        placeholder="juan.delacruz@gmail.com"
-                        className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${(regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
-                          ? "border-rose-300 bg-rose-50/30"
-                          : "border-gray-200"
-                          }`}
-                      />
-                      {isCheckingEmail && (
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium animate-pulse">
-                          Checking...
-                        </span>
-                      )}
-                    </div>
-                    {regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail) ? (
-                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        <span>Invalid email format: Please enter a valid address (e.g. name@example.com).</span>
-                      </p>
-                    ) : emailExists ? (
-                      <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                        <AlertCircle className="w-3 h-3 shrink-0" />
-                        <span>Email already registered: This email address is already associated with an account.</span>
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {/* Row 5: Password & Confirm Password (2 Columns) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
-                    <div className="space-y-1">
-                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          required
-                          value={regPassword}
-                          onChange={(e) => setRegPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && regPassword.length < 6 ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
-                            }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-hidden p-1 rounded-md transition-colors"
-                          title={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      {regPassword && regPassword.length < 6 && (
-                        <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>Password too short: Must be at least 6 characters (Current: {regPassword.length}/6).</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between h-4">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Confirm Password *</label>
-                        {regConfirmPassword && (
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${regPassword === regConfirmPassword
-                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                            : "text-rose-700 bg-rose-50 border-rose-200"
-                            }`}>
-                            {regPassword === regConfirmPassword ? "Match" : "No match"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          required
-                          value={regConfirmPassword}
-                          onChange={(e) => setRegConfirmPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regConfirmPassword && regPassword !== regConfirmPassword ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
-                            }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-hidden p-1 rounded-md transition-colors"
-                          title={showConfirmPassword ? "Hide password" : "Show password"}
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      {regConfirmPassword && regPassword !== regConfirmPassword && (
-                        <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          <span>Mismatch: Confirm password must match your password above.</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Education & Demographics */}
-          {currentStep === 2 && (
-            <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-education-demographics">
-              {/* Non-scrollable Step Header */}
-              <div className="text-center space-y-1.5 mb-3 shrink-0">
-                <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
-                  EDUCATION & BACKGROUND
-                </span>
-                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Educational Attainment & Status</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
-                  Tell us about your education to help us find relevant training opportunities
-                </p>
-              </div>
-
-              {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
-                <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
-                    <div className="space-y-1">
-                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Highest Educational Attainment</label>
-                      <CustomSelect value={regEdu} onChange={setRegEdu} options={[...EDUCATIONAL_ATTAINMENT_OPTIONS]} placeholder="Select Educational Attainment" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between h-4">
-                        <label className="text-[10px] sm:text-[11px] font-black text-[#0A6B43] uppercase tracking-wide inline-flex items-center h-full">Youth Status</label>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border text-emerald-700 bg-emerald-50 border-emerald-200">System Target</span>
-                      </div>
-                      <input
-                        type="text"
-                        readOnly
-                        value={regStatus}
-                        className="w-full py-2 sm:py-2.5 px-3.5 sm:px-4 border border-emerald-600 bg-emerald-50/80 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium text-emerald-950 cursor-not-allowed shadow-2xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* OSY Program Notice */}
-                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-900 flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
-                    <p className="font-medium text-[11px] leading-relaxed">
-                      <strong className="font-extrabold text-[#075332]">Out-of-School Youth Focus:</strong> SiKap is specifically designed for Out-of-School Youth (OSY) in San Luis, Pampanga to access free TESDA skills training, allowance support, and direct livelihood referrals.
+                  {/* Non-scrollable Step Header */}
+                  <div className="text-center mb-2.5 sm:mb-3 shrink-0">
+                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
+                      LOCATION & PUROK SELECTION
+                    </span>
+                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">Select Your Barangay & Purok</h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
+                      Please select your official residential area in San Luis, Pampanga
                     </p>
                   </div>
 
-                  {/* Demographics Toggles */}
-                  <div className="space-y-1.5 flex flex-col">
-                    <div className="flex items-center justify-between px-0.5 shrink-0">
-                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-[#0A6B43]" />
-                        <span>Sectoral Demographics</span>
-                      </label>
-                    </div>
+                  {/* Selection 2-Row Container */}
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 space-y-3.5 sm:space-y-4 max-w-xl mx-auto w-full">
+                    {/* Row 1: Barangay Selection (2 Columns of Choices) */}
+                    <div className="space-y-1.5 flex flex-col">
+                      <div className="flex items-center justify-between px-0.5 shrink-0">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          <span>Select Barangay *</span>
+                        </label>
+                        {selectedBarangay && (
+                          <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 truncate">
+                            {selectedBarangay}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          {
-                            key: "solo",
-                            label: "Solo Parent",
-                            isSelected: regSolo,
-                            onClick: () => {
-                              setRegSolo(!regSolo);
-                              setRegNone(false);
-                            }
-                          },
-                          {
-                            key: "pwd",
-                            label: "PWD Member",
-                            isSelected: regPwd,
-                            onClick: () => {
-                              setRegPwd(!regPwd);
-                              setRegNone(false);
-                            }
-                          },
-                          {
-                            key: "indigenous",
-                            label: "Indigenous",
-                            isSelected: regIndigenous,
-                            onClick: () => {
-                              setRegIndigenous(!regIndigenous);
-                              setRegNone(false);
-                            }
-                          },
-                          {
-                            key: "none",
-                            label: "None / General",
-                            isSelected: regNone,
-                            onClick: () => {
-                              const next = !regNone;
-                              setRegNone(next);
-                              if (next) {
-                                setRegSolo(false);
-                                setRegPwd(false);
-                                setRegIndigenous(false);
-                              }
-                            }
-                          }
-                        ].map((sector) => {
-                          return (
-                            <button
-                              key={sector.key}
-                              type="button"
-                              onClick={sector.onClick}
-                              className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${sector.isSelected
-                                ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
-                                : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
-                                }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0 pr-1">
-                                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${sector.isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
-                                  }`}>
-                                  <User className="w-3 h-3" />
+                      <div className="max-h-[160px] sm:max-h-[160px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg sm:rounded-xl p-1.5 sm:p-2 bg-gray-50/50">
+                        <div className="grid grid-cols-2 gap-2">
+                          {BARANGAYS.map((brgy) => {
+                            const isSelected = selectedBarangay === brgy;
+                            return (
+                              <button
+                                key={brgy}
+                                type="button"
+                                onClick={() => setSelectedBarangay(brgy)}
+                                className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                                  ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                                  : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 pr-1">
+                                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                    }`}>
+                                    <MapPin className="w-3 h-3" />
+                                  </div>
+                                  <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                    {brgy}
+                                  </span>
                                 </div>
-                                <span className={`text-[11px] font-bold truncate ${sector.isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
-                                  {sector.label}
-                                </span>
-                              </div>
-                              {sector.isSelected && (
-                                <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
-                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
+                                {isSelected && (
+                                  <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Purok Selection (2 Columns of Choices) */}
+                    <div className="space-y-1.5 flex flex-col">
+                      <div className="flex items-center justify-between px-0.5 shrink-0">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          <span>Select Purok Sector *</span>
+                        </label>
+                        {regPurok && (
+                          <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                            {regPurok}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                        <div className="grid grid-cols-2 gap-2">
+                          {["Purok 1", "Purok 2", "Purok 3", "Purok 4"].map((purok) => {
+                            const isSelected = regPurok === purok;
+                            return (
+                              <button
+                                key={purok}
+                                type="button"
+                                onClick={() => setRegPurok(purok)}
+                                className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                                  ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                                  : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                                  }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 pr-1">
+                                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                    }`}>
+                                    <MapPin className="w-3 h-3" />
+                                  </div>
+                                  <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                    {purok}
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Step 3: Skills & Livelihood Goals */}
-          {currentStep === 3 && (
-            <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-skills-goals">
-              {/* Non-scrollable Step Header */}
-              <div className="text-center space-y-1.5 mb-3 shrink-0">
-                <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
-                  INTERESTS & SKILLS MAPPING
-                </span>
-                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Skills & Preferences</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
-                  Tell us about your skills and goals to find suitable training.
-                </p>
-              </div>
-
-              {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
-                <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
-
-                  {/* Preferred Vocational Sector */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Preferred Vocational Sector *</label>
-                    <CustomSelect value={regSector} onChange={setRegSector} options={VOCATIONAL_SECTOR_OPTIONS} placeholder="Select Preferred Vocational Sector" />
+              {/* Step 1: Personal Info Form */}
+              {currentStep === 1 && (
+                <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-personal-info">
+                  {/* Non-scrollable Step Header */}
+                  <div className="text-center mb-2.5 sm:mb-3 shrink-0">
+                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
+                      PERSONAL PROFILE DETAILS
+                    </span>
+                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">Tell Us About Yourself</h2>
+                    <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
+                      Please provide your personal information to create your SiKap profile
+                    </p>
                   </div>
 
-                  {/* 1. Skills (Multi-entry tags) */}
-                  <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
-                      Technical & Practical Skills *
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyDown={handleAddSkill}
-                        placeholder="Type a skill (e.g. Computer, Welding, Cooking) and press Enter"
-                        className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const trimmed = skillInput.trim();
-                          if (trimmed && !regSkills.includes(trimmed)) {
-                            setRegSkills([...regSkills, trimmed]);
-                            setSkillInput("");
-                          }
-                        }}
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
-                      {regSkills.map((s) => (
-                        <span key={s} className="bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-                          {s}
-                          <button type="button" onClick={() => handleRemoveSkill(s)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
-                            &times;
-                          </button>
-                        </span>
-                      ))}
-                      {regSkills.length === 0 && (
-                        <span className="text-gray-400 italic text-[11px]">No skills added yet. Type a skill above and press Enter.</span>
-                      )}
-                    </div>
-                  </div>
+                  {/* Scrollable Form Fields ONLY */}
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                    <div className="w-full max-w-xl mx-auto space-y-3.5 p-0.5">
 
-                  {/* 2. Experiences (Multi-entry tags) */}
-                  <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
-                      Past Work / Practical Experiences (Optional)
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={expInput}
-                        onChange={(e) => setExpInput(e.target.value)}
-                        onKeyDown={handleAddExperience}
-                        placeholder="e.g. Computer Shop Helper, Worked in a bakery, Talyer assistant"
-                        className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const trimmed = expInput.trim();
-                          if (trimmed && !regExperiences.includes(trimmed)) {
-                            setRegExperiences([...regExperiences, trimmed]);
-                            setExpInput("");
-                          }
-                        }}
-                        className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
-                      {regExperiences.map((exp) => (
-                        <span key={exp} className="bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
-                          {exp}
-                          <button type="button" onClick={() => handleRemoveExperience(exp)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
-                            &times;
-                          </button>
-                        </span>
-                      ))}
-                      {regExperiences.length === 0 && (
-                        <span className="text-gray-400 italic text-[11px]">Optional: Add past jobs, gigs, or informal assisting experience.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 3. Primary Livelihood / Career Goal */}
-                  <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
-                    <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
-                      Primary Career / Livelihood Goal *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={regGoal}
-                      onChange={(e) => setRegGoal(e.target.value)}
-                      placeholder="e.g. I want to become an IT professional"
-                      className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Verification & Declaration */}
-          {currentStep === 4 && (
-            <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-verification-declaration">
-              {/* Non-scrollable Step Header */}
-              <div className="text-center space-y-1.5 mb-3 shrink-0">
-                <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block">
-                  IDENTITY VERIFICATION
-                </span>
-                <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight pb-0.5 sm:pb-1">Official KK Member Verification</h2>
-                <p className="text-xs text-gray-500 max-w-md mx-auto pt-0.5 pb-1">
-                  Provide proof of identity to authorize your profile for official training referrals.
-                </p>
-              </div>
-
-              {/* Scrollable Form Fields ONLY */}
-              <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
-                <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
-                  <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-6">
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                      {/* Row 1: Full Name */}
                       <div className="space-y-1">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Verification ID Type *</label>
-                        <CustomSelect value={regIdType} onChange={setRegIdType} options={VERIFICATION_ID_TYPE_OPTIONS} placeholder="Select Verification ID Type" />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">ID Number / Reference Number *</label>
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Full Name *</label>
                         <input
                           type="text"
                           required
-                          value={regIdNumber}
-                          onChange={(e) => setRegIdNumber(e.target.value)}
-                          placeholder="e.g., LRN, ID, or Reference Number"
+                          value={regName}
+                          onChange={(e) => setRegName(e.target.value)}
+                          placeholder="Juan dela Cruz"
+                          className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                        />
+                      </div>
+
+                      {/* Row 2: Date of Birth & Gender (2 Columns) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between h-4">
+                            <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Date of Birth *</label>
+                            {regDOB && calculateAge(regDOB) !== "" && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
+                                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                : "text-rose-700 bg-rose-50 border-rose-200"
+                                }`}>
+                                {Number(calculateAge(regDOB)) >= 18 && Number(calculateAge(regDOB)) <= 30
+                                  ? `${calculateAge(regDOB)} yrs`
+                                  : `${calculateAge(regDOB)} yrs (Ineligible)`}
+                              </span>
+                            )}
+                          </div>
+                          <SiKapDatePicker
+                            value={regDOB}
+                            onChange={handleDOBChange}
+                            max={new Date().toISOString().split("T")[0]}
+                            hasError={!!(regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30))}
+                            label="Date of Birth"
+                            badgeText="KK Youth"
+                            showAgeIndicator={true}
+                            placeholder="Select date"
+                          />
+                          {regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30) && (
+                            <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>Ineligible age: KK membership requires age 18 to 30 (Calculated: {calculateAge(regDOB)} yrs).</span>
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between h-4">
+                            <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Gender *</label>
+                          </div>
+                          <CustomSelect value={regGender} onChange={setRegGender} options={GENDER_OPTIONS} placeholder="Select Gender" />
+                        </div>
+                      </div>
+
+                      {/* Row 3: Phone Number */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Phone Number *</label>
+                        <input
+                          type="text"
+                          required
+                          value={regContact}
+                          onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
+                          placeholder="+63 9"
+                          className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regContact && !isValidContactNumber(regContact) ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                            }`}
+                        />
+                        {regContact && !isValidContactNumber(regContact) && (
+                          <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>Incomplete number: Must be 11 digits starting with +63 9 (e.g. +63 912 345 6789).</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Row 4: Email Address */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
+                        <div className="relative">
+                          <input
+                            type="email"
+                            required
+                            value={regEmail}
+                            onChange={(e) => setRegEmail(e.target.value)}
+                            placeholder="juan.delacruz@gmail.com"
+                            className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${(regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
+                              ? "border-rose-300 bg-rose-50/30"
+                              : "border-gray-200"
+                              }`}
+                          />
+                          {isCheckingEmail && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium animate-pulse">
+                              Checking...
+                            </span>
+                          )}
+                        </div>
+                        {regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail) ? (
+                          <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>Invalid email format: Please enter a valid address (e.g. name@example.com).</span>
+                          </p>
+                        ) : emailExists ? (
+                          <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>Email already registered: This email address is already associated with an account.</span>
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {/* Row 5: Password & Confirm Password (2 Columns) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
+                        <div className="space-y-1">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Password *</label>
+                          <div className="relative">
+                            <input
+                              type={showPassword ? "text" : "password"}
+                              required
+                              value={regPassword}
+                              onChange={(e) => setRegPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && regPassword.length < 6 ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                                }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-hidden p-1 rounded-md transition-colors"
+                              title={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {regPassword && regPassword.length < 6 && (
+                            <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>Password too short: Must be at least 6 characters (Current: {regPassword.length}/6).</span>
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between h-4">
+                            <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Confirm Password *</label>
+                            {regConfirmPassword && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border ${regPassword === regConfirmPassword
+                                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                : "text-rose-700 bg-rose-50 border-rose-200"
+                                }`}>
+                                {regPassword === regConfirmPassword ? "Match" : "No match"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showConfirmPassword ? "text" : "password"}
+                              required
+                              value={regConfirmPassword}
+                              onChange={(e) => setRegConfirmPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regConfirmPassword && regPassword !== regConfirmPassword ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                                }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-hidden p-1 rounded-md transition-colors"
+                              title={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {regConfirmPassword && regPassword !== regConfirmPassword && (
+                            <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>Mismatch: Confirm password must match your password above.</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Education & Demographics */}
+              {currentStep === 2 && (
+                <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-education-demographics">
+                  {/* Non-scrollable Step Header */}
+                  <div className="text-center mb-2.5 sm:mb-3 shrink-0">
+                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
+                      EDUCATION & BACKGROUND
+                    </span>
+                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">Educational Attainment & Status</h2>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
+                      Tell us about your education to help us find relevant training opportunities
+                    </p>
+                  </div>
+
+                  {/* Scrollable Form Fields ONLY */}
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                    <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                        <div className="space-y-1">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Highest Educational Attainment</label>
+                          <CustomSelect value={regEdu} onChange={setRegEdu} options={[...EDUCATIONAL_ATTAINMENT_OPTIONS]} placeholder="Select Educational Attainment" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between h-4">
+                            <label className="text-[10px] sm:text-[11px] font-black text-[#0A6B43] uppercase tracking-wide inline-flex items-center h-full">Youth Status</label>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 h-4 inline-flex items-center rounded border text-emerald-700 bg-emerald-50 border-emerald-200">System Target</span>
+                          </div>
+                          <input
+                            type="text"
+                            readOnly
+                            value={regStatus}
+                            className="w-full py-2 sm:py-2.5 px-3.5 sm:px-4 border border-emerald-600 bg-emerald-50/80 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium text-emerald-950 cursor-not-allowed shadow-2xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* OSY Program Notice */}
+                      <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-900 flex items-start gap-2.5">
+                        <Sparkles className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
+                        <p className="font-medium text-[11px] leading-relaxed">
+                          <strong className="font-extrabold text-[#075332]">Out-of-School Youth Focus:</strong> SiKap is specifically designed for Out-of-School Youth (OSY) in San Luis, Pampanga to access free TESDA skills training, allowance support, and direct livelihood referrals.
+                        </p>
+                      </div>
+
+                      {/* Demographics Toggles */}
+                      <div className="space-y-1.5 flex flex-col">
+                        <div className="flex items-center justify-between px-0.5 shrink-0">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                            <span>Sectoral Demographics</span>
+                          </label>
+                        </div>
+
+                        <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              {
+                                key: "solo",
+                                label: "Solo Parent",
+                                isSelected: regSolo,
+                                onClick: () => {
+                                  setRegSolo(!regSolo);
+                                  setRegNone(false);
+                                }
+                              },
+                              {
+                                key: "pwd",
+                                label: "PWD Member",
+                                isSelected: regPwd,
+                                onClick: () => {
+                                  setRegPwd(!regPwd);
+                                  setRegNone(false);
+                                }
+                              },
+                              {
+                                key: "indigenous",
+                                label: "Indigenous",
+                                isSelected: regIndigenous,
+                                onClick: () => {
+                                  setRegIndigenous(!regIndigenous);
+                                  setRegNone(false);
+                                }
+                              },
+                              {
+                                key: "none",
+                                label: "None / General",
+                                isSelected: regNone,
+                                onClick: () => {
+                                  const next = !regNone;
+                                  setRegNone(next);
+                                  if (next) {
+                                    setRegSolo(false);
+                                    setRegPwd(false);
+                                    setRegIndigenous(false);
+                                  }
+                                }
+                              }
+                            ].map((sector) => {
+                              return (
+                                <button
+                                  key={sector.key}
+                                  type="button"
+                                  onClick={sector.onClick}
+                                  className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${sector.isSelected
+                                    ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                                    : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                                    }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 pr-1">
+                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${sector.isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                      }`}>
+                                      <User className="w-3 h-3" />
+                                    </div>
+                                    <span className={`text-[11px] font-bold truncate ${sector.isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                      {sector.label}
+                                    </span>
+                                  </div>
+                                  {sector.isSelected && (
+                                    <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Skills & Livelihood Goals */}
+              {currentStep === 3 && (
+                <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-skills-goals">
+                  {/* Non-scrollable Step Header */}
+                  <div className="text-center mb-2.5 sm:mb-3 shrink-0">
+                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
+                      INTERESTS & SKILLS MAPPING
+                    </span>
+                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">Skills & Preferences</h2>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
+                      Tell us about your skills and goals to find suitable training.
+                    </p>
+                  </div>
+
+                  {/* Scrollable Form Fields ONLY */}
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                    <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
+
+                      {/* Preferred Vocational Sector */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Preferred Vocational Sector *</label>
+                        <CustomSelect value={regSector} onChange={setRegSector} options={VOCATIONAL_SECTOR_OPTIONS} placeholder="Select Preferred Vocational Sector" />
+                      </div>
+
+                      {/* 1. Skills (Multi-entry tags) */}
+                      <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                          Technical & Practical Skills *
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={skillInput}
+                            onChange={(e) => setSkillInput(e.target.value)}
+                            onKeyDown={handleAddSkill}
+                            placeholder="Type a skill (e.g. Computer, Welding, Cooking) and press Enter"
+                            className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = skillInput.trim();
+                              if (trimmed && !regSkills.includes(trimmed)) {
+                                setRegSkills([...regSkills, trimmed]);
+                                setSkillInput("");
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
+                          {regSkills.map((s) => (
+                            <span key={s} className="bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                              {s}
+                              <button type="button" onClick={() => handleRemoveSkill(s)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                          {regSkills.length === 0 && (
+                            <span className="text-gray-400 italic text-[11px]">No skills added yet. Type a skill above and press Enter.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 2. Experiences (Multi-entry tags) */}
+                      <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                          Past Work / Practical Experiences (Optional)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={expInput}
+                            onChange={(e) => setExpInput(e.target.value)}
+                            onKeyDown={handleAddExperience}
+                            placeholder="e.g. Computer Shop Helper, Worked in a bakery, Talyer assistant"
+                            className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = expInput.trim();
+                              if (trimmed && !regExperiences.includes(trimmed)) {
+                                setRegExperiences([...regExperiences, trimmed]);
+                                setExpInput("");
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
+                          {regExperiences.map((exp) => (
+                            <span key={exp} className="bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                              {exp}
+                              <button type="button" onClick={() => handleRemoveExperience(exp)} className="hover:text-red-600 font-black p-0.5 text-xs cursor-pointer">
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                          {regExperiences.length === 0 && (
+                            <span className="text-gray-400 italic text-[11px]">Optional: Add past jobs, gigs, or informal assisting experience.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 3. Primary Livelihood / Career Goal */}
+                      <div className="space-y-1.5 text-xs font-semibold pt-2 border-t border-gray-100">
+                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                          Primary Career / Livelihood Goal *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={regGoal}
+                          onChange={(e) => setRegGoal(e.target.value)}
+                          placeholder="e.g. I want to become an IT professional"
                           className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
 
-                    {/* Drag and Drop Upload Zone */}
-                    <div className="space-y-1.5 text-xs font-semibold">
-                      <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
-                        Upload Proof of ID / Document Image *
-                      </label>
-                      <div
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${isDragging
-                          ? "border-[#0A6B43] bg-emerald-50/30"
-                          : regIdFileName
-                            ? "border-emerald-200 bg-emerald-50/5"
-                            : "border-gray-200 hover:border-emerald-300 bg-white"
-                          }`}
-                      >
-                        <input
-                          type="file"
-                          id="id-file-upload-input"
-                          accept="image/*,.pdf"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
+              {/* Step 4: Verification & Declaration */}
+              {currentStep === 4 && (
+                <div className="flex-1 flex flex-col min-h-0 w-full animate-in fade-in slide-in-from-bottom-3 duration-200" id="step-verification-declaration">
+                  {/* Non-scrollable Step Header */}
+                  <div className="text-center mb-2.5 sm:mb-3 shrink-0">
+                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
+                      IDENTITY VERIFICATION
+                    </span>
+                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">Official KK Member Verification</h2>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
+                      Provide proof of identity to authorize your profile for official training referrals.
+                    </p>
+                  </div>
 
-                        {!regIdFileName ? (
-                          <label
-                            htmlFor="id-file-upload-input"
-                            className="flex flex-col items-center justify-center gap-2 cursor-pointer group"
-                          >
-                            <div className="w-10 h-10 rounded-full bg-gray-50 group-hover:bg-emerald-50 text-gray-400 group-hover:text-[#0A6B43] flex items-center justify-center transition-colors">
-                              <Upload className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-gray-700">
-                                Drag & drop your document here, or <span className="text-[#0A6B43] hover:underline">browse files</span>
-                              </p>
-                              <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                                Supports PNG, JPG, or PDF up to 5MB
-                              </p>
-                            </div>
+                  {/* Scrollable Form Fields ONLY */}
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                    <div className="w-full max-w-xl mx-auto space-y-3.5 sm:space-y-6 p-0.5">
+                      <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-6">
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
+                          <div className="space-y-1">
+                            <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Verification ID Type *</label>
+                            <CustomSelect value={regIdType} onChange={setRegIdType} options={VERIFICATION_ID_TYPE_OPTIONS} placeholder="Select Verification ID Type" />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">ID Number / Reference Number *</label>
+                            <input
+                              type="text"
+                              required
+                              value={regIdNumber}
+                              onChange={(e) => setRegIdNumber(e.target.value)}
+                              placeholder="e.g., LRN, ID, or Reference Number"
+                              className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Drag and Drop Upload Zone */}
+                        <div className="space-y-1.5 text-xs font-semibold">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                            Upload Proof of ID / Document Image *
                           </label>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between bg-white border border-gray-150 p-2.5 rounded-lg max-w-sm mx-auto">
-                              <div className="flex items-center gap-2 text-left">
-                                <div className="w-8 h-8 rounded bg-emerald-100 text-[#0A6B43] flex items-center justify-center">
-                                  <FileCheck className="w-4 h-4" />
-                                </div>
-                                <div className="truncate max-w-[200px]">
-                                  <p className="text-xs font-bold text-gray-800 truncate">{regIdFileName}</p>
-                                  <p className="text-[9px] text-emerald-600 font-bold">Successfully attached</p>
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRegIdFileName("");
-                                  setRegIdImage("");
-                                }}
-                                className="text-gray-400 hover:text-red-500 p-1"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
+                          <div
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${isDragging
+                              ? "border-[#0A6B43] bg-emerald-50/30"
+                              : regIdFileName
+                                ? "border-emerald-200 bg-emerald-50/5"
+                                : "border-gray-200 hover:border-emerald-300 bg-white"
+                              }`}
+                          >
+                            <input
+                              type="file"
+                              id="id-file-upload-input"
+                              accept="image/*,.pdf"
+                              onChange={handleFileChange}
+                              className="hidden"
+                            />
 
-                            {/* Image preview */}
-                            {regIdImage && (
-                              <div className="max-w-xs mx-auto border border-gray-100 rounded-lg overflow-hidden shadow-xs relative group bg-gray-50 p-1">
-                                <img
-                                  src={regIdImage}
-                                  alt="ID Verification Document"
-                                  className="max-h-28 w-auto mx-auto rounded object-contain"
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <p className="text-[9px] text-white font-bold uppercase tracking-wider">Preview Document</p>
+                            {!regIdFileName ? (
+                              <label
+                                htmlFor="id-file-upload-input"
+                                className="flex flex-col items-center justify-center gap-2 cursor-pointer group"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-gray-50 group-hover:bg-emerald-50 text-gray-400 group-hover:text-[#0A6B43] flex items-center justify-center transition-colors">
+                                  <Upload className="w-5 h-5" />
                                 </div>
+                                <div>
+                                  <p className="text-xs font-bold text-gray-700">
+                                    Drag & drop your document here, or <span className="text-[#0A6B43] hover:underline">browse files</span>
+                                  </p>
+                                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                    Supports PNG, JPG, or PDF up to 5MB
+                                  </p>
+                                </div>
+                              </label>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between bg-white border border-gray-150 p-2.5 rounded-lg max-w-sm mx-auto">
+                                  <div className="flex items-center gap-2 text-left">
+                                    <div className="w-8 h-8 rounded bg-emerald-100 text-[#0A6B43] flex items-center justify-center">
+                                      <FileCheck className="w-4 h-4" />
+                                    </div>
+                                    <div className="truncate max-w-[200px]">
+                                      <p className="text-xs font-bold text-gray-800 truncate">{regIdFileName}</p>
+                                      <p className="text-[9px] text-emerald-600 font-bold">Successfully attached</p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRegIdFileName("");
+                                      setRegIdImage("");
+                                    }}
+                                    className="text-gray-400 hover:text-red-500 p-1"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                {/* Image preview */}
+                                {regIdImage && (
+                                  <div className="max-w-xs mx-auto border border-gray-100 rounded-lg overflow-hidden shadow-xs relative group bg-gray-50 p-1">
+                                    <img
+                                      src={regIdImage}
+                                      alt="ID Verification Document"
+                                      className="max-h-28 w-auto mx-auto rounded object-contain"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                      <p className="text-[9px] text-white font-bold uppercase tracking-wider">Preview Document</p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+
+                        {/* Attestations */}
+                        <div className="space-y-3 bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 text-xs font-semibold">
+                          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              required
+                              checked={certifyAge}
+                              onChange={(e) => setCertifyAge(e.target.checked)}
+                              className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
+                            />
+                            <span className="text-xs font-medium text-gray-700 leading-relaxed">
+                              I certify that the information I provided is true, accurate, and complete, and that I meet the requirements to register for SiKap.
+                            </span>
+                          </label>
+
+                          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              required
+                              checked={certifyResidency}
+                              onChange={(e) => setCertifyResidency(e.target.checked)}
+                              className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
+                            />
+                            <span className="text-xs font-medium text-gray-700 leading-relaxed">
+                              I agree to SiKap's Terms of Service and Privacy Policy, and consent to the collection and processing of my information for verification, youth profiling, and matching with relevant training opportunities.
+                            </span>
+                          </label>
+                        </div>
+
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 5: Pending Approval Screen */}
+              {currentStep === 5 && (
+                <div className="flex-1 flex flex-col justify-center min-h-0 w-full animate-in zoom-in-95 duration-200" id="step-pending-approval">
+                  <div className="space-y-6 max-w-lg mx-auto text-center py-8 px-6 bg-amber-50 border border-amber-200 rounded-3xl shadow-sm">
+                    <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex items-center justify-center mx-auto shadow-xs">
+                      <Clock className="w-9 h-9 animate-pulse" />
                     </div>
 
-                    {/* Attestations */}
-                    <div className="space-y-3 bg-emerald-50/30 p-4 rounded-xl border border-emerald-100 text-xs font-semibold">
-                      <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          required
-                          checked={certifyAge}
-                          onChange={(e) => setCertifyAge(e.target.checked)}
-                          className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
-                        />
-                        <span className="text-xs font-medium text-gray-700 leading-relaxed">
-                          I certify that the information I provided is true, accurate, and complete, and that I meet the requirements to register for SiKap.
-                        </span>
-                      </label>
-
-                      <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          required
-                          checked={certifyResidency}
-                          onChange={(e) => setCertifyResidency(e.target.checked)}
-                          className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
-                        />
-                        <span className="text-xs font-medium text-gray-700 leading-relaxed">
-                          I agree to SiKap's Terms of Service and Privacy Policy, and consent to the collection and processing of my information for verification, youth profiling, and matching with relevant training opportunities.
-                        </span>
-                      </label>
+                    <div className="space-y-1.5">
+                      <h2 className="text-xl sm:text-2xl font-black text-amber-900 tracking-tight">
+                        Registration Pending SK Verification
+                      </h2>
+                      <p className="text-xs sm:text-sm text-amber-800 font-medium leading-relaxed max-w-md mx-auto mt-1">
+                        Thank you for registering! Your Katipunan ng Kabataan profile has been successfully submitted to Sangguniang Kabataan for <strong>{selectedBarangay}</strong>. It is now awaiting review and verification by your SK Chairperson. Once approved, your status will be set to active and you will get access to authorized job fairs and TESDA starters.
+                      </p>
                     </div>
 
-                  </form>
+                    <div className="pt-4 border-t border-amber-200/50 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={onBackToHome}
+                        className="px-6 py-2.5 border border-amber-600 text-amber-900 hover:bg-amber-100/50 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      >
+                        Go back to Home
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 5: Pending Approval Screen */}
-          {currentStep === 5 && (
-            <div className="flex-1 flex flex-col justify-center min-h-0 w-full animate-in zoom-in-95 duration-200" id="step-pending-approval">
-              <div className="space-y-6 max-w-lg mx-auto text-center py-8 px-6 bg-amber-50 border border-amber-200 rounded-3xl shadow-sm">
-                <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex items-center justify-center mx-auto shadow-xs">
-                  <Clock className="w-9 h-9 animate-pulse" />
-                </div>
-
-                <div className="space-y-3">
-                  <h2 className="text-xl sm:text-2xl font-black text-amber-900 tracking-tight">
-                    Registration Pending SK Verification
-                  </h2>
-                  <p className="text-xs sm:text-sm text-amber-800 font-medium leading-relaxed max-w-md mx-auto">
-                    Thank you for registering! Your Katipunan ng Kabataan profile has been successfully submitted to Sangguniang Kabataan for <strong>{selectedBarangay}</strong>. It is now awaiting review and verification by your SK Chairperson. Once approved, your status will be set to active and you will get access to authorized job fairs and TESDA starters.
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t border-amber-200/50 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={onBackToHome}
-                    className="px-6 py-2.5 border border-amber-600 text-amber-900 hover:bg-amber-100/50 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                  >
-                    Go back to Home
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

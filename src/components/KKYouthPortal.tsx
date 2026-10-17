@@ -1145,20 +1145,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
-          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
-        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2">
-              <SikapLogo size={32} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
-                <span className="text-xs font-black text-amber-500 uppercase tracking-widest block leading-none">Youth</span>
-                <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={youthProfile.barangay.replace(/^Barangay\s+/i, "")}>
-                  {youthProfile.barangay.replace(/^Barangay\s+/i, "")}
-                </span>
-              </div>
+        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+          {/* Logo Header */}
+          <div className="flex items-center justify-between mb-7 px-1 pt-1">
+            <div className="flex items-center">
+              <SikapLogo size={34} logoSize={38} textSize={26} variant="white" showText={true} />
             </div>
 
             {/* Mobile Close Button */}
@@ -1172,71 +1166,133 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </button>
           </div>
 
-          <nav className="space-y-1.5">
+          {/* Navigation Items */}
+          <nav className="space-y-1.5 relative">
             {[
-              { id: YouthScreen.HOME, label: "My Dashboard", icon: <Home className="w-4.5 h-4.5" /> },
-              { id: YouthScreen.MATCHES, label: "Matched Programs", icon: <Target className="w-4.5 h-4.5" /> },
-              { id: YouthScreen.PATHWAY, label: "Livelihood Pathway", icon: <Award className="w-4.5 h-4.5" /> },
-              { id: YouthScreen.PROFILE, label: "My Profile & Skills", icon: <User className="w-4.5 h-4.5" /> }
+              {
+                id: YouthScreen.HOME,
+                label: "My Dashboard",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-200 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
+                  </svg>
+                )
+              },
+              {
+                id: YouthScreen.MATCHES,
+                label: "Matched Programs",
+                activeIcon: (
+                  <svg className="w-5 h-5 text-emerald-400 shrink-0" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="12" cy="12" r="6" fill="currentColor" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-200 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" />
+                  </svg>
+                )
+              },
+              {
+                id: YouthScreen.PATHWAY,
+                label: "Livelihood Pathway",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current text-emerald-400 shrink-0" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <circle cx="12" cy="8" r="6" />
+                    <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-200 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <circle cx="12" cy="8" r="6" />
+                    <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+                  </svg>
+                )
+              },
+              {
+                id: YouthScreen.PROFILE,
+                label: "My Profile & Skills",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current text-emerald-400 shrink-0" viewBox="0 0 24 24">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-200 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                )
+              }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setIsMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all text-left ${
-                    isActive
-                      ? "bg-emerald-950 text-emerald-300 border-l-4 border-[#0A6B43]"
-                      : "text-gray-300 hover:bg-[#2A3E30] hover:text-white"
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
+                <div key={tab.id} className="relative">
+                  {/* Active Page Indicator Bar on far-left edge matching Photo 1 */}
+                  {isActive && (
+                    <span
+                      className="absolute -left-4 sm:-left-5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#0A6B43] rounded-r-full shadow-[0_0_8px_rgba(10,107,67,0.6)]"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <button
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm transition-all duration-200 text-left cursor-pointer group tracking-tight ${
+                      isActive
+                        ? "bg-[#0A6B43]/30 text-emerald-300 font-bold border-transparent outline-none focus:outline-none focus:ring-0"
+                        : "text-gray-300/80 hover:bg-white/5 hover:text-white font-medium border border-transparent"
+                    }`}
+                  >
+                    <span className={`${isActive ? "text-emerald-400" : ""} transition-colors`}>
+                      {isActive ? tab.activeIcon : tab.inactiveIcon}
+                    </span>
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                </div>
               );
             })}
           </nav>
         </div>
 
-        <div className="p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
-          <div
-            onClick={() => {
-              setActiveTab(YouthScreen.PROFILE);
-              setIsMobileNavOpen(false);
-            }}
-            className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
-            title="Go to My Profile"
-          >
-            <div className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-              {youthProfile.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-            </div>
-            <div>
-              <p className="text-xs font-bold leading-none group-hover:text-[#D99427] transition-colors">{youthProfile.name}</p>
-              <p className="text-[10px] text-emerald-200 mt-0.5">{youthProfile.purok} · {youthProfile.barangay}</p>
-            </div>
+        {/* Bottom Section: Break Line with horizontal padding + Sign Out styled like My Dashboard */}
+        <div className="p-4 sm:p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 bg-[#1C2B20]">
+          {/* Break line with horizontal padding matching Photo 2 */}
+          <div className="px-2 pb-3 pt-1">
+            <div className="h-[1px] w-full bg-white/20 rounded-full" />
           </div>
+
+          {/* Sign Out Button styled similar to My Dashboard */}
           <button
             type="button"
             disabled={isLoggingOut}
             onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-xs text-red-300 rounded-lg transition-all font-semibold ${
-              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+            className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm font-medium tracking-tight transition-all duration-200 text-left cursor-pointer group text-gray-300/80 hover:text-red-300 hover:bg-red-500/10 border border-transparent ${
+              isLoggingOut ? "opacity-75 cursor-not-allowed" : ""
             }`}
           >
             {isLoggingOut ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
-                <span>Signing out...</span>
-              </>
+              <Loader2 className="w-5 h-5 animate-spin text-red-300 shrink-0" />
             ) : (
-              <>
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </>
+              <LogOut className="w-5 h-5 text-gray-400 group-hover:text-red-300 transition-colors shrink-0" />
             )}
+            <span className="truncate">Sign Out</span>
           </button>
         </div>
       </aside>
