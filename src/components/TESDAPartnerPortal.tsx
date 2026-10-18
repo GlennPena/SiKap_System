@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
+import { motion } from "motion/react";
+import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
@@ -49,7 +51,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       setIsLoggingOut(false);
     }
   };
-  
+
   // Dashboard Sub-tabs
   const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs" | "archived">("all");
 
@@ -183,7 +185,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             try {
               const parsed = JSON.parse(saved);
               if (Array.isArray(parsed)) loaded.push(...parsed);
-            } catch {}
+            } catch { }
           }
         }
         return Array.from(new Set(loaded));
@@ -206,7 +208,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           try {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch {}
+          } catch { }
         }
       }
       if (loaded.length > 0) {
@@ -428,7 +430,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const handleOpenEditModal = (prog: TESDAProgram) => {
     setEditingProgramId(prog.id);
     setProgCategoryId(prog.categoryId || "1");
-    
+
     // Parse title & level (e.g. "Food Processing NC II" -> "Food Processing" & "NC II")
     const match = prog.title.match(/(.*)\s+(NC\s+I|NC\s+II|NC\s+III)$/i);
     if (match) {
@@ -449,19 +451,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setProgContactName(prog.contactPerson || "");
     setProgContactPhone(prog.contactNumber || "");
     setProgTrainingDays(prog.trainingDays || []);
-    
+
     // Format times cleanly without timezone shift
     setProgStartTime(parseTimeForInput(prog.startTime));
     setProgEndTime(parseTimeForInput(prog.endTime));
 
     setProgRoom(prog.room || "");
     setProgInstructor(prog.instructor || "");
-    
+
     // Format dates
     if (prog.startDate) {
       setProgStartDate(new Date(prog.startDate).toISOString().split('T')[0]);
     } else setProgStartDate("");
-    
+
     if (prog.endDate) {
       setProgEndDate(new Date(prog.endDate).toISOString().split('T')[0]);
     } else setProgEndDate("");
@@ -476,29 +478,29 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       addToast("Please fill in the program title", "error");
       return;
     }
-    
+
     if (!progTrainingHours || Number(progTrainingHours) <= 0) {
       addToast("Training hours must be greater than 0", "error");
       return;
     }
-    
+
     if (progTrainingDays.length === 0) {
       addToast("Please select at least one training day", "error");
       return;
     }
-    
+
     if (progStartTime && progEndTime && progStartTime >= progEndTime) {
       addToast("Start time must be before end time", "error");
       return;
     }
-    
+
     if (progStartDate && progEndDate && new Date(progStartDate) > new Date(progEndDate)) {
       addToast("Start date must be before or equal to end date", "error");
       return;
     }
 
     const fullTitle = `${progTitle.trim()} ${progLevel}`.trim();
-    
+
     const payload = {
       title: fullTitle,
       categoryId: progCategoryId,
@@ -527,7 +529,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      
+
       if (!res.ok || !data.success) {
         throw new Error(data.message || data.error || "Failed to save program");
       }
@@ -549,29 +551,29 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       addToast("Please fill in the program title", "error");
       return;
     }
-    
+
     if (!progTrainingHours || Number(progTrainingHours) <= 0) {
       addToast("Training hours must be greater than 0", "error");
       return;
     }
-    
+
     if (progTrainingDays.length === 0) {
       addToast("Please select at least one training day", "error");
       return;
     }
-    
+
     if (progStartTime && progEndTime && progStartTime >= progEndTime) {
       addToast("Start time must be before end time", "error");
       return;
     }
-    
+
     if (progStartDate && progEndDate && new Date(progStartDate) > new Date(progEndDate)) {
       addToast("Start date must be before or equal to end date", "error");
       return;
     }
 
     const fullTitle = `${progTitle.trim()} ${progLevel}`.trim();
-    
+
     const payload = {
       title: fullTitle,
       categoryId: progCategoryId,
@@ -601,7 +603,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      
+
       if (!res.ok || !data.success) {
         throw new Error(data.message || data.error || "Failed to update program");
       }
@@ -744,6 +746,51 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const pendingReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Pending").length, [activeReferrals]);
   const enrolledReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Enrolled").length, [activeReferrals]);
 
+  // Memoized TESDA notifications
+  const tesdaNotifications = useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      desc: string;
+      icon: React.ReactNode;
+      bg: string;
+      action: () => void;
+    }> = [];
+
+    if (pendingReferralsCount > 0) {
+      list.push({
+        id: "notif-tesda-pending",
+        title: `Pending Youth Applications (${pendingReferralsCount})`,
+        desc: "Youth members are waiting for TESDA enrollment confirmation.",
+        icon: <Clock className="w-4 h-4 text-amber-800" />,
+        bg: "bg-amber-100",
+        action: () => {
+          setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
+          setDashboardTab("pending");
+        }
+      });
+    }
+
+    if (activePrograms.length > 0) {
+      list.push({
+        id: "notif-tesda-programs",
+        title: `Active Training Programs (${activePrograms.length})`,
+        desc: `${totalSlotsRemaining} open training slots available across courses.`,
+        icon: <BookOpen className="w-4 h-4 text-[#0A6B43]" />,
+        bg: "bg-emerald-100/70",
+        action: () => {
+          setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+        }
+      });
+    }
+
+    return list;
+  }, [pendingReferralsCount, activePrograms.length, totalSlotsRemaining]);
+
+  const activeNotifs = useMemo(() => {
+    return tesdaNotifications.filter(n => !clearedNotificationIds.includes(n.id));
+  }, [tesdaNotifications, clearedNotificationIds]);
+
   // Unique Barangays from active referrals
   const uniqueBarangays = useMemo(() => {
     const set = new Set(activeReferrals.map(r => r.barangay).filter(Boolean));
@@ -753,12 +800,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   // Filter referrals based on search, status, program, barangay, and dashboardTab
   const filteredReferrals = useMemo(() => {
     return activeReferrals.filter(item => {
-      const matchesSearch = 
+      const matchesSearch =
         item.youthName.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
         item.barangay.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
         item.purok.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
         item.programTitle.toLowerCase().includes(pipelineSearch.toLowerCase());
-      
+
       let matchesStatus = pipelineStatusFilter === "All" || item.status === pipelineStatusFilter;
       if (dashboardTab === "pending") matchesStatus = item.status === "Pending";
       else if (dashboardTab === "enrolled") matchesStatus = item.status === "Enrolled";
@@ -807,8 +854,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const filteredProgramsList = useMemo(() => {
     return activePrograms.filter(prog => {
       const matchesSearch = prog.title.toLowerCase().includes(programSearchQuery.toLowerCase()) ||
-                            (prog.location && prog.location.toLowerCase().includes(programSearchQuery.toLowerCase())) ||
-                            (prog.instructor && prog.instructor.toLowerCase().includes(programSearchQuery.toLowerCase()));
+        (prog.location && prog.location.toLowerCase().includes(programSearchQuery.toLowerCase())) ||
+        (prog.instructor && prog.instructor.toLowerCase().includes(programSearchQuery.toLowerCase()));
       const matchesLevel = programLevelFilter === "All" || prog.title.toUpperCase().includes(programLevelFilter);
       return matchesSearch && matchesLevel;
     });
@@ -855,18 +902,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#112F24] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
-          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
-        <div className="overflow-y-auto min-h-0 flex-1">
-          {/* Brand Header */}
-          <div className="p-5 sm:p-6 border-b border-emerald-900/50 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+          {/* Logo Header */}
+          <div className="flex items-center justify-between mb-7 px-1 pt-1">
+            <div className="flex items-center">
               <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
-              <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-700/40">
-                Partner
-              </span>
             </div>
 
             {/* Mobile Close Button */}
@@ -880,327 +923,361 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </button>
           </div>
 
-          <p className="px-5 sm:px-6 text-[13px] text-emerald-300/70 font-medium pt-2">TESDA Training & Livelihood Hub</p>
+          {/* Navigation Items */}
+          <nav className="space-y-1.5 relative">
+            {[
+              {
+                id: TESDAPartnerScreen.DASHBOARD,
+                label: "Dashboard & Pipeline",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
+                    <path d="M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6H14v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H2z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect width="20" height="14" x="2" y="7" rx="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                ),
+                badge: pendingReferralsCount > 0 ? pendingReferralsCount : undefined,
+                onClick: () => {
+                  setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
+                  setDashboardTab("all");
+                }
+              },
+              {
+                id: TESDAPartnerScreen.PROGRAMS,
+                label: "Published Courses",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 6.25c-1.85-1.4-4.22-2.25-6.75-2.25H2v14.5h3.25c2.14 0 4.18.66 5.75 1.75V6.25z" />
+                    <path d="M12 6.25c1.85-1.4 4.22-2.25 6.75-2.25H22v14.5h-3.25c-2.14 0-4.18.66-5.75 1.75V6.25z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
+                ),
+                badge: activePrograms.length > 0 ? activePrograms.length : undefined,
+                onClick: () => {
+                  setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                }
+              },
+              {
+                id: TESDAPartnerScreen.ADD_PROGRAM,
+                label: "Post New Course",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 6h-2v3H8v2h3v3h2v-3h3v-2h-3V8z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 12h8" />
+                    <path d="M12 8v8" />
+                  </svg>
+                ),
+                onClick: () => {
+                  handleNewProgramClick();
+                }
+              },
+              {
+                id: TESDAPartnerScreen.SETTINGS,
+                label: "Partner Profile & Alerts",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 2a6 6 0 0 0-6 6c0 7-3 9-3 9h18s-3-2-3-9a6 6 0 0 0-6-6z" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                ),
+                onClick: () => {
+                  setCurrentScreen(TESDAPartnerScreen.SETTINGS);
+                }
+              }
+            ].map((tab) => {
+              const isActive =
+                currentScreen === tab.id ||
+                (tab.id === TESDAPartnerScreen.ADD_PROGRAM && currentScreen === TESDAPartnerScreen.EDIT_PROGRAM);
 
-          {/* Navigation Links */}
-          <div className="px-4 py-4 space-y-1.5">
-            <p className="px-3 text-xs font-black uppercase tracking-wider text-emerald-400/60 mb-2">Main Portals</p>
-            
-            <button
-              onClick={() => {
-                setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
-                setDashboardTab("all");
-                setIsMobileNavOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                currentScreen === TESDAPartnerScreen.DASHBOARD
-                  ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Briefcase className="w-4 h-4 text-emerald-400" />
-                <span>Dashboard & Pipeline</span>
-              </div>
-              {pendingReferralsCount > 0 && (
-                <span className="bg-amber-500 text-slate-950 font-black text-xs px-2 py-0.2 rounded-full shadow-xs">
-                  {pendingReferralsCount}
-                </span>
-              )}
-            </button>
+              return (
+                <div key={tab.id} className="relative">
+                  {/* Animated Active Page Indicator Bar on far-left edge */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="tesdaActiveIndicator"
+                      className="absolute -left-4 sm:-left-5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#02513B] rounded-r-full shadow-[0_0_8px_rgba(2,81,59,0.8)] z-20 pointer-events-none"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
+                  )}
 
-            <button
-              onClick={() => {
-                setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
-                setIsMobileNavOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                currentScreen === TESDAPartnerScreen.PROGRAMS
-                  ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <BookOpen className="w-4 h-4 text-emerald-400" />
-                <span>Published Courses</span>
-              </div>
-              <span className="text-xs font-bold text-emerald-300/80 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800/40">
-                {activePrograms.length}
-              </span>
-            </button>
+                  {/* Animated Active Pill Background */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="tesdaActiveBackground"
+                      className="absolute inset-0 bg-[#02513B] rounded-xl pointer-events-none z-0 shadow-sm border border-emerald-400/20"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
+                  )}
 
-            <button
-              onClick={() => {
-                handleNewProgramClick();
-                setIsMobileNavOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                currentScreen === TESDAPartnerScreen.ADD_PROGRAM || currentScreen === TESDAPartnerScreen.EDIT_PROGRAM
-                  ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
-              }`}
-            >
-              <Plus className="w-4 h-4 text-emerald-400" />
-              <span>Post New Course</span>
-            </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      tab.onClick();
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${isActive
+                        ? "text-emerald-300 cursor-pointer"
+                        : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
+                      }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <span className={`transition-colors duration-200 shrink-0 ${isActive
+                          ? "text-emerald-300"
+                          : "text-gray-400 group-hover:text-gray-200"
+                        }`}>
+                        {isActive ? tab.activeIcon : tab.inactiveIcon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                    </div>
 
-            <button
-              onClick={() => {
-                setCurrentScreen(TESDAPartnerScreen.SETTINGS);
-                setIsMobileNavOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                currentScreen === TESDAPartnerScreen.SETTINGS
-                  ? "bg-gradient-to-r from-emerald-800/80 to-emerald-900 text-emerald-200 shadow-sm border-l-4 border-emerald-400"
-                  : "border-l-4 border-transparent text-emerald-100/75 hover:bg-emerald-900/40 hover:text-white"
-              }`}
-            >
-              <Bell className="w-4 h-4 text-emerald-400" />
-              <span>Partner Profile & Alerts</span>
-            </button>
-          </div>
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* User Info & Logout Footer */}
-        <div className="p-4 sm:p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/50 bg-[#0c241b] shrink-0">
-          <div
-            onClick={() => {
-              setCurrentScreen(TESDAPartnerScreen.SETTINGS);
-              setIsMobileNavOpen(false);
-            }}
-            className="flex items-center gap-3 mb-3 p-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/30 cursor-pointer transition-all"
-            title="Click to view Profile & Notification Preferences"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-black text-sm shadow-sm">
-              {currentUser?.name?.charAt(0).toUpperCase() || "T"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-emerald-100 truncate">{currentUser?.name || "TESDA Officer"}</p>
-              <p className="text-xs text-emerald-300/70 truncate">{currentUser?.email || "GPSAT Guagua / San Luis"}</p>
-            </div>
+        {/* Bottom Section: Avatar, Name & Sign Out in One Row */}
+        <div className="p-3 sm:p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 bg-[#082D21]">
+          {/* Break line with horizontal padding */}
+          <div className="px-1 pb-2.5 pt-1">
+            <div className="h-[1px] w-full bg-white/20 rounded-full" />
           </div>
-          
-          <button
-            type="button"
-            disabled={isLoggingOut}
-            onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 border border-red-500/30 rounded-xl transition-all text-sm font-bold ${
-              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-            }`}
-          >
-            {isLoggingOut ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
-                <span>Signing out...</span>
-              </>
-            ) : (
-              <>
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </>
-            )}
-          </button>
+
+          {/* Avatar, Name, and Sign Out Button in One Row */}
+          <div className="flex items-center justify-between gap-2.5 px-2 py-1.5 rounded-xl">
+            {/* User Profile Info (Avatar + Complete Name - Static without hover effect) */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {/* Avatar without hover effect */}
+              <div className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-amber-400/40 shrink-0 select-none">
+                {currentUser?.name
+                  ? currentUser.name
+                    .split(" ")
+                    .filter(Boolean)
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)
+                  : "TP"}
+              </div>
+
+              {/* Complete Name without truncation or hover effect */}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white leading-snug break-words">
+                  {currentUser?.name || "TESDA Partner"}
+                </p>
+              </div>
+            </div>
+
+            {/* Sign Out Button (Only element with hover effect) */}
+            <button
+              type="button"
+              disabled={isLoggingOut}
+              onClick={handleSignOut}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-2.5 text-gray-400 hover:text-red-300 hover:bg-red-500/15 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group/logout"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="w-5 h-5 animate-spin text-red-300 shrink-0" />
+              ) : (
+                <LogOut className="w-5 h-5 group-hover/logout:text-red-300 transition-colors shrink-0" />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Viewport */}
       <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
         {/* Sticky Header */}
-        <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-xs">
+        <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             {/* Mobile Hamburger Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(true)}
-              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-slate-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="lg:hidden p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="p-2 bg-emerald-50 text-[#0A6B43] rounded-xl border border-emerald-100 hidden sm:block shrink-0">
-              <Building className="w-5 h-5" />
-            </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                <h1 className="text-sm sm:text-base lg:text-lg font-black text-slate-900 tracking-tight leading-tight truncate block">
-                  {currentUser?.name || "TESDA GPSAT"} Portal
-                </h1>
-                <span className="hidden xs:inline-flex text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-200 px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                  San Luis Matchmaker
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate block">
-                Katipunan ng Kabataan (KK) Out-of-School Youth Admissions
-              </p>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
+                {currentScreen === TESDAPartnerScreen.DASHBOARD && "Dashboard & Pipeline"}
+                {currentScreen === TESDAPartnerScreen.PROGRAMS && "Published Courses"}
+                {currentScreen === TESDAPartnerScreen.ADD_PROGRAM && "Post New Course"}
+                {currentScreen === TESDAPartnerScreen.EDIT_PROGRAM && "Edit Course"}
+                {currentScreen === TESDAPartnerScreen.SETTINGS && "Partner Profile & Alerts"}
+              </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Quick Action: New Program */}
-            <button
-              onClick={handleNewProgramClick}
-              className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer hover:shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Post Course</span>
-            </button>
-
+          <div className="flex items-center gap-2 sm:gap-3 relative shrink-0" id="notification-bell-container">
             {/* Notification Bell */}
             <div className="relative">
-              {(() => {
-                const tesdaNotifications: Array<{
-                  id: string;
-                  title: string;
-                  desc: string;
-                  icon: React.ReactNode;
-                  bg: string;
-                  action: () => void;
-                }> = [];
+              <NotificationBellButton
+                isOpen={showNotifications}
+                onClick={() => setShowNotifications(!showNotifications)}
+                unreadCount={!notificationsRead ? activeNotifs.length : 0}
+                title="TESDA Notifications"
+                size="lg"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
+              />
 
-                if (pendingReferralsCount > 0) {
-                  tesdaNotifications.push({
-                    id: "notif-tesda-pending",
-                    title: `Pending Youth Applications (${pendingReferralsCount})`,
-                    desc: "Youth members are waiting for TESDA enrollment confirmation.",
-                    icon: <Clock className="w-4 h-4 text-amber-800" />,
-                    bg: "bg-amber-100",
-                    action: () => {
-                      setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
-                      setDashboardTab("pending");
-                    }
-                  });
-                }
-
-                if (activePrograms.length > 0) {
-                  tesdaNotifications.push({
-                    id: "notif-tesda-programs",
-                    title: `Active Training Programs (${activePrograms.length})`,
-                    desc: `${totalSlotsRemaining} open training slots available across courses.`,
-                    icon: <BookOpen className="w-4 h-4 text-[#0A6B43]" />,
-                    bg: "bg-emerald-100/70",
-                    action: () => {
-                      setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
-                    }
-                  });
-                }
-
-                const activeNotifs = tesdaNotifications.filter(n => !clearedNotificationIds.includes(n.id));
-
-                return (
-                  <>
-                    <NotificationBellButton
-                      isOpen={showNotifications}
-                      onClick={() => setShowNotifications(!showNotifications)}
-                      unreadCount={!notificationsRead ? activeNotifs.length : 0}
-                      title="TESDA Notifications"
-                    />
-
-                    {showNotifications && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 sm:mt-0 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
-                          <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-emerald-50/70 shrink-0">
-                            <div className="flex items-center gap-2">
-                              <Bell className="w-4 h-4 text-[#0A6B43]" />
-                              <span className="font-extrabold text-slate-900 text-xs">TESDA Action Center</span>
-                              {activeNotifs.length > 0 && (
-                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                                  {activeNotifs.length}
-                                </span>
-                              )}
-                            </div>
-                            {activeNotifs.length > 0 && (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(tesdaNotifications.map(n => n.id));
-                                    addToast("All notifications marked as read & cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                                  title="Mark all as read & clear"
-                                >
-                                  Mark read
-                                </button>
-                                <span className="text-gray-300">·</span>
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(tesdaNotifications.map(n => n.id));
-                                    addToast("All notifications cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
-                                  title="Clear all alerts"
-                                >
-                                  Clear all
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          <NotificationSettingsCard compact userRole="TESDA_PARTNER" addToast={addToast} />
-
-                          <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
-                            {activeNotifs.length === 0 ? (
-                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
-                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
-                                <p className="text-xs font-bold text-gray-700">All caught up!</p>
-                                <p className="text-[10px] text-gray-400">No active alerts or pending youth action items right now.</p>
-                              </div>
-                            ) : (
-                              activeNotifs.map((n) => (
-                                <div
-                                  key={n.id}
-                                  onClick={() => {
-                                    dismissNotification(n.id);
-                                    n.action();
-                                    setShowNotifications(false);
-                                  }}
-                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                                >
-                                  <div className={`p-2 rounded-xl ${n.bg} shrink-0 mt-0.5`}>
-                                    {n.icon}
-                                  </div>
-                                  <div className="flex-1 min-w-0 pr-2">
-                                    <p className="font-bold text-slate-900 text-xs">{n.title}</p>
-                                    <p className="text-[11px] text-slate-600 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      dismissNotification(n.id);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                                    title="Dismiss alert"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-
-                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
-                            <span className="text-[10px] font-bold text-gray-400">Click an action to navigate, or ✕ to dismiss</span>
-                          </div>
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="fixed inset-x-3.5 top-20 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-14 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-emerald-100 rounded-2xl shadow-2xl py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-[#0A6B43]" />
+                        <span className="font-extrabold text-slate-900 text-xs">TESDA Action Center</span>
+                        {activeNotifs.length > 0 && (
+                          <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                            {activeNotifs.length}
+                          </span>
+                        )}
+                      </div>
+                      {activeNotifs.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearAllNotifications(tesdaNotifications.map(n => n.id));
+                              addToast("All notifications marked as read & cleared", "info");
+                            }}
+                            className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                            title="Mark all as read & clear"
+                          >
+                            Mark read
+                          </button>
+                          <span className="text-gray-300">·</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearAllNotifications(tesdaNotifications.map(n => n.id));
+                              addToast("All notifications cleared", "info");
+                            }}
+                            className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                            title="Clear all alerts"
+                          >
+                            Clear all
+                          </button>
                         </div>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
+                      )}
+                    </div>
+
+                    <NotificationSettingsCard compact userRole="TESDA_PARTNER" addToast={addToast} />
+
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                      {activeNotifs.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                          <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                          <p className="text-xs font-bold text-gray-700">All caught up!</p>
+                          <p className="text-[10px] text-gray-400">No active alerts or pending youth action items right now.</p>
+                        </div>
+                      ) : (
+                        activeNotifs.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              dismissNotification(n.id);
+                              n.action();
+                              setShowNotifications(false);
+                            }}
+                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                          >
+                            <div className={`p-2 rounded-xl ${n.bg} shrink-0 mt-0.5`}>
+                              {n.icon}
+                            </div>
+                            <div className="flex-1 min-w-0 pr-2">
+                              <p className="font-bold text-slate-900 text-xs">{n.title}</p>
+                              <p className="text-[11px] text-slate-600 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dismissNotification(n.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                              title="Dismiss alert"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-400">Click an action to navigate, or close to dismiss</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          
+        <div className="px-2 sm:px-3 lg:px-4 py-4 sm:py-6 space-y-6 max-w-[1420px] w-full mx-auto">
+
           {/* ============================================================ */}
           {/* SCREEN 1: DASHBOARD & PIPELINE */}
           {/* ============================================================ */}
           {currentScreen === TESDAPartnerScreen.DASHBOARD && (
             <div className="space-y-6">
-              
+              {/* Full-Width Rectangular Greeting Card Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content - Header and Subheader Only */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Mabuhay, {currentUser?.name || repName || "TESDA Partner"}!
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage training listings and connect youth with programs suited to their skills and goals.
+                  </p>
+                </div>
+              </div>
+
               {/* Alert Banner if Programs have reached end date */}
               {completedPrograms.length > 0 && (
                 <div className="bg-gradient-to-r from-purple-500/10 via-purple-50 to-indigo-50 border border-purple-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1309,21 +1386,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto scrollbar-none w-full sm:w-auto shrink-0 max-w-full">
                     <button
                       onClick={() => setDashboardTab("all")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                        dashboardTab === "all"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "all"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
-                      }`}
+                        }`}
                     >
                       All Active ({activeReferrals.length})
                     </button>
                     <button
                       onClick={() => setDashboardTab("pending")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                        dashboardTab === "pending"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "pending"
                           ? "bg-white text-amber-700 shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
-                      }`}
+                        }`}
                     >
                       <span>Pending</span>
                       {pendingReferralsCount > 0 && (
@@ -1334,21 +1409,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </button>
                     <button
                       onClick={() => setDashboardTab("enrolled")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                        dashboardTab === "enrolled"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "enrolled"
                           ? "bg-white text-emerald-700 shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
-                      }`}
+                        }`}
                     >
                       Enrolled ({enrolledReferralsCount})
                     </button>
                     <button
                       onClick={() => setDashboardTab("programs")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                        dashboardTab === "programs"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "programs"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
-                      }`}
+                        }`}
                     >
                       Course Roster ({activePrograms.length})
                     </button>
@@ -1357,11 +1430,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         setDashboardTab("archived");
                         fetchArchivedData();
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                        dashboardTab === "archived"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "archived"
                           ? "bg-white text-emerald-800 shadow-xs font-extrabold"
                           : "text-slate-600 hover:text-slate-900"
-                      }`}
+                        }`}
                     >
                       <Archive className="w-3.5 h-3.5" />
                       <span>Archived History</span>
@@ -1489,7 +1561,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       return (
                         <div key={title} className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden transition-all">
                           {/* Program Accordion Header */}
-                          <div 
+                          <div
                             onClick={() => toggleProgramExpand(title)}
                             className="p-3.5 sm:p-4 bg-gradient-to-r from-[#112F24] via-[#164132] to-[#1A4B3A] text-white border-b border-emerald-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-all hover:brightness-105 shadow-xs"
                           >
@@ -1511,13 +1583,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     </span>
                                   )}
                                   {slotsRemaining !== undefined && (
-                                    <span className={`sm:hidden text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
-                                      slotsRemaining > 5
+                                    <span className={`sm:hidden text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${slotsRemaining > 5
                                         ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/30"
                                         : slotsRemaining > 0
-                                        ? "bg-amber-500/20 text-amber-200 border-amber-400/30"
-                                        : "bg-red-500/20 text-red-200 border-red-400/30"
-                                    }`}>
+                                          ? "bg-amber-500/20 text-amber-200 border-amber-400/30"
+                                          : "bg-red-500/20 text-red-200 border-red-400/30"
+                                      }`}>
                                       {slotsRemaining} / {slotsTotal} Slots Left
                                     </span>
                                   )}
@@ -1551,11 +1622,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                       e.stopPropagation();
                                       setProgramToArchive(originalProgram);
                                     }}
-                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 shadow-xs cursor-pointer ${
-                                      isProgramDurationDone(originalProgram)
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 shadow-xs cursor-pointer ${isProgramDurationDone(originalProgram)
                                         ? "bg-amber-500 hover:bg-amber-600 text-white animate-pulse"
                                         : "bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/40"
-                                    }`}
+                                      }`}
                                     title={isProgramDurationDone(originalProgram) ? "Training Concluded: Archive Term & Enrollees" : "Conclude & Archive Program Term"}
                                   >
                                     <Archive className="w-3.5 h-3.5" />
@@ -1567,17 +1637,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               {slotsRemaining !== undefined && (
                                 <div className="text-right hidden sm:block">
                                   <div className="flex items-center gap-1.5 justify-end">
-                                    <span className={`text-xs font-black ${
-                                      slotsRemaining > 5 ? "text-emerald-300" : slotsRemaining > 0 ? "text-amber-300" : "text-red-300"
-                                    }`}>
+                                    <span className={`text-xs font-black ${slotsRemaining > 5 ? "text-emerald-300" : slotsRemaining > 0 ? "text-amber-300" : "text-red-300"
+                                      }`}>
                                       {slotsRemaining} / {slotsTotal} Slots Left
                                     </span>
                                   </div>
                                   <div className="w-24 bg-emerald-950/80 h-1.5 rounded-full overflow-hidden mt-1 ml-auto border border-emerald-700/40">
-                                    <div 
-                                      className={`h-full rounded-full ${
-                                        slotsRemaining > 5 ? "bg-emerald-400" : slotsRemaining > 0 ? "bg-amber-400" : "bg-red-400"
-                                      }`}
+                                    <div
+                                      className={`h-full rounded-full ${slotsRemaining > 5 ? "bg-emerald-400" : slotsRemaining > 0 ? "bg-amber-400" : "bg-red-400"
+                                        }`}
                                       style={{ width: `${Math.min(100, Math.round(((slotsTotal - slotsRemaining) / slotsTotal) * 100))}%` }}
                                     />
                                   </div>
@@ -1655,13 +1723,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                                         {/* Status Badge */}
                                         <td className="py-3.5 px-4">
-                                          <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-                                            item.status === "Enrolled"
+                                          <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${item.status === "Enrolled"
                                               ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                               : item.status === "Pending"
-                                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                                              : "bg-red-50 text-red-800 border-red-200"
-                                          }`}>
+                                                ? "bg-amber-50 text-amber-800 border-amber-200"
+                                                : "bg-red-50 text-red-800 border-red-200"
+                                            }`}>
                                             {item.status}
                                           </span>
                                         </td>
@@ -1735,9 +1802,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 <Clock className="w-3 h-3 text-purple-600" /> Ended
                               </span>
                             )}
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                              prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                            }`}>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                              }`}>
                               {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Left` : "Full Capacity"}
                             </span>
                           </div>
@@ -1762,12 +1828,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             {(() => {
                               const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
                               return ts.sessionType !== "Custom" ? (
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
-                                  ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                  "bg-purple-100 text-purple-900 border border-purple-200"
-                                }`}>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                    ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                      ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                        "bg-purple-100 text-purple-900 border border-purple-200"
+                                  }`}>
                                   {ts.sessionType}
                                 </span>
                               ) : null;
@@ -1799,7 +1864,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             <span>{prog.slotsTotal - prog.slotsRemaining} / {prog.slotsTotal}</span>
                           </div>
                           <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className="bg-[#0A6B43] h-full rounded-full"
                               style={{ width: `${Math.min(100, Math.round(((prog.slotsTotal - prog.slotsRemaining) / prog.slotsTotal) * 100))}%` }}
                             />
@@ -1994,11 +2059,34 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {/* ============================================================ */}
           {currentScreen === TESDAPartnerScreen.PROGRAMS && (
             <div className="space-y-6">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Published Courses Catalog
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage and publish certified technical-vocational courses and training programs for San Luis youths.
+                  </p>
+                </div>
+              </div>
+
               {/* Header with Search and New Program Button */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-xs">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Active Technical-Vocational Programs</h2>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Manage and post technical courses certified under TESDA for San Luis youths</p>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">Active Training Programs</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    {activePrograms.length} active courses · Certified under TESDA GPSAT
+                  </p>
                 </div>
                 <button
                   onClick={handleNewProgramClick}
@@ -2064,9 +2152,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   <Clock className="w-3 h-3 text-purple-600" /> Term Ended
                                 </span>
                               )}
-                              <span className={`text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full shrink-0 ${
-                                prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
-                              }`}>
+                              <span className={`text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full shrink-0 ${prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+                                }`}>
                                 {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Open` : "Full"}
                               </span>
                             </div>
@@ -2095,12 +2182,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               {(() => {
                                 const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
                                 return ts.sessionType !== "Custom" ? (
-                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
-                                    ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                    ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                    ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                    "bg-purple-100 text-purple-900 border border-purple-200"
-                                  }`}>
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                      ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                        ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                          "bg-purple-100 text-purple-900 border border-purple-200"
+                                    }`}>
                                     {ts.sessionType}
                                   </span>
                                 ) : null;
@@ -2132,7 +2218,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               <span>{enrolledCount} Enrolled / {applicantsCount} Applied</span>
                             </div>
                             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                              <div 
+                              <div
                                 className="bg-[#0A6B43] h-full rounded-full"
                                 style={{ width: `${Math.min(100, Math.round((enrolledCount / (prog.slotsTotal || 30)) * 100))}%` }}
                               />
@@ -2195,8 +2281,29 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {/* ============================================================ */}
           {(currentScreen === TESDAPartnerScreen.ADD_PROGRAM || currentScreen === TESDAPartnerScreen.EDIT_PROGRAM) && (
             <div className="space-y-6">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    {editingProgramId ? "Modify Training Course" : "Post New Course"}
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Configure curriculum parameters, schedules, capacity, and candidate prerequisites for youth learners.
+                  </p>
+                </div>
+              </div>
+
               {/* Back Button & Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center items-start gap-3 sm:gap-4">
+              <div className="flex items-center">
                 <button
                   type="button"
                   onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
@@ -2205,21 +2312,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <ArrowLeft className="w-4 h-4 text-slate-500" />
                   <span>Back to Dashboard</span>
                 </button>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight leading-tight sm:leading-snug">
-                    {editingProgramId ? "Modify Training Course" : "Post New Technical-Vocational Course"}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 leading-normal sm:leading-relaxed">
-                    Configure curriculum parameters, schedules, capacity, and candidate prerequisites
-                  </p>
-                </div>
               </div>
 
               {/* Form Layout: Expanded Form */}
               <div className="max-w-4xl mx-auto w-full">
                 <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-sm p-4 sm:p-6 md:p-8">
                   <form onSubmit={handleAddProgramSubmit} className="space-y-6">
-                    
+
                     {/* Section 1: Course Info */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
@@ -2362,11 +2461,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <label className="text-[11px] font-bold text-slate-600 uppercase block">Training Days</label>
                         <div className="flex flex-wrap gap-2">
                           {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
-                            <label key={day} className={`flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${
-                              progTrainingDays.includes(day)
+                            <label key={day} className={`flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${progTrainingDays.includes(day)
                                 ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
                                 : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                            }`}>
+                              }`}>
                               <input
                                 type="checkbox"
                                 checked={progTrainingDays.includes(day)}
@@ -2394,44 +2492,40 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("morning")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                              progStartTime === "08:00" && progEndTime === "12:00"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "12:00"
                                 ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                            }`}
+                              }`}
                           >
                             🌅 Morning (8 AM – 12 PM)
                           </button>
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("afternoon")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                              progStartTime === "13:00" && progEndTime === "17:00"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "13:00" && progEndTime === "17:00"
                                 ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                            }`}
+                              }`}
                           >
                             ☀️ Afternoon (1 PM – 5 PM)
                           </button>
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("fullday")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                              progStartTime === "08:00" && progEndTime === "17:00"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "17:00"
                                 ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                            }`}
+                              }`}
                           >
                             🏢 Full Day (8 AM – 5 PM)
                           </button>
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("evening")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                              progStartTime === "17:30" && progEndTime === "20:30"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "17:30" && progEndTime === "20:30"
                                 ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                            }`}
+                              }`}
                           >
                             🌙 Evening (5:30 PM – 8:30 PM)
                           </button>
@@ -2469,12 +2563,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           {(() => {
                             const ts = formatProgramTimeslot(progStartTime, progEndTime);
                             return ts.sessionType !== "Custom" ? (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
-                                ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                "bg-purple-100 text-purple-900 border border-purple-200"
-                              }`}>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                    ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                      "bg-purple-100 text-purple-900 border border-purple-200"
+                                }`}>
                                 {ts.sessionType}
                               </span>
                             ) : null;
@@ -2537,11 +2630,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
-                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
-                              progTrainingHours === computedTrainingHours.totalHours
+                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${progTrainingHours === computedTrainingHours.totalHours
                                 ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
                                 : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
-                            }`}
+                              }`}
                           >
                             {progTrainingHours === computedTrainingHours.totalHours ? "✓ Applied" : "Apply to Hours"}
                           </button>
@@ -2644,79 +2736,75 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {/* SCREEN 5: PARTNER PROFILE & NOTIFICATION SETTINGS */}
           {currentScreen === TESDAPartnerScreen.SETTINGS && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Top Banner Header */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                    <Building className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight leading-tight">
-                      TESDA Partner Profile & Settings
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1 leading-relaxed">
-                      Manage institutional TVET center credentials, representative details, system security, and off-site notifications.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                    Accredited TVET Partner
-                  </span>
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Partner Profile & Settings
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage institutional TVET center credentials, representative details, system security, and notifications.
+                  </p>
                 </div>
               </div>
 
-              {/* Top Sub-tab Pill Navigation Bar */}
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("profile")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "profile"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Building className="w-4 h-4 shrink-0" />
-                  <span>Institution Profile</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("security")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "security"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Lock className="w-4 h-4 shrink-0" />
-                  <span>Account Security</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("notifications")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "notifications"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Bell className="w-4 h-4 shrink-0" />
-                  <span>Alerts & Notifications</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("badge")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "badge"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Award className="w-4 h-4 shrink-0" />
-                  <span>TVET Accreditation Badge</span>
-                </button>
+              {/* Sub-Tab Navigation Bar */}
+              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("profile")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "profile"
+                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      }`}
+                  >
+                    <Building className="w-4 h-4 shrink-0" />
+                    <span>Institution Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("security")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "security"
+                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      }`}
+                  >
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <span>Account Security</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("notifications")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "notifications"
+                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      }`}
+                  >
+                    <Bell className="w-4 h-4 shrink-0" />
+                    <span>Alerts & Notifications</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("badge")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "badge"
+                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      }`}
+                  >
+                    <Award className="w-4 h-4 shrink-0" />
+                    <span>TVET Accreditation Badge</span>
+                  </button>
+                </div>
               </div>
 
               {/* TAB 1: INSTITUTION PROFILE */}
@@ -2748,11 +2836,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <button
                           type="button"
                           onClick={() => setIsEditingProfile(!isEditingProfile)}
-                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${
-                            isEditingProfile
+                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${isEditingProfile
                               ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
                               : "bg-[#0A6B43] text-white hover:bg-[#085435]"
-                          }`}
+                            }`}
                         >
                           <Edit className="w-3.5 h-3.5 shrink-0" />
                           <span>{isEditingProfile ? "Cancel" : "Edit Profile"}</span>
@@ -2939,9 +3026,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           type="button"
                           disabled={isLoggingOut}
                           onClick={handleSignOut}
-                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
-                            isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-                          }`}
+                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                            }`}
                         >
                           {isLoggingOut ? (
                             <>
@@ -3165,7 +3251,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {selectedApplicant && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-150">
-            
+
             {/* Modal Top Header */}
             <div className="bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white p-6 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
@@ -3201,10 +3287,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
             {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto max-h-[65vh]">
-              
+
               {/* 2-Column Info Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
+
                 {/* Column 1: Contact & Education */}
                 <div className="space-y-4">
                   <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5">
@@ -3309,13 +3395,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   );
                   if (!activeRef) return null;
                   return (
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${
-                      activeRef.status === "Enrolled"
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${activeRef.status === "Enrolled"
                         ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                         : activeRef.status === "Pending"
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                        : "bg-red-50 text-red-800 border-red-200"
-                    }`}>
+                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                          : "bg-red-50 text-red-800 border-red-200"
+                      }`}>
                       Current Status: {activeRef.status}
                     </span>
                   );
@@ -3372,7 +3457,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {viewingProgram && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 flex flex-col max-h-[85vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            
+
             {/* Header */}
             <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-start justify-between">
               <div>
@@ -3389,10 +3474,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            
+
             {/* Details Content */}
             <div className="p-6 overflow-y-auto space-y-6 text-xs">
-              
+
               {/* Quick Metrics */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-emerald-50/60 rounded-xl p-3.5 border border-emerald-100 flex items-center gap-3">
@@ -3409,7 +3494,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     )}
                   </div>
                 </div>
-                
+
                 <div className="bg-teal-50/60 rounded-xl p-3.5 border border-teal-100 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold shrink-0">
                     <Target className="w-4 h-4" />
@@ -3439,12 +3524,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <div className="flex items-center gap-2 mt-0.5">
                           <p className="font-bold text-slate-900">{ts.formattedRange}</p>
                           {ts.sessionType !== "Custom" && (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                              ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                              ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                              ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                              "bg-purple-100 text-purple-900 border border-purple-200"
-                            }`}>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                    "bg-purple-100 text-purple-900 border border-purple-200"
+                              }`}>
                               {ts.sessionType}
                             </span>
                           )}
@@ -3527,7 +3611,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {editingProgramModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-6">
-            
+
             {/* Modal Header */}
             <div className="p-6 border-b border-emerald-900/40 bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
@@ -3554,7 +3638,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             {/* Modal Body: Scrollable Form */}
             <div className="p-6 overflow-y-auto space-y-6">
               <form id="edit-program-modal-form" onSubmit={handleEditModalSubmit} className="space-y-6">
-                
+
                 {/* Section 1: Course Info */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
@@ -3697,11 +3781,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <label className="text-[11px] font-bold text-slate-600 uppercase block">Training Days</label>
                     <div className="flex flex-wrap gap-2">
                       {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
-                        <label key={day} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${
-                          progTrainingDays.includes(day)
+                        <label key={day} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${progTrainingDays.includes(day)
                             ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
                             : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                        }`}>
+                          }`}>
                           <input
                             type="checkbox"
                             checked={progTrainingDays.includes(day)}
@@ -3729,44 +3812,40 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("morning")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                          progStartTime === "08:00" && progEndTime === "12:00"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "12:00"
                             ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         🌅 Morning (8 AM – 12 PM)
                       </button>
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("afternoon")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                          progStartTime === "13:00" && progEndTime === "17:00"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "13:00" && progEndTime === "17:00"
                             ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         ☀️ Afternoon (1 PM – 5 PM)
                       </button>
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("fullday")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                          progStartTime === "08:00" && progEndTime === "17:00"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "17:00"
                             ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         🏢 Full Day (8 AM – 5 PM)
                       </button>
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("evening")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                          progStartTime === "17:30" && progEndTime === "20:30"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "17:30" && progEndTime === "20:30"
                             ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                        }`}
+                          }`}
                       >
                         🌙 Evening (5:30 PM – 8:30 PM)
                       </button>
@@ -3804,12 +3883,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       {(() => {
                         const ts = formatProgramTimeslot(progStartTime, progEndTime);
                         return ts.sessionType !== "Custom" ? (
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${
-                            ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                            ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                            ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                            "bg-purple-100 text-purple-900 border border-purple-200"
-                          }`}>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                              ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                  "bg-purple-100 text-purple-900 border border-purple-200"
+                            }`}>
                             {ts.sessionType}
                           </span>
                         ) : null;
@@ -3872,11 +3950,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <button
                         type="button"
                         onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
-                          progTrainingHours === computedTrainingHours.totalHours
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${progTrainingHours === computedTrainingHours.totalHours
                             ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
                             : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
-                        }`}
+                          }`}
                       >
                         {progTrainingHours === computedTrainingHours.totalHours ? "✓ Applied" : "Apply to Hours"}
                       </button>

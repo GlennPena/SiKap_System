@@ -52,6 +52,8 @@ import {
   Menu
 } from "lucide-react";
 import { SikapLogo, NotificationBellButton } from "./ReusableComponents";
+import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
+import { motion } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
@@ -1011,6 +1013,40 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     if (addToast) addToast(`Downloaded ${formattedBrgyName} Census Spreadsheet (.xls)`, "success");
   };
 
+  // Memoized Captain Notifications
+  const captainNotifications = useMemo(() => {
+    return [
+      {
+        id: "notif-capt-youth",
+        title: "Katipunan ng Kabataan Roster",
+        desc: `${localYouthProfiles.length} youth registered in ${formattedBrgyName}. ${kkMembersSummary.outOfSchool} are tagged as Out-of-School Youth (OSY).`,
+        icon: <Users className="w-4 h-4 text-[#0A6B43]" />,
+        bg: "bg-emerald-50 border border-emerald-100",
+        action: () => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)
+      },
+      {
+        id: "notif-capt-council",
+        title: "Sangguniang Kabataan Council",
+        desc: `${localCouncilors.length} council members appointed under Presiding Officer ${localSKChair?.name || "SK Chairperson"}.`,
+        icon: <Users2 className="w-4 h-4 text-amber-800" />,
+        bg: "bg-amber-50 border border-amber-100",
+        action: () => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)
+      },
+      {
+        id: "notif-capt-tesda",
+        title: "Municipal TESDA Programs",
+        desc: `${programs.length} active livelihood and technical training courses available across San Luis.`,
+        icon: <Briefcase className="w-4 h-4 text-teal-800" />,
+        bg: "bg-teal-50 border border-teal-100",
+        action: () => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)
+      }
+    ];
+  }, [localYouthProfiles.length, formattedBrgyName, kkMembersSummary.outOfSchool, localCouncilors.length, localSKChair?.name, programs.length]);
+
+  const activeNotifs = useMemo(() => {
+    return captainNotifications.filter(n => !clearedNotificationIds.includes(n.id));
+  }, [captainNotifications, clearedNotificationIds]);
+
   return (
     <div className="flex h-[100dvh] max-h-[100dvh] w-full bg-[#FAFAF8] text-slate-800 font-sans antialiased overflow-hidden" id="captain-portal-container">
       
@@ -1027,21 +1063,15 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* SIDEBAR NAVIGATION (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       {/* ========================================================================= */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
-          {/* Logo & Barangay Brand */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2">
+        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+          {/* Logo Header */}
+          <div className="flex items-center justify-between mb-7 px-1 pt-1">
+            <div className="flex items-center">
               <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
-                <span className="text-xs font-black text-amber-400 uppercase tracking-widest block leading-none">Captain</span>
-                <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={formattedBrgyName}>
-                  {formattedBrgyName.replace(/^Barangay\s+/i, "")}
-                </span>
-              </div>
             </div>
 
             {/* Mobile Close Button */}
@@ -1055,88 +1085,227 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
             </button>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="space-y-1.5">
+          {/* Navigation Items */}
+          <nav className="space-y-1.5 relative">
             {[
-              { id: BarangayCaptainScreen.DASHBOARD, label: "Dashboard", icon: <Landmark className="w-4.5 h-4.5" /> },
-              { id: BarangayCaptainScreen.YOUTH_DIRECTORY, label: "KK Youth Directory", icon: <Users className="w-4.5 h-4.5" />, badge: localYouthProfiles.length },
-              { id: BarangayCaptainScreen.SK_COUNCIL, label: "SK Council Oversight", icon: <Users2 className="w-4.5 h-4.5" />, badge: localCouncilors.length + (localSKChair ? 1 : 0) },
-              { id: BarangayCaptainScreen.APPLICATIONS, label: "Program Applications", icon: <FileText className="w-4.5 h-4.5" />, badge: localReferrals.length },
-              { id: BarangayCaptainScreen.TESDA_PROGRAMS, label: "TESDA Listings", icon: <Briefcase className="w-4.5 h-4.5" />, badge: programs.length },
-              { id: BarangayCaptainScreen.PROFILE, label: "Executive Profile", icon: <Shield className="w-4.5 h-4.5" /> }
-            ].map((item) => {
-              const isActive = currentScreen === item.id;
+              {
+                id: BarangayCaptainScreen.DASHBOARD,
+                label: "Dashboard",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 2 2 7v2h20V7L12 2zm-7 8v8h2v-8H5zm5 0v8h2v-8h-2zm5 0v8h2v-8h-2zm-9 10v2h18v-2H6z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <line x1="3" x2="21" y1="22" y2="22" />
+                    <line x1="6" x2="6" y1="18" y2="11" />
+                    <line x1="10" x2="10" y1="18" y2="11" />
+                    <line x1="14" x2="14" y1="18" y2="11" />
+                    <line x1="18" x2="18" y1="18" y2="11" />
+                    <polygon points="12 2 20 7 4 7" />
+                  </svg>
+                )
+              },
+              {
+                id: BarangayCaptainScreen.YOUTH_DIRECTORY,
+                label: "KK Youth Directory",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6.5" r="3.5" />
+                    <path d="M9 12c-3.1 0-6 2.2-6 5.5V20h12v-2.5c0-3.3-2.9-5.5-6-5.5z" />
+                    <circle cx="16.5" cy="7.5" r="2.8" />
+                    <path d="M16.5 12.5c-.4 0-.8.05-1.2.14 1.4 1.1 2.2 2.7 2.2 4.86V20h4.5v-2c0-3-2.5-5.5-5.5-5.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                ),
+                badge: localYouthProfiles.length > 0 ? localYouthProfiles.length : undefined
+              },
+              {
+                id: BarangayCaptainScreen.SK_COUNCIL,
+                label: "SK Council Oversight",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <circle cx="8" cy="6.5" r="3.5" />
+                    <path d="M14 19a6 6 0 0 0-12 0h12z" />
+                    <circle cx="16.5" cy="7.5" r="2.8" />
+                    <path d="M16.5 12.5c-.4 0-.8.05-1.2.14 1.4 1.1 2.2 2.7 2.2 4.86V20h4.5v-2c0-3-2.5-5.5-5.5-5.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M14 19a6 6 0 0 0-12 0" />
+                    <circle cx="8" cy="9" r="4" />
+                    <path d="M22 19a6 6 0 0 0-6-6 4 4 0 1 0 0-8" />
+                  </svg>
+                ),
+                badge: localCouncilors.length + (localSKChair ? 1 : 0) > 0 ? localCouncilors.length + (localSKChair ? 1 : 0) : undefined
+              },
+              {
+                id: BarangayCaptainScreen.APPLICATIONS,
+                label: "Program Applications",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2 5 5h-5V4zM8 12h8v1.5H8V12zm0 3.5h8V17H8v-1.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                    <path d="M10 9H8" />
+                    <path d="M16 13H8" />
+                    <path d="M16 17H8" />
+                  </svg>
+                ),
+                badge: localReferrals.length > 0 ? localReferrals.length : undefined
+              },
+              {
+                id: BarangayCaptainScreen.TESDA_PROGRAMS,
+                label: "TESDA Listings",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
+                    <path d="M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6H14v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H2z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect width="20" height="14" x="2" y="7" rx="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                ),
+                badge: programs.length > 0 ? programs.length : undefined
+              },
+              {
+                id: BarangayCaptainScreen.PROFILE,
+                label: "Executive Profile",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 2 3.5 5.5V11C3.5 16.5 7.14 21.6 12 23c4.86-1.4 8.5-6.5 8.5-12V5.5L12 2z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                  </svg>
+                )
+              }
+            ].map((tab) => {
+              const isActive = currentScreen === tab.id;
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setCurrentScreen(item.id);
-                    setIsMobileNavOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                    isActive
-                      ? "bg-emerald-950/90 text-amber-400 border-l-4 border-[#0A6B43] shadow-inner"
-                      : "border-l-4 border-transparent text-gray-300 hover:bg-[#25392a] hover:text-white"
-                  }`}
-                >
-                  <span className={isActive ? "text-amber-400" : "text-emerald-400"}>{item.icon}</span>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className={`text-xs font-black px-2 py-0.5 rounded-full shadow-2xs ${
-                      isActive ? "bg-amber-400 text-slate-950" : "bg-emerald-900 text-emerald-200"
-                    }`}>
-                      {item.badge}
-                    </span>
+                <div key={tab.id} className="relative">
+                  {/* Animated Active Page Indicator Bar on far-left edge */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="captainActiveIndicator"
+                      className="absolute -left-4 sm:-left-5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#02513B] rounded-r-full shadow-[0_0_8px_rgba(2,81,59,0.8)] z-20 pointer-events-none"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
                   )}
-                </button>
+
+                  {/* Animated Active Pill Background */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="captainActiveBackground"
+                      className="absolute inset-0 bg-[#02513B] rounded-xl pointer-events-none z-0 shadow-sm border border-emerald-400/20"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentScreen(tab.id);
+                      setIsMobileNavOpen(false);
+                    }}
+                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${
+                      isActive
+                        ? "text-emerald-300 cursor-pointer"
+                        : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <span className={`transition-colors duration-200 shrink-0 ${
+                        isActive
+                          ? "text-emerald-300"
+                          : "text-gray-400 group-hover:text-gray-200"
+                      }`}>
+                        {isActive ? tab.activeIcon : tab.inactiveIcon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                    </div>
+
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                </div>
               );
             })}
           </nav>
         </div>
 
-        {/* Bottom User Area & Logout Button (ALWAYS VISIBLE & NON-SCROLLABLE) */}
-        <div className="p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
-          <div
-            onClick={() => {
-              setCurrentScreen(BarangayCaptainScreen.PROFILE);
-              setIsMobileNavOpen(false);
-            }}
-            className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
-            title="View Executive Profile"
-          >
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-sm shadow-xs border border-amber-400 shrink-0">
-              {captainInfo.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold leading-none group-hover:text-amber-400 transition-colors text-white truncate">
-                {captainInfo.name}
-              </p>
-              <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider mt-0.5 truncate">
-                Barangay Captain
-              </p>
-            </div>
+        {/* Bottom Section: Avatar, Name & Sign Out in One Row */}
+        <div className="p-3 sm:p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 bg-[#082D21]">
+          {/* Break line with horizontal padding */}
+          <div className="px-1 pb-2.5 pt-1">
+            <div className="h-[1px] w-full bg-white/20 rounded-full" />
           </div>
 
-          <button
-            type="button"
-            disabled={isLoggingOut}
-            onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-sm text-red-300 rounded-lg transition-all font-bold uppercase tracking-wider ${
-              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-            }`}
-          >
-            {isLoggingOut ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
-                <span>Signing out...</span>
-              </>
-            ) : (
-              <>
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </>
-            )}
-          </button>
+          {/* Avatar, Name, and Sign Out Button in One Row */}
+          <div className="flex items-center justify-between gap-2.5 px-2 py-1.5 rounded-xl">
+            {/* User Profile Info (Avatar + Complete Name - Static without hover effect) */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {/* Avatar without hover effect */}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shrink-0 border border-white/20 select-none">
+                {captainInfo?.name
+                  ? captainInfo.name
+                    .split(" ")
+                    .filter(Boolean)
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)
+                  : "BC"}
+              </div>
+
+              {/* Complete Name without truncation or hover effect */}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white leading-snug break-words">
+                  {captainInfo?.name || "Barangay Captain"}
+                </p>
+              </div>
+            </div>
+
+            {/* Sign Out Button (Only element with hover effect) */}
+            <button
+              type="button"
+              disabled={isLoggingOut}
+              onClick={handleSignOut}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-2.5 text-gray-400 hover:text-red-300 hover:bg-red-500/15 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group/logout"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="w-5 h-5 animate-spin text-red-300 shrink-0" />
+              ) : (
+                <LogOut className="w-5 h-5 group-hover/logout:text-red-300 transition-colors shrink-0" />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -1146,191 +1315,149 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
         
         {/* Sticky Topbar */}
-        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-2xs">
+        <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             {/* Mobile Hamburger Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(true)}
-              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-slate-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="lg:hidden p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                <span className="hidden xs:inline-flex text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 sm:px-2 py-0.5 rounded-md shrink-0">
-                  Executive Governance
-                </span>
-                <span className="text-[11px] sm:text-xs font-bold text-gray-500 truncate block">
-                  {formattedBrgyName} · San Luis
-                </span>
-              </div>
-              <h1 className="text-sm sm:text-base font-black text-gray-900 mt-0.5 truncate block">
-                Good day, {captainInfo.name.split(" ")[0]}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
+                {currentScreen === BarangayCaptainScreen.DASHBOARD && "Executive Dashboard"}
+                {currentScreen === BarangayCaptainScreen.YOUTH_DIRECTORY && "KK Youth Directory"}
+                {currentScreen === BarangayCaptainScreen.SK_COUNCIL && "SK Council Oversight"}
+                {currentScreen === BarangayCaptainScreen.APPLICATIONS && "Program Applications"}
+                {currentScreen === BarangayCaptainScreen.TESDA_PROGRAMS && "TESDA Listings"}
+                {currentScreen === BarangayCaptainScreen.PROFILE && "Executive Profile"}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 relative shrink-0" id="notification-bell-container">
             {/* Print Census / Summary Report Action */}
             <button
               onClick={() => setIsPrintReportModalOpen(true)}
-              className="p-2 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-2xs shrink-0"
+              className="p-2 sm:px-3.5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 sm:gap-2 cursor-pointer shadow-2xs shrink-0"
               title="Print Executive Census Summary Report"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-600" />
+              <Printer className="w-4 h-4 text-slate-600" />
               <span className="hidden sm:inline">Print Census Report</span>
             </button>
 
             {/* Notification Bell Dropdown */}
             <div className="relative">
-              {(() => {
-                const captainNotifications: Array<{
-                  id: string;
-                  title: string;
-                  desc: string;
-                  icon: React.ReactNode;
-                  bg: string;
-                  action: () => void;
-                }> = [
-                  {
-                    id: "notif-capt-youth",
-                    title: "Katipunan ng Kabataan Roster",
-                    desc: `${localYouthProfiles.length} youth registered in ${formattedBrgyName}. ${kkMembersSummary.outOfSchool} are tagged as Out-of-School Youth (OSY).`,
-                    icon: <Users className="w-4 h-4 text-[#0A6B43]" />,
-                    bg: "bg-emerald-50 border border-emerald-100",
-                    action: () => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)
-                  },
-                  {
-                    id: "notif-capt-council",
-                    title: "Sangguniang Kabataan Council",
-                    desc: `${localCouncilors.length} council members appointed under Presiding Officer ${localSKChair?.name || "SK Chairperson"}.`,
-                    icon: <Users2 className="w-4 h-4 text-amber-800" />,
-                    bg: "bg-amber-50 border border-amber-100",
-                    action: () => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)
-                  },
-                  {
-                    id: "notif-capt-tesda",
-                    title: "Municipal TESDA Programs",
-                    desc: `${programs.length} active livelihood and technical training courses available across San Luis.`,
-                    icon: <Briefcase className="w-4 h-4 text-teal-800" />,
-                    bg: "bg-teal-50 border border-teal-100",
-                    action: () => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)
-                  }
-                ];
+              <NotificationBellButton
+                isOpen={showNotifications}
+                onClick={() => setShowNotifications(!showNotifications)}
+                unreadCount={!notificationsRead ? activeNotifs.length : 0}
+                title="Barangay Governance Notifications"
+                size="lg"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
+              />
 
-                const activeNotifs = captainNotifications.filter(n => !clearedNotificationIds.includes(n.id));
-
-                return (
-                  <>
-                    <NotificationBellButton
-                      isOpen={showNotifications}
-                      onClick={() => setShowNotifications(!showNotifications)}
-                      unreadCount={!notificationsRead ? activeNotifs.length : 0}
-                      title="Barangay Governance Notifications"
-                      size="sm"
-                    />
-
-                    {showNotifications && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white rounded-2xl shadow-2xl border border-emerald-100 py-3 text-xs overflow-hidden text-slate-800 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[80vh] sm:max-h-none">
-                          <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3 shrink-0">
-                            <div className="flex items-center gap-2">
-                              <Bell className="w-4 h-4 text-[#0A6B43]" />
-                              <span className="font-extrabold text-gray-900 text-sm">Barangay Executive Alerts</span>
-                              {activeNotifs.length > 0 && (
-                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                                  {activeNotifs.length}
-                                </span>
-                              )}
-                            </div>
-                            {activeNotifs.length > 0 && (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(captainNotifications.map(n => n.id));
-                                    showToast("All notifications marked as read & cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                                  title="Mark all as read & clear"
-                                >
-                                  Mark read
-                                </button>
-                                <span className="text-gray-300">·</span>
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(captainNotifications.map(n => n.id));
-                                    showToast("All notifications cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
-                                  title="Clear all alerts"
-                                >
-                                  Clear all
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          <NotificationSettingsCard compact userRole="BARANGAY_CAPTAIN" addToast={showToast} />
-
-                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                            {activeNotifs.length === 0 ? (
-                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
-                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
-                                <p className="text-xs font-bold text-gray-700">All caught up!</p>
-                                <p className="text-[10px] text-gray-400">No active governance alerts for Barangay {formattedBrgyName}.</p>
-                              </div>
-                            ) : (
-                              activeNotifs.map((n) => (
-                                <div
-                                  key={n.id}
-                                  onClick={() => {
-                                    dismissNotification(n.id);
-                                    n.action();
-                                    setShowNotifications(false);
-                                  }}
-                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                                >
-                                  <div className={`p-2 rounded-lg ${n.bg} shrink-0 mt-0.5`}>
-                                    {n.icon}
-                                  </div>
-                                  <div className="flex-1 min-w-0 pr-2">
-                                    <p className="font-bold text-gray-900 text-xs">{n.title}</p>
-                                    <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      dismissNotification(n.id);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                                    title="Dismiss alert"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-
-                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
-                            <span className="text-[10px] font-bold text-gray-400">Click an alert to view it, or click ✕ to dismiss</span>
-                          </div>
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="fixed inset-x-3.5 top-20 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-14 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-emerald-100 rounded-2xl shadow-2xl py-3 text-xs overflow-hidden text-slate-800 animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-[#0A6B43]" />
+                        <span className="font-extrabold text-gray-900 text-sm">Barangay Executive Alerts</span>
+                        {activeNotifs.length > 0 && (
+                          <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                            {activeNotifs.length}
+                          </span>
+                        )}
+                      </div>
+                      {activeNotifs.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearAllNotifications(captainNotifications.map(n => n.id));
+                              showToast("All notifications marked as read & cleared", "info");
+                            }}
+                            className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                            title="Mark all as read & clear"
+                          >
+                            Mark read
+                          </button>
+                          <span className="text-gray-300">·</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearAllNotifications(captainNotifications.map(n => n.id));
+                              showToast("All notifications cleared", "info");
+                            }}
+                            className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                            title="Clear all alerts"
+                          >
+                            Clear all
+                          </button>
                         </div>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
+                      )}
+                    </div>
+
+                    <NotificationSettingsCard compact userRole="BARANGAY_CAPTAIN" addToast={showToast} />
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                      {activeNotifs.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                          <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                          <p className="text-xs font-bold text-gray-700">All caught up!</p>
+                          <p className="text-[10px] text-gray-400">No active governance alerts for Barangay {formattedBrgyName}.</p>
+                        </div>
+                      ) : (
+                        activeNotifs.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              dismissNotification(n.id);
+                              n.action();
+                              setShowNotifications(false);
+                            }}
+                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                          >
+                            <div className={`p-2 rounded-lg ${n.bg} shrink-0 mt-0.5`}>
+                              {n.icon}
+                            </div>
+                            <div className="flex-1 min-w-0 pr-2">
+                              <p className="font-bold text-gray-900 text-xs">{n.title}</p>
+                              <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dismissNotification(n.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                              title="Dismiss alert"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-400">Click an alert to view it, or close to dismiss</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
 
         {/* Content Container */}
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
+        <div className="px-2 sm:px-3 lg:px-4 py-4 sm:py-6 space-y-6 max-w-[1420px] mx-auto w-full">
           
           {/* ===================================================================== */}
           {/* SCREEN 1: EXECUTIVE DASHBOARD                                         */}
@@ -1338,45 +1465,51 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {currentScreen === BarangayCaptainScreen.DASHBOARD && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              {/* Executive Welcome & Jurisdiction Banner */}
-              <div className="bg-gradient-to-r from-[#1C2B20] via-[#164132] to-[#0A6B43] rounded-3xl p-6 md:p-8 text-white shadow-md border border-emerald-500/30 flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
-                <div className="space-y-2 max-w-2xl z-10">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-black/35 px-2.5 py-0.5 rounded-full border border-amber-400/30">
-                      Official Executive Audit Dashboard
-                    </span>
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-black tracking-tight">
-                    {formattedBrgyName} Youth Governance Portal
-                  </h2>
-                  <p className="text-xs text-emerald-100/90 leading-relaxed font-medium">
-                    Welcome, Hon. {captainInfo.name}. Monitor demographic indicators, out-of-school youth empowerment, SK council operations, and technical training pathways across your barangay.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
-                    <span className="bg-black/30 px-3 py-1 rounded-lg border border-white/10 text-emerald-200 font-semibold flex items-center gap-1.5">
-                      <Landmark className="w-3.5 h-3.5 text-amber-400" /> Municipality of San Luis, Pampanga
-                    </span>
-                    <span className="bg-black/30 px-3 py-1 rounded-lg border border-white/10 text-emerald-200 font-semibold flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" /> Fiscal Term 2023–2026
-                    </span>
-                  </div>
-                </div>
+              {/* Full-Width Rectangular Greeting Card Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
 
-                <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0 z-10">
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Mabuhay, Kapitan {captainInfo.name}!
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Barangay {formattedBrgyName} Executive Governance & Oversight Portal · San Luis, Pampanga. Monitor Katipunan ng Kabataan demographics, council operations, and vocational pathways.
+                  </p>
+                </div>
+              </div>
+
+              {/* Jurisdiction Action Toolbar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    Official Executive Jurisdiction
+                  </span>
+                  <span className="text-xs font-bold text-gray-500">
+                    Barangay {formattedBrgyName} · Term 2023–2026
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
-                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <Users className="w-4 h-4" />
                     Inspect KK Directory ({localYouthProfiles.length})
                   </button>
                   <button
                     onClick={() => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)}
-                    className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Users2 className="w-4 h-4 text-emerald-300" />
-                    View SK Council Team
+                    <Users2 className="w-4 h-4 text-emerald-700" />
+                    SK Council Team
                   </button>
                 </div>
               </div>
@@ -1909,28 +2042,31 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.YOUTH_DIRECTORY && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <div className="flex items-start sm:items-center gap-3">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                        Official Census Registry
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
-                        • {formattedBrgyName}
-                      </span>
-                    </div>
-                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
-                      Katipunan ng Kabataan Directory
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
-                      Comprehensive roster of all registered youth residents in {formattedBrgyName}. View-only audit mode enabled.
-                    </p>
-                  </div>
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    KK Youth Directory
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Official census roster and demographic intelligence of all registered youth residents in {formattedBrgyName}.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Official Census Registry</h3>
+                  <p className="text-xs text-gray-500 font-medium">Barangay {formattedBrgyName} · {localYouthProfiles.length} Total Registered Members</p>
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto pt-3 sm:pt-0 border-t border-gray-100 sm:border-0 shrink-0">
@@ -2371,29 +2507,32 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.SK_COUNCIL && (
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
-              
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    SK Council Oversight
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Governance oversight of SK officials, appointed officers, and committee leadership for {formattedBrgyName}.
+                  </p>
+                </div>
+              </div>
+
               {/* Header Card */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
-                    <Users2 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                        Sangguniang Barangay Oversight
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
-                        • {formattedBrgyName}
-                      </span>
-                    </div>
-                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
-                      Sangguniang Kabataan Council Roster
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
-                      Oversight of SK officials, appointed officers, and administrative access for {formattedBrgyName}.
-                    </p>
-                  </div>
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Sangguniang Barangay Oversight</h3>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">Barangay {formattedBrgyName} · Leadership & Term Audit</p>
                 </div>
 
                 {/* Quick Council Summary Badge */}
@@ -2685,28 +2824,31 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.APPLICATIONS && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                        Direct Program Applications
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
-                        • {formattedBrgyName}
-                      </span>
-                    </div>
-                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
-                      TESDA Program Applications & Enrollees
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
-                      Track Katipunan ng Kabataan youth from {formattedBrgyName} who applied directly for technical courses and training certifications.
-                    </p>
-                  </div>
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Program Applications & Enrollees
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Track Katipunan ng Kabataan youth from {formattedBrgyName} enrolled in technical training and certifications.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Direct Program Applications</h3>
+                  <p className="text-xs text-gray-500 font-medium">Barangay {formattedBrgyName} · Application Pipeline</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200/80 px-3 py-2 rounded-xl shrink-0 self-start sm:self-auto">
@@ -2794,28 +2936,31 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.TESDA_PROGRAMS && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-150 shadow-xs">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
-                    <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
-                        Technical Vocational Directory
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 truncate">
-                        • San Luis & Pampanga
-                      </span>
-                    </div>
-                    <h2 className="text-base sm:text-xl font-black text-gray-900 tracking-tight leading-snug">
-                      TESDA Municipal Programs & Courses
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 sm:mt-1 leading-relaxed">
-                      Directory of certified skills programs available for Katipunan ng Kabataan youth in your jurisdiction.
-                    </p>
-                  </div>
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    TESDA Programs Directory
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Directory of certified technical-vocational courses and training allocations available for San Luis youths.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Technical Vocational Listings</h3>
+                  <p className="text-xs text-gray-500 font-medium">San Luis & Pampanga Regional Registry · Certified Modules</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-blue-50/80 border border-blue-200/80 px-3 py-2 rounded-xl shrink-0 self-start sm:self-auto">
@@ -3043,24 +3188,30 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.PROFILE && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              
-              {/* Header & Sub-Tab Navigation Container */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight">
-                      Barangay Executive Profile & Settings
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">
-                      Manage executive leadership records, account security, administrative alerts, and digital credentials
-                    </p>
-                  </div>
-                </div>
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
 
-                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Executive Profile & Settings
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage executive leadership records, account security, administrative alerts, and digital credentials.
+                  </p>
+                </div>
+              </div>
+
+              {/* Sub-Tab Navigation Bar */}
+              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-150">
                   {[
                     { id: "profile", label: "Executive Profile", icon: <Shield className="w-3.5 h-3.5 shrink-0" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
@@ -3070,10 +3221,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <button
                       key={tab.id}
                       onClick={() => setProfileActiveTab(tab.id as any)}
-                      className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         profileActiveTab === tab.id
-                          ? "bg-white text-[#0A6B43] shadow-2xs font-extrabold"
-                          : "text-gray-600 hover:text-gray-900"
+                          ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
                       }`}
                     >
                       {tab.icon}

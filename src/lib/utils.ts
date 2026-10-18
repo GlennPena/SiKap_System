@@ -127,3 +127,14 @@ export function isProgramEnded(prog?: { activeStatus?: string; endDate?: string 
     return false;
   }
 }
+
+/**
+ * Normalizes gender values so that abbreviations (e.g. "M", "F") or lowercase strings are spelled out cleanly as "Male" or "Female".
+ */
+export function spellOutGender(gender?: string | null): string {
+  if (!gender || gender.trim() === "" || gender === "N/A") return "Male";
+  const trimmed = gender.trim().toLowerCase();
+  if (trimmed === "m" || trimmed === "male") return "Male";
+  if (trimmed === "f" || trimmed === "female") return "Female";
+  return gender.charAt(0).toUpperCase() + gender.slice(1);
+}

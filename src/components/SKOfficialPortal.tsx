@@ -24,6 +24,8 @@ import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded } from "../lib/utils";
 import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
+import { motion } from "motion/react";
+import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 
 interface SKOfficialPortalProps {
   youthProfiles: YouthProfile[];
@@ -74,7 +76,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   };
   const [currentScreen, setCurrentScreen] = useState<SKOfficialScreen>(SKOfficialScreen.DASHBOARD);
   const [selectedYouthId, setSelectedYouthId] = useState<string | null>("y-01"); // Default to Juan
-  
+
   // Search & Filter states: Youth Directory
   const [searchQuery, setSearchQuery] = useState("");
   const [eduFilter, setEduFilter] = useState("All");
@@ -153,7 +155,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   // Check if current logged-in official is an SK Councilor, Secretary, or Treasurer
   const currentCouncilorRecord = useMemo(() => {
     if (!currentUser?.email && !currentUser?.name) return null;
-    return councilors.find(c => 
+    return councilors.find(c =>
       (currentUser.email && c.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
       (currentUser.name && c.name && c.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
     ) || null;
@@ -283,7 +285,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             try {
               const parsed = JSON.parse(saved);
               if (Array.isArray(parsed)) loaded.push(...parsed);
-            } catch {}
+            } catch { }
           }
         }
         return Array.from(new Set(loaded));
@@ -306,7 +308,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           try {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch {}
+          } catch { }
         }
       }
       if (loaded.length > 0) {
@@ -594,7 +596,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     const chairInCouncilors = councilors.find(c =>
       c.role.toLowerCase().includes("chair") &&
       (c.barangay.toLowerCase() === designatedBarangay.toLowerCase() ||
-       c.barangay.replace(/^Barangay\s+/i, "").toLowerCase() === designatedBarangay.replace(/^Barangay\s+/i, "").toLowerCase())
+        c.barangay.replace(/^Barangay\s+/i, "").toLowerCase() === designatedBarangay.replace(/^Barangay\s+/i, "").toLowerCase())
     );
     return chairInCouncilors?.name || (currentUser?.name && isChairperson ? currentUser.name : "HON. SK CHAIRPERSON");
   }, [isChairperson, settingsName, currentUser, councilors, designatedBarangay]);
@@ -1005,8 +1007,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
     setIsRegistering(true);
 
-    const brgyName = designatedBarangay.startsWith("Barangay ") 
-      ? designatedBarangay.replace(/^Barangay\s+/i, "") 
+    const brgyName = designatedBarangay.startsWith("Barangay ")
+      ? designatedBarangay.replace(/^Barangay\s+/i, "")
       : designatedBarangay;
 
     const payload = {
@@ -1216,7 +1218,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   const handleCancelAnnouncement = async (ann: SKAnnouncement) => {
     const newStatus = ann.status === "Cancelled" ? "Active" : "Cancelled";
-    
+
     setAnnouncements(prev => prev.map(a => a.id === ann.id ? { ...a, status: newStatus } : a));
     addToast(newStatus === "Cancelled" ? "Announcement marked as Cancelled" : "Announcement reactivated", newStatus === "Cancelled" ? "info" : "success");
 
@@ -1409,15 +1411,15 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         throw new Error(data.error || data.message || "Failed to update councilor details");
       }
 
-      setCouncilors(prev => prev.map(c => 
-        c.id === editingCouncilorId 
-          ? { 
-              ...c, 
-              name: editCouncilorName.trim(), 
-              email: editCouncilorEmail.trim(), 
-              role: editCouncilorRole,
-              contactNumber: editCouncilorContact 
-            } 
+      setCouncilors(prev => prev.map(c =>
+        c.id === editingCouncilorId
+          ? {
+            ...c,
+            name: editCouncilorName.trim(),
+            email: editCouncilorEmail.trim(),
+            role: editCouncilorRole,
+            contactNumber: editCouncilorContact
+          }
           : c
       ));
 
@@ -1509,8 +1511,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       const data = await res.json();
       if (data.success) {
         if (currentCouncilorRecord) {
-          setCouncilors(prev => prev.map(c => 
-            c.id === currentCouncilorRecord.id 
+          setCouncilors(prev => prev.map(c =>
+            c.id === currentCouncilorRecord.id
               ? { ...c, name: settingsName.trim(), email: settingsEmail.trim(), contactNumber: settingsPhone }
               : c
           ));
@@ -1574,7 +1576,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
 
   // Calculated Metrics
-  const totalKK = localYouthProfiles.length; 
+  const totalKK = localYouthProfiles.length;
   const totalMatched = localReferrals.length;
   const activeTESDA = programs.length;
 
@@ -1628,10 +1630,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       const matchesSearch = y.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         y.purok.toLowerCase().includes(searchQuery.toLowerCase()) ||
         y.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
-      
+
       const matchesEdu = eduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === eduFilter;
       const matchesPurok = purokFilter === "All" || y.purok === purokFilter;
-      
+
       let matchesAge = true;
       if (ageFilter === "15-20") matchesAge = y.age >= 15 && y.age <= 20;
       else if (ageFilter === "21-25") matchesAge = y.age >= 21 && y.age <= 25;
@@ -1657,7 +1659,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         (p.requiredSkills && p.requiredSkills.some(s => s.toLowerCase().includes(q))) ||
         (p.type && p.type.toLowerCase().includes(q)) ||
         (p.eligibility && p.eligibility.toLowerCase().includes(q));
-      
+
       const catName = typeof p.category === "string" ? p.category : p.category?.name || "";
       const matchesType = progSectorFilter === "All" ||
         catName.toLowerCase().includes(progSectorFilter.toLowerCase()) ||
@@ -1806,6 +1808,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     return list;
   }, [pendingCount, localAnnouncements, mostCriticalGapItem, programs, designatedBarangay]);
 
+  const activeSystemNotifications = useMemo(() => {
+    return systemNotifications.filter(n => !clearedNotificationIds.includes(n.id));
+  }, [systemNotifications, clearedNotificationIds]);
+
   return (
     <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex w-full font-sans antialiased" id="sk-portal-container">
       {/* Mobile Navigation Backdrop Overlay */}
@@ -1819,20 +1825,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-64 h-[100dvh] max-h-[100dvh] shrink-0 bg-[#1C2B20] text-white flex flex-col justify-between shadow-2xl lg:shadow-lg select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
-          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
-        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-2">
+        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+          {/* Logo Header */}
+          <div className="flex items-center justify-between mb-7 px-1 pt-1">
+            <div className="flex items-center">
               <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0">
-                <span className="text-xs font-black text-[#D99427] uppercase tracking-widest block leading-none">Official</span>
-                <span className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[105px]" title={designatedBarangay.replace(/^Barangay\s+/i, "")}>
-                  {designatedBarangay.replace(/^Barangay\s+/i, "")}
-                </span>
-              </div>
             </div>
 
             {/* Mobile Close Button */}
@@ -1846,248 +1846,436 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             </button>
           </div>
 
-          <nav className="space-y-1.5">
+          {/* Navigation Items */}
+          <nav className="space-y-1.5 relative">
             {[
-              { id: SKOfficialScreen.DASHBOARD, label: "Dashboard", icon: <Users className="w-4.5 h-4.5" /> },
-              { id: SKOfficialScreen.YOUTH_PROFILES, label: "Youth Profiles", icon: <Plus className="w-4.5 h-4.5" /> },
-              { id: SKOfficialScreen.PENDING_APPROVALS, label: "Pending Approvals", icon: <Bell className="w-4.5 h-4.5" />, badge: pendingCount },
-              ...(isChairperson ? [{ id: SKOfficialScreen.COUNCILORS, label: "My Team", icon: <Users2 className="w-4.5 h-4.5" /> }] : []),
-              { id: SKOfficialScreen.TESDA_PROGRAMS, label: "TESDA Programs", icon: <Briefcase className="w-4.5 h-4.5" /> },
-              { id: SKOfficialScreen.SKILLS_GAP, label: "Skills Gap Analytics", icon: <BarChart2 className="w-4.5 h-4.5" /> },
-              { id: SKOfficialScreen.ANNOUNCEMENTS, label: "Announcements", icon: <Megaphone className="w-4.5 h-4.5" /> },
-              { id: SKOfficialScreen.SETTINGS, label: "Settings & Profile", icon: <Settings className="w-4.5 h-4.5" /> }
-            ].map((item) => {
-              const isActive = currentScreen === item.id || (item.id === SKOfficialScreen.YOUTH_PROFILES && currentScreen === SKOfficialScreen.PROFILE_DETAIL);
+              {
+                id: SKOfficialScreen.DASHBOARD,
+                label: "Dashboard",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
+                  </svg>
+                )
+              },
+              {
+                id: SKOfficialScreen.YOUTH_PROFILES,
+                label: "Youth Profiles",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6.5" r="3.5" />
+                    <path d="M9 12c-3.1 0-6 2.2-6 5.5V20h12v-2.5c0-3.3-2.9-5.5-6-5.5z" />
+                    <circle cx="16.5" cy="7.5" r="2.8" />
+                    <path d="M16.5 12.5c-.4 0-.8.05-1.2.14 1.4 1.1 2.2 2.7 2.2 4.86V20h4.5v-2c0-3-2.5-5.5-5.5-5.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                )
+              },
+              {
+                id: SKOfficialScreen.PENDING_APPROVALS,
+                label: "Pending Approvals",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 2a6 6 0 0 0-6 6c0 7-3 9-3 9h18s-3-2-3-9a6 6 0 0 0-6-6z" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                ),
+                badge: pendingCount
+              },
+              ...(isChairperson
+                ? [
+                  {
+                    id: SKOfficialScreen.COUNCILORS,
+                    label: "My Team",
+                    activeIcon: (
+                      <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                        <circle cx="8" cy="6.5" r="3.5" />
+                        <path d="M14 19a6 6 0 0 0-12 0h12z" />
+                        <circle cx="16.5" cy="7.5" r="2.8" />
+                        <path d="M16.5 12.5c-.4 0-.8.05-1.2.14 1.4 1.1 2.2 2.7 2.2 4.86V20h4.5v-2c0-3-2.5-5.5-5.5-5.5z" />
+                      </svg>
+                    ),
+                    inactiveIcon: (
+                      <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M14 19a6 6 0 0 0-12 0" />
+                        <circle cx="8" cy="9" r="4" />
+                        <path d="M22 19a6 6 0 0 0-6-6 4 4 0 1 0 0-8" />
+                      </svg>
+                    )
+                  }
+                ]
+                : []),
+              {
+                id: SKOfficialScreen.TESDA_PROGRAMS,
+                label: "TESDA Programs",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
+                    <path d="M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6H14v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H2z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect width="20" height="14" x="2" y="7" rx="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                )
+              },
+              {
+                id: SKOfficialScreen.SKILLS_GAP,
+                label: "Skills Gap Analytics",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <rect x="4" y="13" width="4.5" height="8" rx="1.5" />
+                    <rect x="10" y="3.5" width="4.5" height="17.5" rx="1.5" />
+                    <rect x="16" y="8" width="4.5" height="13" rx="1.5" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <line x1="18" x2="18" y1="20" y2="10" />
+                    <line x1="12" x2="12" y1="20" y2="4" />
+                    <line x1="6" x2="6" y1="20" y2="14" />
+                  </svg>
+                )
+              },
+              {
+                id: SKOfficialScreen.ANNOUNCEMENTS,
+                label: "Announcements",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M21 5.25a.75.75 0 0 0-1.07-.67L3.48 9.87A1.5 1.5 0 0 0 2.5 11.25v1.5a1.5 1.5 0 0 0 .98 1.38l3.02.99v4.13a1.5 1.5 0 0 0 2.06 1.4l3.14-1.25a.75.75 0 0 0 .46-.7v-2.31l7.77 2.54a.75.75 0 0 0 1.07-.67V5.25z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="m3 11 18-5v12L3 14v-3z" />
+                    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+                  </svg>
+                )
+              },
+              {
+                id: SKOfficialScreen.SETTINGS,
+                label: "Settings & Profile",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                    />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )
+              }
+            ].map((tab) => {
+              const isActive = currentScreen === tab.id || (tab.id === SKOfficialScreen.YOUTH_PROFILES && currentScreen === SKOfficialScreen.PROFILE_DETAIL);
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setCurrentScreen(item.id);
-                    setIsMobileNavOpen(false);
-                    if (item.id === SKOfficialScreen.YOUTH_PROFILES) {
-                      // reset filters
-                      setSearchQuery("");
-                      setEduFilter("All");
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all text-left ${
-                    isActive
-                      ? "bg-emerald-950/80 text-[#D97706] border-l-4 border-[#0A6B43]"
-                      : "border-l-4 border-transparent text-gray-300 hover:bg-[#25392a] hover:text-white"
-                  }`}
-                >
-                  {item.icon}
-                  <span className="flex-1">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md">
-                      {item.badge}
-                    </span>
+                <div key={tab.id} className="relative">
+                  {/* Animated Active Page Indicator Bar on far-left edge */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="skActiveIndicator"
+                      className="absolute -left-4 sm:-left-5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#02513B] rounded-r-full shadow-[0_0_8px_rgba(2,81,59,0.8)] z-20 pointer-events-none"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
                   )}
-                </button>
+
+                  {/* Animated Active Pill Background */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="skActiveBackground"
+                      className="absolute inset-0 bg-[#02513B] rounded-xl pointer-events-none z-0 shadow-sm border border-emerald-400/20"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentScreen(tab.id);
+                      setIsMobileNavOpen(false);
+                      if (tab.id === SKOfficialScreen.YOUTH_PROFILES) {
+                        setSearchQuery("");
+                        setEduFilter("All");
+                      }
+                    }}
+                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${isActive
+                      ? "text-emerald-300 cursor-pointer"
+                      : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
+                      }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <span className={`transition-colors duration-200 shrink-0 ${isActive
+                        ? "text-emerald-300"
+                        : "text-gray-400 group-hover:text-gray-200"
+                        }`}>
+                        {isActive ? tab.activeIcon : tab.inactiveIcon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                    </div>
+
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                </div>
               );
             })}
           </nav>
         </div>
 
-        <div className="p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-900/40 shrink-0 bg-[#1C2B20]">
-          <div
-            onClick={() => {
-              setCurrentScreen(SKOfficialScreen.SETTINGS);
-              setIsMobileNavOpen(false);
-            }}
-            className="flex items-center gap-3 mb-4 p-2 rounded-xl hover:bg-emerald-950/60 transition-all cursor-pointer group border border-transparent hover:border-emerald-800/40"
-            title="Go to Settings & Profile"
-          >
-            <div className="w-9 h-9 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-bold text-sm shadow-xs border border-emerald-500">
-              {settingsName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-            </div>
-            <div>
-              <p className="text-sm font-bold leading-none group-hover:text-[#D99427] transition-colors">{settingsName}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{settingsPos}</p>
-            </div>
+        {/* Bottom Section: Avatar, Name & Sign Out in One Row */}
+        <div className="p-3 sm:p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 bg-[#082D21]">
+          {/* Break line with horizontal padding */}
+          <div className="px-1 pb-2.5 pt-1">
+            <div className="h-[1px] w-full bg-white/20 rounded-full" />
           </div>
-          <button
-            type="button"
-            disabled={isLoggingOut}
-            onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 border border-emerald-900 hover:border-emerald-700 hover:bg-emerald-950/40 text-sm text-red-300 rounded-lg transition-all font-semibold ${
-              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-            }`}
-          >
-            {isLoggingOut ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
-                <span>Signing out...</span>
-              </>
-            ) : (
-              <>
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </>
-            )}
-          </button>
+
+          {/* Avatar, Name, and Sign Out Button in One Row */}
+          <div className="flex items-center justify-between gap-2.5 px-2 py-1.5 rounded-xl">
+            {/* User Profile Info (Avatar + Complete Name - Static without hover effect) */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {/* Avatar without hover effect */}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shrink-0 border border-white/20 select-none">
+                {settingsName
+                  ? settingsName
+                    .split(" ")
+                    .filter(Boolean)
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)
+                  : "SK"}
+              </div>
+
+              {/* Complete Name without truncation or hover effect */}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white leading-snug break-words">
+                  {settingsName || "SK Official"}
+                </p>
+              </div>
+            </div>
+
+            {/* Sign Out Button (Only element with hover effect) */}
+            <button
+              type="button"
+              disabled={isLoggingOut}
+              onClick={handleSignOut}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-2.5 text-gray-400 hover:text-red-300 hover:bg-red-500/15 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group/logout"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="w-5 h-5 animate-spin text-red-300 shrink-0" />
+              ) : (
+                <LogOut className="w-5 h-5 group-hover/logout:text-red-300 transition-colors shrink-0" />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
         {/* Sticky Topbar */}
-        <header className="sticky top-0 bg-white border-b border-[#D1FAE5] z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between shadow-2xs">
+        <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             {/* Mobile Hamburger Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(true)}
-              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="lg:hidden p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 leading-tight truncate block">
-                Good morning, {settingsName.split(" ")[0]} 👋
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
+                {currentScreen === SKOfficialScreen.DASHBOARD && "Dashboard"}
+                {currentScreen === SKOfficialScreen.YOUTH_PROFILES && "Youth Profiles"}
+                {currentScreen === SKOfficialScreen.PROFILE_DETAIL && "Youth Profile Details"}
+                {currentScreen === SKOfficialScreen.PENDING_APPROVALS && "Pending Approvals"}
+                {currentScreen === SKOfficialScreen.COUNCILORS && "My Team"}
+                {currentScreen === SKOfficialScreen.TESDA_PROGRAMS && "TESDA Programs"}
+                {currentScreen === SKOfficialScreen.SKILLS_GAP && "Skills Gap Analytics"}
+                {currentScreen === SKOfficialScreen.ANNOUNCEMENTS && "Announcements"}
+                {currentScreen === SKOfficialScreen.SETTINGS && "Settings & Profile"}
               </h1>
-              <p className="text-[10px] sm:text-xs text-gray-500 font-medium truncate block">
-                Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · San Luis, Pampanga
-              </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-3 relative shrink-0">
+
+          <div className="flex items-center gap-2 sm:gap-3 relative shrink-0" id="notification-bell-container">
             {/* Notification Bell Icon & Dropdown */}
             <div className="relative">
-              {(() => {
-                const activeSystemNotifications = systemNotifications.filter(n => !clearedNotificationIds.includes(n.id));
+              <NotificationBellButton
+                isOpen={showNotificationsDropdown}
+                onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                unreadCount={!notificationsRead ? activeSystemNotifications.length : 0}
+                title="System Notifications"
+                size="lg"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
+              />
 
-                return (
-                  <>
-                    <NotificationBellButton
-                      isOpen={showNotificationsDropdown}
-                      onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
-                      unreadCount={!notificationsRead ? activeSystemNotifications.length : 0}
-                      title="System Notifications"
-                      size="sm"
-                    />
-
-                    {/* Notification Dropdown Menu */}
-                    {showNotificationsDropdown && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsDropdown(false)} />
-                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 sm:mt-0 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white rounded-2xl shadow-2xl border border-emerald-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-xs flex flex-col max-h-[80vh] sm:max-h-none">
-                          <div className="p-4 bg-emerald-50/70 border-b border-emerald-100 flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-2">
-                              <Bell className="w-4 h-4 text-[#0A6B43]" />
-                              <h3 className="font-extrabold text-gray-900 text-sm">Notifications</h3>
-                              {activeSystemNotifications.length > 0 && (
-                                <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                                  {activeSystemNotifications.length}
-                                </span>
-                              )}
-                            </div>
-                            {activeSystemNotifications.length > 0 && (
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(systemNotifications.map(n => n.id));
-                                    addToast("All notifications marked as read & cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                                  title="Mark all notifications as read and clear them"
-                                >
-                                  Mark all read
-                                </button>
-                                <span className="text-gray-300">·</span>
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(systemNotifications.map(n => n.id));
-                                    addToast("All notifications cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
-                                  title="Clear all alerts"
-                                >
-                                  Clear all
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                            {activeSystemNotifications.length === 0 ? (
-                              <div className="p-8 text-center text-gray-400 font-medium space-y-1">
-                                <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
-                                <p className="text-xs font-bold text-gray-700">All caught up!</p>
-                                <p className="text-[10px] text-gray-400">No new alerts or pending tasks for Barangay {designatedBarangay}.</p>
-                              </div>
-                            ) : (
-                              activeSystemNotifications.map((n) => (
-                                <div
-                                  key={n.id}
-                                  onClick={() => {
-                                    dismissNotification(n.id);
-                                    setCurrentScreen(n.targetScreen);
-                                    setShowNotificationsDropdown(false);
-                                  }}
-                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                                >
-                                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0 mt-0.5">
-                                    {n.icon}
-                                  </div>
-                                  <div className="flex-1 min-w-0 pr-2">
-                                    <div className="flex justify-between items-center mb-0.5">
-                                      <h4 className="font-extrabold text-gray-900 text-xs truncate">{n.title}</h4>
-                                      <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
-                                        {n.time}
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{n.desc}</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      dismissNotification(n.id);
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                                    title="Dismiss alert"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-
-                          <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
-                            <span className="text-[10px] font-bold text-gray-400">Click a notification to navigate, or ✕ to dismiss</span>
-                          </div>
+              {/* Notification Dropdown Menu */}
+              {showNotificationsDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsDropdown(false)} />
+                  <div className="fixed inset-x-3.5 top-20 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-14 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-emerald-100 rounded-2xl shadow-2xl py-3 text-xs overflow-hidden animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/60 p-3 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-[#0A6B43]" />
+                        <h3 className="font-extrabold text-gray-900 text-sm">Notifications</h3>
+                        {activeSystemNotifications.length > 0 && (
+                          <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                            {activeSystemNotifications.length}
+                          </span>
+                        )}
+                      </div>
+                      {activeSystemNotifications.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearAllNotifications(systemNotifications.map(n => n.id));
+                              addToast("All notifications marked as read & cleared", "info");
+                            }}
+                            className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                            title="Mark all notifications as read and clear them"
+                          >
+                            Mark all read
+                          </button>
+                          <span className="text-gray-300">·</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearAllNotifications(systemNotifications.map(n => n.id));
+                              addToast("All notifications cleared", "info");
+                            }}
+                            className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                            title="Clear all alerts"
+                          >
+                            Clear all
+                          </button>
                         </div>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
+                      )}
+                    </div>
 
-            {/* Profile Icon / Badge Clickable Button */}
-            <button
-              onClick={() => setCurrentScreen(SKOfficialScreen.SETTINGS)}
-              className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-gray-50 transition-all cursor-pointer group border border-transparent hover:border-gray-200"
-              title="Go to Settings & Profile"
-            >
-              <div className="w-9 h-9 rounded-full bg-[#0A6B43] group-hover:bg-[#075332] text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-emerald-200 transition-all">
-                {settingsName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-              </div>
-              <div className="hidden sm:block text-left pr-1">
-                <p className="text-xs font-bold text-gray-900 group-hover:text-[#0A6B43] leading-none transition-colors">{settingsName}</p>
-                <p className="text-[10px] text-gray-400 font-medium mt-0.5">{settingsPos}</p>
-              </div>
-            </button>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                      {activeSystemNotifications.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 font-medium space-y-1">
+                          <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                          <p className="text-xs font-bold text-gray-700">All caught up!</p>
+                          <p className="text-[10px] text-gray-400">No new alerts or pending tasks for Barangay {designatedBarangay}.</p>
+                        </div>
+                      ) : (
+                        activeSystemNotifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              dismissNotification(n.id);
+                              setCurrentScreen(n.targetScreen);
+                              setShowNotificationsDropdown(false);
+                            }}
+                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
+                          >
+                            <div className="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0 mt-0.5">
+                              {n.icon}
+                            </div>
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <h4 className="font-extrabold text-gray-900 text-xs truncate">{n.title}</h4>
+                                <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
+                                  {n.time}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{n.desc}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dismissNotification(n.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
+                              title="Dismiss alert"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-400">Click a notification to navigate, or close to dismiss</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
         {/* Dynamic Screen Content */}
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="px-2 sm:px-3 lg:px-4 py-4 sm:py-6 max-w-[1420px] mx-auto w-full">
           {currentScreen === SKOfficialScreen.DASHBOARD && (
             <div className="space-y-6">
+              {/* Full-Width Rectangular Greeting Card Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content - Header and Subheader Only */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Mabuhay, {currentUser?.name || settingsName || "SK Official"}!
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage youth profiles, connect them with training opportunities, and support community skills development.
+                  </p>
+                </div>
+              </div>
+
               {/* Metric Cards Banner */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <MetricCard
@@ -2276,11 +2464,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             type="button"
                             disabled={currentPendingPage === 1}
                             onClick={() => setPendingDashboardPage(p => Math.max(1, p - 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${
-                              currentPendingPage === 1
-                                ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                                : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                            }`}
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingPage === 1
+                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
+                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
+                              }`}
                           >
                             <ChevronLeft className="w-3.5 h-3.5" />
                             <span>Prev</span>
@@ -2292,11 +2479,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 key={page}
                                 type="button"
                                 onClick={() => setPendingDashboardPage(page)}
-                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                  currentPendingPage === page
-                                    ? "bg-[#0A6B43] text-white shadow-xs"
-                                    : "text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200"
-                                }`}
+                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${currentPendingPage === page
+                                  ? "bg-[#0A6B43] text-white shadow-xs"
+                                  : "text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200"
+                                  }`}
                               >
                                 {page}
                               </button>
@@ -2307,11 +2493,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             type="button"
                             disabled={currentPendingPage === totalPendingPages}
                             onClick={() => setPendingDashboardPage(p => Math.min(totalPendingPages, p + 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${
-                              currentPendingPage === totalPendingPages
-                                ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                                : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                            }`}
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingPage === totalPendingPages
+                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
+                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
+                              }`}
                           >
                             <span>Next</span>
                             <ChevronRight className="w-3.5 h-3.5" />
@@ -2373,9 +2558,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               <tr
                                 key={y.id}
                                 onClick={() => handleViewProfile(y.id)}
-                                className={`hover:bg-emerald-50/40 cursor-pointer transition-colors ${
-                                  idx % 2 === 1 ? "bg-gray-50/30" : ""
-                                }`}
+                                className={`hover:bg-emerald-50/40 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-gray-50/30" : ""
+                                  }`}
                               >
                                 <td className="py-2.5 sm:py-3 px-3 font-semibold text-gray-800 whitespace-nowrap">
                                   <span className="hover:text-[#0A6B43] transition-colors">{y.name}</span>
@@ -2384,7 +2568,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                   {y.age} y/o · <span className="font-semibold text-[#1C2B20]">{y.purok}</span>
                                 </td>
                                 <td className="py-2.5 sm:py-3 px-3 whitespace-nowrap">
-                                  <span 
+                                  <span
                                     className="bg-emerald-50 text-[#0A6B43] font-semibold border border-emerald-100 px-2 py-0.5 rounded-full text-[10px] inline-block"
                                     title={y.educationalAttainment}
                                   >
@@ -2392,7 +2576,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                   </span>
                                 </td>
                                 <td className="py-2.5 sm:py-3 px-3 font-medium text-gray-600 whitespace-nowrap">
-                                  <span 
+                                  <span
                                     className="truncate max-w-[100px] sm:max-w-[130px] inline-block align-middle"
                                     title={y.skills[0] || "None"}
                                   >
@@ -2401,9 +2585,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 </td>
                                 <td className="py-2.5 sm:py-3 px-3 text-right whitespace-nowrap">
                                   {programs.length > 0 ? (
-                                    <span className={`font-bold px-2 py-0.5 rounded-md text-[11px] ${
-                                      y.matchScore >= 90 ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : "text-amber-700 bg-amber-50 border border-amber-100"
-                                    }`}>
+                                    <span className={`font-bold px-2 py-0.5 rounded-md text-[11px] ${y.matchScore >= 90 ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : "text-amber-700 bg-amber-50 border border-amber-100"
+                                      }`}>
                                       {y.matchScore}%
                                     </span>
                                   ) : (
@@ -2511,9 +2694,30 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.YOUTH_PROFILES && (
             <div className="space-y-6">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Youth Profiles Directory
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage Katipunan ng Kabataan members, assess vocational competencies, and endorse youth to TESDA programs.
+                  </p>
+                </div>
+              </div>
+
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Youth Profiles</h2>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">KK Member Registry</h3>
                   <p className="text-xs text-gray-500 font-medium">
                     {localYouthProfiles.length} registered KK members · Barangay {designatedBarangay}, San Luis
                   </p>
@@ -2523,7 +2727,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     resetRegForm();
                     setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
                   }}
-                  className="bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all self-start sm:self-auto"
+                  className="bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Register Youth
@@ -2634,11 +2838,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                         {/* Status Pills */}
                         <div className="flex flex-wrap gap-1.5 mb-3.5">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                            y.currentStatus === "Out-of-school"
-                              ? "bg-amber-50 text-amber-700 border border-amber-100"
-                              : "bg-blue-50 text-blue-700 border border-blue-100"
-                          }`}>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${y.currentStatus === "Out-of-school"
+                            ? "bg-amber-50 text-amber-700 border border-amber-100"
+                            : "bg-blue-50 text-blue-700 border border-blue-100"
+                            }`}>
                             {y.currentStatus}
                           </span>
                           <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-[#0A6B43] border border-emerald-100 rounded-full uppercase">
@@ -2748,11 +2951,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <p className="text-xs text-gray-400 break-words">Barangay {selectedYouth.barangay.replace(/^Barangay\s+/i, "")} · San Luis</p>
 
                     <div className="flex flex-wrap gap-1.5 justify-center mt-3.5">
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                        selectedYouth.currentStatus === "Out-of-school"
-                          ? "bg-amber-50 text-amber-700 border border-amber-100"
-                          : "bg-blue-50 text-blue-700 border border-blue-100"
-                      }`}>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${selectedYouth.currentStatus === "Out-of-school"
+                        ? "bg-amber-50 text-amber-700 border border-amber-100"
+                        : "bg-blue-50 text-blue-700 border border-blue-100"
+                        }`}>
                         {selectedYouth.currentStatus}
                       </span>
                       {selectedYouth.soloParent && (
@@ -2894,7 +3096,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                   const isBestMatchAlreadyApplied = bestMatch && appliedActiveApplications.some(
                     app => (bestMatch.prog.id && app.programId === bestMatch.prog.id) ||
-                           app.programTitle.toLowerCase().trim() === bestMatch.prog.title.toLowerCase().trim()
+                      app.programTitle.toLowerCase().trim() === bestMatch.prog.title.toLowerCase().trim()
                   );
 
                   // Assemble opportunities to display: applied programs + best matched program (even if not applied)
@@ -2969,18 +3171,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               Term Ended
                             </span>
                           )}
-                          <span className={`text-xs font-bold px-3 py-1 rounded-lg border shrink-0 text-center ${
-                            app.status === "Enrolled"
-                              ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                              : app.status === "Declined"
+                          <span className={`text-xs font-bold px-3 py-1 rounded-lg border shrink-0 text-center ${app.status === "Enrolled"
+                            ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                            : app.status === "Declined"
                               ? "bg-red-50 text-red-700 border-red-200"
                               : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                          }`}>
+                            }`}>
                             {app.status === "Enrolled"
                               ? "Officially Enrolled ✓"
                               : app.status === "Declined"
-                              ? "Declined"
-                              : "Application Under Review ⏳"}
+                                ? "Declined"
+                                : "Application Under Review ⏳"}
                           </span>
                         </div>
                       )
@@ -3023,11 +3224,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             {displayedOpportunities.map((item) => (
                               <div
                                 key={item.id}
-                                className={`border rounded-xl p-3.5 sm:p-4 transition-all space-y-3 ${
-                                  item.isBestMatchNotApplied
-                                    ? "bg-emerald-50/20 border-emerald-250 shadow-2xs hover:border-emerald-400"
-                                    : "bg-gray-50 border-gray-150 hover:border-emerald-200"
-                                }`}
+                                className={`border rounded-xl p-3.5 sm:p-4 transition-all space-y-3 ${item.isBestMatchNotApplied
+                                  ? "bg-emerald-50/20 border-emerald-250 shadow-2xs hover:border-emerald-400"
+                                  : "bg-gray-50 border-gray-150 hover:border-emerald-200"
+                                  }`}
                               >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                                   <div className="min-w-0">
@@ -3194,7 +3394,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Form Container */}
               <div className="max-w-2xl mx-auto bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-6 md:p-8 relative">
-                
+
                 {/* AI assessment overlay loader */}
                 {isRegistering && (
                   <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-xl z-20 flex flex-col items-center justify-center text-center p-8">
@@ -3218,7 +3418,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <CheckCircle className="w-8 h-8 animate-bounce" />
                     </div>
                     <h3 className="text-lg font-bold text-gray-800 mb-1">Profile Created Successfully!</h3>
-                    
+
                     {(() => {
                       if (programs.length === 0) {
                         return (
@@ -3628,14 +3828,25 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.TESDA_PROGRAMS && (
             <div className="space-y-6">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">TESDA Programs Catalog</h2>
-                  <p className="text-xs text-gray-500 font-medium">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    TESDA Programs Catalog
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     {programs.length > 0
-                      ? `${programs.length} active vocational training programs · Managed and updated by TESDA GPSAT (Gonzalo Puyat School of Arts and Trades)`
-                      : "Vocational Training Program Registry · San Luis, Pampanga"}
+                      ? `${programs.length} active vocational training programs · Managed and updated by TESDA GPSAT (Gonzalo Puyat School of Arts and Trades).`
+                      : "Vocational Training Program Registry · San Luis, Pampanga."}
                   </p>
                 </div>
               </div>
@@ -3713,13 +3924,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               </div>
                             </div>
 
-                            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
-                              isEnded
-                                ? "bg-purple-100 text-purple-800 border-purple-300 flex items-center gap-1"
-                                : isFull
-                                  ? "bg-red-50 text-red-700 border-red-200"
-                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                            }`}>
+                            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${isEnded
+                              ? "bg-purple-100 text-purple-800 border-purple-300 flex items-center gap-1"
+                              : isFull
+                                ? "bg-red-50 text-red-700 border-red-200"
+                                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              }`}>
                               {isEnded ? "Term Ended" : isFull ? "Slots Filled" : "Active Offering"}
                             </span>
                           </div>
@@ -3811,12 +4021,33 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.SKILLS_GAP && (
             <div className="space-y-5 sm:space-y-6">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Skills Gap Analytics
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Katipunan ng Kabataan competency diagnostic insights and training demand trends in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
+                  </p>
+                </div>
+              </div>
+
               {/* Header & Controls Toolbar */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Skills Gap Analytics</h2>
+                  <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Competency Diagnostics</h3>
                   <p className="text-xs text-gray-500 font-medium mt-0.5">
-                    Katipunan ng Kabataan competency diagnostic insights · Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                    Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · Labor Market Alignment
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -3878,21 +4109,18 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     {(() => {
                       const crit = getSkillGapCriticality(mostCriticalGapItem.percentage, mostCriticalGapItem.count);
                       return (
-                        <div className={`bg-white border p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 transition-colors ${
-                          crit.level === "Critical" ? "border-red-200 hover:border-red-400" :
+                        <div className={`bg-white border p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 transition-colors ${crit.level === "Critical" ? "border-red-200 hover:border-red-400" :
                           crit.level === "Moderate" ? "border-amber-200 hover:border-amber-400" :
-                          "border-[#D1FAE5] hover:border-emerald-300"
-                        }`}>
-                          <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 border flex items-center justify-center ${
-                            crit.level === "Critical" ? "bg-red-50 text-red-600 border-red-100" :
-                            crit.level === "Moderate" ? "bg-amber-50 text-amber-700 border-amber-100" :
-                            "bg-emerald-50 text-[#0A6B43] border-emerald-100"
+                            "border-[#D1FAE5] hover:border-emerald-300"
                           }`}>
-                            <AlertTriangle className={`w-5 h-5 ${
-                              crit.level === "Critical" ? "text-red-600" :
+                          <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 border flex items-center justify-center ${crit.level === "Critical" ? "bg-red-50 text-red-600 border-red-100" :
+                            crit.level === "Moderate" ? "bg-amber-50 text-amber-700 border-amber-100" :
+                              "bg-emerald-50 text-[#0A6B43] border-emerald-100"
+                            }`}>
+                            <AlertTriangle className={`w-5 h-5 ${crit.level === "Critical" ? "text-red-600" :
                               crit.level === "Moderate" ? "text-amber-600" :
-                              "text-emerald-600"
-                            }`} />
+                                "text-emerald-600"
+                              }`} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-1">
@@ -4110,16 +4338,34 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.ANNOUNCEMENTS && (
             <div className="space-y-5 sm:space-y-6">
-              {/* Header & New Broadcast Action */}
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    SK Announcements
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Broadcast news, TESDA scholarship advisories, and community training updates visible directly in youth portals.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-gray-900 tracking-tight">SK Announcements</h2>
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                      {localAnnouncements.length} {localAnnouncements.length === 1 ? "Broadcast" : "Broadcasts"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium mt-0.5">Broadcast news, programs, and updates visible in youth portals</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Active Bulletins</h3>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                    {localAnnouncements.length} {localAnnouncements.length === 1 ? "Broadcast" : "Broadcasts"}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -4226,25 +4472,23 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     return (
                       <div
                         key={ann.id}
-                        className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-xs transition-all flex flex-col justify-between space-y-4 ${
-                          isCancelled
-                            ? "border-red-200 bg-red-50/20"
-                            : "border-gray-200 hover:border-emerald-300"
-                        }`}
+                        className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-xs transition-all flex flex-col justify-between space-y-4 ${isCancelled
+                          ? "border-red-200 bg-red-50/20"
+                          : "border-gray-200 hover:border-emerald-300"
+                          }`}
                       >
                         <div className="space-y-3">
                           {/* Top row: Category, Status, Event, and Date Posted */}
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-2.5 border-b border-gray-100">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${
-                                ann.category === "Event"
-                                  ? "bg-purple-50 text-purple-700 border-purple-200"
-                                  : ann.category === "Reminder"
+                              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${ann.category === "Event"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : ann.category === "Reminder"
                                   ? "bg-amber-50 text-amber-800 border-amber-200"
                                   : ann.category === "Program Update"
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                                  : "bg-gray-100 text-gray-700 border-gray-200"
-                              }`}>
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : "bg-gray-100 text-gray-700 border-gray-200"
+                                }`}>
                                 {ann.category}
                               </span>
 
@@ -4315,11 +4559,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleCancelAnnouncement(ann)}
-                              className={`p-2 rounded-lg border transition-colors cursor-pointer active:scale-95 ${
-                                isCancelled
-                                  ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 hover:bg-emerald-100"
-                                  : "bg-gray-50 hover:bg-amber-50 text-gray-600 hover:text-amber-700 border-gray-200"
-                              }`}
+                              className={`p-2 rounded-lg border transition-colors cursor-pointer active:scale-95 ${isCancelled
+                                ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 hover:bg-emerald-100"
+                                : "bg-gray-50 hover:bg-amber-50 text-gray-600 hover:text-amber-700 border-gray-200"
+                                }`}
                               title={isCancelled ? "Reactivate Announcement" : "Cancel Announcement"}
                               aria-label={isCancelled ? "Reactivate Announcement" : "Cancel Announcement"}
                             >
@@ -4346,20 +4589,30 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.SETTINGS && (
             <div className="space-y-6">
-              {/* Header & Sub-Tab Navigation Container */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                    <Settings className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight">Settings & Profile</h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Manage official administrative profile, security credentials, system notifications, and ID credentials</p>
-                  </div>
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Settings & Profile
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage official administrative profile, security credentials, system notifications, and ID credentials.
+                  </p>
                 </div>
-                
-                {/* Settings Navigation Tabs */}
-                <div className="flex bg-gray-100/80 p-1 rounded-xl border border-gray-200 shrink-0 overflow-x-auto max-w-full no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              </div>
+
+              {/* Sub-Tab Navigation Bar */}
+              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-150">
                   {[
                     { id: "profile", label: "Official Profile", icon: <User className="w-3.5 h-3.5 shrink-0" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
@@ -4369,11 +4622,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       key={tab.id}
                       onClick={() => setActiveSettingsTab(tab.id as any)}
-                      className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                        activeSettingsTab === tab.id
-                          ? "bg-white text-[#0A6B43] shadow-2xs font-extrabold"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
+                      className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${activeSettingsTab === tab.id
+                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
+                        }`}
                     >
                       {tab.icon}
                       <span>{tab.label}</span>
@@ -4404,7 +4656,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           </button>
                         )}
                       </div>
-                      
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name *</label>
@@ -4736,36 +4988,47 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.COUNCILORS && isChairperson && (
             <div className="space-y-6" id="sk-my-team-container">
-              {/* Header with Title and Primary Actions */}
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 sm:gap-4 bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs">
-                <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      Barangay Governance
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      • Barangay {designatedBarangay}
-                    </span>
-                  </div>
-                  <h2 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                    <Users2 className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43]" />
-                    My Team — Sangguniang Kabataan Council
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    My Team — SK Council
                   </h2>
-                  <p className="text-xs text-gray-500 font-medium mt-1">
-                    Manage council members, executive appointees, and access permissions for Barangay {designatedBarangay}.
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage council members, executive appointees, and administrative permissions for Barangay {designatedBarangay}.
                   </p>
                 </div>
-                
+              </div>
+
+              {/* Action Toolbar with Scope & Controls */}
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 sm:gap-4 bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    Barangay Governance
+                  </span>
+                  <span className="text-xs font-bold text-gray-500">
+                    Barangay {designatedBarangay} · {councilors.length} Members
+                  </span>
+                </div>
+
                 <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
                   {/* View Mode Switcher */}
                   <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-bold">
                     <button
                       onClick={() => setCouncilorViewMode("grid")}
-                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                        councilorViewMode === "grid"
-                          ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
-                          : "text-gray-500 hover:text-gray-800"
-                      }`}
+                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${councilorViewMode === "grid"
+                        ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
+                        : "text-gray-500 hover:text-gray-800"
+                        }`}
                       title="Grid Cards View"
                     >
                       <LayoutGrid className="w-4 h-4" />
@@ -4773,11 +5036,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </button>
                     <button
                       onClick={() => setCouncilorViewMode("table")}
-                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                        councilorViewMode === "table"
-                          ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
-                          : "text-gray-500 hover:text-gray-800"
-                      }`}
+                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${councilorViewMode === "table"
+                        ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
+                        : "text-gray-500 hover:text-gray-800"
+                        }`}
                       title="Table View"
                     >
                       <Table className="w-4 h-4" />
@@ -4881,7 +5143,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="bg-[#0A6B43] h-full transition-all duration-300 rounded-full"
                       style={{ width: `${Math.min((localCouncilors.length / 11) * 100, 100)}%` }}
                     />
@@ -4930,7 +5192,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="bg-amber-500 h-full transition-all duration-300 rounded-full"
                       style={{ width: `${Math.min(((roleCounts.secretariesCount + roleCounts.treasurersCount) / 4) * 100, 100)}%` }}
                     />
@@ -4990,11 +5252,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <button
                         key={st}
                         onClick={() => setCouncilorStatusFilter(st)}
-                        className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          councilorStatusFilter === st
-                            ? "bg-emerald-900 text-white shadow-2xs"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
+                        className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${councilorStatusFilter === st
+                          ? "bg-emerald-900 text-white shadow-2xs"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
                       >
                         {st}
                       </button>
@@ -5014,11 +5275,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       key={rf.id}
                       onClick={() => setCouncilorRoleFilter(rf.id)}
-                      className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
-                        councilorRoleFilter === rf.id
-                          ? "bg-[#0A6B43] text-white shadow-2xs font-bold"
-                          : "bg-gray-50 text-gray-600 hover:bg-gray-150 border border-gray-200"
-                      }`}
+                      className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${councilorRoleFilter === rf.id
+                        ? "bg-[#0A6B43] text-white shadow-2xs font-bold"
+                        : "bg-gray-50 text-gray-600 hover:bg-gray-150 border border-gray-200"
+                        }`}
                     >
                       {rf.label}
                     </button>
@@ -5085,18 +5345,18 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     const roleBadgeClass = isSecretary
                       ? "bg-amber-50 text-amber-900 border-amber-200"
                       : isTreasurer
-                      ? "bg-indigo-50 text-indigo-900 border-indigo-200"
-                      : "bg-emerald-50 text-emerald-900 border-emerald-200";
+                        ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                        : "bg-emerald-50 text-emerald-900 border-emerald-200";
 
                     const avatarGradient = isSecretary
                       ? "from-amber-500 to-orange-600"
                       : isTreasurer
-                      ? "from-indigo-500 to-blue-700"
-                      : "from-emerald-600 to-teal-800";
+                        ? "from-indigo-500 to-blue-700"
+                        : "from-emerald-600 to-teal-800";
 
                     return (
-                      <div 
-                        key={c.id} 
+                      <div
+                        key={c.id}
                         className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 sm:space-y-4 group"
                       >
                         <div className="space-y-3">
@@ -5105,11 +5365,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${roleBadgeClass}`}>
                               {c.role}
                             </span>
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
-                              c.status === "Active"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-red-50 text-red-700 border-red-200"
-                            }`}>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${c.status === "Active"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-red-50 text-red-700 border-red-200"
+                              }`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
                               {c.status}
                             </span>
@@ -5136,7 +5395,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 shrink-0">
                                 <Mail className="w-3 h-3 text-gray-400" /> Email:
                               </span>
-                              <span 
+                              <span
                                 onClick={() => {
                                   navigator.clipboard?.writeText(c.email);
                                   addToast("Email copied to clipboard!", "success");
@@ -5152,7 +5411,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 shrink-0">
                                 <Phone className="w-3 h-3 text-gray-400" /> Contact:
                               </span>
-                              <span 
+                              <span
                                 onClick={() => {
                                   if (c.contactNumber && c.contactNumber !== "N/A") {
                                     navigator.clipboard?.writeText(c.contactNumber);
@@ -5177,11 +5436,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
                           <button
                             onClick={() => handleToggleCouncilorStatus(c.id)}
-                            className={`flex-1 h-8 py-1 text-[11px] font-bold rounded-lg border transition-all uppercase cursor-pointer active:scale-95 ${
-                              c.status === "Active"
-                                ? "border-amber-200 text-amber-700 bg-amber-50/60 hover:bg-amber-100/70"
-                                : "border-emerald-200 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/70"
-                            }`}
+                            className={`flex-1 h-8 py-1 text-[11px] font-bold rounded-lg border transition-all uppercase cursor-pointer active:scale-95 ${c.status === "Active"
+                              ? "border-amber-200 text-amber-700 bg-amber-50/60 hover:bg-amber-100/70"
+                              : "border-emerald-200 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/70"
+                              }`}
                           >
                             {c.status === "Active" ? "Deactivate" : "Activate"}
                           </button>
@@ -5248,14 +5506,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           const roleBadgeClass = isSecretary
                             ? "bg-amber-50 text-amber-900 border-amber-200"
                             : isTreasurer
-                            ? "bg-indigo-50 text-indigo-900 border-indigo-200"
-                            : "bg-emerald-50 text-emerald-900 border-emerald-200";
+                              ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                              : "bg-emerald-50 text-emerald-900 border-emerald-200";
 
                           const avatarGradient = isSecretary
                             ? "from-amber-500 to-orange-600"
                             : isTreasurer
-                            ? "from-indigo-500 to-blue-700"
-                            : "from-emerald-600 to-teal-800";
+                              ? "from-indigo-500 to-blue-700"
+                              : "from-emerald-600 to-teal-800";
 
                           return (
                             <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
@@ -5276,7 +5534,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 </span>
                               </td>
                               <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                <span 
+                                <span
                                   onClick={() => {
                                     navigator.clipboard?.writeText(c.email);
                                     addToast("Email copied to clipboard!", "success");
@@ -5291,11 +5549,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 {c.contactNumber || "N/A"}
                               </td>
                               <td className="px-3.5 py-3 sm:p-4 text-center whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
-                                  c.status === "Active"
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : "bg-red-50 text-red-700 border-red-200"
-                                }`}>
+                                <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${c.status === "Active"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-red-50 text-red-700 border-red-200"
+                                  }`}>
                                   <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
                                   {c.status}
                                 </span>
@@ -5307,11 +5564,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 <div className="flex items-center justify-center gap-1.5">
                                   <button
                                     onClick={() => handleToggleCouncilorStatus(c.id)}
-                                    className={`px-2 py-1 font-bold text-[10px] rounded border transition-colors uppercase cursor-pointer active:scale-95 ${
-                                      c.status === "Active"
-                                        ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
-                                        : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                                    }`}
+                                    className={`px-2 py-1 font-bold text-[10px] rounded border transition-colors uppercase cursor-pointer active:scale-95 ${c.status === "Active"
+                                      ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                                      : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                                      }`}
                                   >
                                     {c.status === "Active" ? "Deactivate" : "Activate"}
                                   </button>
@@ -5351,18 +5607,34 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.PENDING_APPROVALS && (
             <div className="space-y-4 sm:space-y-6">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">Pending Youth Approvals</h2>
-                    <span className="bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full shadow-2xs">
-                      {pendingProfiles.length} Awaiting
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium mt-0.5">
-                    Review and verify KK member self-registrations to approve their accounts to start their livelihood matching journey
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Pending Approvals
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Review and verify Katipunan ng Kabataan registrations before granting portal access and training endorsements.
                   </p>
+                </div>
+              </div>
+
+              {/* Status & Scope Toolbar */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Verification Queue</h3>
+                  <span className="bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full shadow-2xs">
+                    {pendingProfiles.length} Awaiting
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   <span className="text-xs text-gray-500 font-bold">Barangay Scope:</span>
@@ -5410,9 +5682,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           {filteredPendingProfiles.length === 0
                             ? 0
                             : `${(currentPendingApprovalPage - 1) * PENDING_APPROVALS_PER_PAGE + 1}-${Math.min(
-                                currentPendingApprovalPage * PENDING_APPROVALS_PER_PAGE,
-                                filteredPendingProfiles.length
-                              )}`}
+                              currentPendingApprovalPage * PENDING_APPROVALS_PER_PAGE,
+                              filteredPendingProfiles.length
+                            )}`}
                         </span>{" "}
                         of <span className="font-bold text-gray-800">{filteredPendingProfiles.length}</span> records
                         {pendingSearchQuery && ` (filtered from ${pendingProfiles.length})`}
@@ -5579,11 +5851,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             type="button"
                             disabled={currentPendingApprovalPage === 1}
                             onClick={() => setPendingApprovalsPage((p) => Math.max(1, p - 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${
-                              currentPendingApprovalPage === 1
-                                ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                                : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                            }`}
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === 1
+                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
+                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
+                              }`}
                           >
                             <ChevronLeft className="w-3.5 h-3.5" />
                             <span>Prev</span>
@@ -5604,11 +5875,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setPendingApprovalsPage(page)}
-                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                      currentPendingApprovalPage === page
-                                        ? "bg-[#0A6B43] text-white shadow-xs"
-                                        : "text-gray-600 hover:bg-emerald-50 hover:text-[#0A6B43] border border-transparent hover:border-emerald-200"
-                                    }`}
+                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${currentPendingApprovalPage === page
+                                      ? "bg-[#0A6B43] text-white shadow-xs"
+                                      : "text-gray-600 hover:bg-emerald-50 hover:text-[#0A6B43] border border-transparent hover:border-emerald-200"
+                                      }`}
                                   >
                                     {page}
                                   </button>
@@ -5620,11 +5890,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             type="button"
                             disabled={currentPendingApprovalPage === totalPendingApprovalPages}
                             onClick={() => setPendingApprovalsPage((p) => Math.min(totalPendingApprovalPages, p + 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${
-                              currentPendingApprovalPage === totalPendingApprovalPages
-                                ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                                : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                            }`}
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === totalPendingApprovalPages
+                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
+                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
+                              }`}
                           >
                             <span>Next</span>
                             <ChevronRight className="w-3.5 h-3.5" />
@@ -6121,11 +6390,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         Ref: {verifyingYouth.verificationIdNumber || "N/A"}
                       </span>
                     </div>
-                    
+
                     <div className="p-3 bg-gray-50/80 flex justify-center items-center">
-                      <img 
-                        src={verifyingYouth.verificationIdImage} 
-                        alt="KK Verification Document proof" 
+                      <img
+                        src={verifyingYouth.verificationIdImage}
+                        alt="KK Verification Document proof"
                         className="max-h-44 sm:max-h-56 rounded-lg shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
@@ -6376,7 +6645,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       {isSkillsGapReportModalOpen && (
         <div id="printable-skillsgap-modal-backdrop" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden">
           <div id="printable-skillsgap-modal-card" className="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in zoom-in-95 duration-150">
-            
+
             {/* Header with Print & Excel Action Controls */}
             <div className="relative bg-[#1C2B20] text-white p-4 sm:p-5 pr-14 sm:pr-16 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0 no-print border-b border-emerald-900/60">
               <div className="flex items-center gap-3">
@@ -6435,7 +6704,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
             {/* Printable Content View */}
             <div className="flex-1 p-4 sm:p-10 print:p-0 print:space-y-5 overflow-y-auto space-y-6 text-xs text-gray-800 bg-white" id="printable-skillsgap-report">
-              
+
               {/* Document Letterhead */}
               <div className="text-center border-b-2 border-emerald-900 pb-4 space-y-1 print-avoid-break">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Republic of the Philippines · Province of Pampanga</p>
@@ -6523,13 +6792,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <td className="p-2 text-center font-bold text-amber-900">{gap.count} youth</td>
                           <td className="p-2 text-center text-amber-700 font-black">{gap.percentage}%</td>
                           <td className="p-2 text-center">
-                            <span className={`inline-block font-bold text-[9px] px-2 py-0.5 rounded border ${
-                              gap.percentage >= 30
-                                ? 'bg-red-50 text-red-700 border-red-200'
-                                : gap.percentage >= 15
+                            <span className={`inline-block font-bold text-[9px] px-2 py-0.5 rounded border ${gap.percentage >= 30
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : gap.percentage >= 15
                                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                                 : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}>
+                              }`}>
                               {gap.percentage >= 30 ? 'Critical' : gap.percentage >= 15 ? 'Moderate' : 'Low'}
                             </span>
                             <span className="block text-[8px] text-emerald-700 font-bold mt-0.5">({gap.availableSlots} Slots Avail)</span>

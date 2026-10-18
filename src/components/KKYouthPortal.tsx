@@ -8,7 +8,7 @@ import {
   BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2
 } from "lucide-react";
-import { formatContactNumber, isProgramEnded, calculateAge } from "../lib/utils";
+import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo, NotificationBellButton, SiKapDatePicker } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
@@ -182,7 +182,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editBirthdate, setEditBirthdate] = useState(youthProfile.birthdate ? String(youthProfile.birthdate).split("T")[0] : "");
   const [editAge, setEditAge] = useState<number | string>(youthProfile.age || 20);
-  const [editGender, setEditGender] = useState(youthProfile.gender || "Male");
+  const [editGender, setEditGender] = useState(spellOutGender(youthProfile.gender));
   const [editPurok, setEditPurok] = useState(youthProfile.purok || "Purok 1");
   const [editGoal, setEditGoal] = useState(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
   const [editSector, setEditSector] = useState(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
@@ -209,7 +209,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     if (youthProfile) {
       setEditBirthdate(youthProfile.birthdate ? String(youthProfile.birthdate).split("T")[0] : "");
       setEditAge(youthProfile.age || 20);
-      setEditGender(youthProfile.gender || "Male");
+      setEditGender(spellOutGender(youthProfile.gender));
       setEditPurok(youthProfile.purok || "Purok 1");
       setEditGoal(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
       setCareerGoalInput(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
@@ -902,7 +902,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     setEditBirthdate(cleanDob);
     const computed = cleanDob ? calculateAge(cleanDob) : "";
     setEditAge(computed !== "" ? computed : (youthProfile.age || 20));
-    setEditGender(youthProfile.gender || "Male");
+    setEditGender(spellOutGender(youthProfile.gender));
     setEditPurok(youthProfile.purok || "Purok 1");
     setEditGoal(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
     setEditSector(youthProfile.sectorPreference || "Information & Communications Technology (ICT)");
@@ -3993,6 +3993,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   const userCompletedApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Archived") || [];
                   const userEnrolledApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Enrolled") || [];
                   const savedPlan = currentSavedPlan || generatedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
+                  const cardGender = spellOutGender(youthProfile.gender);
                   const formattedBirthdate = youthProfile.birthdate
                     ? (() => {
                         try {
@@ -4098,7 +4099,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               </h4>
                             </div>
 
-                            {/* Compact Grid: Phone Number (5 cols), Gender (2 cols), Birthday (5 cols with extra left space) */}
+                            {/* Compact Grid: Phone Number (5 cols), Gender (3 cols), Birthday (4 cols) */}
                             <div className="grid grid-cols-12 gap-2">
                               <div className="col-span-5 min-w-0">
                                 <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
@@ -4107,14 +4108,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </span>
                               </div>
 
-                              <div className="col-span-2 min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block truncate">Gender</span>
+                              <div className="col-span-3 min-w-0">
+                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block whitespace-nowrap">Gender</span>
                                 <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                                  {youthProfile.gender || "N/A"}
+                                  {cardGender}
                                 </span>
                               </div>
 
-                              <div className="col-span-5 min-w-0 pl-3 sm:pl-4">
+                              <div className="col-span-4 min-w-0">
                                 <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Birthday</span>
                                 <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
                                   {formattedBirthdate}
@@ -4154,7 +4155,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             const fullIdStr = youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`;
                             const completedStr = userCompletedApps.length > 0 ? `\nCertified Programs: ${userCompletedApps.map(a => a.programTitle).join(", ")}` : "";
                             navigator.clipboard?.writeText(
-                              `Katipunan ng Kabataan Digital ID Card:\nName: ${youthProfile.name.toUpperCase()}\nID: ${fullIdStr}\nPhone: ${youthProfile.contactNumber || "N/A"}\nGender: ${youthProfile.gender || "N/A"}\nBirthday: ${formattedBirthdate}\nAddress: ${youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay ${youthProfile.barangay || "San Isidro"}, San Luis, Pampanga${completedStr}`
+                              `Katipunan ng Kabataan Digital ID Card:\nName: ${youthProfile.name.toUpperCase()}\nID: ${fullIdStr}\nPhone: ${youthProfile.contactNumber || "N/A"}\nGender: ${cardGender}\nBirthday: ${formattedBirthdate}\nAddress: ${youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay ${youthProfile.barangay || "San Isidro"}, San Luis, Pampanga${completedStr}`
                             );
                             addToast("Digital ID Card information copied to clipboard!", "success");
                           }}

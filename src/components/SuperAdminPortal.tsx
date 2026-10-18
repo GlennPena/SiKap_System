@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
+import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
+import { motion } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { isProgramEnded } from "../lib/utils";
@@ -1276,6 +1278,38 @@ Please sign in at ${window.location.origin} and change your password immediately
     addToast("Municipal Census & Enrollment Report downloaded as Letter-Printable Excel (.xls)!", "success");
   };
 
+  // Memoized Central Alerts
+  const allCentralAlerts = useMemo(() => [
+    {
+      id: "alert-demographics",
+      title: "Registered KK Demographics",
+      desc: `${youthProfiles.length} active youth profiles registered across 17 barangays.`,
+      targetTab: "youth_masterlist" as const,
+      icon: Users,
+      iconBg: "bg-emerald-100 text-[#0A6B43]",
+    },
+    {
+      id: "alert-leaders",
+      title: "Barangay Leaders Sync",
+      desc: `${officialAccounts.length} authorized official accounts active in database.`,
+      targetTab: "barangays" as const,
+      icon: Shield,
+      iconBg: "bg-amber-100 text-amber-800",
+    },
+    {
+      id: "alert-tesda",
+      title: "TESDA Vocational Courses",
+      desc: `${programs.length} published TVET course offerings available municipal-wide.`,
+      targetTab: "tesda_records" as const,
+      icon: Briefcase,
+      iconBg: "bg-blue-100 text-blue-800",
+    },
+  ], [youthProfiles.length, officialAccounts.length, programs.length]);
+
+  const systemAlerts = useMemo(() => {
+    return allCentralAlerts.filter((a) => !clearedNotificationIds.includes(a.id));
+  }, [allCentralAlerts, clearedNotificationIds]);
+
   return (
     <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex font-sans antialiased text-slate-800 w-full" id="super-admin-portal-root">
       
@@ -1292,24 +1326,15 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* SIDEBAR - Signature SiKap Emerald Theme (Responsive Drawer on Mobile) */}
       {/* ============================================================ */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-68 h-[100dvh] max-h-[100dvh] shrink-0 bg-gradient-to-b from-[#112F24] via-[#164132] to-[#0A231A] text-white flex flex-col justify-between shadow-2xl lg:shadow-xl select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="p-5 sm:p-6 overflow-y-auto min-h-0 flex-1">
-          {/* Header Brand */}
-          <div className="flex items-center justify-between mb-8 pb-5 border-b border-emerald-800/40">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-black tracking-tight text-white block truncate">SiKap System</span>
-                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 shrink-0">MYDO</span>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-300 block tracking-tight truncate">Super Admin Command</span>
-              </div>
+        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+          {/* Logo Header */}
+          <div className="flex items-center justify-between mb-7 px-1 pt-1">
+            <div className="flex items-center">
+              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
             </div>
 
             {/* Mobile Close Button */}
@@ -1323,85 +1348,260 @@ Please sign in at ${window.location.origin} and change your password immediately
             </button>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="space-y-1.5">
+          {/* Navigation Items */}
+          <nav className="space-y-1.5 relative">
             {[
-              { id: "dashboard", label: "Infrastructure Dashboard", icon: <Activity className="w-4.5 h-4.5" /> },
-              { id: "youth_masterlist", label: "Youth Masterlist", icon: <Users className="w-4.5 h-4.5" />, badge: stats.kkMembers },
-              { id: "barangays", label: "Barangay Directory (17)", icon: <Building2 className="w-4.5 h-4.5" />, badge: stats.totalBarangays },
-              { id: "tesda_records", label: "TESDA Directory", icon: <Briefcase className="w-4.5 h-4.5" />, badge: stats.tesdaReps },
-              { id: "audit_logs", label: "Audit Logs & Activity", icon: <History className="w-4.5 h-4.5" /> },
-              { id: "create_account", label: "Provision Official Account", icon: <PlusCircle className="w-4.5 h-4.5" /> },
-              { id: "create_tesda", label: "Provision TESDA Account", icon: <UserCheck className="w-4.5 h-4.5" /> },
-              { id: "profile", label: "Admin Profile & Security", icon: <ShieldCheck className="w-4.5 h-4.5" /> }
-            ].map((item) => {
-              const isActive = activeTab === item.id;
+              {
+                id: "dashboard",
+                label: "Infrastructure Dashboard",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.48 12H2" />
+                  </svg>
+                )
+              },
+              {
+                id: "youth_masterlist",
+                label: "Youth Masterlist",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6.5" r="3.5" />
+                    <path d="M9 12c-3.1 0-6 2.2-6 5.5V20h12v-2.5c0-3.3-2.9-5.5-6-5.5z" />
+                    <circle cx="16.5" cy="7.5" r="2.8" />
+                    <path d="M16.5 12.5c-.4 0-.8.05-1.2.14 1.4 1.1 2.2 2.7 2.2 4.86V20h4.5v-2c0-3-2.5-5.5-5.5-5.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                ),
+                badge: stats.kkMembers > 0 ? stats.kkMembers : undefined
+              },
+              {
+                id: "barangays",
+                label: "Barangay Directory (17)",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18H6zm-2 0H2v-8a2 2 0 0 1 2-2h2v10zm16 0h2a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2v13z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+                    <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+                    <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+                    <path d="M10 6h4" />
+                    <path d="M10 10h4" />
+                    <path d="M10 14h4" />
+                    <path d="M10 18h4" />
+                  </svg>
+                ),
+                badge: stats.totalBarangays > 0 ? stats.totalBarangays : undefined
+              },
+              {
+                id: "tesda_records",
+                label: "TESDA Directory",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
+                    <path d="M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6H14v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H2z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <rect width="20" height="14" x="2" y="7" rx="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                ),
+                badge: stats.tesdaReps > 0 ? stats.tesdaReps : undefined
+              },
+              {
+                id: "audit_logs",
+                label: "Audit Logs & Activity",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                    <path d="M12 7v5l4 2" />
+                  </svg>
+                )
+              },
+              {
+                id: "create_account",
+                label: "Provision Official Account",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 6h-2v3H8v2h3v3h2v-3h3v-2h-3V8z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 12h8" />
+                    <path d="M12 8v8" />
+                  </svg>
+                )
+              },
+              {
+                id: "create_tesda",
+                label: "Provision TESDA Account",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6.5" r="3.5" />
+                    <path d="M9 12c-3.1 0-6 2.2-6 5.5V20h12v-2.5c0-3.3-2.9-5.5-6-5.5z" />
+                    <path d="m16 11 2 2 4-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <polyline points="16 11 18 13 22 9" />
+                  </svg>
+                )
+              },
+              {
+                id: "profile",
+                label: "Admin Profile & Security",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2 3.5 5.5V11C3.5 16.5 7.14 21.6 12 23c4.86-1.4 8.5-6.5 8.5-12V5.5L12 2zm-1.5 14-3.5-3.5 1.4-1.4 2.1 2.1 5.1-5.1 1.4 1.4-6.5 6.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                )
+              }
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id as any);
-                    setIsMobileNavOpen(false);
-                    if (item.id === "create_account") setRole("SK Chairperson");
-                    if (item.id === "create_tesda") setRole("TESDA Representative");
-                  }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                    isActive
-                      ? "bg-emerald-800/80 text-amber-300 border-l-4 border-amber-400 shadow-xs"
-                      : "border-l-4 border-transparent text-emerald-100/80 hover:bg-emerald-800/40 hover:text-white"
-                  }`}
-                >
-                  <span className={isActive ? "text-amber-400" : "text-emerald-300"}>{item.icon}</span>
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="bg-amber-400 text-slate-950 text-xs font-black px-2 py-0.2 rounded-full shadow-xs">
-                      {item.badge}
-                    </span>
+                <div key={tab.id} className="relative">
+                  {/* Animated Active Page Indicator Bar on far-left edge */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="superAdminActiveIndicator"
+                      className="absolute -left-4 sm:-left-5 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#02513B] rounded-r-full shadow-[0_0_8px_rgba(2,81,59,0.8)] z-20 pointer-events-none"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
                   )}
-                </button>
+
+                  {/* Animated Active Pill Background */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="superAdminActiveBackground"
+                      className="absolute inset-0 bg-[#02513B] rounded-xl pointer-events-none z-0 shadow-sm border border-emerald-400/20"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id as any);
+                      setIsMobileNavOpen(false);
+                      if (tab.id === "create_account") setRole("SK Chairperson");
+                      if (tab.id === "create_tesda") setRole("TESDA Representative");
+                    }}
+                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${
+                      isActive
+                        ? "text-emerald-300 cursor-pointer"
+                        : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <span className={`transition-colors duration-200 shrink-0 ${
+                        isActive
+                          ? "text-emerald-300"
+                          : "text-gray-400 group-hover:text-gray-200"
+                      }`}>
+                        {isActive ? tab.activeIcon : tab.inactiveIcon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                    </div>
+
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                </div>
               );
             })}
           </nav>
         </div>
 
-        {/* User Info & Logout */}
-        <div className="p-4 sm:p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-emerald-800/40 bg-[#0B1E16] shrink-0">
-          <div
-            onClick={() => {
-              setActiveTab("profile");
-              setIsMobileNavOpen(false);
-            }}
-            className="flex items-center gap-3 mb-4 p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/30 hover:bg-emerald-900/50 cursor-pointer transition-colors"
-            title="Manage Super Admin Profile"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-xs shadow-xs shrink-0">
-              ADM
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-white truncate">Super Administrator</p>
-              <p className="text-xs text-emerald-300 font-medium">Municipal MYDO Authority</p>
-            </div>
+        {/* Bottom Section: Avatar, Name & Sign Out in One Row */}
+        <div className="p-3 sm:p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shrink-0 bg-[#082D21]">
+          {/* Break line with horizontal padding */}
+          <div className="px-1 pb-2.5 pt-1">
+            <div className="h-[1px] w-full bg-white/20 rounded-full" />
           </div>
-          <button
-            type="button"
-            disabled={isLoggingOut}
-            onClick={handleSignOut}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-sm text-red-300 hover:text-white rounded-xl transition-all font-bold ${
-              isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-            }`}
-          >
-            {isLoggingOut ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-300" />
-                <span>Signing out...</span>
-              </>
-            ) : (
-              <>
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out Central</span>
-              </>
-            )}
-          </button>
+
+          {/* Avatar, Name, and Sign Out Button in One Row */}
+          <div className="flex items-center justify-between gap-2.5 px-2 py-1.5 rounded-xl">
+            {/* User Profile Info (Avatar + Complete Name - Static without hover effect) */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {/* Avatar without hover effect */}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shrink-0 border border-white/20 select-none">
+                {currentUser?.name
+                  ? currentUser.name
+                    .split(" ")
+                    .filter(Boolean)
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2)
+                  : "SA"}
+              </div>
+
+              {/* Complete Name without truncation or hover effect */}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white leading-snug break-words">
+                  {currentUser?.name || "Super Administrator"}
+                </p>
+              </div>
+            </div>
+
+            {/* Sign Out Button (Only element with hover effect) */}
+            <button
+              type="button"
+              disabled={isLoggingOut}
+              onClick={handleSignOut}
+              title="Sign Out Central"
+              aria-label="Sign Out Central"
+              className="p-2.5 text-gray-400 hover:text-red-300 hover:bg-red-500/15 rounded-xl transition-all cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group/logout"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="w-5 h-5 animate-spin text-red-300 shrink-0" />
+              ) : (
+                <LogOut className="w-5 h-5 group-hover/logout:text-red-300 transition-colors shrink-0" />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -1411,35 +1611,32 @@ Please sign in at ${window.location.origin} and change your password immediately
       <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 bg-slate-50/70 overflow-y-auto pb-12 sm:pb-6">
         
         {/* Sticky Top Header */}
-        <header className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between z-10 shadow-xs">
+        <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             {/* Mobile Hamburger Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(true)}
-              className="lg:hidden p-1.5 sm:p-2 -ml-1 text-slate-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="lg:hidden p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-tight text-slate-900 truncate block">
-                {activeTab === "dashboard" && "System Infrastructure Dashboard"}
-                {activeTab === "youth_masterlist" && "Municipal Youth Demographic Masterlist"}
-                {activeTab === "barangays" && "Barangay Directory (17 Zones)"}
-                {activeTab === "tesda_records" && "TESDA Directory & Records"}
-                {activeTab === "audit_logs" && "System-Wide Audit Logs & Stream"}
-                {activeTab === "create_account" && "Authorized Official Provisioning"}
-                {activeTab === "create_tesda" && "TESDA Provisioning"}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
+                {activeTab === "dashboard" && "Infrastructure Dashboard"}
+                {activeTab === "youth_masterlist" && "Youth Masterlist"}
+                {activeTab === "barangays" && "Barangay Directory"}
+                {activeTab === "tesda_records" && "TESDA Directory"}
+                {activeTab === "audit_logs" && "Audit Logs & Activity"}
+                {activeTab === "create_account" && "Provision Official"}
+                {activeTab === "create_tesda" && "Provision TESDA"}
                 {activeTab === "profile" && "Admin Profile & Security"}
               </h1>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate block">
-                Municipal Youth Development Office · San Luis, Pampanga
-              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 relative shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 relative shrink-0" id="notification-bell-container">
             {/* Live Status Pill */}
             <span className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-xs font-extrabold rounded-full shadow-2xs">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -1450,138 +1647,105 @@ Please sign in at ${window.location.origin} and change your password immediately
             <button
               type="button"
               onClick={() => setIsReportModalOpen(true)}
-              className="p-2 sm:px-3.5 sm:py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
+              className="p-2 sm:px-3.5 sm:py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer shrink-0"
               title="Generate Official Municipal Executive Report"
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Generate Report</span>
             </button>
 
             {/* Notification Bell */}
             <div className="relative">
-              {(() => {
-                const allCentralAlerts = [
-                  {
-                    id: "alert-demographics",
-                    title: "Registered KK Demographics",
-                    desc: `${youthProfiles.length} active youth profiles registered across 17 barangays.`,
-                    targetTab: "youth_masterlist" as const,
-                    icon: Users,
-                    iconBg: "bg-emerald-100 text-[#0A6B43]",
-                  },
-                  {
-                    id: "alert-leaders",
-                    title: "Barangay Leaders Sync",
-                    desc: `${officialAccounts.length} authorized official accounts active in database.`,
-                    targetTab: "barangays" as const,
-                    icon: Shield,
-                    iconBg: "bg-amber-100 text-amber-800",
-                  },
-                  {
-                    id: "alert-tesda",
-                    title: "TESDA Vocational Courses",
-                    desc: `${programs.length} published TVET course offerings available municipal-wide.`,
-                    targetTab: "tesda_records" as const,
-                    icon: Briefcase,
-                    iconBg: "bg-blue-100 text-blue-800",
-                  },
-                ];
-                const systemAlerts = allCentralAlerts.filter((a) => !clearedNotificationIds.includes(a.id));
+              <NotificationBellButton
+                isOpen={showNotifications}
+                onClick={() => setShowNotifications(!showNotifications)}
+                unreadCount={!notificationsRead ? systemAlerts.length : 0}
+                title="System Central Alerts"
+                size="lg"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
+              />
 
-                return (
-                  <>
-                    <NotificationBellButton
-                      isOpen={showNotifications}
-                      onClick={() => setShowNotifications(!showNotifications)}
-                      unreadCount={!notificationsRead ? systemAlerts.length : 0}
-                      title="System Central Alerts"
-                      size="sm"
-                    />
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                  <div className="fixed inset-x-3.5 top-20 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-14 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-emerald-100 rounded-2xl shadow-2xl py-3 text-xs overflow-hidden text-slate-700 animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
+                    <div className="px-4 pb-2 border-b border-gray-100 flex justify-between items-center bg-emerald-50/70 p-3 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-[#0A6B43]" />
+                        <span className="font-extrabold text-slate-900 text-sm">System Central Alerts</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        {systemAlerts.length > 0 && (
+                          <>
+                            <button
+                              onClick={() => {
+                                clearAllNotifications(allCentralAlerts.map((a) => a.id));
+                                addToast("Central alerts marked as read and cleared", "info");
+                              }}
+                              className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                            >
+                              Mark read
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => {
+                                clearAllNotifications(allCentralAlerts.map((a) => a.id));
+                                addToast("All alerts cleared", "info");
+                              }}
+                              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                            >
+                              Clear all
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                    {showNotifications && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                        <div className="fixed inset-x-3.5 top-16 mx-auto sm:mx-0 sm:inset-x-auto sm:right-0 sm:top-12 w-auto sm:w-96 max-w-sm sm:max-w-none sm:absolute z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 text-xs overflow-hidden text-slate-700 animate-in fade-in-50 slide-in-from-top-2 flex flex-col max-h-[80vh] sm:max-h-none">
-                          <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 p-3 shrink-0">
-                            <div className="flex items-center gap-2">
-                              <Bell className="w-4 h-4 text-[#0A6B43]" />
-                              <span className="font-extrabold text-slate-900 text-sm">System Central Alerts</span>
-                            </div>
-                            <div className="flex items-center gap-2.5">
-                              {systemAlerts.length > 0 && (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      clearAllNotifications(allCentralAlerts.map((a) => a.id));
-                                      addToast("Central alerts marked as read and cleared", "info");
-                                    }}
-                                    className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                                  >
-                                    Mark read
-                                  </button>
-                                  <span className="text-slate-300">|</span>
-                                  <button
-                                    onClick={() => {
-                                      clearAllNotifications(allCentralAlerts.map((a) => a.id));
-                                      addToast("All alerts cleared", "info");
-                                    }}
-                                    className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
-                                  >
-                                    Clear all
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                            {systemAlerts.length === 0 ? (
-                              <div className="p-6 text-center text-slate-400">
-                                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />
-                                <p className="font-bold text-slate-600">No active alerts</p>
-                                <p className="text-[11px] mt-0.5">All system alerts have been cleared or reviewed.</p>
-                              </div>
-                            ) : (
-                              systemAlerts.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                  <div
-                                    key={item.id}
-                                    onClick={() => {
-                                      dismissNotification(item.id);
-                                      setActiveTab(item.targetTab);
-                                      setShowNotifications(false);
-                                    }}
-                                    className="group relative p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
-                                  >
-                                    <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${item.iconBg}`}>
-                                      <Icon className="w-4 h-4" />
-                                    </div>
-                                    <div className="pr-6 flex-1">
-                                      <p className="font-bold text-slate-900 text-xs">{item.title}</p>
-                                      <p className="text-[11px] text-slate-500 font-medium">{item.desc}</p>
-                                    </div>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        dismissNotification(item.id);
-                                      }}
-                                      className="absolute right-2 top-2 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                      title="Dismiss notification"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                      {systemAlerts.length === 0 ? (
+                        <div className="p-6 text-center text-slate-400">
+                          <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />
+                          <p className="font-bold text-slate-600">No active alerts</p>
+                          <p className="text-[11px] mt-0.5">All system alerts have been cleared or reviewed.</p>
                         </div>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
+                      ) : (
+                        systemAlerts.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                dismissNotification(item.id);
+                                setActiveTab(item.targetTab);
+                                setShowNotifications(false);
+                              }}
+                              className="group relative p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                            >
+                              <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${item.iconBg}`}>
+                                <Icon className="w-4 h-4" />
+                              </div>
+                              <div className="pr-6 flex-1">
+                                <p className="font-bold text-slate-900 text-xs">{item.title}</p>
+                                <p className="text-[11px] text-slate-500 font-medium">{item.desc}</p>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  dismissNotification(item.id);
+                                }}
+                                className="absolute right-2 top-2 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                title="Dismiss notification"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Profile Avatar Badge */}
@@ -1603,14 +1767,34 @@ Please sign in at ${window.location.origin} and change your password immediately
         </header>
 
         {/* Dynamic Inner Tab Content */}
-        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+        <div className="px-2 sm:px-3 lg:px-4 py-4 sm:py-6 max-w-[1420px] w-full mx-auto space-y-6">
           
           {/* ============================================================ */}
           {/* TAB 1: SYSTEM INFRASTRUCTURE DASHBOARD */}
           {/* ============================================================ */}
           {activeTab === "dashboard" && (
             <div className="space-y-6">
-              
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Mabuhay, {adminName || "Administrator"}!
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Municipal System Infrastructure & Telemetry · San Luis Central Governance Engine across 17 Barangays.
+                  </p>
+                </div>
+              </div>
+
               {/* Highlight KPI Metric Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
                 <MetricCard
@@ -1816,7 +2000,27 @@ Please sign in at ${window.location.origin} and change your password immediately
           {/* ============================================================ */}
           {activeTab === "youth_masterlist" && (
             <div className="space-y-5">
-              
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Municipal Youth Masterlist
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Central census directory of all Katipunan ng Kabataan members across all 17 barangays of San Luis.
+                  </p>
+                </div>
+              </div>
+
               {/* Comprehensive Filter Controls */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -2075,7 +2279,27 @@ Please sign in at ${window.location.origin} and change your password immediately
           {/* ============================================================ */}
           {activeTab === "barangays" && (
             <div className="space-y-6">
-              
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Barangay Administrative Directory
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Municipal zone governance, official SK Chairperson credentials, and administrative coverage across 17 barangays.
+                  </p>
+                </div>
+              </div>
+
               {/* Top Mini KPI Stats Row */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <div className="bg-white border border-slate-200/90 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
@@ -2673,7 +2897,27 @@ Please sign in at ${window.location.origin} and change your password immediately
           {/* ============================================================ */}
           {activeTab === "tesda_records" && (
             <div className="space-y-5">
-              
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    TESDA Partner Directory
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Institutional TVET partner directory, certified course modules, and accredited training providers.
+                  </p>
+                </div>
+              </div>
+
               {/* Header and Action */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex-1 min-w-0 relative">
@@ -2802,7 +3046,27 @@ Please sign in at ${window.location.origin} and change your password immediately
           {/* ============================================================ */}
           {activeTab === "audit_logs" && (
             <div className="space-y-5">
-              
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Security & Audit Logs
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Immutable security event telemetry, administrative actions, and account provisioning records.
+                  </p>
+                </div>
+              </div>
+
               {/* Filter controls */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex-1 min-w-0 relative">
@@ -2961,8 +3225,30 @@ Please sign in at ${window.location.origin} and change your password immediately
           {/* TAB 4: CREATE OFFICIAL ACCOUNT FORM */}
           {/* ============================================================ */}
           {activeTab === "create_account" && (
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            <div className="space-y-6">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Provision Official Account
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Create verified administrative access credentials for SK Chairpersons and Barangay Captains across 17 Barangays.
+                  </p>
+                </div>
+              </div>
+
+              <div className="max-w-3xl mx-auto">
+                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
                 
                 <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
@@ -3098,14 +3384,37 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </form>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
           {/* ============================================================ */}
           {/* TAB 5: CREATE TESDA REPRESENTATIVE FORM */}
           {/* ============================================================ */}
           {activeTab === "create_tesda" && (
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            <div className="space-y-6">
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Provision TVET Partner
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Create verified access credentials for accredited technical-vocational education and training officers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="max-w-3xl mx-auto">
+                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
                 
                 <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
@@ -3235,86 +3544,93 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </form>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
           {/* ============================================================ */}
           {/* TAB 8: SUPER ADMIN PROFILE & GOVERNANCE COMMAND */}
           {/* ============================================================ */}
           {activeTab === "profile" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Top Banner Header */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                    <Shield className="w-5 h-5" />
+              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                <GrowthPlantAnimation />
+
+                {/* Content */}
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-amber-400 text-slate-950 uppercase tracking-wider shadow-xs">
+                      <ShieldCheck className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                      Tier 1 Root Clearance
+                    </span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-base sm:text-lg md:text-xl font-black text-slate-900 tracking-tight leading-tight">
-                      Super Administrator Profile & Governance Command
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1 leading-relaxed">
-                      Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    Tier 1 Root Clearance
-                  </span>
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Admin Profile & Security
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls.
+                  </p>
                 </div>
               </div>
 
-              {/* Top Sub-tab Pill Navigation Bar */}
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("profile")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "profile"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Shield className="w-4 h-4 shrink-0" />
-                  <span>Administrator Profile</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("security")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "security"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Lock className="w-4 h-4 shrink-0" />
-                  <span>Security & Password</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("notifications")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "notifications"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Bell className="w-4 h-4 shrink-0" />
-                  <span>Central System Alerts</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProfileActiveTab("badge")}
-                  className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
-                    profileActiveTab === "badge"
-                      ? "bg-[#0A6B43] text-white shadow-sm"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
-                  }`}
-                >
-                  <Award className="w-4 h-4 shrink-0" />
-                  <span>Root Authorization Badge</span>
-                </button>
+              {/* Sub-Tab Navigation Bar */}
+              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("profile")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      profileActiveTab === "profile"
+                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                    }`}
+                  >
+                    <Shield className="w-4 h-4 shrink-0" />
+                    <span>Administrator Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("security")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      profileActiveTab === "security"
+                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                    }`}
+                  >
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <span>Security & Password</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("notifications")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      profileActiveTab === "notifications"
+                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                    }`}
+                  >
+                    <Bell className="w-4 h-4 shrink-0" />
+                    <span>Central System Alerts</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("badge")}
+                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      profileActiveTab === "badge"
+                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                    }`}
+                  >
+                    <Award className="w-4 h-4 shrink-0" />
+                    <span>Root Authorization Badge</span>
+                  </button>
+                </div>
               </div>
 
               {/* TAB 1: ADMINISTRATOR PROFILE */}
