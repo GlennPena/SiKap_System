@@ -49,7 +49,8 @@ import {
   EyeOff,
   Edit,
   ShieldAlert,
-  Menu
+  Menu,
+  Target
 } from "lucide-react";
 import { SikapLogo, NotificationBellButton } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
@@ -897,7 +898,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
             <td class="font-bold">Out-of-School Youth (OSY) Target Population</td>
             <td class="text-center font-bold text-num" style="font-size: 11pt; color: #b45309;">${osyCount}</td>
             <td class="text-center font-bold text-pct">${osyPct}%</td>
-            <td class="text-center"><span style="color: #b45309; font-weight: bold;">★ Priority Cohort</span></td>
+            <td class="text-center"><span style="color: #b45309; font-weight: bold;">Priority Cohort</span></td>
             <td>TESDA TVET Livelihood Scholarship Priority</td>
           </tr>
           <tr>
@@ -1063,22 +1064,28 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* SIDEBAR NAVIGATION (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       {/* ========================================================================= */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[17%] lg:min-w-[250px] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
-          <div className="flex items-center justify-between mb-7 px-1 pt-1">
-            <div className="flex items-center">
-              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
+          <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
+              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0 shrink-0">
+                <span className="text-[10px] sm:text-[11px] font-black text-amber-400 uppercase tracking-widest block leading-none">Captain</span>
+                <span className="text-[8.5px] sm:text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[85px] sm:max-w-[95px] xl:max-w-[105px]" title={formattedBrgyName}>
+                  {formattedBrgyName.replace(/^Barangay\s+/i, "")}
+                </span>
+              </div>
             </div>
 
             {/* Mobile Close Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(false)}
-              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              className="lg:hidden p-1 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -1655,8 +1662,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       {/* Primary OSY & TVET Livelihood Governance Cards */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="bg-amber-50 border-2 border-amber-400 p-3.5 rounded-xl text-center shadow-xs">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-900 block">
-                            ★ OSY Youth Target
+                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-900 flex items-center justify-center gap-1">
+                            <Target className="w-3 h-3 text-amber-700 shrink-0" />
+                            OSY Youth Target
                           </span>
                           <h5 className="text-2xl font-black text-amber-950 mt-1">{kkMembersSummary.outOfSchool}</h5>
                           <p className="text-[9px] text-amber-700 mt-0.5 font-bold">
@@ -3628,8 +3636,13 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* MODAL 1: VIEW YOUTH DOSSIER (VIEW-ONLY AUDIT)                             */}
       {/* ========================================================================= */}
       {selectedYouth && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-[#D1FAE5] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedYouth(null);
+          }}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+        >
+          <div className="bg-white border border-[#D1FAE5] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             {/* Header banner */}
             <div className="bg-[#1C2B20] text-white p-6 flex justify-between items-start shrink-0">
@@ -3818,8 +3831,13 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* MODAL 2: PROGRAM DETAIL MODAL                                             */}
       {/* ========================================================================= */}
       {selectedProgram && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-gray-150 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedProgram(null);
+          }}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+        >
+          <div className="bg-white border border-gray-150 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="bg-[#1C2B20] text-white p-6 flex justify-between items-start shrink-0">
               <div>
                 <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
@@ -3910,8 +3928,14 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* MODAL 3: EXECUTIVE PRINTABLE CENSUS REPORT                                */}
       {/* ========================================================================= */}
       {isPrintReportModalOpen && (
-        <div id="printable-census-modal-backdrop" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-hidden">
-          <div id="printable-census-modal-card" className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in zoom-in-95 duration-150">
+        <div 
+          id="printable-census-modal-backdrop" 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsPrintReportModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-hidden animate-in fade-in duration-200"
+        >
+          <div id="printable-census-modal-card" className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-gray-200 animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             {/* Header with Print & Excel Action Controls */}
             <div className="relative bg-[#1C2B20] text-white p-3.5 sm:p-5 pr-12 sm:pr-16 flex flex-wrap items-center justify-between gap-3 shrink-0 no-print border-b border-emerald-900/60">

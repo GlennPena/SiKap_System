@@ -64,6 +64,7 @@ function mapToClientProfile(y: any) {
     verificationIdType: y.verificationIdType,
     verificationIdNumber: safeDecrypt(y.verificationIdNumberEnc),
     verificationIdImage: safeDecrypt(y.verificationIdImageEnc),
+    profilePicture: y.profilePicture || "",
     savedCareerPlan: y.savedCareerPlan ? (typeof y.savedCareerPlan === "string" && (y.savedCareerPlan.startsWith("{") || y.savedCareerPlan.startsWith("[")) ? JSON.parse(y.savedCareerPlan) : y.savedCareerPlan) : null,
     savedMatchAdvice: y.savedMatchAdvice ? (typeof y.savedMatchAdvice === "string" && (y.savedMatchAdvice.startsWith("{") || y.savedMatchAdvice.startsWith("[")) ? JSON.parse(y.savedMatchAdvice) : y.savedMatchAdvice) : null
   };
@@ -108,7 +109,26 @@ export async function GET(request: Request) {
       orderBy: { registeredDate: "desc" }
     });
 
-    const result = youths.map(mapToClientProfile);
+    let picRows: any[] = [];
+    try {
+      picRows = (await db.$queryRawUnsafe(
+        `SELECT "id", "profilePicture" FROM "YouthProfile" WHERE "profilePicture" IS NOT NULL`
+      )) as any[];
+    } catch {
+      picRows = [];
+    }
+    const picMap = new Map<string, string>();
+    for (const r of picRows) {
+      if (r.id && r.profilePicture) picMap.set(r.id, r.profilePicture);
+    }
+
+    const result = youths.map((y) => {
+      const mapped = mapToClientProfile(y);
+      if (picMap.has(y.id)) {
+        mapped.profilePicture = picMap.get(y.id) || "";
+      }
+      return mapped;
+    });
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     console.error("Youth GET Error:", error);
@@ -216,6 +236,12 @@ export async function PUT(request: Request) {
     delete updateData.preferencesNormalized;
     delete updateData.experiencesNormalized;
     delete updateData.goalNormalized;
+
+    let profilePicToSave: string | null = null;
+    if (body.profilePicture !== undefined) {
+      profilePicToSave = body.profilePicture;
+      delete updateData.profilePicture;
+    }
 
     if (body.birthdate !== undefined || body.dob !== undefined) {
       const bDateStr = body.birthdate || body.dob;
@@ -393,11 +419,22 @@ export async function PUT(request: Request) {
           body.id
         );
       }
+      if (profilePicToSave !== null) {
+        await db.$executeRawUnsafe(
+          `UPDATE "YouthProfile" SET "profilePicture" = $1, "updatedAt" = NOW() WHERE "id" = $2`,
+          profilePicToSave,
+          body.id
+        );
+      }
     } catch (cbfSyncErr) {
       console.warn("CBF raw columns update note:", cbfSyncErr);
     }
 
-    return NextResponse.json({ success: true, data: mapToClientProfile(updated) });
+    const clientProfile = mapToClientProfile(updated);
+    if (profilePicToSave !== null) {
+      clientProfile.profilePicture = profilePicToSave;
+    }
+    return NextResponse.json({ success: true, data: clientProfile });
   } catch (error: any) {
     console.error("Youth PUT Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });

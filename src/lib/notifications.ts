@@ -32,7 +32,7 @@ export async function notifyReferralStatusChanged(params: {
     let pushBody = `Your application for "${params.programTitle}" has been updated to: ${params.status}.`;
 
     if (params.status === "Enrolled") {
-      pushTitle = "🎉 Enrollment Approved!";
+      pushTitle = "Enrollment Approved!";
       pushBody = `You are officially accepted into "${params.programTitle}". Training sessions will begin soon.`;
     } else if (params.status === "Declined") {
       pushTitle = "Application Declined";
@@ -79,7 +79,7 @@ export async function notifyReferralStatusChanged(params: {
 
         await sendEmail({
           to: official.email,
-          subject: `📋 Referral Update: ${youthProfile.name} - ${params.status}`,
+          subject: `Referral Update: ${youthProfile.name} - ${params.status}`,
           html: `<p>Referral for <strong>${youthProfile.name}</strong> (${youthProfile.barangay.name}) for program <strong>${params.programTitle}</strong> is now marked as <strong>${params.status}</strong>.</p>`
         });
       }
@@ -125,7 +125,7 @@ export async function notifyNewYouthRegistered(params: {
     });
 
     const pushPayload: PushNotificationPayload = {
-      title: "📋 New KK Youth Registered",
+      title: "New KK Youth Registered",
       body: `${params.youthName} has registered in Barangay ${barangayName}.`,
       url: "/",
       tag: "new-youth-registration"
@@ -182,7 +182,7 @@ export async function notifyNewAnnouncement(params: {
     });
 
     const pushPayload: PushNotificationPayload = {
-      title: `📢 Announcement: ${params.title}`,
+      title: `Announcement: ${params.title}`,
       body: params.body.slice(0, 120) + (params.body.length > 120 ? "..." : ""),
       url: "/",
       tag: `announcement-${Date.now()}`
@@ -218,7 +218,7 @@ export async function notifyNewApplicationReceived(params: {
     });
 
     const pushPayload: PushNotificationPayload = {
-      title: "📋 New Course Applicant",
+      title: "New Course Applicant",
       body: `${params.youthName} (${params.barangayName}) applied for "${params.programTitle}".`,
       url: "/",
       tag: `new-app-${params.referralId}`
@@ -234,7 +234,7 @@ export async function notifyNewApplicationReceived(params: {
       if (canEmail) {
         await sendEmail({
           to: partner.email,
-          subject: `📋 New TESDA Applicant: ${params.youthName} - ${params.programTitle}`,
+          subject: `New TESDA Applicant: ${params.youthName} - ${params.programTitle}`,
           html: `
             <div style="font-family: sans-serif; padding: 20px;">
               <h2 style="color: #0A6B43;">New Course Application Received</h2>

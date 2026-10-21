@@ -5,12 +5,12 @@ import {
   Briefcase, Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
-  Building, UserCheck, ShieldCheck, Layers, ArrowUpRight, Archive, Calculator,
-  Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2
+  Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2,
+  Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
@@ -902,21 +902,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[17%] lg:min-w-[250px] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
-          <div className="flex items-center justify-between mb-7 px-1 pt-1">
-            <div className="flex items-center">
-              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
+          <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
+              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0 shrink-0">
+                <span className="text-[10px] sm:text-[11px] font-black text-amber-400 uppercase tracking-widest block leading-none">Partner</span>
+                <span className="text-[8.5px] sm:text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[85px] sm:max-w-[95px] xl:max-w-[105px]" title="TESDA Partner">
+                  TESDA
+                </span>
+              </div>
             </div>
 
             {/* Mobile Close Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(false)}
-              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              className="lg:hidden p-1 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -1606,7 +1612,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     </span>
                                   )}
                                   {originalProgram?.location && (
-                                    <span className="truncate max-w-[200px] sm:max-w-none">📍 {originalProgram.location}</span>
+                                    <span className="truncate max-w-[200px] sm:max-w-none flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                                      <span>{originalProgram.location}</span>
+                                    </span>
                                   )}
                                 </div>
                               </div>
@@ -1652,131 +1661,149 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 </div>
                               )}
 
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 text-emerald-200 flex items-center justify-center border border-white/10 shrink-0">
-                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              </div>
+                              <motion.div
+                                animate={{ rotate: isExpanded ? 180 : 0 }}
+                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 text-emerald-200 flex items-center justify-center border border-white/10 shrink-0"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </motion.div>
                             </div>
                           </div>
 
-                          {/* Candidate List Body */}
-                          {isExpanded && (
-                            <div className="overflow-x-auto">
-                              {programApplicants.length === 0 ? (
-                                <div className="p-6 text-center text-xs text-slate-400 font-medium">
-                                  No applicants enrolled or registered under this program for the selected filters.
+                          {/* Candidate List Body - Smooth Height & Opacity Expand */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                key={`program-candidates-${title}`}
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{
+                                  height: { duration: 0.32, ease: [0.16, 1, 0.3, 1] },
+                                  opacity: { duration: 0.22, ease: "easeOut" }
+                                }}
+                                className="overflow-hidden"
+                              >
+                                <div className="overflow-x-auto">
+                                  {programApplicants.length === 0 ? (
+                                    <div className="p-6 text-center text-xs text-slate-400 font-medium">
+                                      No applicants enrolled or registered under this program for the selected filters.
+                                    </div>
+                                  ) : (
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                                          <th className="py-3 px-5">Candidate Name</th>
+                                          <th className="py-3 px-4">Barangay & Purok</th>
+                                          <th className="py-3 px-4">Match Score</th>
+                                          <th className="py-3 px-4">Applied Date</th>
+                                          <th className="py-3 px-4">Status</th>
+                                          <th className="py-3 px-5 text-right">Admissions Action</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {programApplicants.map((item) => (
+                                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                            {/* Name & Quick Profile */}
+                                            <td className="py-3.5 px-5">
+                                              <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black text-xs shrink-0">
+                                                  {item.youthName.charAt(0)}
+                                                </div>
+                                                <div>
+                                                  <button
+                                                    onClick={() => openApplicantModal(item)}
+                                                    className="font-bold text-slate-900 hover:text-[#0A6B43] hover:underline cursor-pointer text-left block"
+                                                  >
+                                                    {item.youthName}
+                                                  </button>
+                                                  <span className="text-[10px] text-slate-400 font-medium">
+                                                    Katipunan ng Kabataan
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </td>
+
+                                            {/* Residency */}
+                                            <td className="py-3.5 px-4 font-semibold text-slate-700">
+                                              <div className="flex items-center gap-1.5">
+                                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <span>Purok {item.purok}, Brgy. {item.barangay}</span>
+                                              </div>
+                                            </td>
+
+                                            {/* Match Score */}
+                                            <td className="py-3.5 px-4">
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                                <Sparkles className="w-3 h-3 text-emerald-600" />
+                                                {item.matchScore}% AI Match
+                                              </span>
+                                            </td>
+
+                                            {/* Applied Date */}
+                                            <td className="py-3.5 px-4 text-slate-500 font-medium">
+                                              {item.referralDate}
+                                            </td>
+
+                                            {/* Status Badge */}
+                                            <td className="py-3.5 px-4">
+                                              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${item.status === "Enrolled"
+                                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                                  : item.status === "Pending"
+                                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                                    : "bg-red-50 text-red-800 border-red-200"
+                                                }`}>
+                                                {item.status}
+                                              </span>
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="py-3.5 px-5 text-right">
+                                              <div className="flex items-center justify-end gap-1.5">
+                                                <button
+                                                  onClick={() => openApplicantModal(item)}
+                                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                                  title="View Full Profile Dossier"
+                                                >
+                                                  <Eye className="w-3.5 h-3.5" />
+                                                  <span className="hidden sm:inline">Profile</span>
+                                                </button>
+
+                                                {item.status === "Pending" ? (
+                                                  <>
+                                                    <button
+                                                      onClick={() => handleUpdateReferralStatus(item.id, "Enrolled")}
+                                                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                                                      title="Accept & Enroll Trainee"
+                                                    >
+                                                      <Check className="w-3.5 h-3.5" />
+                                                      <span>Enroll</span>
+                                                    </button>
+                                                    <button
+                                                      onClick={() => handleUpdateReferralStatus(item.id, "Declined")}
+                                                      className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                                      title="Decline Application"
+                                                    >
+                                                      <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                  </>
+                                                ) : (
+                                                  <span className="text-[10px] text-slate-400 font-bold px-2 py-1 bg-slate-50 rounded-md">
+                                                    Processed
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
                                 </div>
-                              ) : (
-                                <table className="w-full text-left text-xs border-collapse">
-                                  <thead>
-                                    <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-wider">
-                                      <th className="py-3 px-5">Candidate Name</th>
-                                      <th className="py-3 px-4">Barangay & Purok</th>
-                                      <th className="py-3 px-4">Match Score</th>
-                                      <th className="py-3 px-4">Applied Date</th>
-                                      <th className="py-3 px-4">Status</th>
-                                      <th className="py-3 px-5 text-right">Admissions Action</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {programApplicants.map((item) => (
-                                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                        {/* Name & Quick Profile */}
-                                        <td className="py-3.5 px-5">
-                                          <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black text-xs shrink-0">
-                                              {item.youthName.charAt(0)}
-                                            </div>
-                                            <div>
-                                              <button
-                                                onClick={() => openApplicantModal(item)}
-                                                className="font-bold text-slate-900 hover:text-[#0A6B43] hover:underline cursor-pointer text-left block"
-                                              >
-                                                {item.youthName}
-                                              </button>
-                                              <span className="text-[10px] text-slate-400 font-medium">
-                                                Katipunan ng Kabataan
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </td>
-
-                                        {/* Residency */}
-                                        <td className="py-3.5 px-4 font-semibold text-slate-700">
-                                          <div className="flex items-center gap-1.5">
-                                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                            <span>Purok {item.purok}, Brgy. {item.barangay}</span>
-                                          </div>
-                                        </td>
-
-                                        {/* Match Score */}
-                                        <td className="py-3.5 px-4">
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                            <Sparkles className="w-3 h-3 text-emerald-600" />
-                                            {item.matchScore}% AI Match
-                                          </span>
-                                        </td>
-
-                                        {/* Applied Date */}
-                                        <td className="py-3.5 px-4 text-slate-500 font-medium">
-                                          {item.referralDate}
-                                        </td>
-
-                                        {/* Status Badge */}
-                                        <td className="py-3.5 px-4">
-                                          <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${item.status === "Enrolled"
-                                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                              : item.status === "Pending"
-                                                ? "bg-amber-50 text-amber-800 border-amber-200"
-                                                : "bg-red-50 text-red-800 border-red-200"
-                                            }`}>
-                                            {item.status}
-                                          </span>
-                                        </td>
-
-                                        {/* Actions */}
-                                        <td className="py-3.5 px-5 text-right">
-                                          <div className="flex items-center justify-end gap-1.5">
-                                            <button
-                                              onClick={() => openApplicantModal(item)}
-                                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                                              title="View Full Profile Dossier"
-                                            >
-                                              <Eye className="w-3.5 h-3.5" />
-                                              <span className="hidden sm:inline">Profile</span>
-                                            </button>
-
-                                            {item.status === "Pending" ? (
-                                              <>
-                                                <button
-                                                  onClick={() => handleUpdateReferralStatus(item.id, "Enrolled")}
-                                                  className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                                                  title="Accept & Enroll Trainee"
-                                                >
-                                                  <Check className="w-3.5 h-3.5" />
-                                                  <span>Enroll</span>
-                                                </button>
-                                                <button
-                                                  onClick={() => handleUpdateReferralStatus(item.id, "Declined")}
-                                                  className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                                                  title="Decline Application"
-                                                >
-                                                  <X className="w-3.5 h-3.5" />
-                                                </button>
-                                              </>
-                                            ) : (
-                                              <span className="text-[10px] text-slate-400 font-bold px-2 py-1 bg-slate-50 rounded-md">
-                                                Processed
-                                              </span>
-                                            )}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
-                          )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       );
                     })
@@ -1978,8 +2005,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   </div>
                                   <h4 className="font-extrabold text-sm text-slate-900 mb-2">{prog.title}</h4>
                                   <div className="space-y-1 text-xs text-slate-500 mb-3">
-                                    {prog.location && <p className="truncate">📍 {prog.location}</p>}
-                                    {prog.endDate && <p className="truncate">⏱ Concluded on: {formatProgramDate(prog.endDate)}</p>}
+                                    {prog.location && (
+                                      <p className="truncate flex items-center gap-1">
+                                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                        <span>{prog.location}</span>
+                                      </p>
+                                    )}
+                                    {prog.endDate && (
+                                      <p className="truncate flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                        <span>Concluded on: {formatProgramDate(prog.endDate)}</span>
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
                                     <span className="text-slate-500 font-medium">Archived Enrollees</span>
@@ -2379,7 +2416,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 className="text-[10px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
                                 title="Click to auto-apply computed hours"
                               >
-                                ⚡ Auto: {computedTrainingHours.totalHours}h
+                                <Zap className="w-3 h-3 text-emerald-600" />
+                                <span>Auto: {computedTrainingHours.totalHours}h</span>
                               </button>
                             )}
                           </div>
@@ -2492,42 +2530,46 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("morning")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "12:00"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "12:00"
                                 ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                               }`}
                           >
-                            🌅 Morning (8 AM – 12 PM)
+                            <Sun className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span>Morning (8 AM – 12 PM)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("afternoon")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "13:00" && progEndTime === "17:00"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "13:00" && progEndTime === "17:00"
                                 ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                               }`}
                           >
-                            ☀️ Afternoon (1 PM – 5 PM)
+                            <Sun className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span>Afternoon (1 PM – 5 PM)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("fullday")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "17:00"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "17:00"
                                 ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                               }`}
                           >
-                            🏢 Full Day (8 AM – 5 PM)
+                            <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Full Day (8 AM – 5 PM)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => applyTimeslotPreset("evening")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "17:30" && progEndTime === "20:30"
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "17:30" && progEndTime === "20:30"
                                 ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
                                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                               }`}
                           >
-                            🌙 Evening (5:30 PM – 8:30 PM)
+                            <Moon className="w-3 h-3 text-purple-600 shrink-0" />
+                            <span>Evening (5:30 PM – 8:30 PM)</span>
                           </button>
                         </div>
 
@@ -2768,7 +2810,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
                       }`}
                   >
-                    <Building className="w-4 h-4 shrink-0" />
+                    <Building2 className="w-4 h-4 shrink-0" />
                     <span>Institution Profile</span>
                   </button>
                   <button
@@ -3249,8 +3291,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {/* APPLICANT PROFILE DOSSIER MODAL */}
       {/* ============================================================ */}
       {selectedApplicant && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-150">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedApplicant(null);
+          }}
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200 ease-out">
 
             {/* Modal Top Header */}
             <div className="bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white p-6 flex justify-between items-center shrink-0">
@@ -3455,8 +3502,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {/* PROGRAM SYLLABUS & DETAILS MODAL */}
       {/* ============================================================ */}
       {viewingProgram && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 flex flex-col max-h-[85vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingProgram(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 flex flex-col max-h-[85vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200 ease-out">
 
             {/* Header */}
             <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-start justify-between">
@@ -3609,8 +3661,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {/* POPUP MODAL: EDIT TRAINING COURSE (STAYS ON CURRENT TAB) */}
       {/* ============================================================ */}
       {editingProgramModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-6">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingProgramModal(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200 ease-out my-6">
 
             {/* Modal Header */}
             <div className="p-6 border-b border-emerald-900/40 bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white flex items-center justify-between shrink-0">
@@ -3699,7 +3756,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             className="text-[10px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
                             title="Click to auto-apply computed hours"
                           >
-                            ⚡ Auto: {computedTrainingHours.totalHours}h
+                            <Zap className="w-3 h-3 text-emerald-600" />
+                            <span>Auto: {computedTrainingHours.totalHours}h</span>
                           </button>
                         )}
                       </div>
@@ -3812,42 +3870,46 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("morning")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "12:00"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "12:00"
                             ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                           }`}
                       >
-                        🌅 Morning (8 AM – 12 PM)
+                        <Sun className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span>Morning (8 AM – 12 PM)</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("afternoon")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "13:00" && progEndTime === "17:00"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "13:00" && progEndTime === "17:00"
                             ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                           }`}
                       >
-                        ☀️ Afternoon (1 PM – 5 PM)
+                        <Sun className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>Afternoon (1 PM – 5 PM)</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("fullday")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "08:00" && progEndTime === "17:00"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "17:00"
                             ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                           }`}
                       >
-                        🏢 Full Day (8 AM – 5 PM)
+                        <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Full Day (8 AM – 5 PM)</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => applyTimeslotPreset("evening")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all ${progStartTime === "17:30" && progEndTime === "20:30"
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "17:30" && progEndTime === "20:30"
                             ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
                           }`}
                       >
-                        🌙 Evening (5:30 PM – 8:30 PM)
+                        <Moon className="w-3 h-3 text-purple-600 shrink-0" />
+                        <span>Evening (5:30 PM – 8:30 PM)</span>
                       </button>
                     </div>
 

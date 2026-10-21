@@ -1326,22 +1326,25 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* SIDEBAR - Signature SiKap Emerald Theme (Responsive Drawer on Mobile) */}
       {/* ============================================================ */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[17%] lg:min-w-[250px] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
-          <div className="flex items-center justify-between mb-7 px-1 pt-1">
-            <div className="flex items-center">
-              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
+          <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
+              <div className="border-l border-white/20 pl-2 min-w-0 shrink-0">
+                <span className="text-xs font-black text-amber-400 uppercase tracking-widest block leading-none">Admin</span>
+              </div>
             </div>
 
             {/* Mobile Close Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(false)}
-              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              className="lg:hidden p-1 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -2623,11 +2626,13 @@ Please sign in at ${window.location.origin} and change your password immediately
                         {/* Card Footer: Demographic summary & Full Roster Modal Trigger */}
                         <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                              👥 {item.councilorCount} Councilors
+                            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Users className="w-3 h-3 text-slate-500 shrink-0" />
+                              <span>{item.councilorCount} Councilors</span>
                             </span>
-                            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                              🎓 {item.kkCount} Youth
+                            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <GraduationCap className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                              <span>{item.kkCount} Youth</span>
                             </span>
                           </div>
 
@@ -4077,8 +4082,13 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* YOUTH PROFILE DETAIL MODAL (Suggestion 1) */}
       {/* ============================================================ */}
       {selectedYouthDetail && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col text-xs font-semibold shadow-2xl">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedYouthDetail(null);
+          }}
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             <div className="p-5 px-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <div className="flex items-center gap-3">
@@ -4185,8 +4195,13 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* VIEW BARANGAY DETAILS MODAL */}
       {/* ============================================================ */}
       {isViewModalOpen && selectedBrgyDetails && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl overflow-hidden max-h-[88vh] flex flex-col text-xs font-semibold shadow-2xl">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsViewModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl overflow-hidden max-h-[88vh] flex flex-col text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             {/* Modal Header */}
             <div className="p-5 px-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
@@ -4370,8 +4385,13 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* EDIT / RENAME BARANGAY MODAL */}
       {/* ============================================================ */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md overflow-hidden text-xs font-semibold shadow-2xl">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsEditModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md overflow-hidden text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             <div className="p-5 px-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-sm font-extrabold text-slate-900 uppercase">Rename Barangay Zone</h3>
@@ -4420,8 +4440,13 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* SUCCESS CREATED / RESET CREDENTIALS MODAL */}
       {/* ============================================================ */}
       {createdCredentials && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white border border-emerald-200 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreatedCredentials(null);
+          }}
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white border border-emerald-200 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center mx-auto mb-1 shadow-xs">
               <CheckCircle2 className="w-8 h-8" />
@@ -4490,11 +4515,14 @@ Please sign in at ${window.location.origin} and change your password immediately
       {isReportModalOpen && (
         <div 
           id="printable-superadmin-modal-backdrop"
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsReportModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden animate-in fade-in duration-200"
         >
           <div 
             id="printable-superadmin-modal-card"
-            className="bg-white rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-slate-200 animate-in zoom-in-95 duration-150"
+            className="bg-white rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[94vh] border border-slate-200 animate-in fade-in zoom-in-95 duration-200 ease-out"
           >
             
             {/* Modal Header Bar (Hidden during Print) */}

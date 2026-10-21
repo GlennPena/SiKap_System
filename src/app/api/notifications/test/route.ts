@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     if (type === "push" || type === "all") {
       const pushRes = await sendPushToUser(userId, {
-        title: "🔔 SiKap Test Notification",
+        title: "SiKap Test Notification",
         body: `Hello ${userName}! Push notifications are successfully connected and working.`,
         url: "/",
         tag: `test-${Date.now()}`
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
     if (type === "email" || type === "all") {
       const emailRes = await sendEmailToUser(userId, {
-        subject: "🔔 SiKap System - Test Email Alert",
+        subject: "SiKap System - Test Email Alert",
         html: `
           <div style="font-family: sans-serif; padding: 20px;">
             <h2 style="color: #0A6B43;">Test Notification Successful</h2>

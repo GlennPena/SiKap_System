@@ -433,6 +433,7 @@ export interface GeminiLongTermCareerPlan {
   longTerm1To2Years: string[];
   localSupportContacts: string[];
   generatedDate: string;
+  translatedPlanTl?: GeminiLongTermCareerPlan;
 }
 
 /**
