@@ -928,17 +928,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             {[
               {
                 id: TESDAPartnerScreen.DASHBOARD,
-                label: "Dashboard & Pipeline",
+                label: "Dashboard",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
-                    <path d="M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6H14v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H2z" />
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
                   </svg>
                 ),
                 inactiveIcon: (
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <rect width="20" height="14" x="2" y="7" rx="2" />
-                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    <rect width="7" height="7" x="3" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="3" rx="2" />
+                    <rect width="7" height="7" x="14" y="14" rx="2" />
+                    <rect width="7" height="7" x="3" y="14" rx="2" />
                   </svg>
                 ),
                 badge: pendingReferralsCount > 0 ? pendingReferralsCount : undefined,
@@ -988,17 +992,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               },
               {
                 id: TESDAPartnerScreen.SETTINGS,
-                label: "Partner Profile & Alerts",
+                label: "Settings",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-                    <path d="M12 2a6 6 0 0 0-6 6c0 7-3 9-3 9h18s-3-2-3-9a6 6 0 0 0-6-6z" />
-                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                    />
                   </svg>
                 ),
                 inactiveIcon: (
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
                   </svg>
                 ),
                 onClick: () => {
@@ -1132,11 +1139,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </button>
             <div className="min-w-0 flex-1">
               <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
-                {currentScreen === TESDAPartnerScreen.DASHBOARD && "Dashboard & Pipeline"}
+                {currentScreen === TESDAPartnerScreen.DASHBOARD && "Dashboard"}
                 {currentScreen === TESDAPartnerScreen.PROGRAMS && "Published Courses"}
                 {currentScreen === TESDAPartnerScreen.ADD_PROGRAM && "Post New Course"}
                 {currentScreen === TESDAPartnerScreen.EDIT_PROGRAM && "Edit Course"}
-                {currentScreen === TESDAPartnerScreen.SETTINGS && "Partner Profile & Alerts"}
+                {currentScreen === TESDAPartnerScreen.SETTINGS && "Settings"}
               </h1>
             </div>
           </div>
@@ -2749,7 +2756,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Partner Profile & Settings
+                    Settings
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     Manage institutional TVET center credentials, representative details, system security, and notifications.

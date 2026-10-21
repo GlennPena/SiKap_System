@@ -1714,7 +1714,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden" id="active-classes-schedule-container">
                   <div className="bg-[#1C2B20] text-white p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 text-white">
-                      <span className="text-xl shrink-0">🏫</span>
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+                        <GraduationCap className="w-5 h-5 text-emerald-300" />
+                      </div>
                       <div>
                         <h4 className="font-extrabold text-sm sm:text-base tracking-tight text-white">My Active Class & Training Schedule</h4>
                         <p className="text-[10px] text-emerald-200 font-semibold uppercase tracking-wider">TESDA GPSAT Official Enrollment Card</p>
@@ -1740,8 +1742,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
                             <div>
                               <h5 className="font-black text-gray-900 text-sm sm:text-base">{ref.programTitle}</h5>
-                              <p className="text-xs text-gray-500 font-semibold flex items-center gap-1 mt-0.5">
-                                🏢 {provider}
+                              <p className="text-xs text-gray-500 font-semibold flex items-center gap-1.5 mt-0.5">
+                                <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                {provider}
                               </p>
                             </div>
                             <span className="text-[10px] bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-1 rounded-md font-bold uppercase shrink-0">
@@ -1779,28 +1782,31 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             <div className="space-y-1">
                               <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Room / Training Facility</span>
                               <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <span className="text-amber-600 font-bold">📍</span> {room}
+                                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {room}
                               </p>
                             </div>
 
                             <div className="space-y-1">
                               <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Assigned Instructor</span>
                               <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <span className="text-amber-600 font-bold">👤</span> {instructor}
+                                <User className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {instructor}
                               </p>
                             </div>
                           </div>
 
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-gray-600 bg-emerald-50/40 p-3 rounded-xl border border-emerald-150">
-                            <p className="font-medium">
-                              📍 <strong>Campus Location:</strong> {location}
+                            <p className="font-medium flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                              <span><strong>Campus Location:</strong> {location}</span>
                             </p>
                             {program && (
                               <p className="font-semibold text-emerald-800 flex items-center gap-1.5 flex-wrap">
-                                <span>📞 Contact Coordinator:</span> {program.contactPerson} ({program.contactNumber})
+                                <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                <span><strong>Contact Coordinator:</strong> {program.contactPerson} ({program.contactNumber})</span>
                               </p>
                             )}
                           </div>
+
                         </div>
                       );
                     })}
@@ -2080,10 +2086,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                         {featuredProg.requiredDocuments && featuredProg.requiredDocuments.length > 0 && (
                           <div className="bg-amber-50/70 p-3 sm:p-3.5 rounded-xl border border-amber-200">
-                            <p className="text-[11px] font-bold text-amber-950 uppercase tracking-wider mb-1 flex items-center gap-1">
-                              📋 Physical Requirements Needed Beforehand:
+                            <p className="text-xs font-bold text-amber-950 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              Physical Requirements Needed Beforehand
                             </p>
-                            <ul className="list-disc pl-4 text-[10px] text-amber-800 space-y-0.5 font-semibold">
+                            <ul className="list-disc pl-4 text-xs text-amber-800 space-y-0.5 font-medium">
                               {featuredProg.requiredDocuments.map((doc, dIdx) => (
                                 <li key={dIdx}>{doc}</li>
                               ))}
@@ -2093,13 +2100,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-xs text-gray-500 pt-3 border-t border-gray-150">
                           <div className="space-y-1">
-                            <p className="flex items-center gap-1.5">⏱ <strong>Duration:</strong> {featuredProg.trainingHours} hours</p>
-                            <p className="flex items-center gap-1.5">📍 <strong>Location:</strong> {featuredProg.location}</p>
+                            <p className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                              <strong>Duration:</strong> {featuredProg.trainingHours} hours
+                            </p>
+                            <p className="flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                              <strong>Location:</strong> {featuredProg.location}
+                            </p>
                           </div>
                           <div className="flex items-center gap-2 w-full sm:w-auto">
                             <button
                               onClick={() => setViewingProgramModal({ program: featuredProg, matchScore: featuredScore })}
-                              className="w-full sm:w-auto text-xs font-extrabold px-5 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              className="w-full sm:w-auto text-xs font-bold px-5 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                               <Eye className="w-4 h-4 text-emerald-200" />
                               {isEnded ? "View Details (Ended)" : "View Details & Apply"}
@@ -2107,9 +2120,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           </div>
                         </div>
                         {overlapWarning && (
-                          <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 font-semibold leading-relaxed">
-                            ⚠️ <strong>Overlap Warning:</strong> {overlapWarning}
-                          </p>
+                          <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
+                              <span>{overlapWarning}</span>
+                            </div>
+                          </div>
                         )}
                       </div>
                     );
@@ -2332,47 +2349,103 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {matchesTabPrograms.map(({ program: prog, matchScore: score }) => {
 
                     return (
-                      <div key={prog.id} className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between">
+                      <div
+                        key={prog.id}
+                        className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] transition-all duration-200"
+                      >
                         <div className="space-y-4">
-                          <div className="flex justify-between items-start gap-3">
-                            <div>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-extrabold uppercase text-gray-400 block tracking-wider">{prog.provider}</span>
+                          {/* Card Header: Provider, Term Ended Badge, Title & Match Score */}
+                          <div className="flex justify-between items-start gap-3 pb-3 border-b border-gray-100">
+                            <div className="space-y-1 flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block truncate">
+                                  {prog.provider}
+                                </span>
                                 {isProgramEnded(prog) && (
-                                  <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
-                                    <Clock className="w-2.5 h-2.5 text-purple-600" />
+                                  <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-purple-600" />
                                     Term Ended
                                   </span>
                                 )}
                               </div>
-                              <h4 className="font-bold text-gray-800 text-sm mt-1">{prog.title}</h4>
+                              <h4 className="font-bold text-gray-900 text-base leading-snug tracking-tight">
+                                {prog.title}
+                              </h4>
                             </div>
-                            <FlameMatchScore score={score} />
+                            <div className="shrink-0 pt-0.5">
+                              <FlameMatchScore score={score} />
+                            </div>
                           </div>
 
-                          <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
-                            <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                              Content-Based Filtering (CBF) identified a {score}% compatibility score between your technical competencies and this local program.
+                          {/* CBF Compatibility Banner */}
+                          <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 space-y-1">
+                            <div className="flex items-center justify-between text-xs font-bold text-[#0A6B43]">
+                              <span className="flex items-center gap-1.5 uppercase tracking-wide text-[11px]">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                CBF Compatibility
+                              </span>
+                              <span className="font-extrabold text-xs">{score}% Match</span>
+                            </div>
+                            <p className="text-xs text-emerald-950/80 leading-relaxed font-medium">
+                              Content-Based Filtering identified strong alignment between your technical competencies and this local program.
                             </p>
                           </div>
 
-                          <div className="space-y-1.5 text-xs text-gray-600">
-                            <p>📍 <strong>Location:</strong> {prog.location}</p>
-                            <p>⏱ <strong>Duration:</strong> {`${prog.trainingHours} hours`} {(prog.startDate || prog.endDate) ? `(${formatProgramDateRange(prog.startDate, prog.endDate)})` : ""}</p>
-                            <p>💰 <strong>Cost:</strong> {prog.cost}</p>
-                            <p>🎓 <strong>Eligibility:</strong> {prog.eligibility}</p>
+                          {/* Key Program Details: Clean Key-Value Rows like My Profile & Skills */}
+                          <div className="space-y-0.5 text-xs">
+                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                Location
+                              </span>
+                              <span className="font-bold text-gray-800 truncate max-w-[58%] text-right" title={prog.location}>
+                                {prog.location}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                Duration
+                              </span>
+                              <span className="font-bold text-gray-800 text-right">
+                                {prog.trainingHours} hrs {(prog.startDate || prog.endDate) ? `(${formatProgramDateRange(prog.startDate, prog.endDate)})` : ""}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                                <Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                Program Cost
+                              </span>
+                              <span className="font-extrabold text-[#0A6B43] text-right">
+                                {prog.cost || "Free"}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                                <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                Eligibility
+                              </span>
+                              <span className="font-bold text-gray-800 truncate max-w-[58%] text-right" title={prog.eligibility}>
+                                {prog.eligibility || "Open to all KK Youth"}
+                              </span>
+                            </div>
                           </div>
 
+                          {/* Required Documents */}
                           {prog.requiredDocuments && prog.requiredDocuments.length > 0 && (
-                            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 space-y-1.5">
-                              <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                                📋 Required Documents Beforehand:
+                            <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 space-y-1.5">
+                              <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                Required Documents
                               </p>
-                              <ul className="list-disc pl-4 text-[10px] text-amber-800 space-y-0.5 font-semibold">
+                              <ul className="list-disc pl-4 text-xs text-amber-800 space-y-0.5 font-medium">
                                 {prog.requiredDocuments.map((doc, dIdx) => (
                                   <li key={dIdx}>{doc}</li>
                                 ))}
@@ -2380,12 +2453,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             </div>
                           )}
 
+                          {/* Overlap Warning */}
                           {(() => {
                             const overlapWarning = getOverlapWarning(prog);
                             if (overlapWarning) {
                               return (
-                                <div className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 font-semibold leading-relaxed">
-                                  ⚠️ <strong>Overlap Warning:</strong> {overlapWarning}
+                                <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                  <div className="space-y-0.5">
+                                    <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
+                                    <span>{overlapWarning}</span>
+                                  </div>
                                 </div>
                               );
                             }
@@ -2393,8 +2471,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           })()}
                         </div>
 
-                        <div className="flex justify-between items-center text-xs text-gray-500 pt-4 mt-6 border-t border-gray-100">
-                          <span>Slots: <strong>{prog.slotsRemaining}/{prog.slotsTotal}</strong> left</span>
+                        {/* Card Footer: Slots and Action Button */}
+                        <div className="flex justify-between items-center text-xs pt-4 mt-5 border-t border-gray-100">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-gray-500 font-medium">Slots:</span>
+                            <span className="font-bold text-gray-800 bg-gray-50 px-2.5 py-0.5 rounded-md border border-gray-200">
+                              {prog.slotsRemaining} / {prog.slotsTotal} left
+                            </span>
+                          </div>
                           {(() => {
                             const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
                             const isCompleted = isProgramCompleted(prog);
@@ -2409,18 +2493,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               return (
                                 <button
                                   disabled
-                                  className="text-xs font-extrabold px-3.5 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                  className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
                                   title="You have already completed this course and earned your certification"
                                 >
                                   <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
-                                  Already Completed ✓
+                                  Completed ✓
                                 </button>
                               );
                             }
 
                             if (isEnrolled) {
                               return (
-                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                                <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
                                   <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
                                   Enrolled
                                 </span>
@@ -2429,16 +2513,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                             if (isPending) {
                               return (
-                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                                <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
                                   <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                                  Application Pending
+                                  Pending
                                 </span>
                               );
                             }
 
                             if (isDeclined) {
                               return (
-                                <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
+                                <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
                                   <XCircle className="w-3.5 h-3.5 text-rose-500" />
                                   Declined
                                 </span>
@@ -2449,7 +2533,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               return (
                                 <button
                                   disabled
-                                  className="text-xs font-extrabold px-3.5 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                  className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
                                   title="This training program's term has ended or is closed"
                                 >
                                   <Clock className="w-3.5 h-3.5 text-purple-600" />
@@ -2462,7 +2546,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               return (
                                 <button
                                   disabled
-                                  className="text-xs font-bold px-3.5 py-2 rounded-lg bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                  className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
                                 >
                                   Slots Full
                                 </button>
@@ -2473,14 +2557,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               <button
                                 onClick={() => handleDirectApply(prog)}
                                 disabled={isUnverified || !!overlapWarning}
-                                className={`text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-xs ${isUnverified || !!overlapWarning
+                                className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${isUnverified || !!overlapWarning
                                   ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
                                   : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
                                   }`}
                                 title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
                               >
                                 <Send className="w-3.5 h-3.5" />
-                                Apply
+                                Apply Now
                               </button>
                             );
                           })()}
@@ -2666,35 +2750,44 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                                   {/* Program Details Overview Card */}
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white/95 p-4 rounded-xl border border-blue-150 shadow-2xs">
-                                    <div className="space-y-1.5">
-                                      <p className="text-gray-600">
-                                        🏢 <strong>Training Provider:</strong> <span className="text-gray-900 font-bold">{provider}</span>
+                                    <div className="space-y-2">
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <Briefcase className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Training Provider:</strong> <span className="text-gray-900 font-bold">{provider}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        📍 <strong>Location / Campus:</strong> <span className="text-gray-900 font-semibold">{location}</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Location / Campus:</strong> <span className="text-gray-900 font-semibold">{location}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        ⏱ <strong>Course Duration:</strong> <span className="text-gray-900 font-semibold">{trainingHours}{dateRange}</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Course Duration:</strong> <span className="text-gray-900 font-semibold">{trainingHours}{dateRange}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        💰 <strong>Program Cost:</strong> <span className="font-bold text-emerald-700">{program?.cost || "100% Free / Subsidized"}</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Program Cost:</strong> <span className="font-bold text-emerald-700">{program?.cost || "100% Free / Subsidized"}</span>
                                       </p>
                                     </div>
-                                    <div className="space-y-1.5">
-                                      <p className="text-gray-600">
-                                        📅 <strong>Class Schedule:</strong> <span className="text-gray-900 font-semibold">{scheduleDays}</span>
+                                    <div className="space-y-2">
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Class Schedule:</strong> <span className="text-gray-900 font-semibold">{scheduleDays}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        🕒 <strong>Training Hours:</strong> <span className="text-gray-900 font-semibold">{timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Training Hours:</strong> <span className="text-gray-900 font-semibold">{timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        🏢 <strong>Facility / Room:</strong> <span className="text-gray-900 font-semibold">{room}</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Facility / Room:</strong> <span className="text-gray-900 font-semibold">{room}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        👨‍🏫 <strong>Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold">{instructor}</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold">{instructor}</span>
                                       </p>
-                                      <p className="text-gray-600">
-                                        📞 <strong>Registrar Contact:</strong> <span className="text-gray-900 font-semibold">{contactPerson} ({contactNumber})</span>
+                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                        <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        <strong>Registrar Contact:</strong> <span className="text-gray-900 font-semibold">{contactPerson} ({contactNumber})</span>
                                       </p>
                                     </div>
                                   </div>
@@ -2702,7 +2795,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   {/* Action Required: Physical Documents for Verification */}
                                   <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-4 space-y-2.5 text-xs">
                                     <p className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
-                                      👉 Action Required to Complete Enrollment Verification:
+                                      <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      Action Required to Complete Enrollment Verification:
                                     </p>
                                     <p className="leading-relaxed font-medium text-amber-900">
                                       Please bring and submit the following physical requirements to the <strong>{provider} Admissions Office ({location})</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
@@ -4326,9 +4420,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     {viewingProgramModal.program.title}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1 font-medium flex items-center gap-2">
-                    <span>📍 {viewingProgramModal.program.location}</span>
+                    <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#0A6B43]" /> {viewingProgramModal.program.location}</span>
                     <span>•</span>
-                    <span>⏱ {viewingProgramModal.program.trainingHours} hours</span>
+                    <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#0A6B43]" /> {viewingProgramModal.program.trainingHours} hours</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -4392,11 +4486,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {/* Gemini AI Match Rationale */}
               <div className="bg-emerald-50/90 p-4 rounded-xl border border-emerald-200/80 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
                     Gemini AI Match Rationale
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-700">
+                  <span className="text-xs font-extrabold text-emerald-700">
                     {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% CBF Match Fit
                   </span>
                 </div>
@@ -4409,29 +4503,30 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
               {/* Complete Program Details Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-gray-50/80 p-4 rounded-xl border border-gray-150">
-                <div className="space-y-2">
-                  <p className="text-gray-700">⏱ <strong>Course Duration:</strong> {viewingProgramModal.program.trainingHours} Hours {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) ? `(${formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate)})` : ""}</p>
-                  <p className="text-gray-700">📅 <strong>Training Schedule:</strong> {formatTrainingDays(viewingProgramModal.program.trainingDays)}</p>
-                  <p className="text-gray-700">🕒 <strong>Timeslot & Session:</strong> {(() => {
+                <div className="space-y-2.5">
+                  <p className="text-gray-700 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Course Duration:</strong> {viewingProgramModal.program.trainingHours} Hours {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) ? `(${formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate)})` : ""}</p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Training Schedule:</strong> {formatTrainingDays(viewingProgramModal.program.trainingDays)}</p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Timeslot & Session:</strong> {(() => {
                     const ts = formatProgramTimeslot(viewingProgramModal.program.startTime, viewingProgramModal.program.endTime);
                     return `${ts.formattedRange}${ts.sessionType !== "Custom" ? ` (${ts.sessionType})` : ""}`;
                   })()}</p>
-                  <p className="text-gray-700">🏢 <strong>Facility / Room:</strong> {viewingProgramModal.program.room || "Main Training Facility"}</p>
-                  <p className="text-gray-700">👨‍🏫 <strong>Trainer / Instructor:</strong> {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}</p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Facility / Room:</strong> {viewingProgramModal.program.room || "Main Training Facility"}</p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Trainer / Instructor:</strong> {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}</p>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-gray-700">💰 <strong>Program Cost:</strong> <span className="font-extrabold text-emerald-700">{viewingProgramModal.program.cost || "100% Free / Subsidized"}</span></p>
-                  <p className="text-gray-700">👥 <strong>Available Slots:</strong> <span className="font-bold text-gray-900">{viewingProgramModal.program.slotsRemaining} / {viewingProgramModal.program.slotsTotal}</span> open</p>
-                  <p className="text-gray-700">📞 <strong>Contact Registrar:</strong> {viewingProgramModal.program.contactPerson || "TESDA Registrar"} ({viewingProgramModal.program.contactNumber || "N/A"})</p>
-                  <p className="text-gray-700">🎓 <strong>Eligibility:</strong> {viewingProgramModal.program.eligibility || "Open to all KK Youth"}</p>
+                <div className="space-y-2.5">
+                  <p className="text-gray-700 flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Program Cost:</strong> <span className="font-extrabold text-emerald-700">{viewingProgramModal.program.cost || "100% Free / Subsidized"}</span></p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Available Slots:</strong> <span className="font-bold text-gray-900">{viewingProgramModal.program.slotsRemaining} / {viewingProgramModal.program.slotsTotal}</span> open</p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Contact Registrar:</strong> {viewingProgramModal.program.contactPerson || "TESDA Registrar"} ({viewingProgramModal.program.contactNumber || "N/A"})</p>
+                  <p className="text-gray-700 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Eligibility:</strong> {viewingProgramModal.program.eligibility || "Open to all KK Youth"}</p>
                 </div>
               </div>
 
               {/* Physical Requirements */}
               {viewingProgramModal.program.requiredDocuments && viewingProgramModal.program.requiredDocuments.length > 0 && (
                 <div className="bg-amber-50/80 p-4 rounded-xl border border-amber-200/80 space-y-2">
-                  <p className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
-                    📋 Physical Requirements Needed Beforehand:
+                  <p className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    Physical Requirements Needed Beforehand
                   </p>
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-4 list-disc text-xs text-amber-900 font-medium">
                     {viewingProgramModal.program.requiredDocuments.map((doc, dIdx) => (
@@ -4444,8 +4539,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {/* Required Skills */}
               {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">
-                    💡 Recommended Prerequisite Competencies:
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                    Recommended Prerequisite Competencies
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {viewingProgramModal.program.requiredSkills.map((sk, sIdx) => (

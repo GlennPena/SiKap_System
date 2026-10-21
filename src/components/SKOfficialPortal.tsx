@@ -24,7 +24,7 @@ import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded } from "../lib/utils";
 import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 
 interface SKOfficialPortalProps {
@@ -148,6 +148,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -2309,22 +2310,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Dedicated Pending Approvals Card */}
-              <div className="bg-white border border-amber-200 rounded-xl shadow-xs p-3.5 sm:p-5">
+              <div className="bg-white border border-amber-200/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                   <div className="flex items-start sm:items-center gap-2.5">
-                    <span className="p-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 shrink-0 mt-0.5 sm:mt-0">
-                      <AlertTriangle className="w-4 h-4" />
+                    <span className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0 mt-0.5 sm:mt-0">
+                      <AlertTriangle className="w-5 h-5" />
                     </span>
                     <div>
-                      <h3 className="font-bold text-gray-800 text-sm">Pending Registrations</h3>
-                      <p className="text-xs text-gray-500">Youth self-registrations waiting for verification in your Barangay</p>
+                      <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Pending Registrations</h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Youth self-registrations waiting for verification in your Barangay</p>
                     </div>
                   </div>
                   <div className="flex items-center flex-wrap gap-2">
-                    <span className="text-xs border border-amber-200 bg-amber-50 text-amber-800 px-2.5 py-1 rounded-lg font-bold shrink-0">
+                    <span className="text-xs border border-amber-200 bg-amber-50 text-amber-800 px-3 py-1 rounded-xl font-bold shrink-0">
                       Scope: {designatedBarangay.startsWith("Barangay ") ? designatedBarangay : `Barangay ${designatedBarangay}`}
                     </span>
-                    <span className="text-xs bg-amber-100 border border-amber-300 text-amber-900 px-2.5 py-1 rounded-lg font-black shrink-0">
+                    <span className="text-xs bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1 rounded-xl font-black shrink-0">
                       {pendingProfiles.length} Awaiting
                     </span>
                   </div>
@@ -2380,7 +2381,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                            className="w-full py-2 bg-[#0A6B43] hover:bg-[#075332] text-white font-bold text-xs rounded-lg shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            className="w-full py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             Review & Verify Registration
@@ -2390,7 +2391,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
 
                     {/* Desktop & Tablet View: Structured Table (visible on sm+) */}
-                    <div className="hidden sm:block border border-gray-100 rounded-lg overflow-hidden bg-white">
+                    <div className="hidden sm:block border border-gray-150 rounded-xl overflow-hidden bg-white">
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-[550px] text-left text-xs border-collapse">
                           <thead>
@@ -2437,7 +2438,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                   <div className="flex items-center justify-center">
                                     <button
                                       onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                                      className="px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white font-bold text-[11px] rounded-lg shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                                      className="px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-[11px] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
                                       <Eye className="w-3.5 h-3.5" />
                                       View
@@ -2506,7 +2507,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     )}
                   </>
                 ) : (
-                  <div className="bg-emerald-50/30 border border-emerald-100 rounded-lg p-5 sm:p-6 text-center space-y-1.5">
+                  <div className="bg-emerald-50/30 border border-emerald-100 rounded-xl p-5 sm:p-6 text-center space-y-1.5">
                     <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-[#0A6B43] mx-auto" />
                     <p className="text-xs font-bold text-emerald-800">No Pending Approvals</p>
                     <p className="text-[11px] text-emerald-600 font-medium">All Katipunan ng Kabataan self-registered records have been reviewed and verified.</p>
@@ -2517,17 +2518,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* Two Column Section */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Recent Youth Registrations (60%) */}
-                <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-3.5 sm:p-5 lg:col-span-3">
-                  <div className="flex items-start sm:items-center justify-between gap-2 mb-3.5">
+                <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
+                  <div className="flex items-start sm:items-center justify-between gap-2 mb-1">
                     <div>
-                      <h3 className="font-bold text-gray-800 text-sm">Recent Youth Registrations</h3>
-                      <p className="text-xs text-gray-500">Katipunan ng Kabataan members profile updates</p>
+                      <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Recent Youth Registrations</h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Katipunan ng Kabataan members profile updates</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] text-gray-400 font-medium sm:hidden">Swipe ↔</span>
                       <button
                         onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                        className="text-xs font-semibold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap"
+                        className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap"
                       >
                         View all youth →
                       </button>
@@ -2606,11 +2607,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                 {/* Top Skills Gaps & Quick actions (40%) */}
                 <div className="space-y-6 lg:col-span-2">
-                  <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-5">
-                    <h3 className="font-bold text-gray-800 text-sm mb-3.5">Top Skills Gaps Identified</h3>
+                  <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
+                    <h3 className="font-extrabold text-gray-900 text-base tracking-tight mb-3.5">Top Skills Gaps Identified</h3>
                     <div className="space-y-3">
                       {localSkillsGaps.every(g => g.count === 0) ? (
-                        <div className="p-4 bg-emerald-50/40 border border-emerald-100/60 rounded-lg text-center space-y-1 my-1">
+                        <div className="p-4 bg-emerald-50/40 border border-emerald-100/60 rounded-xl text-center space-y-1 my-1">
                           <p className="text-xs font-bold text-emerald-800">No Critical Skills Gaps</p>
                           <p className="text-[10px] text-gray-500 font-medium leading-relaxed">All registered youth in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} have sufficient skill coverage for their preferred sectors.</p>
                         </div>
@@ -2642,48 +2643,48 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
                     <button
                       onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
-                      className="w-full mt-4 py-2 text-center border border-dashed border-emerald-200 hover:border-emerald-400 text-xs font-bold text-[#0A6B43] bg-emerald-50/20 hover:bg-emerald-50/50 rounded-lg transition-colors"
+                      className="w-full mt-4 py-2.5 text-center border border-dashed border-emerald-300 hover:border-emerald-500 text-xs font-bold text-[#0A6B43] bg-emerald-50/30 hover:bg-emerald-50/60 rounded-xl transition-colors cursor-pointer"
                     >
-                      View Skills Gap Reports
+                      View Skills Gap Reports →
                     </button>
                   </div>
 
-                  <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-5">
-                    <h3 className="font-bold text-gray-800 text-sm mb-3">Quick Actions</h3>
+                  <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
+                    <h3 className="font-extrabold text-gray-900 text-base tracking-tight mb-3">Quick Actions</h3>
                     <div className="grid grid-cols-1 gap-2.5">
                       <button
                         onClick={() => {
                           resetRegForm();
                           setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
                         }}
-                        className="w-full flex items-center justify-between p-3 border border-[#D1FAE5] hover:border-emerald-300 hover:bg-emerald-50/20 rounded-lg text-left transition-all"
+                        className="w-full flex items-center justify-between p-3.5 border border-emerald-100/80 hover:border-emerald-300 hover:bg-emerald-50/30 rounded-xl text-left transition-all shadow-2xs group cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-md bg-emerald-100 text-[#0A6B43]">
+                          <div className="p-2.5 rounded-xl bg-emerald-100 text-[#0A6B43] group-hover:scale-105 transition-transform">
                             <Plus className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-gray-800">Register Youth Profile</p>
-                            <p className="text-[10px] text-gray-400">Generate matches using AI</p>
+                            <p className="text-[14px] font-bold text-gray-900">Register Youth Profile</p>
+                            <p className="text-[10px] text-gray-400 font-medium">Generate matches using AI</p>
                           </div>
                         </div>
-                        <ArrowLeft className="w-3.5 h-3.5 rotate-180 text-gray-400" />
+                        <ArrowLeft className="w-3.5 h-3.5 rotate-180 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
                       </button>
 
                       <button
                         onClick={() => setShowAnnouncementModal(true)}
-                        className="w-full flex items-center justify-between p-3 border border-[#D1FAE5] hover:border-emerald-300 hover:bg-emerald-50/20 rounded-lg text-left transition-all"
+                        className="w-full flex items-center justify-between p-3.5 border border-amber-100/80 hover:border-amber-300 hover:bg-amber-50/30 rounded-xl text-left transition-all shadow-2xs group cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-md bg-amber-100 text-[#D97706]">
+                          <div className="p-2.5 rounded-xl bg-amber-100 text-[#D97706] group-hover:scale-105 transition-transform">
                             <Megaphone className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-gray-800">Post Announcement</p>
-                            <p className="text-[10px] text-gray-400">Sync with youth dashboards</p>
+                            <p className="text-[14px] font-bold text-gray-900">Post Announcement</p>
+                            <p className="text-[10px] text-gray-400 font-medium">Sync with youth dashboards</p>
                           </div>
                         </div>
-                        <ArrowLeft className="w-3.5 h-3.5 rotate-180 text-gray-400" />
+                        <ArrowLeft className="w-3.5 h-3.5 rotate-180 text-gray-400 group-hover:text-[#D97706] transition-colors" />
                       </button>
                     </div>
                   </div>
@@ -2717,7 +2718,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">KK Member Registry</h3>
+                  <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">KK Member Registry</h3>
                   <p className="text-xs text-gray-500 font-medium">
                     {localYouthProfiles.length} registered KK members · Barangay {designatedBarangay}, San Luis
                   </p>
@@ -2727,7 +2728,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     resetRegForm();
                     setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
                   }}
-                  className="bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-lg text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
+                  className="bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Register Youth
@@ -2735,7 +2736,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Filter Bar */}
-              <div className="bg-white p-4 border border-[#D1FAE5] rounded-xl shadow-xs flex flex-col md:flex-row gap-3">
+              <div className="bg-white p-4 sm:p-5 border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col md:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
                   <input
@@ -2743,7 +2744,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     placeholder="Search by name, skill, or purok…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -2819,17 +2820,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   {filteredProfiles.map((y) => (
                     <div
                       key={y.id}
-                      className="bg-white border border-[#D1FAE5] rounded-xl p-5 shadow-xs transition-all hover:shadow-md flex flex-col justify-between"
+                      className="bg-white border border-gray-100/80 rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] flex flex-col justify-between"
                       id={`youth-card-${y.id}`}
                     >
                       <div>
                         {/* Avatar & Header */}
                         <div className="flex items-start gap-3 mb-3.5">
-                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
                             {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                           </div>
                           <div className="min-w-0">
-                            <h4 className="font-bold text-gray-800 text-sm truncate leading-snug">{y.name}</h4>
+                            <h4 className="font-bold text-gray-900 text-base truncate leading-snug tracking-tight">{y.name}</h4>
                             <p className="text-xs text-gray-400 mt-0.5">
                               {y.gender ? `${y.gender} · ` : ""}{y.age} y/o · {y.purok}
                             </p>
@@ -2838,13 +2839,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                         {/* Status Pills */}
                         <div className="flex flex-wrap gap-1.5 mb-3.5">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${y.currentStatus === "Out-of-school"
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-xl uppercase tracking-wider ${y.currentStatus === "Out-of-school"
                             ? "bg-amber-50 text-amber-700 border border-amber-100"
                             : "bg-blue-50 text-blue-700 border border-blue-100"
                             }`}>
                             {y.currentStatus}
                           </span>
-                          <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-[#0A6B43] border border-emerald-100 rounded-full uppercase">
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-[#0A6B43] border border-emerald-100 rounded-xl uppercase">
                             {y.educationalAttainment}
                           </span>
                         </div>
@@ -2854,7 +2855,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key Competencies</span>
                           <div className="flex flex-wrap gap-1">
                             {y.skills.slice(0, 3).map((skill) => (
-                              <span key={skill} className="text-[10px] font-medium text-emerald-800 bg-emerald-50/60 px-2 py-0.5 rounded-full">
+                              <span key={skill} className="text-[10px] font-medium text-emerald-800 bg-emerald-50/60 px-2.5 py-0.5 rounded-xl">
                                 {skill}
                               </span>
                             ))}
@@ -2872,7 +2873,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <FlameMatchScore score={y.matchScore} hasPrograms={programs.length > 0} />
                         <button
                           onClick={() => handleViewProfile(y.id)}
-                          className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] px-3 py-1.5 hover:bg-emerald-50 rounded-lg transition-colors"
+                          className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] px-3.5 py-2 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
                         >
                           View Profile →
                         </button>
@@ -2898,9 +2899,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {selectedYouth.approvalStatus === "Pending" && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3.5 shadow-2xs">
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3.5 shadow-2xs">
                   <div className="flex items-start sm:items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0 mt-0.5 sm:mt-0">
+                    <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5 sm:mt-0">
                       <AlertTriangle className="w-5 h-5" />
                     </div>
                     <div>
@@ -2911,7 +2912,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 pt-1 md:pt-0 border-t border-amber-200/60 md:border-t-0">
                     <button
                       onClick={() => setVerifyingYouth(selectedYouth)}
-                      className="flex-1 sm:flex-none px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100/50 text-amber-800 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                      className="flex-1 sm:flex-none px-3.5 py-2 bg-white border border-amber-300 hover:bg-amber-100/50 text-amber-800 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Inspect ID
                     </button>
@@ -2920,7 +2921,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         handleApproveYouth(selectedYouth.id);
                         setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
                       }}
-                      className="flex-1 sm:flex-none px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
                     >
                       Approve Profile
                     </button>
@@ -2929,7 +2930,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         handleRejectYouth(selectedYouth.id);
                         setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
                       }}
-                      className="flex-1 sm:flex-none px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
                     >
                       Reject
                     </button>
@@ -2939,12 +2940,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
                 {/* Left Card: Youth Summary (40%) */}
-                <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-4 sm:p-6 lg:col-span-2 space-y-5">
+                <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-2 space-y-5">
                   <div className="flex flex-col items-center text-center pb-5 border-b border-gray-100">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-lg sm:text-xl mb-3 shadow-sm">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-lg sm:text-xl mb-3 shadow-sm">
                       {selectedYouth.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                     </div>
-                    <h3 className="text-base sm:text-lg font-bold text-gray-800 break-words">{selectedYouth.name}</h3>
+                    <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 break-words tracking-tight">{selectedYouth.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5 break-words">
                       {selectedYouth.gender ? `${selectedYouth.gender} · ` : ""}{selectedYouth.age} years old · {selectedYouth.purok}
                     </p>
@@ -3191,19 +3192,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   return (
                     <div className="lg:col-span-3 space-y-6">
                       {/* Section 1: Matched Opportunities (Shows applied programs + best matched unapplied program) */}
-                      <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-4 sm:p-5">
+                      <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
                         <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-3.5 mb-4">
                           <div className="min-w-0">
-                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-1.5 truncate">
+                            <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-1.5 truncate tracking-tight">
                               <Target className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
                               Matched Opportunities
                             </h3>
-                            <p className="text-[10px] text-gray-400">
+                            <p className="text-xs text-gray-400 font-medium mt-0.5">
                               Applied Courses & Top Compatibility Alignment
                             </p>
                           </div>
                           {displayedOpportunities.length > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded-full shrink-0">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2.5 py-0.5 rounded-full shrink-0">
                               {displayedOpportunities.length} {displayedOpportunities.length === 1 ? "Program" : "Programs"} Available
                             </span>
                           )}
@@ -3224,17 +3225,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             {displayedOpportunities.map((item) => (
                               <div
                                 key={item.id}
-                                className={`border rounded-xl p-3.5 sm:p-4 transition-all space-y-3 ${item.isBestMatchNotApplied
+                                className={`border rounded-xl p-4 transition-all space-y-3 ${item.isBestMatchNotApplied
                                   ? "bg-emerald-50/20 border-emerald-250 shadow-2xs hover:border-emerald-400"
                                   : "bg-gray-50 border-gray-150 hover:border-emerald-200"
                                   }`}
                               >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                                   <div className="min-w-0">
-                                    <h4 className="font-bold text-gray-800 text-xs sm:text-sm leading-snug break-words">
+                                    <h4 className="font-bold text-gray-900 text-sm sm:text-base leading-snug break-words">
                                       {item.title}
                                     </h4>
-                                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mt-0.5 truncate">
+                                    <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mt-0.5 truncate">
                                       {item.provider}
                                     </p>
                                   </div>
@@ -3284,17 +3285,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
 
                       {/* Section 2: Completed Training Programs (Shows concluded/graduated courses) */}
-                      <div className="bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-4 sm:p-5">
+                      <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
                           <div>
-                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
+                            <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-1.5 tracking-tight">
                               <Award className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
                               Completed Training Programs
                             </h3>
-                            <p className="text-[10px] text-gray-400">TESDA Certified Qualifications & Concluded Courses</p>
+                            <p className="text-xs text-gray-400 font-medium mt-0.5">TESDA Certified Qualifications & Concluded Courses</p>
                           </div>
                           {completedApplications.length > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded-full shrink-0">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2.5 py-0.5 rounded-full shrink-0">
                               {completedApplications.length} {completedApplications.length === 1 ? "Program" : "Programs"} Completed
                             </span>
                           )}
@@ -3382,22 +3383,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                  className="text-gray-400 hover:text-[#0A6B43]"
+                  className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:text-[#0A6B43] hover:bg-emerald-50/50 transition-all cursor-pointer"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 tracking-tight">Register New Youth Member</h2>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">Register New Youth Member</h2>
                   <p className="text-xs text-gray-500 font-medium">Encode Katipunan ng Kabataan members profile for skills assessment</p>
                 </div>
               </div>
 
               {/* Form Container */}
-              <div className="max-w-2xl mx-auto bg-white border border-[#D1FAE5] rounded-xl shadow-xs p-6 md:p-8 relative">
+              <div className="max-w-2xl mx-auto bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-6 md:p-8 relative">
 
                 {/* AI assessment overlay loader */}
                 {isRegistering && (
-                  <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-xl z-20 flex flex-col items-center justify-center text-center p-8">
+                  <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-2xl z-20 flex flex-col items-center justify-center text-center p-8">
                     <div className="w-16 h-16 rounded-full border-4 border-emerald-100 border-t-[#0A6B43] animate-spin mb-4" />
                     <h3 className="text-lg font-bold text-gray-800 mb-1">AI Matchmaking Active</h3>
                     <p className="text-sm text-gray-500 max-w-sm leading-relaxed mb-4">
@@ -3413,7 +3414,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                 {/* Success Overlay state */}
                 {showRegSuccess && (
-                  <div className="absolute inset-0 bg-white rounded-xl z-20 flex flex-col items-center justify-center text-center p-8">
+                  <div className="absolute inset-0 bg-white rounded-2xl z-20 flex flex-col items-center justify-center text-center p-8">
                     <div className="w-14 h-14 rounded-full bg-emerald-50 text-[#0A6B43] flex items-center justify-center mb-4 border border-emerald-100 shadow-xs">
                       <CheckCircle className="w-8 h-8 animate-bounce" />
                     </div>
@@ -3485,7 +3486,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         </p>
                       </div>
                     )}
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={() => {
                           if (newlyCreatedId) {
@@ -3495,13 +3496,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           }
                           setShowRegSuccess(false);
                         }}
-                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-semibold rounded-lg shadow-xs transition-all"
+                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                       >
                         View Matches & Pathway →
                       </button>
                       <button
                         onClick={resetRegForm}
-                        className="px-5 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-semibold rounded-lg transition-all"
+                        className="px-5 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer"
                       >
                         Add Another Profile
                       </button>
@@ -3810,13 +3811,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       type="button"
                       onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                      className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-lg transition-all"
+                      className="px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all flex items-center gap-2"
+                      className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
                     >
                       Register and Generate Matches
                     </button>
@@ -3852,7 +3853,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Search & Sector Filter Toolbar */}
-              <div className="bg-white border border-gray-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex-1 relative">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
                   <input
@@ -3885,7 +3886,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Grid lists / Empty State */}
               {filteredProgramsForSK.length === 0 ? (
-                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                   <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                     <Briefcase className="w-7 h-7" />
                   </div>
@@ -3909,7 +3910,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     return (
                       <div
                         key={prog.id}
-                        className="bg-white border border-gray-200/90 hover:border-emerald-300 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                        className="bg-white border border-gray-100/80 hover:border-emerald-300 rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between space-y-4"
                       >
                         <div className="space-y-3">
                           {/* Header: Provider badge + Sector */}
@@ -3936,7 +3937,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                           {/* Program Title */}
                           <div>
-                            <h3 className="font-extrabold text-gray-900 text-sm leading-snug">{prog.title}</h3>
+                            <h3 className="font-extrabold text-gray-900 text-base leading-snug tracking-tight">{prog.title}</h3>
                             {prog.eligibility && (
                               <p className="text-xs text-gray-500 font-medium mt-1 line-clamp-2 leading-relaxed">
                                 {prog.eligibility}
@@ -4043,9 +4044,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Header & Controls Toolbar */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Competency Diagnostics</h3>
+                  <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">Competency Diagnostics</h3>
                   <p className="text-xs text-gray-500 font-medium mt-0.5">
                     Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · Labor Market Alignment
                   </p>
@@ -4071,7 +4072,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       type="button"
                       onClick={handleExportSkillsGapExcel}
-                      className="flex-1 sm:flex-none justify-center bg-white hover:bg-gray-50 text-emerald-800 border border-emerald-300 px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                      className="flex-1 sm:flex-none justify-center bg-white hover:bg-gray-50 text-emerald-800 border border-emerald-300 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
                       title="Export Skills Gap Report to styled Excel spreadsheet (.xls)"
                     >
                       <Download className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -4080,7 +4081,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsSkillsGapReportModalOpen(true)}
-                      className="flex-1 sm:flex-none justify-center bg-[#0A6B43] hover:bg-[#075332] text-white px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                      className="flex-1 sm:flex-none justify-center bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
                       title="Generate printable Skills Gap Analytics report and PDF summary"
                     >
                       <Printer className="w-4 h-4 shrink-0" />
@@ -4091,7 +4092,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {localYouthProfiles.length === 0 ? (
-                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                   <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                     <BarChart2 className="w-7 h-7" />
                   </div>
@@ -4109,11 +4110,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     {(() => {
                       const crit = getSkillGapCriticality(mostCriticalGapItem.percentage, mostCriticalGapItem.count);
                       return (
-                        <div className={`bg-white border p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 transition-colors ${crit.level === "Critical" ? "border-red-200 hover:border-red-400" :
+                        <div className={`bg-white border p-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-start gap-3.5 sm:gap-4 transition-all hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] ${crit.level === "Critical" ? "border-red-200 hover:border-red-400" :
                           crit.level === "Moderate" ? "border-amber-200 hover:border-amber-400" :
-                            "border-[#D1FAE5] hover:border-emerald-300"
+                            "border-gray-100/80 hover:border-emerald-300"
                           }`}>
-                          <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 border flex items-center justify-center ${crit.level === "Critical" ? "bg-red-50 text-red-600 border-red-100" :
+                          <div className={`w-11 h-11 rounded-xl shrink-0 border flex items-center justify-center ${crit.level === "Critical" ? "bg-red-50 text-red-600 border-red-100" :
                             crit.level === "Moderate" ? "bg-amber-50 text-amber-700 border-amber-100" :
                               "bg-emerald-50 text-[#0A6B43] border-emerald-100"
                             }`}>
@@ -4129,10 +4130,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 {mostCriticalGapItem.percentage}% ({crit.level})
                               </span>
                             </div>
-                            <h4 className="font-extrabold text-gray-800 text-sm mt-0.5 truncate" title={mostCriticalGapItem.skill}>
+                            <h4 className="font-extrabold text-gray-900 text-base mt-0.5 truncate tracking-tight" title={mostCriticalGapItem.skill}>
                               {mostCriticalGapItem.skill}
                             </h4>
-                            <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed font-medium">
                               <strong>{mostCriticalGapItem.count}</strong> registered youth identified with this competency deficiency.
                             </p>
                           </div>
@@ -4140,8 +4141,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       );
                     })()}
 
-                    <div className="bg-white border border-[#D1FAE5] p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 hover:border-emerald-300 transition-colors">
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-[#0A6B43] shrink-0 border border-emerald-100 flex items-center justify-center">
+                    <div className="bg-white border border-gray-100/80 p-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-start gap-3.5 sm:gap-4 hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] hover:border-emerald-300 transition-all">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-50 text-[#0A6B43] shrink-0 border border-emerald-100 flex items-center justify-center">
                         <TrendingUp className="w-5 h-5 text-[#0A6B43]" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -4151,17 +4152,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             {highestSector.count} Youth
                           </span>
                         </div>
-                        <h4 className="font-extrabold text-gray-800 text-sm mt-0.5 truncate" title={highestSector.name}>
+                        <h4 className="font-extrabold text-gray-900 text-base mt-0.5 truncate tracking-tight" title={highestSector.name}>
                           {highestSector.name}
                         </h4>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed font-medium">
                           Expressed priority career interest from local Katipunan ng Kabataan members.
                         </p>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-[#D1FAE5] p-4 sm:p-5 rounded-2xl shadow-xs flex items-start gap-3 sm:gap-4 hover:border-red-300 transition-colors sm:col-span-2 md:col-span-1">
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-red-50 text-red-600 shrink-0 border border-red-100 flex items-center justify-center">
+                    <div className="bg-white border border-gray-100/80 p-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-start gap-3.5 sm:gap-4 hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] hover:border-red-300 transition-all sm:col-span-2 md:col-span-1">
+                      <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 shrink-0 border border-red-100 flex items-center justify-center">
                         <Users2 className="w-5 h-5 text-red-500" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -4171,10 +4172,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             {unmatchedCount} Unmatched
                           </span>
                         </div>
-                        <h4 className="font-extrabold text-gray-800 text-sm mt-0.5">
+                        <h4 className="font-extrabold text-gray-900 text-base mt-0.5 tracking-tight">
                           {unmatchedCount} KK Members
                         </h4>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed font-medium">
                           Requiring targeted TVET scholarship matching & direct application support.
                         </p>
                       </div>
@@ -4197,11 +4198,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 sm:gap-6">
                         {/* Competency Deficiency Analysis Card */}
-                        <div className="bg-white border border-[#D1FAE5] rounded-2xl shadow-xs p-4 sm:p-5 lg:col-span-3 space-y-4">
+                        <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 border-b border-gray-100 pb-3">
                             <div>
-                              <h3 className="font-bold text-gray-900 text-sm">Competency Deficiency Analysis</h3>
-                              <p className="text-[11px] text-gray-500 font-medium">Relative skill deficiency rates across registered youth</p>
+                              <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Competency Deficiency Analysis</h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">Relative skill deficiency rates across registered youth</p>
                             </div>
                             <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 uppercase tracking-wider self-start sm:self-auto">
                               {filteredGaps.length} {filteredGaps.length === 1 ? "Identified Gap" : "Identified Gaps"}
@@ -4238,7 +4239,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               {filteredGaps.map((gap) => {
                                 const crit = getSkillGapCriticality(gap.percentage, gap.count);
                                 return (
-                                  <div key={gap.skill} className="space-y-2 bg-gray-50/50 p-3 sm:p-3.5 rounded-xl border border-gray-150/80 hover:border-gray-250 transition-colors">
+                                  <div key={gap.skill} className="space-y-2 bg-gray-50/50 p-3.5 rounded-xl border border-gray-150/80 hover:border-gray-250 transition-colors">
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-bold text-gray-800 text-xs sm:text-sm leading-snug">{gap.skill}</span>
@@ -4275,16 +4276,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         </div>
 
                         {/* AI Strategic Policy Recommendations */}
-                        <div className="bg-white border border-[#D1FAE5] rounded-2xl shadow-xs p-4 sm:p-5 lg:col-span-2 space-y-4">
+                        <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-2 space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 border-b border-gray-100 pb-3">
                             <div>
-                              <h3 className="font-bold text-gray-900 text-sm">AI Policy Directives</h3>
-                              <p className="text-[11px] text-gray-500 font-medium">Strategic youth livelihood & TVET pathways</p>
+                              <h3 className="font-extrabold text-gray-900 text-base tracking-tight">AI Policy Directives</h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">Strategic youth livelihood & TVET pathways</p>
                             </div>
                             <button
                               onClick={handleGenerateAiPolicyReport}
                               disabled={isGeneratingAiReport}
-                              className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50 active:scale-98"
+                              className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50 active:scale-95"
                             >
                               <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                               <span>{isGeneratingAiReport ? "Analyzing..." : "Ask Gemini AI"}</span>
@@ -4359,76 +4360,15 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Action Toolbar */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Active Bulletins</h3>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                    {localAnnouncements.length} {localAnnouncements.length === 1 ? "Broadcast" : "Broadcasts"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingAnnouncementId(null);
-                    setAnnTitle("");
-                    setAnnBody("");
-                    setAnnEventDate("");
-                    setAnnEventDatePicker("");
-                    setAnnEventTimePicker("");
-                    setAnnVenue("");
-                    setAnnContactPerson("");
-                    setShowAnnouncementModal(true);
-                  }}
-                  className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span>Post Announcement</span>
-                </button>
-              </div>
-
-              {/* Search & Category Filter Toolbar */}
-              {localAnnouncements.length > 0 && (
-                <div className="bg-white border border-gray-200/90 rounded-2xl p-3 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
-                  <div className="flex-1 relative">
-                    <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      placeholder="Search announcements by title, content, venue, or contact..."
-                      value={annSearchQuery}
-                      onChange={(e) => setAnnSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                    />
-                  </div>
-                  <div className="w-full sm:w-48 shrink-0">
-                    <CustomSelect
-                      value={annCategoryFilter}
-                      onChange={(val) => setAnnCategoryFilter(val)}
-                      options={[
-                        { value: "All", label: `All Categories (${localAnnouncements.length})` },
-                        { value: "Program Update", label: "Program Update" },
-                        { value: "Event", label: "Event" },
-                        { value: "Reminder", label: "Reminder" },
-                        { value: "General", label: "General" }
-                      ]}
-                      size="sm"
-                      placeholder="All Categories"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Announcements cards / Empty State */}
-              {localAnnouncements.length === 0 ? (
-                <div className="bg-white border border-[#D1FAE5] rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
-                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
-                    <Megaphone className="w-7 h-7" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-extrabold text-gray-800 text-base">No SK Announcements Posted Yet</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                      There are currently no active announcements broadcast for <strong>Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</strong>. Click below to create your first announcement for local KK youth members.
-                    </p>
+              {/* Active Bulletins Card Container */}
+              <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                {/* Card Header Toolbar */}
+                <div className="p-4 sm:p-6 pb-0 sm:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[22px] font-extrabold text-gray-900 tracking-tight">Active Announcements</h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                      {localAnnouncements.length}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -4443,147 +4383,206 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       setAnnContactPerson("");
                       setShowAnnouncementModal(true);
                     }}
-                    className="inline-flex items-center gap-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-4 sm:px-5 py-2.5 rounded-xl text-[14px] font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
                   >
-                    <Plus className="w-4 h-4" />
-                    Post First Announcement
+                    <Plus className="w-4.5 h-4.5 shrink-0" />
+                    <span>Post Announcement</span>
                   </button>
                 </div>
-              ) : filteredAnnouncements.length === 0 ? (
-                <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center max-w-md mx-auto space-y-2 shadow-xs">
-                  <p className="text-sm font-bold text-gray-800">No Announcements Match Your Search</p>
-                  <p className="text-xs text-gray-500">Try adjusting your keyword search or category filter.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnnSearchQuery("");
-                      setAnnCategoryFilter("All");
-                    }}
-                    className="mt-2 text-xs font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                  >
-                    Reset Filters
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                  {filteredAnnouncements.map((ann) => {
-                    const isCancelled = ann.status === "Cancelled";
 
-                    return (
-                      <div
-                        key={ann.id}
-                        className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-xs transition-all flex flex-col justify-between space-y-4 ${isCancelled
-                          ? "border-red-200 bg-red-50/20"
-                          : "border-gray-200 hover:border-emerald-300"
-                          }`}
+                {/* Card Body */}
+                <div className="p-4 sm:p-6 space-y-5">
+                  {/* Search & Category Filter Toolbar */}
+                  {localAnnouncements.length > 0 && (
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
+                      <div className="flex-1 relative">
+                        <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+                        <input
+                          type="text"
+                          placeholder="Search announcements by title, content, venue, or contact..."
+                          value={annSearchQuery}
+                          onChange={(e) => setAnnSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                        />
+                      </div>
+                      <div className="w-full sm:w-48 shrink-0">
+                        <CustomSelect
+                          value={annCategoryFilter}
+                          onChange={(val) => setAnnCategoryFilter(val)}
+                          options={[
+                            { value: "All", label: `All Categories (${localAnnouncements.length})` },
+                            { value: "Program Update", label: "Program Update" },
+                            { value: "Event", label: "Event" },
+                            { value: "Reminder", label: "Reminder" },
+                            { value: "General", label: "General" }
+                          ]}
+                          size="sm"
+                          placeholder="All Categories"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Announcements cards / Empty State */}
+                  {localAnnouncements.length === 0 ? (
+                    <div className="py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                      {/* Green Illustrated Megaphone (No Lighting Effect) */}
+                      <div className="mx-auto flex items-center justify-center">
+                        <img
+                          src="/megaphone-green.png"
+                          alt="No Announcements Yet"
+                          className="w-24 h-24 sm:w-28 sm:h-28 object-contain transition-transform duration-300 hover:scale-105 select-none"
+                          draggable={false}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">
+                          No Announcements Yet
+                        </h3>
+                        <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                          Keep your KK youth updated by posting your first barangay announcement.
+                        </p>
+                      </div>
+                    </div>
+                  ) : filteredAnnouncements.length === 0 ? (
+                    <div className="py-10 text-center max-w-md mx-auto space-y-2">
+                      <Search className="w-8 h-8 text-gray-300 mx-auto" />
+                      <p className="text-sm font-bold text-gray-800">No Announcements Match Your Search</p>
+                      <p className="text-xs text-gray-500">Try adjusting your keyword search or category filter.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnnSearchQuery("");
+                          setAnnCategoryFilter("All");
+                        }}
+                        className="mt-2 text-xs font-bold text-[#0A6B43] hover:underline cursor-pointer"
                       >
-                        <div className="space-y-3">
-                          {/* Top row: Category, Status, Event, and Date Posted */}
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-2.5 border-b border-gray-100">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${ann.category === "Event"
-                                ? "bg-purple-50 text-purple-700 border-purple-200"
-                                : ann.category === "Reminder"
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : ann.category === "Program Update"
-                                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                                    : "bg-gray-100 text-gray-700 border-gray-200"
-                                }`}>
-                                {ann.category}
+                        Reset Filters
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                      {filteredAnnouncements.map((ann) => {
+                        const isCancelled = ann.status === "Cancelled";
+
+                        return (
+                          <div
+                            key={ann.id}
+                            className={`bg-white border rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-4 ${isCancelled
+                              ? "border-red-200 bg-red-50/20"
+                              : "border-gray-200/80 hover:border-emerald-200"
+                              }`}
+                          >
+                            <div className="space-y-3">
+                              {/* Top row: Category, Status, Event, and Date Posted */}
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-2.5 border-b border-gray-100">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${ann.category === "Event"
+                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                    : ann.category === "Reminder"
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : ann.category === "Program Update"
+                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                        : "bg-gray-100 text-gray-700 border-gray-200"
+                                    }`}>
+                                    {ann.category}
+                                  </span>
+
+                                  {isCancelled && (
+                                    <span className="text-[10px] font-black px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full uppercase tracking-wider">
+                                      Cancelled
+                                    </span>
+                                  )}
+
+                                  {ann.eventDate && (
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full flex items-center gap-1">
+                                      <Calendar className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                      <span>{ann.eventDate}</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <span className="text-[10px] text-gray-400 font-medium sm:text-right shrink-0">
+                                  Posted {ann.datePosted}
+                                </span>
+                              </div>
+
+                              {/* Title & Body */}
+                              <div>
+                                <h4 className={`font-extrabold text-base sm:text-lg leading-snug ${isCancelled ? "text-gray-600 line-through" : "text-gray-900"}`}>
+                                  {ann.title}
+                                </h4>
+                                <p className="text-xs text-gray-600 leading-relaxed mt-1.5 whitespace-pre-line font-normal">
+                                  {ann.body}
+                                </p>
+                              </div>
+
+                              {/* Venue & Contact Box */}
+                              {(ann.venue || ann.contactPerson) && (
+                                <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-150 space-y-1.5 text-xs">
+                                  {ann.venue && (
+                                    <div className="flex items-start gap-1.5 text-gray-700 font-medium">
+                                      <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                                      <span className="break-words">Venue: <strong className="text-gray-900">{ann.venue}</strong></span>
+                                    </div>
+                                  )}
+                                  {ann.contactPerson && (
+                                    <div className="flex items-start gap-1.5 text-gray-700 font-medium">
+                                      <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                                      <span className="break-words">Contact: <strong className="text-gray-900">{ann.contactPerson}</strong></span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer: Target Audience & Mobile-friendly Action Buttons */}
+                            <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
+                              <span className="text-[11px] text-gray-500 font-medium truncate">
+                                Target: <strong className="text-gray-800">{ann.audience}</strong>
                               </span>
 
-                              {isCancelled && (
-                                <span className="text-[10px] font-black px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full uppercase tracking-wider">
-                                  Cancelled
-                                </span>
-                              )}
-
-                              {ann.eventDate && (
-                                <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full flex items-center gap-1">
-                                  <Calendar className="w-3 h-3 text-[#0A6B43] shrink-0" />
-                                  <span>{ann.eventDate}</span>
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditAnnouncement(ann)}
+                                  className="p-2 rounded-xl bg-gray-50 hover:bg-emerald-50 text-gray-600 hover:text-[#0A6B43] border border-gray-200 transition-colors cursor-pointer active:scale-95"
+                                  title="Edit Announcement"
+                                  aria-label="Edit Announcement"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelAnnouncement(ann)}
+                                  className={`p-2 rounded-xl border transition-colors cursor-pointer active:scale-95 ${isCancelled
+                                    ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 hover:bg-emerald-100"
+                                    : "bg-gray-50 hover:bg-amber-50 text-gray-600 hover:text-amber-700 border-gray-200"
+                                    }`}
+                                  title={isCancelled ? "Reactivate Announcement" : "Cancel Announcement"}
+                                  aria-label={isCancelled ? "Reactivate Announcement" : "Cancel Announcement"}
+                                >
+                                  {isCancelled ? <RefreshCw className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAnnouncement(ann.id)}
+                                  className="p-2 rounded-xl bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-600 border border-gray-200 transition-colors cursor-pointer active:scale-95"
+                                  title="Permanently Delete Announcement"
+                                  aria-label="Delete Announcement"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-
-                            <span className="text-[10px] text-gray-400 font-medium sm:text-right shrink-0">
-                              Posted {ann.datePosted}
-                            </span>
                           </div>
-
-                          {/* Title & Body */}
-                          <div>
-                            <h4 className={`font-extrabold text-sm sm:text-base leading-snug ${isCancelled ? "text-gray-600 line-through" : "text-gray-900"}`}>
-                              {ann.title}
-                            </h4>
-                            <p className="text-xs text-gray-600 leading-relaxed mt-1.5 whitespace-pre-line font-normal">
-                              {ann.body}
-                            </p>
-                          </div>
-
-                          {/* Venue & Contact Box */}
-                          {(ann.venue || ann.contactPerson) && (
-                            <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-150 space-y-1.5 text-xs">
-                              {ann.venue && (
-                                <div className="flex items-start gap-1.5 text-gray-700 font-medium">
-                                  <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
-                                  <span className="break-words">Venue: <strong className="text-gray-900">{ann.venue}</strong></span>
-                                </div>
-                              )}
-                              {ann.contactPerson && (
-                                <div className="flex items-start gap-1.5 text-gray-700 font-medium">
-                                  <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
-                                  <span className="break-words">Contact: <strong className="text-gray-900">{ann.contactPerson}</strong></span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Card Footer: Target Audience & Mobile-friendly Action Buttons */}
-                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
-                          <span className="text-[11px] text-gray-500 font-medium truncate">
-                            Target: <strong className="text-gray-800">{ann.audience}</strong>
-                          </span>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditAnnouncement(ann)}
-                              className="p-2 rounded-lg bg-gray-50 hover:bg-emerald-50 text-gray-600 hover:text-[#0A6B43] border border-gray-200 transition-colors cursor-pointer active:scale-95"
-                              title="Edit Announcement"
-                              aria-label="Edit Announcement"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleCancelAnnouncement(ann)}
-                              className={`p-2 rounded-lg border transition-colors cursor-pointer active:scale-95 ${isCancelled
-                                ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 hover:bg-emerald-100"
-                                : "bg-gray-50 hover:bg-amber-50 text-gray-600 hover:text-amber-700 border-gray-200"
-                                }`}
-                              title={isCancelled ? "Reactivate Announcement" : "Cancel Announcement"}
-                              aria-label={isCancelled ? "Reactivate Announcement" : "Cancel Announcement"}
-                            >
-                              {isCancelled ? <RefreshCw className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAnnouncement(ann.id)}
-                              className="p-2 rounded-lg bg-gray-50 hover:bg-red-50 text-gray-600 hover:text-red-600 border border-gray-200 transition-colors cursor-pointer active:scale-95"
-                              title="Permanently Delete Announcement"
-                              aria-label="Delete Announcement"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -4611,378 +4610,513 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-150">
+              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                <div
+                  className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
+                >
                   {[
-                    { id: "profile", label: "Official Profile", icon: <User className="w-3.5 h-3.5 shrink-0" /> },
-                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
-                    { id: "preferences", label: "Alerts & Notifications", icon: <Bell className="w-3.5 h-3.5 shrink-0" /> },
-                    { id: "credentials", label: "Official SK Badge", icon: <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveSettingsTab(tab.id as any)}
-                      className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${activeSettingsTab === tab.id
-                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
-                        }`}
-                    >
-                      {tab.icon}
-                      <span>{tab.label}</span>
-                    </button>
-                  ))}
+                    { id: "profile", label: "Official Details", icon: User },
+                    { id: "security", label: "Security & Password", icon: Lock },
+                    { id: "preferences", label: "Alerts & Notifications", icon: Bell },
+                    { id: "credentials", label: "Digital ID Card", icon: ShieldCheck },
+                  ].map((tab) => {
+                    const isActive = activeSettingsTab === tab.id;
+                    const IconComponent = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveSettingsTab(tab.id as any)}
+                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${isActive
+                          ? "bg-[#0A6B43] text-white shadow-xs"
+                          : "bg-transparent text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/70"
+                          }`}
+                      >
+                        <IconComponent
+                          fill={isActive ? "currentColor" : "none"}
+                          className={`w-4 h-4 shrink-0 transition-all duration-200 ease-out ${isActive
+                            ? `text-white ${tab.id === "security"
+                              ? "[&>path]:fill-none"
+                              : tab.id === "credentials"
+                                ? "[&>path:last-child]:stroke-[#0A6B43] [&>path:last-child]:fill-none"
+                                : ""
+                            }`
+                            : "text-gray-500 hover:text-[#0A6B43]"
+                            }`}
+                        />
+                        <span className="transition-colors duration-200 ease-out">{tab.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Tab 1: Profile Information */}
-              {activeSettingsTab === "profile" && (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
-                  {/* Left Column: Form with View/Edit mode */}
-                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 space-y-6 shadow-xs">
+              <AnimatePresence mode="wait">
+                {/* Sub-Tab 1: Official Details Form */}
+                {activeSettingsTab === "profile" && (
+                  <motion.div
+                    key="profile"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="bg-white rounded-2xl p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] max-w-3xl"
+                  >
                     <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                          <User className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                          <span>Official Personal Profile</span>
+                      <div className="border-b border-gray-100 pb-3">
+                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                          <User className="w-4.5 h-4.5 text-[#0A6B43]" />
+                          Personal Demographics
                         </h3>
-                        {!isEditingProfile && (
+                      </div>
+
+                      {/* Section 1: Basic Information */}
+                      <div className="space-y-3.5">
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          Basic Information
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Full Name*</label>
+                            {isEditingProfile ? (
+                              <input
+                                type="text"
+                                required
+                                value={settingsName}
+                                onChange={(e) => setSettingsName(e.target.value)}
+                                className="w-full p-2.5 border rounded-lg text-sm font-medium transition-colors bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                disabled
+                                value={settingsName}
+                                className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Role/Position</label>
+                            <input
+                              type="text"
+                              disabled
+                              value={settingsPos}
+                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Email*</label>
+                            {isEditingProfile ? (
+                              <input
+                                type="email"
+                                required
+                                value={settingsEmail}
+                                onChange={(e) => setSettingsEmail(e.target.value)}
+                                className="w-full p-2.5 border rounded-lg text-sm font-medium transition-colors bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            ) : (
+                              <input
+                                type="email"
+                                disabled
+                                value={settingsEmail}
+                                className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number*</label>
+                            {isEditingProfile ? (
+                              <input
+                                type="text"
+                                required
+                                value={settingsPhone}
+                                onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
+                                className="w-full p-2.5 border rounded-lg text-sm font-medium transition-colors bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                disabled
+                                value={settingsPhone || "Not configured"}
+                                className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 2: Administrative Jurisdiction & Office Location */}
+                      <div className="space-y-3.5 pt-1">
+                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                          Location Details
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Barangay Jurisdiction</label>
+                            <input
+                              type="text"
+                              disabled
+                              value={`Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}`}
+                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Municipality</label>
+                            <input
+                              type="text"
+                              disabled
+                              value="San Luis"
+                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Province</label>
+                            <input
+                              type="text"
+                              disabled
+                              value="Pampanga"
+                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Form Buttons */}
+                      <div className="pt-2 flex justify-end gap-2.5">
+                        {isEditingProfile ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditingProfile(false);
+                                if (currentUser) {
+                                  setSettingsName(currentUser.name);
+                                  setSettingsEmail(currentUser.email);
+                                  setSettingsPos(officialPosition);
+                                }
+                              }}
+                              disabled={isSavingProfile}
+                              className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSavingProfile}
+                              className="px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332]"
+                            >
+                              {isSavingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                              Save Profile Changes
+                            </button>
+                          </>
+                        ) : (
                           <button
                             type="button"
                             onClick={() => setIsEditingProfile(true)}
-                            className="self-start sm:self-auto px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                            className="px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332]"
                           >
-                            <Edit className="w-3.5 h-3.5 shrink-0" />
-                            <span>Edit Profile Details</span>
+                            <Edit className="w-4 h-4" />
+                            Edit Profile Details
                           </button>
                         )}
                       </div>
+                    </form>
+                  </motion.div>
+                )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name *</label>
-                          {isEditingProfile ? (
-                            <input
-                              type="text"
-                              required
-                              value={settingsName}
-                              onChange={(e) => setSettingsName(e.target.value)}
-                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-900 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                            />
-                          ) : (
-                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-bold text-gray-900">
-                              {settingsName}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Position</label>
-                          <div className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs flex items-center justify-between">
-                            <span className="font-bold text-emerald-950">{settingsPos}</span>
-                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded">
-                              Verified Role
-                            </span>
-                          </div>
-                        </div>
+                {/* Sub-Tab 2: Security & Password */}
+                {activeSettingsTab === "security" && (
+                  <motion.div
+                    key="security"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] max-w-xl"
+                  >
+                    <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
+                      <div className="border-b border-gray-100 pb-3">
+                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                          <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
+                          Account Security & Password
+                        </h3>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Email Address *</label>
-                          {isEditingProfile ? (
-                            <input
-                              type="email"
-                              required
-                              value={settingsEmail}
-                              onChange={(e) => setSettingsEmail(e.target.value)}
-                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-800 focus:ring-1 focus:ring-emerald-500"
-                            />
-                          ) : (
-                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-mono font-medium text-gray-700">
-                              {settingsEmail}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Phone Number *</label>
-                          {isEditingProfile ? (
-                            <input
-                              type="text"
-                              required
-                              value={settingsPhone}
-                              onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
-                              className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500"
-                            />
-                          ) : (
-                            <p className="p-2.5 bg-gray-50 border border-gray-150 rounded-lg text-xs font-semibold text-gray-800">
-                              {settingsPhone || "Not configured"}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Barangay Jurisdiction */}
-                      <div className="space-y-3 pt-4 border-t border-gray-100">
-                        <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Barangay Jurisdiction & Location</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Barangay Zone</label>
-                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-emerald-900 font-bold rounded-lg text-xs">
-                              Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Municipality</label>
-                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-gray-700 font-semibold rounded-lg text-xs">
-                              San Luis
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Province</label>
-                            <div className="p-2.5 bg-gray-50 border border-gray-150 text-gray-700 font-semibold rounded-lg text-xs">
-                              Pampanga
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {isEditingProfile && (
-                        <div className="pt-2 flex justify-end gap-2.5 border-t border-gray-100">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password*</label>
+                        <div className="relative">
+                          <input
+                            type={showCurrentPass ? "text" : "password"}
+                            required
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            placeholder="Enter current password..."
+                            className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          />
                           <button
                             type="button"
-                            onClick={() => setIsEditingProfile(false)}
-                            className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                            onClick={() => setShowCurrentPass(!showCurrentPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                           >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={isSavingProfile}
-                            className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-2"
-                          >
-                            {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            Save Profile Changes
+                            {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
-                      )}
-                    </form>
-                  </div>
-
-                  {/* Right Column: Authority & Verification Card */}
-                  <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4 text-xs">
-                      <div>
-                        <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                          Administrative Status & Authority
-                        </h4>
                       </div>
 
-                      <div className="space-y-2.5">
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Official Status:</span>
-                          <span className="font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border bg-emerald-50 text-[#0A6B43] border-emerald-200">
-                            Verified SK Official ✓
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password*</label>
+                        <div className="relative">
+                          <input
+                            type={showNewPass ? "text" : "password"}
+                            required
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Enter new password (min. 6 characters)..."
+                            className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPass(!showNewPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                          >
+                            {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password*</label>
+                        <div className="relative">
+                          <input
+                            type={showConfirmPass ? "text" : "password"}
+                            required
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Re-type new password..."
+                            className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPass(!showConfirmPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                          >
+                            {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isChangingPassword}
+                          className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          {isChangingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                          Update Account Password
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+
+
+
+                {/* Sub-Tab 3: System Notifications */}
+                {activeSettingsTab === "preferences" && (
+                  <motion.div
+                    key="preferences"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="w-full max-w-[740px]"
+                  >
+                    <NotificationSettingsCard
+                      userRole="SK_OFFICIAL"
+                      userEmail={settingsEmail || currentUser?.email}
+                      addToast={addToast}
+                      className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
+                    />
+                  </motion.div>
+                )}
+
+                {/* Sub-Tab 4: Official SK Digital ID Card */}
+                {activeSettingsTab === "credentials" && (
+                  <motion.div
+                    key="credentials"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="space-y-6 max-w-2xl"
+                  >
+                    <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                      <div className="border-b border-gray-100 pb-3">
+                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                          <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                          Official SK Digital ID Card
+                        </h3>
+                        <p className="text-sm text-gray-400 font-medium mt-0.5">
+                          Official Sangguniang Kabataan identification credential for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
+                        </p>
+                      </div>
+
+                      {/* Official Digital ID Card */}
+                      <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
+                        {/* Top Section: Organization Header */}
+                        <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
+                          {/* Left Logo: Municipality of San Luis Seal */}
+                          <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                            <img
+                              src="/san-luis-seal.png"
+                              alt="Municipality of San Luis Seal"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+
+                          {/* Centered Institutional Information */}
+                          <div className="text-center flex-1 px-1 min-w-0">
+                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                              Republic of the Philippines
+                            </p>
+                            <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
+                              Municipality of San Luis
+                            </p>
+                            <p className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-[#0A6B43] leading-tight">
+                              Province of Pampanga
+                            </p>
+                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                              Sangguniang Kabataan
+                            </p>
+                          </div>
+
+                          {/* Right Logo: Sangguniang Kabataan */}
+                          <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                            <img
+                              src="/sk-logo.png"
+                              alt="Sangguniang Kabataan Logo"
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Second Section: Full-Width Title Bar */}
+                        <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
+                          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
+                            Sangguniang Kabataan Official ID Card
                           </span>
                         </div>
 
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Designated Barangay:</span>
-                          <span className="font-extrabold text-gray-800">Brgy. {designatedBarangay.replace(/^Barangay\s+/i, "")}</span>
+                        {/* Main Content Area: Two Columns */}
+                        <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
+                          {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
+                          <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
+                            <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-emerald-600/30 bg-gradient-to-tr from-[#082D21] to-[#0A6B43] flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-black text-lg sm:text-xl">
+                                {settingsName
+                                  ? settingsName
+                                    .split(" ")
+                                    .filter(Boolean)
+                                    .map((n) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .slice(0, 2)
+                                  : "SK"}
+                              </div>
+                              <span className="text-[9px] font-extrabold text-white/90 uppercase tracking-wider mt-1.5">Official Photo</span>
+                            </div>
+
+                            {/* ID Number in one row without ellipsis */}
+                            <div className="mt-2 text-center w-full">
+                              <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
+                                ID: {`SK-SL-${designatedBarangay.replace(/^Barangay\s+/i, "").toUpperCase().slice(0, 3)}-${String(currentUser?.id || "001").toUpperCase().slice(-4)}`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Right Column: Official Information in compact rows and columns */}
+                          <div className="flex-1 w-full space-y-2.5 min-w-0">
+                            {/* Official Name */}
+                            <div className="border-b border-gray-100 pb-1.5">
+                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Official Name</span>
+                              <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
+                                {settingsName}
+                              </h4>
+                            </div>
+
+                            {/* Designation & Phone Number */}
+                            <div className="grid grid-cols-12 gap-2">
+                              <div className="col-span-7 min-w-0">
+                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Position</span>
+                                <span className="text-xs font-black text-[#0A6B43] block truncate mt-0.5">
+                                  {settingsPos}
+                                </span>
+                              </div>
+
+                              <div className="col-span-5 min-w-0">
+                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone</span>
+                                <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                                  {settingsPhone || "N/A"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Official Email */}
+                            <div>
+                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">System Email</span>
+                              <span className="text-xs font-mono font-medium text-gray-800 block truncate mt-0.5">
+                                {settingsEmail}
+                              </span>
+                            </div>
+
+                            {/* Jurisdiction Address */}
+                            <div className="border-t border-gray-100 pt-1.5">
+                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Jurisdiction Office</span>
+                              <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
+                                Barangay Hall, Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Registered KK Youth:</span>
-                          <span className="font-bold text-gray-800">{localYouthProfiles.length} Youth Records</span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Council Roster:</span>
-                          <span className="font-bold text-gray-800">{localCouncilors.length + 1} / 12 Authorized Leaders</span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">System Clearance:</span>
-                          <span className="font-bold text-[#0A6B43]">Tier 2 Administrative Access</span>
+                        {/* Bottom Status Clearance Strip */}
+                        <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="text-[10px] uppercase tracking-wider">Clearance Status:</span>
+                            <span className="font-semibold text-gray-800 text-[11px] truncate">Tier 2 Administrative Authority</span>
+                          </div>
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
+                            Active Leader ✓
+                          </span>
                         </div>
                       </div>
 
-                      <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-[11px] text-emerald-950 font-medium space-y-1">
-                        <p className="font-bold flex items-center gap-1.5 text-[#0A6B43]">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          SK Reform Act Compliant
-                        </p>
-                        <p className="text-[10px] text-gray-600 leading-relaxed">
-                          Authorized under Republic Act No. 10742 to conduct Katipunan ng Kabataan profiling, endorsements, and skills-matching activities.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: Security & Password */}
-              {activeSettingsTab === "security" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-4 sm:p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
-                  <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
-                        <span>Account Security & Password</span>
-                      </h3>
-                      <p className="text-xs text-gray-400 font-medium mt-1 leading-relaxed">Update your login password to ensure security of administrative access</p>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
-                      <p className="font-bold flex items-center gap-1.5">
-                        <ShieldAlert className="w-4 h-4 text-amber-600" />
-                        Password Security Notice
-                      </p>
-                      <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                        Your password must be at least 6 characters long. Keep your official administrative credentials confidential.
-                      </p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase block">Current Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPass ? "text" : "password"}
-                          required
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Enter current password..."
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
-                        />
+                      {/* Action Button: Moved to Bottom Right */}
+                      <div className="flex justify-end pt-3 w-full">
                         <button
-                          type="button"
-                          onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
+                          onClick={() => {
+                            const fullIdStr = `SK-SL-${designatedBarangay.replace(/^Barangay\s+/i, "").toUpperCase().slice(0, 3)}-${String(currentUser?.id || "001").toUpperCase().slice(-4)}`;
+                            navigator.clipboard?.writeText(
+                              `Sangguniang Kabataan Official Digital ID Card:\nName: ${settingsName.toUpperCase()}\nPosition: ${settingsPos}\nID: ${fullIdStr}\nEmail: ${settingsEmail}\nPhone: ${settingsPhone || "N/A"}\nJurisdiction: Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga\nClearance: Tier 2 Administrative Authority (Active)`
+                            );
+                            addToast("Official Digital ID Card information copied to clipboard!", "success");
+                          }}
+                          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
-                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          <Copy className="w-4 h-4 text-[#0A6B43]" />
+                          Copy Digital ID Info
                         </button>
                       </div>
                     </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase block">New Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showNewPass ? "text" : "password"}
-                          required
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Enter new password (min. 6 characters)..."
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase block">Confirm New Password *</label>
-                      <input
-                        type="password"
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Re-type new password..."
-                        className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center gap-2"
-                      >
-                        {isChangingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-                        Update Account Password
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* Tab 3: System Notifications */}
-              {activeSettingsTab === "preferences" && (
-                <div className="max-w-2xl animate-in fade-in duration-150">
-                  <NotificationSettingsCard
-                    userRole="SK_OFFICIAL"
-                    userEmail={settingsEmail || (currentUser as any)?.email}
-                    addToast={addToast}
-                  />
-                </div>
-              )}
-
-              {/* Tab 4: Official Jurisdiction ID Badge */}
-              {activeSettingsTab === "credentials" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-4 sm:p-6 space-y-5 max-w-lg animate-in fade-in duration-150">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                      <span>Official Jurisdiction Credentials Badge</span>
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium mt-1 leading-relaxed">Official SK Administrative Badge recognized across municipal systems</p>
-                  </div>
-
-                  {/* ID Badge Card */}
-                  <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-5 shadow-lg border border-emerald-700/50 space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <span className="text-[9px] font-black uppercase text-[#D99427] tracking-widest block">Republic of the Philippines</span>
-                        <h4 className="text-sm font-extrabold tracking-tight text-white">Sangguniang Kabataan Official</h4>
-                        <p className="text-[10px] text-emerald-200 font-bold">Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · San Luis, Pampanga</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-black text-sm text-white">
-                        SK
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Official Name</span>
-                        <span className="font-extrabold text-white text-sm">{settingsName}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Designation</span>
-                        <span className="font-extrabold text-[#D99427]">{settingsPos}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">System Email</span>
-                        <span className="font-mono text-[11px] text-emerald-100 truncate block">{settingsEmail}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Account Authority</span>
-                        <span className="font-bold text-emerald-200 flex items-center gap-1 text-[11px]">
-                          <CheckCircle className="w-3 h-3 text-emerald-400" /> Verified Active
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(
-                          `SK Official Administrative Credentials:\nName: ${settingsName}\nPosition: ${settingsPos}\nBarangay: Barangay ${designatedBarangay}\nEmail: ${settingsEmail}\nStatus: Verified Active SK Official`
-                        );
-                        addToast("Official credentials copied to clipboard!", "success");
-                      }}
-                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
-                      Copy Official Badge Credentials
-                    </button>
-                  </div>
-                </div>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -5010,7 +5144,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Action Toolbar with Scope & Controls */}
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 sm:gap-4 bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 sm:gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                     Barangay Governance
@@ -5075,7 +5209,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* Newly Created Councilor Credentials Callout Banner */}
               {createdCouncilorAccount && (
-                <div className="bg-gradient-to-r from-emerald-950 via-[#164132] to-[#0D2E22] rounded-xl sm:rounded-2xl p-4 sm:p-5 text-white shadow-md border border-emerald-500/40 relative animate-in fade-in slide-in-from-top-3 duration-200">
+                <div className="bg-gradient-to-r from-emerald-950 via-[#164132] to-[#0D2E22] rounded-2xl p-5 sm:p-6 text-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-emerald-500/40 relative animate-in fade-in slide-in-from-top-3 duration-200">
                   <button
                     onClick={() => setCreatedCouncilorAccount(null)}
                     className="absolute top-3 right-3 text-emerald-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
@@ -5124,9 +5258,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               )}
 
               {/* Executive Stat Cards Grid (Responsive 2x2 on Mobile, 4-col on Desktop) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* Stat 1: Total Members */}
-                <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-2 sm:space-y-3">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Council Roster</span>
                     <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0">
@@ -5151,7 +5285,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
 
                 {/* Stat 2: Active Officials */}
-                <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-2 sm:space-y-3">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Active Officials</span>
                     <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100 shrink-0">
@@ -5173,7 +5307,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
 
                 {/* Stat 3: Appointees */}
-                <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-2 sm:space-y-3">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Appointees</span>
                     <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100 shrink-0">
@@ -5200,7 +5334,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
 
                 {/* Stat 4: Presiding Officer */}
-                <div className="bg-linear-to-br from-emerald-950 to-[#1C2B20] text-white rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-2 sm:space-y-3 border border-emerald-800/40">
+                <div className="bg-linear-to-br from-emerald-950 to-[#1C2B20] text-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3 border border-emerald-800/40">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300 uppercase tracking-wider truncate">Presiding Officer</span>
                     <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-800/60 text-amber-400 flex items-center justify-center border border-emerald-700/50 shrink-0">
@@ -5222,7 +5356,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Filters & Search Toolbar */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-150 shadow-xs space-y-3">
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-3">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                   {/* Search Bar */}
                   <div className="relative flex-1 max-w-md">
@@ -5289,7 +5423,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* Councilors Roster View / Empty States */}
               {localCouncilors.length === 0 ? (
                 /* Primary Empty State */
-                <div className="bg-white border border-[#D1FAE5] rounded-xl sm:rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto shadow-2xs">
                     <Users2 className="w-7 h-7 sm:w-8 sm:h-8" />
                   </div>
@@ -5315,7 +5449,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               ) : filteredCouncilors.length === 0 ? (
                 /* Filter Result Empty State */
-                <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-8 sm:p-10 text-center max-w-md mx-auto space-y-3 shadow-xs">
+                <div className="bg-white border border-gray-100/80 rounded-2xl p-8 sm:p-10 text-center max-w-md mx-auto space-y-3 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                   <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 mx-auto">
                     <Search className="w-6 h-6" />
                   </div>
@@ -5329,7 +5463,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       setCouncilorRoleFilter("All");
                       setCouncilorStatusFilter("All");
                     }}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
                   >
                     Reset All Filters
                   </button>
@@ -5357,7 +5491,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     return (
                       <div
                         key={c.id}
-                        className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 sm:space-y-4 group"
+                        className="bg-white border border-gray-100/80 rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] hover:border-emerald-200 transition-all flex flex-col justify-between space-y-4 group"
                       >
                         <div className="space-y-3">
                           {/* Card Header: Role Badge + Status Indicator */}
@@ -5380,7 +5514,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               {initials}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <h3 className="font-extrabold text-gray-900 text-sm truncate group-hover:text-[#0A6B43] transition-colors" title={c.name}>
+                              <h3 className="font-extrabold text-gray-900 text-base truncate group-hover:text-[#0A6B43] transition-colors" title={c.name}>
                                 {c.name}
                               </h3>
                               <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
@@ -5436,7 +5570,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
                           <button
                             onClick={() => handleToggleCouncilorStatus(c.id)}
-                            className={`flex-1 h-8 py-1 text-[11px] font-bold rounded-lg border transition-all uppercase cursor-pointer active:scale-95 ${c.status === "Active"
+                            className={`flex-1 h-8 py-1 text-[11px] font-bold rounded-xl border transition-all uppercase cursor-pointer active:scale-95 ${c.status === "Active"
                               ? "border-amber-200 text-amber-700 bg-amber-50/60 hover:bg-amber-100/70"
                               : "border-emerald-200 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/70"
                               }`}
@@ -5454,14 +5588,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 setEditCouncilorRole(c.role || "SK Councilor");
                                 setIsEditCouncilorOpen(true);
                               }}
-                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 border border-gray-200 rounded-lg transition-colors cursor-pointer active:scale-95"
+                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 border border-gray-200 rounded-xl transition-colors cursor-pointer active:scale-95"
                               title="Edit Member Details"
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleDeleteCouncilor(c.id)}
-                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors cursor-pointer active:scale-95"
+                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-xl transition-colors cursor-pointer active:scale-95"
                               title="Remove Official from Team"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -5474,7 +5608,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               ) : (
                 /* TABLE VIEW */
-                <div className="bg-white border border-gray-150 rounded-xl sm:rounded-2xl overflow-hidden shadow-xs">
+                <div className="bg-white border border-gray-100/80 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                   {/* Mobile Swipe Hint */}
                   <div className="sm:hidden px-3.5 py-1.5 bg-emerald-50/60 border-b border-emerald-100/70 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
                     <span className="flex items-center gap-1.5">
@@ -5631,27 +5765,27 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* Status & Scope Toolbar */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Verification Queue</h3>
+                  <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">Verification Queue</h3>
                   <span className="bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full shadow-2xs">
                     {pendingProfiles.length} Awaiting
                   </span>
                 </div>
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   <span className="text-xs text-gray-500 font-bold">Barangay Scope:</span>
-                  <span className="text-xs border border-[#D1FAE5] bg-emerald-50 text-emerald-800 rounded-lg px-2.5 py-1.5 font-bold shadow-3xs">
+                  <span className="text-xs border border-emerald-200 bg-emerald-50 text-emerald-800 rounded-xl px-3 py-1.5 font-bold shadow-3xs">
                     {designatedBarangay.startsWith("Barangay ") ? designatedBarangay : `Barangay ${designatedBarangay}`}
                   </span>
                 </div>
               </div>
 
               {/* Pending Approvals Table Card */}
-              <div className="bg-white border border-[#D1FAE5] rounded-xl overflow-hidden shadow-xs">
+              <div className="bg-white border border-gray-100/80 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                 {pendingProfiles.length > 0 ? (
                   <>
                     {/* Search & Counter Toolbar */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 sm:p-4 bg-gray-50/70 border-b border-gray-150">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 sm:p-4 bg-gray-50/70 border-b border-gray-150">
                       <div className="relative flex-1 max-w-sm">
-                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           placeholder="Search pending by name, purok, or ID..."
@@ -5660,7 +5794,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             setPendingSearchQuery(e.target.value);
                             setPendingApprovalsPage(1);
                           }}
-                          className="w-full pl-8 pr-8 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                          className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
                         />
                         {pendingSearchQuery && (
                           <button
@@ -5722,7 +5856,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                       {y.name ? y.name.charAt(0).toUpperCase() : "Y"}
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="font-bold text-gray-900 text-xs sm:text-sm">{y.name}</div>
+                                      <div className="font-extrabold text-gray-900 text-xs sm:text-sm">{y.name}</div>
                                       <div className="text-[10px] text-gray-400 font-normal">{y.email || "No email"}</div>
                                     </div>
                                   </div>
@@ -5734,7 +5868,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                   <div className="text-[10px] text-[#0A6B43] font-bold mt-0.5">{y.barangay}</div>
                                 </td>
                                 <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                  <span className="inline-block bg-emerald-50 text-[#0A6B43] border border-emerald-100 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                                  <span className="inline-block bg-emerald-50 text-[#0A6B43] border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] font-semibold">
                                     {y.educationalAttainment}
                                   </span>
                                 </td>
@@ -5757,7 +5891,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 <td className="px-3.5 py-3 sm:p-4 min-w-[160px] max-w-[220px]">
                                   {y.livelihoodGoal && y.livelihoodGoal.length > 20 ? (
                                     <div>
-                                      <p className={expandedAspirations[`p-${y.id}`] ? "text-xs font-medium text-gray-800 leading-relaxed bg-emerald-50/70 p-2 rounded-lg border border-emerald-200/80 my-1 shadow-2xs" : "text-xs font-semibold text-gray-700"}>
+                                      <p className={expandedAspirations[`p-${y.id}`] ? "text-xs font-medium text-gray-800 leading-relaxed bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/80 my-1 shadow-2xs" : "text-xs font-semibold text-gray-700"}>
                                         {expandedAspirations[`p-${y.id}`] ? y.livelihoodGoal : `${y.livelihoodGoal.slice(0, 20)}...`}
                                       </p>
                                       <button
@@ -5778,14 +5912,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     <div className="flex flex-col gap-1 sm:gap-1.5">
                                       <button
                                         onClick={() => setViewingPendingYouthModal(y)}
-                                        className="w-24 sm:w-28 h-6.5 sm:h-7 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold rounded-lg text-[9.5px] sm:text-[10px] shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                        className="w-24 sm:w-28 h-7 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold rounded-xl text-[9.5px] sm:text-[10px] shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer"
                                         title="View full Katipunan ng Kabataan member profile details"
                                       >
                                         <Eye className="w-3 sm:w-3.5 h-3 sm:h-3.5" /> View Profile
                                       </button>
                                       <button
                                         onClick={() => setVerifyingYouth(y)}
-                                        className="w-24 sm:w-28 h-6.5 sm:h-7 bg-sky-50 text-sky-700 hover:bg-sky-100 active:scale-95 border border-sky-200/80 font-bold rounded-lg text-[9.5px] sm:text-[10px] transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                                        className="w-24 sm:w-28 h-7 bg-sky-50 text-sky-700 hover:bg-sky-100 active:scale-95 border border-sky-200/80 font-bold rounded-xl text-[9.5px] sm:text-[10px] transition-colors flex items-center justify-center gap-1 cursor-pointer"
                                         title="Inspect uploaded ID documents and attestations"
                                       >
                                         <ShieldCheck className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-sky-600" /> Inspect ID
@@ -5799,14 +5933,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     <div className="flex flex-col gap-1 sm:gap-1.5">
                                       <button
                                         onClick={() => handleApproveYouth(y.id)}
-                                        className="w-20 sm:w-24 h-6.5 sm:h-7 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg text-[9.5px] sm:text-[10px] shadow-2xs transition-all uppercase tracking-wide flex items-center justify-center cursor-pointer"
+                                        className="w-20 sm:w-24 h-7 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-[9.5px] sm:text-[10px] shadow-2xs transition-all uppercase tracking-wide flex items-center justify-center cursor-pointer"
                                         title="Approve youth registration"
                                       >
                                         Approve
                                       </button>
                                       <button
                                         onClick={() => handleRejectYouth(y.id)}
-                                        className="w-20 sm:w-24 h-6.5 sm:h-7 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold rounded-lg text-[9.5px] sm:text-[10px] shadow-2xs transition-all uppercase tracking-wide flex items-center justify-center cursor-pointer"
+                                        className="w-20 sm:w-24 h-7 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold rounded-xl text-[9.5px] sm:text-[10px] shadow-2xs transition-all uppercase tracking-wide flex items-center justify-center cursor-pointer"
                                         title="Reject youth registration"
                                       >
                                         Reject
@@ -5830,7 +5964,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             setPendingSearchQuery("");
                             setPendingApprovalsPage(1);
                           }}
-                          className="mt-1 px-3 py-1 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                          className="mt-1 px-3 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
                         >
                           Clear Search Filter
                         </button>
@@ -5851,7 +5985,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             type="button"
                             disabled={currentPendingApprovalPage === 1}
                             onClick={() => setPendingApprovalsPage((p) => Math.max(1, p - 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === 1
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === 1
                               ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
                               : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
                               }`}
@@ -5875,7 +6009,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setPendingApprovalsPage(page)}
-                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${currentPendingApprovalPage === page
+                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${currentPendingApprovalPage === page
                                       ? "bg-[#0A6B43] text-white shadow-xs"
                                       : "text-gray-600 hover:bg-emerald-50 hover:text-[#0A6B43] border border-transparent hover:border-emerald-200"
                                       }`}
@@ -5890,7 +6024,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             type="button"
                             disabled={currentPendingApprovalPage === totalPendingApprovalPages}
                             onClick={() => setPendingApprovalsPage((p) => Math.min(totalPendingApprovalPages, p + 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === totalPendingApprovalPages
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === totalPendingApprovalPages
                               ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
                               : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
                               }`}
@@ -5905,7 +6039,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 ) : (
                   <div className="p-12 text-center max-w-md mx-auto space-y-3">
                     <CheckCircle className="w-12 h-12 text-[#0A6B43] mx-auto" />
-                    <h3 className="font-bold text-gray-800 text-sm">Roster Completely Verified</h3>
+                    <h3 className="font-extrabold text-gray-800 text-base">Roster Completely Verified</h3>
                     <p className="text-xs text-gray-500 leading-relaxed font-medium">
                       All self-registering Katipunan ng Kabataan members in Barangay {designatedBarangay} have been successfully approved and cleared.
                     </p>
@@ -6335,16 +6469,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       {/* KK Member ID Verification Modal */}
       {verifyingYouth && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in overflow-hidden">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-emerald-100 w-full max-w-lg max-h-[92vh] flex flex-col p-4 sm:p-6 animate-in zoom-in-95 duration-150 text-xs font-semibold">
+          <div className="bg-white rounded-2xl shadow-2xl border border-emerald-100 w-full max-w-lg max-h-[92vh] flex flex-col p-5 sm:p-6 animate-in zoom-in-95 duration-150 text-xs font-semibold">
             {/* Header */}
             <div className="flex justify-between items-center pb-3 border-b border-gray-100 mb-3 sm:mb-4 shrink-0">
-              <h3 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#0A6B43] shrink-0" />
                 Katipunan ng Kabataan ID Verification
               </h3>
               <button
                 onClick={() => setVerifyingYouth(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
                 title="Close"
               >
                 <X className="w-5 h-5" />
@@ -6354,7 +6488,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             {/* Scrollable Body Content */}
             <div className="space-y-3.5 sm:space-y-4 text-left flex-1 overflow-y-auto custom-scrollbar pr-1">
               {/* Member Core Details */}
-              <div className="bg-gray-50 p-3 sm:p-3.5 rounded-xl border border-gray-150 space-y-2">
+              <div className="bg-gray-50 p-3.5 sm:p-4 rounded-xl border border-gray-150 space-y-2">
                 <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Member Personal Information</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-x-4 sm:gap-y-1.5 text-gray-700">
                   <div>
@@ -6395,7 +6529,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <img
                         src={verifyingYouth.verificationIdImage}
                         alt="KK Verification Document proof"
-                        className="max-h-44 sm:max-h-56 rounded-lg shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white"
+                        className="max-h-44 sm:max-h-56 rounded-xl shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
@@ -6448,7 +6582,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <button
                 type="button"
                 onClick={() => setVerifyingYouth(null)}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-lg transition-colors cursor-pointer order-last sm:order-first"
+                className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer order-last sm:order-first"
               >
                 Close
               </button>
@@ -6459,7 +6593,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     handleRejectYouth(verifyingYouth.id);
                     setVerifyingYouth(null);
                   }}
-                  className="px-3.5 py-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center"
+                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center"
                 >
                   Reject & Deny
                 </button>
@@ -6469,7 +6603,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     handleApproveYouth(verifyingYouth.id);
                     setVerifyingYouth(null);
                   }}
-                  className="px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center"
+                  className="px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center"
                 >
                   Approve Member
                 </button>
@@ -6482,7 +6616,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       {/* Pending Youth Member Profile Preview Modal */}
       {viewingPendingYouthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in overflow-hidden">
-          <div className="bg-white rounded-xl sm:rounded-2xl max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-emerald-100 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-emerald-100 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-3.5 shrink-0">
               <div className="flex items-center gap-2 sm:gap-2.5">
@@ -6490,13 +6624,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   <User className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-gray-900 text-sm sm:text-base truncate">Pending Youth Profile</h3>
+                  <h3 className="font-extrabold text-gray-900 text-sm sm:text-base truncate">Pending Youth Profile</h3>
                   <p className="text-[11px] sm:text-xs text-gray-500 font-medium truncate">Self-registration record awaiting verification</p>
                 </div>
               </div>
               <button
                 onClick={() => setViewingPendingYouthModal(null)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
+                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
                 title="Close"
               >
                 <X className="w-5 h-5" />
@@ -6596,7 +6730,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <button
                 type="button"
                 onClick={() => setViewingPendingYouthModal(null)}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-lg transition-colors cursor-pointer order-last sm:order-first"
+                className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer order-last sm:order-first"
               >
                 Close Preview
               </button>
@@ -6607,7 +6741,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     setVerifyingYouth(viewingPendingYouthModal);
                     setViewingPendingYouthModal(null);
                   }}
-                  className="px-2 sm:px-3.5 py-2 bg-sky-50 text-sky-700 hover:bg-sky-100 active:scale-95 border border-sky-200 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  className="px-2 sm:px-3.5 py-2.5 bg-sky-50 text-sky-700 hover:bg-sky-100 active:scale-95 border border-sky-200 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                   title="Inspect ID Document"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-sky-600 shrink-0" />
@@ -6619,7 +6753,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     handleRejectYouth(viewingPendingYouthModal.id);
                     setViewingPendingYouthModal(null);
                   }}
-                  className="px-2 sm:px-3.5 py-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate"
+                  className="px-2 sm:px-3.5 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate"
                 >
                   Reject
                 </button>
@@ -6629,7 +6763,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     handleApproveYouth(viewingPendingYouthModal.id);
                     setViewingPendingYouthModal(null);
                   }}
-                  className="px-2 sm:px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate"
+                  className="px-2 sm:px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate"
                 >
                   Approve
                 </button>

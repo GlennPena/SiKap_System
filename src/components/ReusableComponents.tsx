@@ -87,13 +87,13 @@ export const MetricCard: React.FC<{
   const currentTheme = themes[accent];
 
   return (
-    <div className={`bg-white p-3 sm:p-5 rounded-xl border ${currentTheme.border} transition-all duration-200 hover:shadow-md ${currentTheme.shadow} flex items-start justify-between gap-2`} id={`metric-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+    <div className={`bg-white p-4 sm:p-5 rounded-2xl border ${currentTheme.border} transition-all duration-200 hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-start justify-between gap-2`} id={`metric-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <div className="min-w-0 flex-1">
-        <span title={title} className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-0.5 sm:mb-1 truncate">{title}</span>
-        <h3 className="text-2xl sm:text-3xl font-bold text-gray-800 tracking-tight leading-none mb-1 sm:mb-1.5">{value}</h3>
-        <span title={typeof subtitle === "string" ? subtitle : undefined} className="text-[10px] sm:text-xs text-gray-500 block truncate">{subtitle}</span>
+        <span title={title} className="text-xs font-bold uppercase tracking-wider text-gray-400 block mb-1 truncate">{title}</span>
+        <h3 className="text-2xl sm:text-3xl font-black text-gray-800 tracking-tight leading-none mb-1.5">{value}</h3>
+        <span title={typeof subtitle === "string" ? subtitle : undefined} className="text-xs text-gray-500 font-medium block truncate">{subtitle}</span>
       </div>
-      <div className={`p-1.5 sm:p-2.5 rounded-lg shrink-0 ${currentTheme.bg} ${currentTheme.text}`}>
+      <div className={`p-2 sm:p-2.5 rounded-xl shrink-0 ${currentTheme.bg} ${currentTheme.text}`}>
         {icon}
       </div>
     </div>
