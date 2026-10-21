@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell, UserCheck, Briefcase, Award, TrendingUp } from "lucide-react";
+import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell, UserCheck, Briefcase, Award, TrendingUp, MapPin, Timer, Coins, Users, Sun, Moon } from "lucide-react";
 import { TESDAProgram } from "../types";
 import { getProgramFullSchedule, formatProgramDateRange } from "../lib/cbf-matcher";
 import { motion, AnimatePresence } from "motion/react";
@@ -264,8 +264,14 @@ export const ConfirmationModal: React.FC<{
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs" id="confirmation-modal">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-150 border border-emerald-50">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+        id="confirmation-modal"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onCancel?.();
+        }}
+      >
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200 ease-out border border-emerald-50">
           <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
           <p className="text-sm text-gray-500 mb-6 leading-relaxed">{description}</p>
           <div className="flex justify-end gap-3">
@@ -591,17 +597,20 @@ export const OpportunityCard: React.FC<{
             }`}>
             {program.type}
           </span>
-          <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            📍 {program.location?.includes("PTC") ? "TESDA GPSAT Campus" : (program.location || "San Luis Satellite")}
+          <span className="text-[11px] text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+            <span>{program.location?.includes("PTC") ? "TESDA GPSAT Campus" : (program.location || "San Luis Satellite")}</span>
           </span>
           <span className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
             <Clock className="w-3 h-3 text-[#0A6B43]" /> {getProgramFullSchedule(program)}
           </span>
-          <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            ⏱ {program.trainingHours} hours {(program.startDate || program.endDate) ? `(${formatProgramDateRange(program.startDate, program.endDate)})` : ""}
+          <span className="text-[11px] text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Timer className="w-3 h-3 text-gray-400 shrink-0" />
+            <span>{program.trainingHours} hours {(program.startDate || program.endDate) ? `(${formatProgramDateRange(program.startDate, program.endDate)})` : ""}</span>
           </span>
-          <span className="text-[11px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            💰 {program.cost}
+          <span className="text-[11px] text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Coins className="w-3 h-3 text-gray-400 shrink-0" />
+            <span>{program.cost}</span>
           </span>
         </div>
 
@@ -630,8 +639,9 @@ export const OpportunityCard: React.FC<{
       </div>
 
       <div className="mt-4 pt-3.5 border-t border-gray-50 flex items-center justify-between gap-3">
-        <span className="text-xs text-gray-400 font-medium">
-          👥 {program.youthMatched} matches identified
+        <span className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <span>{program.youthMatched} matches identified</span>
         </span>
         {onAction && (
           <button
@@ -1432,26 +1442,29 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
                 <button
                   type="button"
                   onClick={() => handlePresetSelect(8, 0)}
-                  className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer truncate"
+                  className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 truncate"
                   title="8:00 AM (Morning)"
                 >
-                  🌅 8:00 AM
+                  <Sun className="w-3 h-3 text-amber-600 shrink-0" />
+                  <span>8:00 AM</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handlePresetSelect(13, 0)}
-                  className="px-1.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer truncate"
+                  className="px-1.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 truncate"
                   title="1:00 PM (Afternoon)"
                 >
-                  ☀️ 1:00 PM
+                  <Sun className="w-3 h-3 text-blue-600 shrink-0" />
+                  <span>1:00 PM</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handlePresetSelect(17, 30)}
-                  className="px-1.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer truncate"
+                  className="px-1.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 truncate"
                   title="5:30 PM (Evening)"
                 >
-                  🌙 5:30 PM
+                  <Moon className="w-3 h-3 text-purple-600 shrink-0" />
+                  <span>5:30 PM</span>
                 </button>
               </div>
             </div>

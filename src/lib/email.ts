@@ -43,7 +43,7 @@ export async function sendEmail({
 
   if (!transporter) {
     console.log("\n=======================================================");
-    console.log("📨 [EMAIL PREVIEW - SMTP NOT CONFIGURED]");
+    console.log("[EMAIL PREVIEW - SMTP NOT CONFIGURED]");
     console.log(`To: ${recipients}`);
     console.log(`From: ${emailFrom}`);
     console.log(`Subject: ${subject}`);
@@ -170,7 +170,7 @@ export function buildReferralStatusEmail(params: {
   let subject = "";
 
   if (params.status === "Enrolled") {
-    subject = `🎉 Application Approved: ${params.programTitle}`;
+    subject = `Application Approved: ${params.programTitle}`;
     statusBadge = `<span style="background-color: #DCFCE7; color: #15803D; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">Accepted / Enrolled</span>`;
     message = `
       <p>Congratulations, <strong>${params.youthName}</strong>!</p>
@@ -222,7 +222,7 @@ export function buildNewRegistrationEmail(params: {
   currentStatus: string;
 }): { subject: string; html: string; text: string } {
   const appUrl = getAppUrl();
-  const subject = `📋 New KK Youth Registered: ${params.youthName} (${params.barangayName})`;
+  const subject = `New KK Youth Registered: ${params.youthName} (${params.barangayName})`;
 
   const html = wrapEmailTemplate(
     "New KK Youth Self-Registration",
@@ -268,7 +268,7 @@ export function buildAnnouncementEmail(params: {
   barangayName?: string;
 }): { subject: string; html: string; text: string } {
   const appUrl = getAppUrl();
-  const subject = `📢 Announcement: ${params.title}`;
+  const subject = `Announcement: ${params.title}`;
 
   const html = wrapEmailTemplate(
     params.title,
@@ -300,7 +300,7 @@ export function buildPasswordResetEmail(params: {
   expiresInMinutes: number;
 }): { subject: string; html: string; text: string } {
   const appUrl = getAppUrl();
-  const subject = `🔐 Password Recovery Verification Code: ${params.resetCode}`;
+  const subject = `Password Recovery Verification Code: ${params.resetCode}`;
 
   const html = wrapEmailTemplate(
     "Password Recovery Request",

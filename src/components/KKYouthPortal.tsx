@@ -6,7 +6,9 @@ import {
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
   BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
-  Tag, Compass, FileText, Layers, Activity, Menu, Loader2
+  Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
+  ClipboardList, Timer, Building2, UserCheck, Coins, Users,
+  TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload
 } from "lucide-react";
 import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
@@ -71,6 +73,160 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [selectedProgramToApply, setSelectedProgramToApply] = useState<TESDAProgram | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
+
+  // Profile Picture state and local caching helper
+  const getProfilePictureStorageKey = () => {
+    const id = youthProfile?.id || currentUser?.id || currentUser?.email || "active_youth";
+    return `sikap_profile_photo_${id}`;
+  };
+
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string>(() => {
+    if (youthProfile?.profilePicture) return youthProfile.profilePicture;
+    if (typeof window !== "undefined") {
+      try {
+        const id = youthProfile?.id || currentUser?.id || currentUser?.email || "active_youth";
+        const cached = localStorage.getItem(`sikap_profile_photo_${id}`);
+        if (cached) return cached;
+      } catch { }
+    }
+    return "";
+  });
+
+  const [isUploadingPic, setIsUploadingPic] = useState(false);
+
+  useEffect(() => {
+    if (youthProfile?.profilePicture) {
+      setProfilePictureUrl(youthProfile.profilePicture);
+    } else if (typeof window !== "undefined") {
+      try {
+        const id = youthProfile?.id || currentUser?.id || currentUser?.email || "active_youth";
+        const cached = localStorage.getItem(`sikap_profile_photo_${id}`);
+        if (cached) setProfilePictureUrl(cached);
+      } catch { }
+    }
+  }, [youthProfile?.profilePicture, youthProfile?.id]);
+
+  const compressProfileImage = (file: File, maxDim = 400, quality = 0.85): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(e.target?.result as string);
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      addToast("Please select a valid image file (JPG, PNG, WebP).", "error");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      addToast("Image size must be less than 10MB.", "error");
+      return;
+    }
+
+    setIsUploadingPic(true);
+    try {
+      const compressedDataUrl = await compressProfileImage(file, 400, 0.85);
+      setProfilePictureUrl(compressedDataUrl);
+
+      // Cache locally
+      const storageKey = getProfilePictureStorageKey();
+      try {
+        localStorage.setItem(storageKey, compressedDataUrl);
+      } catch { }
+
+      // Update in database
+      if (youthProfile.id && youthProfile.id !== "empty-youth-profile") {
+        const res = await fetch("/api/youth", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: youthProfile.id,
+            profilePicture: compressedDataUrl
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setYouthProfiles((prev) =>
+            prev.map((y) => (y.id === youthProfile.id ? { ...y, profilePicture: compressedDataUrl } : y))
+          );
+          addToast("Profile picture updated successfully!", "success");
+        } else {
+          addToast("Profile picture saved locally.", "info");
+        }
+      } else {
+        addToast("Profile picture updated!", "success");
+      }
+    } catch (err: any) {
+      console.error("Profile picture upload error:", err);
+      addToast("Failed to upload profile picture.", "error");
+    } finally {
+      setIsUploadingPic(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveProfilePicture = async () => {
+    setIsUploadingPic(true);
+    try {
+      setProfilePictureUrl("");
+      const storageKey = getProfilePictureStorageKey();
+      try {
+        localStorage.removeItem(storageKey);
+      } catch { }
+
+      if (youthProfile.id && youthProfile.id !== "empty-youth-profile") {
+        await fetch("/api/youth", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: youthProfile.id,
+            profilePicture: ""
+          })
+        });
+        setYouthProfiles((prev) =>
+          prev.map((y) => (y.id === youthProfile.id ? { ...y, profilePicture: "" } : y))
+        );
+      }
+      addToast("Profile picture removed.", "info");
+    } catch (err) {
+      console.error("Error removing profile picture:", err);
+      addToast("Failed to remove profile picture.", "error");
+    } finally {
+      setIsUploadingPic(false);
+    }
+  };
 
   // Helper to get all relevant storage keys for the active youth user
   const getStorageKeys = () => {
@@ -251,6 +407,30 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       }
     }
     if (obj && typeof obj === "object" && (obj.roadmapTitle || obj.summary)) {
+      const parsedTl: GeminiLongTermCareerPlan | undefined = obj.translatedPlanTl && typeof obj.translatedPlanTl === "object" && (obj.translatedPlanTl.roadmapTitle || obj.translatedPlanTl.summary)
+        ? {
+          roadmapTitle: obj.translatedPlanTl.roadmapTitle || "Plano para sa Trabaho at Negosyo",
+          summary: obj.translatedPlanTl.summary || "",
+          targetGoal: obj.translatedPlanTl.targetGoal || "",
+          programTitle: obj.translatedPlanTl.programTitle || "",
+          immediate30Days: Array.isArray(obj.translatedPlanTl.immediate30Days) ? obj.translatedPlanTl.immediate30Days : [],
+          employmentTrack: {
+            targetRoles: Array.isArray(obj.translatedPlanTl.employmentTrack?.targetRoles) ? obj.translatedPlanTl.employmentTrack.targetRoles : [],
+            targetLocations: obj.translatedPlanTl.employmentTrack?.targetLocations || "",
+            estimatedSalary: obj.translatedPlanTl.employmentTrack?.estimatedSalary || "",
+            actionSteps: Array.isArray(obj.translatedPlanTl.employmentTrack?.actionSteps) ? obj.translatedPlanTl.employmentTrack.actionSteps : []
+          },
+          entrepreneurshipTrack: {
+            businessConcept: obj.translatedPlanTl.entrepreneurshipTrack?.businessConcept || "",
+            starterFunding: obj.translatedPlanTl.entrepreneurshipTrack?.starterFunding || "",
+            initialServices: Array.isArray(obj.translatedPlanTl.entrepreneurshipTrack?.initialServices) ? obj.translatedPlanTl.entrepreneurshipTrack.initialServices : []
+          },
+          longTerm1To2Years: Array.isArray(obj.translatedPlanTl.longTerm1To2Years) ? obj.translatedPlanTl.longTerm1To2Years : [],
+          localSupportContacts: Array.isArray(obj.translatedPlanTl.localSupportContacts) ? obj.translatedPlanTl.localSupportContacts : [],
+          generatedDate: obj.translatedPlanTl.generatedDate || ""
+        }
+        : undefined;
+
       return {
         roadmapTitle: obj.roadmapTitle || "Post-Graduation Career Roadmap",
         summary: obj.summary || "Tailored career development and livelihood roadmap.",
@@ -270,8 +450,34 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         },
         longTerm1To2Years: Array.isArray(obj.longTerm1To2Years) ? obj.longTerm1To2Years : [],
         localSupportContacts: Array.isArray(obj.localSupportContacts) ? obj.localSupportContacts : ["SK Federation Livelihood Desk (San Luis, Pampanga)", "San Luis PESO Office"],
-        generatedDate: obj.generatedDate || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        generatedDate: obj.generatedDate || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+        translatedPlanTl: parsedTl
       };
+    }
+    return null;
+  };
+
+  // Helper to extract cached/saved Tagalog plan from database object or localStorage
+  const getInitialTagalogPlan = (): GeminiLongTermCareerPlan | null => {
+    // 1. From database youthProfile.savedCareerPlan
+    if (youthProfile.savedCareerPlan) {
+      const parsedDb = parseCareerPlan(youthProfile.savedCareerPlan);
+      if (parsedDb?.translatedPlanTl) {
+        return parsedDb.translatedPlanTl;
+      }
+    }
+    // 2. From localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = (youthProfile.name && localStorage.getItem(`sikap_career_plan_tl_${youthProfile.name}`))
+          || (youthProfile.id && localStorage.getItem(`sikap_career_plan_tl_${youthProfile.id}`));
+        if (rawLocal) {
+          const parsedLocal = parseCareerPlan(JSON.parse(rawLocal));
+          if (parsedLocal) return parsedLocal;
+        }
+      } catch (e) {
+        console.warn("Failed to read local career plan translation:", e);
+      }
     }
     return null;
   };
@@ -282,7 +488,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [generatedPlan, setGeneratedPlan] = useState<GeminiLongTermCareerPlan | null>(currentSavedPlan);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
   const [careerPlanLang, setCareerPlanLang] = useState<"en" | "tl">("en");
-  const [translatedPlanTl, setTranslatedPlanTl] = useState<GeminiLongTermCareerPlan | null>(null);
+  const [translatedPlanTl, setTranslatedPlanTl] = useState<GeminiLongTermCareerPlan | null>(() => getInitialTagalogPlan());
   const [isTranslatingPlan, setIsTranslatingPlan] = useState<boolean>(false);
 
   const handleToggleCareerPlanLang = async (lang: "en" | "tl") => {
@@ -291,8 +497,38 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return;
     }
     setCareerPlanLang("tl");
+
+    // 1. If we already have the translation loaded in React state, use it instantly (0 tokens)
+    if (translatedPlanTl) {
+      return;
+    }
+
+    // 2. Check if database already has the translation
     const plan = currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || generatedPlan;
-    if (plan && !translatedPlanTl) {
+    if (plan?.translatedPlanTl) {
+      setTranslatedPlanTl(plan.translatedPlanTl);
+      return;
+    }
+
+    // 3. Check localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = (youthProfile.name && localStorage.getItem(`sikap_career_plan_tl_${youthProfile.name}`))
+          || (youthProfile.id && localStorage.getItem(`sikap_career_plan_tl_${youthProfile.id}`));
+        if (rawLocal) {
+          const parsedLocal = parseCareerPlan(JSON.parse(rawLocal));
+          if (parsedLocal) {
+            setTranslatedPlanTl(parsedLocal);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed reading local translation:", e);
+      }
+    }
+
+    // 4. Only if NO translation exists anywhere, generate via Gemini API once
+    if (plan) {
       const fallback = getFallbackTagalogCareerPlan(plan, youthProfile);
       setTranslatedPlanTl(fallback);
 
@@ -308,7 +544,37 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         });
         const data = await res.json();
         if (data.success && data.data) {
-          setTranslatedPlanTl(data.data);
+          const newTranslatedPlan = parseCareerPlan(data.data) || data.data;
+          setTranslatedPlanTl(newTranslatedPlan);
+
+          // Save to localStorage immediately
+          if (typeof window !== "undefined") {
+            if (youthProfile.name) localStorage.setItem(`sikap_career_plan_tl_${youthProfile.name}`, JSON.stringify(newTranslatedPlan));
+            if (youthProfile.id) localStorage.setItem(`sikap_career_plan_tl_${youthProfile.id}`, JSON.stringify(newTranslatedPlan));
+          }
+
+          // Persist directly to deployed PostgreSQL database under savedCareerPlan
+          const fullPlanWithTranslation: GeminiLongTermCareerPlan = {
+            ...plan,
+            translatedPlanTl: newTranslatedPlan
+          };
+          try {
+            const saveRes = await fetch("/api/youth", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                id: youthProfile.id,
+                savedCareerPlan: fullPlanWithTranslation
+              })
+            });
+            const saveData = await saveRes.json();
+            if (saveData.success) {
+              setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: fullPlanWithTranslation } : y));
+              setGeneratedPlan(fullPlanWithTranslation);
+            }
+          } catch (dbErr) {
+            console.error("Failed to save translated plan to database:", dbErr);
+          }
         }
       } catch (err) {
         console.warn("Using local Tagalog translation fallback for career plan:", err);
@@ -326,11 +592,26 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         localStorage.setItem(`sikap_career_plan_${youthProfile.name}`, JSON.stringify(parsed));
         if (youthProfile.id) localStorage.setItem(`sikap_career_plan_${youthProfile.id}`, JSON.stringify(parsed));
       }
+      // If database plan includes Tagalog translation, sync it to state & localStorage
+      if (parsed.translatedPlanTl) {
+        setTranslatedPlanTl(parsed.translatedPlanTl);
+        if (typeof window !== "undefined") {
+          if (youthProfile.name) localStorage.setItem(`sikap_career_plan_tl_${youthProfile.name}`, JSON.stringify(parsed.translatedPlanTl));
+          if (youthProfile.id) localStorage.setItem(`sikap_career_plan_tl_${youthProfile.id}`, JSON.stringify(parsed.translatedPlanTl));
+        }
+      }
     } else {
       setGeneratedPlan(null);
+      setTranslatedPlanTl(null);
       if (typeof window !== "undefined") {
-        if (youthProfile.name) localStorage.removeItem(`sikap_career_plan_${youthProfile.name}`);
-        if (youthProfile.id) localStorage.removeItem(`sikap_career_plan_${youthProfile.id}`);
+        if (youthProfile.name) {
+          localStorage.removeItem(`sikap_career_plan_${youthProfile.name}`);
+          localStorage.removeItem(`sikap_career_plan_tl_${youthProfile.name}`);
+        }
+        if (youthProfile.id) {
+          localStorage.removeItem(`sikap_career_plan_${youthProfile.id}`);
+          localStorage.removeItem(`sikap_career_plan_tl_${youthProfile.id}`);
+        }
       }
     }
   }, [youthProfile.savedCareerPlan, youthProfile.name, youthProfile.id]);
@@ -395,18 +676,24 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const handleSaveCareerPlanToIDCard = async (planToSave: GeminiLongTermCareerPlan) => {
     if (!planToSave) return;
     setIsSavingPlan(true);
+    // Ensure existing Tagalog translation is preserved when saving to Digital ID Card
+    const fullPlanToSave: GeminiLongTermCareerPlan = {
+      ...planToSave,
+      translatedPlanTl: translatedPlanTl || planToSave.translatedPlanTl
+    };
     try {
       const res = await fetch("/api/youth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: youthProfile.id,
-          savedCareerPlan: planToSave
+          savedCareerPlan: fullPlanToSave
         })
       });
       const data = await res.json();
       if (data.success) {
-        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: planToSave } : y));
+        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: fullPlanToSave } : y));
+        setGeneratedPlan(fullPlanToSave);
         addToast("Career Roadmap successfully saved to your Digital ID Card!", "success");
       } else {
         addToast(data.error || "Failed to save career plan", "error");
@@ -463,6 +750,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     program: TESDAProgram;
     matchScore?: number;
   } | null>(null);
+
+  // Lock background scroll when Program Details modal is open to keep scrollbars strictly inside modal
+  useEffect(() => {
+    if (viewingProgramModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [viewingProgramModal]);
 
   // Helper to reliably match youth names regardless of accents or casing
   const isSameYouth = (rYouthName?: string, currentYouthName?: string) => {
@@ -1260,21 +1558,27 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile / Sticky on Desktop) */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[16%] lg:min-w-[240px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[17%] lg:min-w-[250px] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           }`}
       >
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
-          <div className="flex items-center justify-between mb-7 px-1 pt-1">
-            <div className="flex items-center">
-              <SikapLogo size={34} logoSize={38} textSize={30} variant="white" showText={true} />
+          <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
+              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0 shrink-0">
+                <span className="text-[10px] sm:text-[11px] font-black text-amber-400 uppercase tracking-widest block leading-none">Member</span>
+                <span className="text-[8.5px] sm:text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[85px] sm:max-w-[95px] xl:max-w-[105px]" title={youthProfile.barangay || "San Luis"}>
+                  {(youthProfile.barangay || "San Luis").replace(/^Barangay\s+/i, "")}
+                </span>
+              </div>
             </div>
 
             {/* Mobile Close Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(false)}
-              className="lg:hidden p-1.5 text-emerald-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              className="lg:hidden p-1 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -1390,22 +1694,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       setIsMobileNavOpen(false);
                     }}
                     aria-disabled={isLocked}
-                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${
-                      isLocked
-                        ? "text-emerald-200/60 cursor-not-allowed select-none hover:text-white/75 hover:bg-white/[0.04]"
-                        : isActive
+                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${isLocked
+                      ? "text-emerald-200/60 cursor-not-allowed select-none hover:text-white/75 hover:bg-white/[0.04]"
+                      : isActive
                         ? "text-emerald-300 cursor-pointer"
                         : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <span className={`transition-colors duration-200 shrink-0 ${
-                        isActive && !isLocked
-                          ? "text-emerald-300"
-                          : isLocked
+                      <span className={`transition-colors duration-200 shrink-0 ${isActive && !isLocked
+                        ? "text-emerald-300"
+                        : isLocked
                           ? "text-current"
                           : "text-gray-400 group-hover:text-gray-200"
-                      }`}>
+                        }`}>
                         {isActive && !isLocked ? tab.activeIcon : tab.inactiveIcon}
                       </span>
                       <span className="truncate">{tab.label}</span>
@@ -1436,16 +1738,24 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             {/* User Profile Info (Avatar + Complete Name - Static without hover effect) */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
               {/* Avatar without hover effect */}
-              <div className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-amber-400/40 shrink-0 select-none">
-                {youthProfile?.name
-                  ? youthProfile.name
+              <div className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-amber-400/40 shrink-0 select-none overflow-hidden">
+                {profilePictureUrl ? (
+                  <img
+                    src={profilePictureUrl}
+                    alt={youthProfile?.name || "Avatar"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : youthProfile?.name ? (
+                  youthProfile.name
                     .split(" ")
                     .filter(Boolean)
                     .map((n) => n[0])
                     .join("")
                     .toUpperCase()
                     .slice(0, 2)
-                  : "KK"}
+                ) : (
+                  "KK"
+                )}
               </div>
 
               {/* Complete Name without truncation or hover effect */}
@@ -1518,7 +1828,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   } else if (app.status === "Enrolled") {
                     rawNotifications.push({
                       id: `notify-${app.id}-enrolled`,
-                      text: `🎉 Enrollment Approved!`,
+                      text: `Enrollment Approved!`,
                       subtext: `You are officially accepted into "${app.programTitle}". Training sessions will start soon.`,
                       date: "Just Now",
                       type: "enrolled",
@@ -1527,7 +1837,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   } else if (app.status === "Declined") {
                     rawNotifications.push({
                       id: `notify-${app.id}-declined`,
-                      text: `❌ Application Declined`,
+                      text: `Application Declined`,
                       subtext: `Your application for "${app.programTitle}" was declined.`,
                       date: "Just Now",
                       type: "declined",
@@ -1626,11 +1936,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   }}
                                   className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
                                 >
-                                  <span className="mt-0.5 text-base leading-none">
-                                    {item.type === "enrolled" && "🎉"}
-                                    {item.type === "pending" && "📋"}
-                                    {item.type === "declined" && "❌"}
-                                    {item.type === "general" && "📢"}
+                                  <span className="mt-0.5 shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-gray-50 border border-gray-150">
+                                    {item.type === "enrolled" && <Award className="w-3.5 h-3.5 text-emerald-600" />}
+                                    {item.type === "pending" && <ClipboardList className="w-3.5 h-3.5 text-blue-600" />}
+                                    {item.type === "declined" && <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                                    {item.type === "general" && <Megaphone className="w-3.5 h-3.5 text-amber-500" />}
                                   </span>
                                   <div className="space-y-0.5 flex-1 min-w-0 pr-2">
                                     <p className="font-bold text-gray-900 leading-tight text-xs">{item.text}</p>
@@ -1654,7 +1964,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           </div>
 
                           <div className="p-2.5 bg-gray-50 text-center border-t border-gray-100">
-                            <span className="text-[10px] font-bold text-gray-400">Click an alert to view it, or click ✕ to dismiss</span>
+                            <span className="text-[10px] font-bold text-gray-400">Click an alert to view it, or click close to dismiss</span>
                           </div>
                         </div>
                       </>
@@ -1743,8 +2053,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             <div>
                               <h5 className="font-black text-gray-900 text-sm sm:text-base">{ref.programTitle}</h5>
                               <p className="text-xs text-gray-500 font-semibold flex items-center gap-1.5 mt-0.5">
-                                <Briefcase className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                {provider}
+                                <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                <span>{provider}</span>
                               </p>
                             </div>
                             <span className="text-[10px] bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-1 rounded-md font-bold uppercase shrink-0">
@@ -1782,14 +2092,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             <div className="space-y-1">
                               <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Room / Training Facility</span>
                               <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {room}
+                                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>{room}</span>
                               </p>
                             </div>
 
                             <div className="space-y-1">
                               <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Assigned Instructor</span>
                               <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <User className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {instructor}
+                                <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>{instructor}</span>
                               </p>
                             </div>
                           </div>
@@ -1942,18 +2254,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     ? "bg-[#0A6B43] text-white shadow-2xs font-extrabold"
                                     : "text-gray-600 hover:text-gray-900"
                                     }`}
-                                  title="Isalin sa simpleng Tagalog para sa mga OSY"
+                                  title="Isalin sa Tagalog"
                                 >
                                   <span>🇵🇭</span>
                                   <span>Tagalog</span>
                                 </button>
                               </div>
-
-                              {featuredLang === "tl" && (
-                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
-                                  Simpleng Tagalog para sa OSY
-                                </span>
-                              )}
                             </div>
                             <h4 className="font-extrabold text-gray-900 text-base sm:text-lg mt-1 leading-snug">{featuredProg.title}</h4>
                             <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
@@ -1992,10 +2298,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 <div className="h-3 bg-emerald-200/70 rounded-full w-11/12"></div>
                                 <div className="h-3 bg-emerald-200/50 rounded-full w-4/5"></div>
                               </div>
-                              <p className="text-[11px] text-emerald-900 font-medium italic pt-0.5">
-                                ⚡ {featuredLang === "tl"
+                              <p className="text-[11px] text-emerald-900 font-medium italic pt-0.5 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <span>{featuredLang === "tl"
                                   ? `Bumubuo ang Google Gemini AI ng personalized na payo para sa iyo sa Barangay ${youthProfile.barangay || "San Luis"}...`
-                                  : `Google Gemini AI is formulating personalized match advice for your profile in Barangay ${youthProfile.barangay || "San Luis"}...`}
+                                  : `Google Gemini AI is formulating personalized match advice for your profile in Barangay ${youthProfile.barangay || "San Luis"}...`}</span>
                               </p>
                             </div>
 
@@ -2444,312 +2751,346 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
                                 <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                 Required Documents
-                              </p>
-                              <ul className="list-disc pl-4 text-xs text-amber-800 space-y-0.5 font-medium">
-                                {prog.requiredDocuments.map((doc, dIdx) => (
-                                  <li key={dIdx}>{doc}</li>
-                                ))}
-                              </ul>
-                            </div>
+                                  </p>
+                                  <ul className="list-disc pl-4 text-xs text-amber-800 space-y-0.5 font-medium">
+                                    {prog.requiredDocuments.map((doc, dIdx) => (
+                                      <li key={dIdx}>{doc}</li>
+                                    ))}
+                                  </ul>
+                                </div>
                           )}
 
-                          {/* Overlap Warning */}
-                          {(() => {
-                            const overlapWarning = getOverlapWarning(prog);
-                            if (overlapWarning) {
-                              return (
-                                <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
-                                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                                  <div className="space-y-0.5">
-                                    <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
-                                    <span>{overlapWarning}</span>
-                                  </div>
-                                </div>
-                              );
+                                {/* Overlap Warning */}
+                                {(() => {
+                                  const overlapWarning = getOverlapWarning(prog);
+                                  if (overlapWarning) {
+                                    return (
+                                      <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <div className="space-y-0.5">
+                                          <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
+                                          <span>{overlapWarning}</span>
+                                        </div>
+                                        </div>
+                                        );
                             }
-                            return null;
+                                        return null;
                           })()}
-                        </div>
-
-                        {/* Card Footer: Slots and Action Button */}
-                        <div className="flex justify-between items-center text-xs pt-4 mt-5 border-t border-gray-100">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-gray-500 font-medium">Slots:</span>
-                            <span className="font-bold text-gray-800 bg-gray-50 px-2.5 py-0.5 rounded-md border border-gray-200">
-                              {prog.slotsRemaining} / {prog.slotsTotal} left
-                            </span>
-                          </div>
-                          {(() => {
-                            const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
-                            const isCompleted = isProgramCompleted(prog);
-                            const isEnrolled = app?.status === "Enrolled";
-                            const isDeclined = app?.status === "Declined";
-                            const isPending = app?.status === "Pending";
-
-                            const isFull = !app && prog.slotsRemaining <= 0;
-                            const overlapWarning = getOverlapWarning(prog);
-
-                            if (isCompleted) {
-                              return (
-                                <button
-                                  disabled
-                                  className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
-                                  title="You have already completed this course and earned your certification"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
-                                  Completed ✓
-                                </button>
-                              );
-                            }
-
-                            if (isEnrolled) {
-                              return (
-                                <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                                  <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
-                                  Enrolled
-                                </span>
-                              );
-                            }
-
-                            if (isPending) {
-                              return (
-                                <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
-                                  <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                                  Pending
-                                </span>
-                              );
-                            }
-
-                            if (isDeclined) {
-                              return (
-                                <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
-                                  <XCircle className="w-3.5 h-3.5 text-rose-500" />
-                                  Declined
-                                </span>
-                              );
-                            }
-
-                            if (isProgramEnded(prog)) {
-                              return (
-                                <button
-                                  disabled
-                                  className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
-                                  title="This training program's term has ended or is closed"
-                                >
-                                  <Clock className="w-3.5 h-3.5 text-purple-600" />
-                                  Term Ended
-                                </button>
-                              );
-                            }
-
-                            if (isFull) {
-                              return (
-                                <button
-                                  disabled
-                                  className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                >
-                                  Slots Full
-                                </button>
-                              );
-                            }
-
-                            return (
-                              <button
-                                onClick={() => handleDirectApply(prog)}
-                                disabled={isUnverified || !!overlapWarning}
-                                className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${isUnverified || !!overlapWarning
-                                  ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                  : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
-                                  }`}
-                                title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                                Apply Now
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* PATHWAY TAB SCREEN */}
-          {activeTab === YouthScreen.PATHWAY && (
-            <div className="space-y-6">
-              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
-
-                {/* Content */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Your Livelihood Pathway
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Follow these stages to reach your professional career goal successfully.
-                  </p>
-                </div>
-              </div>
-
-              {(() => {
-                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
-                if (userApps.length === 0) {
-                  return (
-                    <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-center space-y-4">
-                      <div className="max-w-md mx-auto py-8">
-                        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3 animate-bounce" />
-                        <h4 className="font-extrabold text-gray-800 text-sm sm:text-base">No Active Pathways Yet</h4>
-                        <p className="text-xs text-gray-500 mt-2 leading-relaxed font-medium">
-                          You haven't applied for any programs yet. Browse our list of curated skills programs matching your profile, apply directly, and your custom tracking pathway will appear here.
-                        </p>
-                        <button
-                          onClick={() => setActiveTab(YouthScreen.MATCHES)}
-                          className="mt-5 text-xs font-extrabold px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg transition-colors shadow-xs"
-                        >
-                          Discover Matched Programs
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-8">
-                    {userApps.map((app) => {
-                      const isEnrolled = app.status === "Enrolled";
-                      const isPending = app.status === "Pending";
-                      const isDeclined = app.status === "Declined";
-                      const isArchived = app.status === "Archived";
-
-                      const program = programs.find(p => p.title === app.programTitle);
-                      const provider = program?.provider || "TESDA Partner Training Center";
-                      const location = program?.location || "San Luis, Pampanga";
-                      const scheduleDays = formatTrainingDays(program?.trainingDays);
-                      const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
-
-                      const room = program?.room || "Main Training Facility";
-                      const instructor = program?.instructor || "TESDA Certified Instructor";
-                      const contactPerson = program?.contactPerson || "TESDA Registrar";
-                      const contactNumber = program?.contactNumber || "N/A";
-                      const trainingHours = program?.trainingHours ? `${program.trainingHours} hours` : "Standard Duration";
-                      const dateRange = (program?.startDate || program?.endDate)
-                        ? ` (${formatProgramDateRange(program.startDate, program.endDate)})`
-                        : "";
-                      const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
-                        ? program.requiredDocuments
-                        : [
-                          "Original & Photocopy of Birth Certificate (PSA)",
-                          "2 copies of 2x2 / 1x1 ID Pictures (white background, with name tag)",
-                          "High School Diploma or Form 137 / Report Card",
-                          "Certificate of Barangay Residency (San Luis, Pampanga)"
-                        ];
-
-                      return (
-                        <div key={app.id} className="bg-white p-6 sm:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 relative overflow-hidden">
-                          {/* Top Tag indicating Program */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-gray-100">
-                            <div>
-                              <span className="text-[10px] uppercase font-bold tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold">
-                                {provider}
-                              </span>
-                              <h4 className="font-extrabold text-gray-900 text-base sm:text-lg mt-2">{app.programTitle}</h4>
-                              <p className="text-xs text-gray-500 font-medium flex items-center gap-2 mt-0.5">
-                                <span>📍 {location}</span>
-                                <span>•</span>
-                                <span>⏱ {trainingHours}</span>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-gray-400 font-semibold">Status:</span>
-                              <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full border ${isArchived
-                                ? "bg-purple-50 text-purple-700 border-purple-150"
-                                : isEnrolled
-                                  ? "bg-emerald-50 text-[#0A6B43] border-emerald-150"
-                                  : isDeclined
-                                    ? "bg-red-50 text-red-700 border-red-150"
-                                    : "bg-blue-50 text-blue-700 border-blue-150 animate-pulse"
-                                }`}>
-                                {isArchived ? "Archived (Completed)" : isEnrolled ? "Officially Enrolled" : isDeclined ? "Declined" : "Pending Approval"}
-                              </span>
-                              {isPending && (
-                                <button
-                                  onClick={() => handleCancelApplication(app.id)}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-100 flex items-center gap-1 text-[11px] font-bold ml-1 cursor-pointer"
-                                  title="Cancel Application"
-                                  id={`cancel-application-header-${app.id}`}
-                                >
-                                  <XCircle className="w-3.5 h-3.5" />
-                                  <span className="hidden sm:inline">Cancel Application</span>
-                                </button>
-                              )}
-                              {isDeclined && (
-                                <button
-                                  onClick={() => handleDeletePathway(app.id)}
-                                  className="p-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-100 flex items-center gap-1 text-[11px] font-bold ml-1 cursor-pointer"
-                                  title="Delete Declined Pathway"
-                                  id={`delete-pathway-header-${app.id}`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  <span className="hidden sm:inline">Delete Pathway</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {(() => {
-                            const hasSavedPlan = Boolean(generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan));
-                            return (
-                              <PathwayTimeline
-                                currentStep={isArchived ? (hasSavedPlan ? 5 : 4) : isEnrolled ? 3 : 2}
-                              />
-                            );
-                          })()}
-
-                          {/* Visual Feedback on Application Status with explicit Instructions */}
-                          {(() => {
-                            if (isPending) {
-                              return (
-                                <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-5 space-y-4 shadow-xs">
-                                  <div className="flex items-start justify-between gap-3 border-b border-blue-100/80 pb-3">
-                                    <div className="flex items-center gap-2.5">
-                                      <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                                        <Sparkles className="w-4 h-4 animate-pulse" />
                                       </div>
-                                      <div>
-                                        <span className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider block">
-                                          Step 2 Status
+
+                        {/* Card Footer: Slots and Action Button */ }
+                                    <div className="flex justify-between items-center text-xs pt-4 mt-5 border-t border-gray-100">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-gray-500 font-medium">Slots:</span>
+                                        <span className="font-bold text-gray-800 bg-gray-50 px-2.5 py-0.5 rounded-md border border-gray-200">
+                                          {prog.slotsRemaining} / {prog.slotsTotal} left
                                         </span>
-                                        <h5 className="font-extrabold text-blue-950 text-sm">
-                                          Application Under Review
-                                        </h5>
+                                      </div>
+                                      {(() => {
+                                        const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+                                        const isCompleted = isProgramCompleted(prog);
+                                        const isEnrolled = app?.status === "Enrolled";
+                                        const isDeclined = app?.status === "Declined";
+                                        const isPending = app?.status === "Pending";
+
+                                        const isFull = !app && prog.slotsRemaining <= 0;
+                                        const overlapWarning = getOverlapWarning(prog);
+
+                                        if (isCompleted) {
+                                          return (
+                                            <button
+                                              disabled
+                                              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                              title="You have already completed this course and earned your certification"
+                                            >
+                                              <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                                              Completed ✓
+                                            </button>
+                                          );
+                                        }
+
+                                        if (isEnrolled) {
+                                          return (
+                                            <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                                              <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                              Enrolled
+                                            </span>
+                                          );
+                                        }
+
+                                        if (isPending) {
+                                          return (
+                                            <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                                              <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                              Pending
+                                            </span>
+                                          );
+                                        }
+
+                                        if (isDeclined) {
+                                          return (
+                                            <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
+                                              <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                                              Declined
+                                            </span>
+                                          );
+                                        }
+
+                                        if (isProgramEnded(prog)) {
+                                          return (
+                                            <button
+                                              disabled
+                                              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                              title="This training program's term has ended or is closed"
+                                            >
+                                              <Clock className="w-3.5 h-3.5 text-purple-600" />
+                                              Term Ended
+                                            </button>
+                                          );
+                                        }
+
+                                        if (isFull) {
+                                          return (
+                                            <button
+                                              disabled
+                                              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                            >
+                                              Slots Full
+                                            </button>
+                                          );
+                                        }
+
+                                        return (
+                                          <button
+                                            onClick={() => handleDirectApply(prog)}
+                                            disabled={isUnverified || !!overlapWarning}
+                                            className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${isUnverified || !!overlapWarning
+                                              ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                              : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
+                                              }`}
+                                            title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
+                                          >
+                                            <Send className="w-3.5 h-3.5" />
+                                            Apply Now
+                                          </button>
+                                        );
+                                      })()}
+                                    </div>
+                      </div>
+                          );
+                  })}
+                        </div>
+              )}
+                      </div>
+                    )
+                  }
+
+          {/* PATHWAY TAB SCREEN */ }
+          { activeTab === YouthScreen.PATHWAY && (
+                      <div className="space-y-6">
+                        {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
+                        <div
+                          className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                          style={{
+                            background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                          }}
+                        >
+                          {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                          <GrowthPlantAnimation />
+
+                          {/* Content */}
+                          <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
+                            <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                              Your Livelihood Pathway
+                            </h2>
+                            <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                              Follow these stages to reach your professional career goal successfully.
+                            </p>
+                          </div>
+                        </div>
+
+                        {(() => {
+                          const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                          if (userApps.length === 0) {
+                            return (
+                              <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-center space-y-4">
+                                <div className="max-w-md mx-auto py-8">
+                                  <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3 animate-bounce" />
+                                  <h4 className="font-extrabold text-gray-800 text-sm sm:text-base">No Active Pathways Yet</h4>
+                                  <p className="text-xs text-gray-500 mt-2 leading-relaxed font-medium">
+                                    You haven't applied for any programs yet. Browse our list of curated skills programs matching your profile, apply directly, and your custom tracking pathway will appear here.
+                                  </p>
+                                  <button
+                                    onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                                    className="mt-5 text-xs font-extrabold px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg transition-colors shadow-xs"
+                                  >
+                                    Discover Matched Programs
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-8">
+                              {userApps.map((app) => {
+                                const isEnrolled = app.status === "Enrolled";
+                                const isPending = app.status === "Pending";
+                                const isDeclined = app.status === "Declined";
+                                const isArchived = app.status === "Archived";
+
+                                const program = programs.find(p => p.title === app.programTitle);
+                                const provider = program?.provider || "TESDA Partner Training Center";
+                                const location = program?.location || "San Luis, Pampanga";
+                                const scheduleDays = formatTrainingDays(program?.trainingDays);
+                                const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
+
+                                const room = program?.room || "Main Training Facility";
+                                const instructor = program?.instructor || "TESDA Certified Instructor";
+                                const contactPerson = program?.contactPerson || "TESDA Registrar";
+                                const contactNumber = program?.contactNumber || "N/A";
+                                const trainingHours = program?.trainingHours ? `${program.trainingHours} hours` : "Standard Duration";
+                                const dateRange = (program?.startDate || program?.endDate)
+                                  ? ` (${formatProgramDateRange(program.startDate, program.endDate)})`
+                                  : "";
+                                const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
+                                  ? program.requiredDocuments
+                                  : [
+                                    "Original & Photocopy of Birth Certificate (PSA)",
+                                    "2 copies of 2x2 / 1x1 ID Pictures (white background, with name tag)",
+                                    "High School Diploma or Form 137 / Report Card",
+                                    "Certificate of Barangay Residency (San Luis, Pampanga)"
+                                  ];
+
+                                return (
+                                  <div key={app.id} className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden">
+                                    {/* Top Tag indicating Program - Mobile Optimized Responsive Header */}
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-gray-100">
+                                      <div className="space-y-1.5 flex-1 min-w-0">
+                                        <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] uppercase font-bold tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold">
+                                          <Building2 className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                          <span className="truncate max-w-[260px] sm:max-w-none">{provider}</span>
+                                        </span>
+                                        <h4 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl mt-1.5 leading-snug break-words">
+                                          {app.programTitle}
+                                        </h4>
+                                        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-gray-600 font-medium">
+                                          <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200/80 px-2.5 py-0.5 rounded-lg text-[11px] sm:text-xs text-gray-700">
+                                            <MapPin className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                            <span>{location}</span>
+                                          </span>
+                                          <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200/80 px-2.5 py-0.5 rounded-lg text-[11px] sm:text-xs text-gray-700">
+                                            <Timer className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                            <span>{trainingHours}</span>
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Status & Actions - Mobile Optimized Layout */}
+                                      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t border-gray-100/90 sm:border-0 w-full sm:w-auto shrink-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Status:</span>
+                                          <span className={`inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full border shadow-2xs ${isArchived
+                                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                                            : isEnrolled
+                                              ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                              : isDeclined
+                                                ? "bg-red-50 text-red-700 border-red-200"
+                                                : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
+                                            }`}>
+                                            {isArchived ? (
+                                              <>
+                                                <CheckCircle className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                                <span>Archived (Completed)</span>
+                                              </>
+                                            ) : isEnrolled ? (
+                                              <>
+                                                <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                                <span>Officially Enrolled</span>
+                                              </>
+                                            ) : isDeclined ? (
+                                              <>
+                                                <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                                <span>Declined</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                                <span>Pending Approval</span>
+                                              </>
+                                            )}
+                                          </span>
+                                        </div>
+
+                                        {isPending && (
+                                          <button
+                                            onClick={() => handleCancelApplication(app.id)}
+                                            className="p-1.5 sm:px-2.5 sm:py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer ml-auto sm:ml-0"
+                                            title="Cancel Application"
+                                            id={`cancel-application-header-${app.id}`}
+                                          >
+                                            <XCircle className="w-3.5 h-3.5" />
+                                            <span className="inline">Cancel Application</span>
+                                          </button>
+                                        )}
+                                        {isDeclined && (
+                                          <button
+                                            onClick={() => handleDeletePathway(app.id)}
+                                            className="p-1.5 sm:px-2.5 sm:py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer ml-auto sm:ml-0"
+                                            title="Delete Declined Pathway"
+                                            id={`delete-pathway-header-${app.id}`}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span className="inline">Delete Pathway</span>
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
-                                    <button
-                                      onClick={() => handleCancelApplication(app.id)}
-                                      className="text-[11px] bg-white hover:bg-red-50 text-red-700 px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 border border-red-200 shadow-2xs hover:border-red-300 cursor-pointer"
-                                      id={`cancel-pathway-box-${app.id}`}
-                                    >
-                                      <XCircle className="w-3.5 h-3.5" />
-                                      Cancel Application
-                                    </button>
-                                  </div>
 
-                                  <p className="text-xs text-blue-900 leading-relaxed font-medium">
-                                    Your application for <strong className="text-blue-950 font-bold">{app.programTitle}</strong> at <strong className="text-blue-950 font-bold">{provider}</strong> has been received by TESDA. Please review the program details and submit your required documents below to finalize your enrollment:
-                                  </p>
+                                    {(() => {
+                                      const hasSavedPlan = Boolean(generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan));
+                                      return (
+                                        <PathwayTimeline
+                                          currentStep={isArchived ? (hasSavedPlan ? 5 : 4) : isEnrolled ? 3 : 2}
+                                        />
+                                      );
+                                    })()}
 
-                                  {/* Program Details Overview Card */}
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white/95 p-4 rounded-xl border border-blue-150 shadow-2xs">
+                                    {/* Visual Feedback on Application Status with explicit Instructions */}
+                                    {(() => {
+                                      if (isPending) {
+                                        return (
+                                          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-5 space-y-4 shadow-xs">
+                                            <div className="flex items-start justify-between gap-3 border-b border-blue-100/80 pb-3">
+                                              <div className="flex items-center gap-2.5">
+                                                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                                                  <Sparkles className="w-4 h-4 animate-pulse" />
+                                                </div>
+                                                <div>
+                                                  <span className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider block">
+                                                    Step 2 Status
+                                                  </span>
+                                                  <h5 className="font-extrabold text-blue-950 text-sm">
+                                                    Application Under Review
+                                                  </h5>
+                                                </div>
+                                              </div>
+                                              <button
+                                                onClick={() => handleCancelApplication(app.id)}
+                                                className="text-[11px] bg-white hover:bg-red-50 text-red-700 px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 border border-red-200 shadow-2xs hover:border-red-300 cursor-pointer"
+                                                id={`cancel-pathway-box-${app.id}`}
+                                              >
+                                                <XCircle className="w-3.5 h-3.5" />
+                                                Cancel Application
+                                              </button>
+                                            </div>
+
+                                            <p className="text-xs text-blue-900 leading-relaxed font-medium">
+                                              Your application for <strong className="text-blue-950 font-bold">{app.programTitle}</strong> at <strong className="text-blue-950 font-bold">{provider}</strong> has been received by TESDA. Please review the program details and submit your required documents below to finalize your enrollment:
+                                            </p>
+
+                                            {/* Program Details Overview Card */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white/95 p-4 rounded-xl border border-blue-150 shadow-2xs">
                                     <div className="space-y-2">
                                       <p className="text-gray-600 flex items-center gap-1.5">
                                         <Briefcase className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
@@ -2788,16 +3129,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       <p className="text-gray-600 flex items-center gap-1.5">
                                         <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
                                         <strong>Registrar Contact:</strong> <span className="text-gray-900 font-semibold">{contactPerson} ({contactNumber})</span>
-                                      </p>
-                                    </div>
-                                  </div>
+          </p>
+        </div>
+    </div>
 
-                                  {/* Action Required: Physical Documents for Verification */}
-                                  <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-4 space-y-2.5 text-xs">
-                                    <p className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
-                                      <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                      Action Required to Complete Enrollment Verification:
-                                    </p>
+  {/* Action Required: Physical Documents for Verification */ }
+  <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-4 space-y-2.5 text-xs">
+    <p className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                      <span>Action Required to Complete Enrollment Verification:</span>
+                                    </p >
                                     <p className="leading-relaxed font-medium text-amber-900">
                                       Please bring and submit the following physical requirements to the <strong>{provider} Admissions Office ({location})</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
                                     </p>
@@ -2809,1924 +3150,2607 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     <p className="text-[10px] text-amber-800 italic pt-1 border-t border-amber-200 font-medium">
                                       Once your physical documents are verified by the TESDA registrar, your enrollment will be officially approved and this pathway will advance to <strong>Step 3: Officially Enrolled & Active Training</strong>!
                                     </p>
-                                  </div>
-                                </div>
+                                  </div >
+                                </div >
                               );
                             } else if (isDeclined) {
-                              return (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3.5 shadow-2xs">
-                                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-1" />
-                                  <div className="flex-1 space-y-2">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-red-100 pb-2">
-                                      <p className="text-xs font-extrabold text-red-800 uppercase tracking-wider">Application Declined</p>
-                                      <button
-                                        onClick={() => handleDeletePathway(app.id)}
-                                        className="text-[11px] bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-200 cursor-pointer"
-                                        id={`delete-pathway-box-${app.id}`}
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                        Delete Livelihood Pathway
-                                      </button>
-                                    </div>
-                                    <p className="text-xs text-red-700 leading-relaxed font-medium">
-                                      Your application for <strong>{app.programTitle}</strong> was declined. Please verify your skills and profile info before re-applying, or message Sangguniang Kabataan for mentorship.
-                                    </p>
-                                    <p className="text-[10px] text-red-500 italic font-semibold">
-                                      💡 You can delete this pathway card to clear your list and explore other matching livelihood programs!
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            } else if (isArchived) {
-                              // STEP 4 IS UNLOCKED: Step 3 is completed!
-                              const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
-                              const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
-                              const displayPlan = (careerPlanLang === "tl" && planToShow)
-                                ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
-                                : planToShow;
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3.5 shadow-2xs">
+      <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-1" />
+      <div className="flex-1 space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-red-100 pb-2">
+          <p className="text-xs font-extrabold text-red-800 uppercase tracking-wider">Application Declined</p>
+          <button
+            onClick={() => handleDeletePathway(app.id)}
+            className="text-[11px] bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-200 cursor-pointer"
+            id={`delete-pathway-box-${app.id}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Livelihood Pathway
+          </button>
+        </div>
+        <p className="text-xs text-red-700 leading-relaxed font-medium">
+          Your application for <strong>{app.programTitle}</strong> was declined. Please verify your skills and profile info before re-applying, or message Sangguniang Kabataan for mentorship.
+        </p>
+        <p className="text-[10px] text-red-500 italic font-semibold flex items-center gap-1.5">
+          <Sparkles className="w-3 h-3 text-red-400 shrink-0" />
+          <span>You can delete this pathway card to clear your list and explore other matching livelihood programs!</span>
+        </p>
+      </div>
+    </div>
+  );
+} else if (isArchived) {
+  // STEP 4 IS UNLOCKED: Step 3 is completed!
+  const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
+  const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
+  const displayPlan = (careerPlanLang === "tl" && planToShow)
+    ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
+    : planToShow;
 
-                              return (
-                                <div className="space-y-5 sm:space-y-6 w-full">
-                                  {/* Completion & Step 4 Banner */}
-                                  <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row items-start gap-3.5 sm:gap-4 shadow-xs">
-                                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                                      <Award className="w-5 h-5 sm:w-6 sm:h-6 animate-bounce" />
-                                    </div>
-                                    <div className="space-y-1.5 flex-1 min-w-0">
-                                      <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-100/80 px-2.5 py-0.5 rounded-full border border-purple-200 tracking-wider inline-block">
-                                        Step 3 Complete • Step 4 Active
-                                      </span>
-                                      <h5 className="font-extrabold text-purple-950 text-sm sm:text-base md:text-lg">
-                                        Training Completed & NC II Certified!
-                                      </h5>
-                                      <p className="text-xs text-purple-800 leading-relaxed font-medium">
-                                        Congratulations! You have completed your certified training for <strong className="font-bold">{app.programTitle}</strong> at <strong className="font-bold">{provider}</strong>. You have achieved <strong>Step 4: Livelihood Placement & Career Launch</strong>.
-                                      </p>
-                                    </div>
-                                  </div>
+  return (
+    <div className="space-y-5 sm:space-y-6 w-full">
+      {/* Completion & Step 4 Banner */}
+      <div className="bg-linear-to-br from-purple-50 via-purple-50/80 to-indigo-50/50 border border-purple-200/90 rounded-2xl p-3.5 sm:p-5 md:p-6 flex items-start gap-3 sm:gap-4 shadow-xs">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs sm:shadow-sm mt-0.5">
+          <Award className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+        </div>
+        <div className="space-y-1.5 sm:space-y-2 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase text-purple-700 bg-purple-100/90 px-2.5 py-0.5 rounded-full border border-purple-200/90 tracking-wider inline-flex items-center gap-1.5 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+              Step 3 Complete • Step 4 Active
+            </span>
+          </div>
+          <h5 className="font-black text-purple-950 text-sm sm:text-base md:text-lg leading-tight tracking-tight">
+            Training Completed & NC II Certified!
+          </h5>
+          <p className="text-xs sm:text-[13px] text-purple-900/90 leading-relaxed font-medium break-words">
+            Congratulations! You have completed your certified training for <strong className="font-bold text-purple-950">{app.programTitle}</strong> at <strong className="font-bold text-purple-950">{provider}</strong>.
+          </p>
+          <div className="pt-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-purple-900 bg-purple-100/90 border border-purple-200/80 px-2.5 py-1 rounded-lg">
+              <Award className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+              <span>Achieved <strong className="font-extrabold text-purple-950">Step 4: Livelihood Placement & Career Launch</strong></span>
+            </span>
+          </div>
+        </div>
+      </div>
 
-                                  {/* Gemini Long-Term Post-Graduation Career Plan Section */}
-                                  <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-4 sm:p-6 lg:p-7 shadow-lg border border-emerald-700/60 space-y-5 sm:space-y-6">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 border-b border-white/15 pb-4">
-                                      <div className="space-y-1.5 flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse shrink-0" />
-                                          <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
-                                            Google Gemini AI • Step 4 Career Strategy
-                                          </span>
-                                          {planToShow && (
-                                            <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleToggleCareerPlanLang("en")}
-                                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${careerPlanLang === "en"
-                                                  ? "bg-white text-slate-900 shadow-xs"
-                                                  : "text-emerald-200 hover:text-white"
-                                                  }`}
-                                              >
-                                                English
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleToggleCareerPlanLang("tl")}
-                                                disabled={isTranslatingPlan}
-                                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${careerPlanLang === "tl"
-                                                  ? "bg-amber-400 text-slate-950 font-black shadow-xs"
-                                                  : "text-emerald-200 hover:text-white"
-                                                  }`}
-                                              >
-                                                {isTranslatingPlan ? (
-                                                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                                                ) : (
-                                                  <span>🇵🇭 Tagalog</span>
-                                                )}
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
-                                        <h4 className="text-base sm:text-lg md:text-xl font-black text-white leading-snug">
-                                          {displayPlan?.roadmapTitle || (careerPlanLang === "tl" ? "Plano para sa Trabaho at Negosyo" : `Post-Graduation Career Roadmap`)}
-                                        </h4>
-                                        <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
-                                          {displayPlan?.summary || (careerPlanLang === "tl" ? `Praktikal at totoong gabay sa hanapbuhay mula sa ${app.programTitle} patungo sa trabaho o negosyo sa San Luis, Pampanga.` : `A pragmatic, real-life career action plan tailored for your transition from ${app.programTitle} into employment and entrepreneurship in San Luis, Pampanga.`)}
-                                        </p>
-                                      </div>
+      {/* Gemini Long-Term Post-Graduation Career Plan Section */}
+      <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-4 sm:p-6 lg:p-7 shadow-lg border border-emerald-700/60 space-y-5 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 border-b border-white/15 pb-4">
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse shrink-0" />
+              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
+                Google Gemini AI • Step 4 Career Strategy
+              </span>
+              {planToShow && (
+                <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCareerPlanLang("en")}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${careerPlanLang === "en"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-emerald-200 hover:text-white"
+                      }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCareerPlanLang("tl")}
+                    disabled={isTranslatingPlan}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${careerPlanLang === "tl"
+                      ? "bg-amber-400 text-slate-950 font-black shadow-xs"
+                      : "text-emerald-200 hover:text-white"
+                      }`}
+                  >
+                    {isTranslatingPlan ? (
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                    ) : (
+                      <span>🇵🇭 Tagalog</span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+            <h4 className="text-base sm:text-lg md:text-xl font-black text-white leading-snug">
+              {displayPlan?.roadmapTitle || (careerPlanLang === "tl" ? "Plano para sa Trabaho at Negosyo" : `Post-Graduation Career Roadmap`)}
+            </h4>
+            <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
+              {displayPlan?.summary || (careerPlanLang === "tl" ? `Praktikal at totoong gabay sa hanapbuhay mula sa ${app.programTitle} patungo sa trabaho o negosyo sa San Luis, Pampanga.` : `A pragmatic, real-life career action plan tailored for your transition from ${app.programTitle} into employment and entrepreneurship in San Luis, Pampanga.`)}
+            </p>
+          </div>
 
-                                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
-                                        {isSaved ? (
-                                          <span className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
-                                            <BookmarkCheck className="w-4 h-4 text-emerald-300" />
-                                            {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
-                                          </span>
-                                        ) : planToShow ? (
-                                          <button
-                                            onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
-                                            disabled={isSavingPlan}
-                                            className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
-                                          >
-                                            {isSavingPlan ? (
-                                              <>
-                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                {careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Bookmark className="w-3.5 h-3.5" />
-                                                {careerPlanLang === "tl" ? "I-save sa Digital ID Card" : "Save Plan to Digital ID Card"}
-                                              </>
-                                            )}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            onClick={() => handleGenerateCareerPlan(program)}
-                                            disabled={isGeneratingPlan}
-                                            className="w-full sm:w-auto justify-center px-4 py-2.5 bg-white hover:bg-gray-100 active:scale-95 text-slate-900 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
-                                          >
-                                            {isGeneratingPlan ? (
-                                              <>
-                                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
-                                                {careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                                {careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}
-                                              </>
-                                            )}
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
+            {isSaved ? (
+              <span className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
+                <BookmarkCheck className="w-4 h-4 text-emerald-300" />
+                {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
+              </span>
+            ) : planToShow ? (
+              <button
+                onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
+                disabled={isSavingPlan}
+                className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
+              >
+                {isSavingPlan ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    {careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}
+                  </>
+                ) : (
+                  <>
+                    <Bookmark className="w-3.5 h-3.5" />
+                    {careerPlanLang === "tl" ? "I-save sa Digital ID Card" : "Save Plan to Digital ID Card"}
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleGenerateCareerPlan(program)}
+                disabled={isGeneratingPlan}
+                className="w-full sm:w-auto justify-center px-4 py-2.5 bg-white hover:bg-gray-100 active:scale-95 text-slate-900 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
+              >
+                {isGeneratingPlan ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
+                    {careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    {careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
 
-                                    {/* Display Generated Plan Content */}
-                                    {planToShow && displayPlan ? (
-                                      <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
-                                        {/* Phase 1: Immediate 30 Days */}
-                                        <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-2.5">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
-                                              {careerPlanLang === "tl" ? "Yugto 1 • Unang 30 Araw" : "Phase 1 • First 30 Days"}
-                                            </span>
-                                            <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
-                                              {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & Jobseeker Registration"}
-                                            </h6>
-                                          </div>
-                                          <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                                            {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => (
-                                              <li key={sIdx} className="bg-black/25 p-3 rounded-xl border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2.5 font-medium">
-                                                <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 shadow-2xs">
-                                                  {sIdx + 1}
-                                                </span>
-                                                <span className="leading-snug">{stepItem}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        </div>
+        {/* Display Generated Plan Content */}
+        {planToShow && displayPlan ? (
+          <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+            {/* Phase 1: Immediate 30 Days */}
+            <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
+                  {careerPlanLang === "tl" ? "Yugto 1 • Unang 30 Araw" : "Phase 1 • First 30 Days"}
+                </span>
+                <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
+                  {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & Jobseeker Registration"}
+                </h6>
+              </div>
+              <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => (
+                  <li key={sIdx} className="bg-black/25 p-3 rounded-xl border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2.5 font-medium">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 shadow-2xs">
+                      {sIdx + 1}
+                    </span>
+                    <span className="leading-snug">{stepItem}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-                                        {/* Phase 2: Dual Pathways (Wage Employment & Local Entrepreneurship) */}
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
-                                          {/* Track A: Wage Employment */}
-                                          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
-                                            <div className="space-y-2.5">
-                                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
-                                                <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md w-fit">
-                                                  {careerPlanLang === "tl" ? "Opsyon A • Trabaho at Suweldo" : "Track A • Wage Employment"}
-                                                </span>
-                                                <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-400/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
-                                                  💰 {displayPlan.employmentTrack.estimatedSalary}
-                                                </span>
-                                              </div>
-                                              <p className="text-xs text-emerald-100 font-medium leading-relaxed">
-                                                📍 <strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}
-                                              </p>
-                                              <div className="space-y-1.5">
-                                                <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
-                                                  {careerPlanLang === "tl" ? "Mga Trabahong Bagay Sayo:" : "Recommended Entry Job Roles:"}
-                                                </span>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                  {displayPlan.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
-                                                    <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-lg text-white border border-white/10 shadow-2xs flex items-center gap-1">
-                                                      💼 {role}
-                                                    </span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            </div>
-                                            <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-xs text-emerald-100">
-                                              {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
-                                                <p key={stIdx} className="flex items-start gap-2 text-[11px] sm:text-xs leading-relaxed">
-                                                  <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
-                                                  <span>{step}</span>
-                                                </p>
-                                              ))}
-                                            </div>
-                                          </div>
-
-                                          {/* Track B: Entrepreneurship & Freelancing */}
-                                          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
-                                            <div className="space-y-2.5">
-                                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
-                                                <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md w-fit">
-                                                  {careerPlanLang === "tl" ? "Opsyon B • Sariling Negosyo at Raket" : "Track B • Self-Employment & Freelance"}
-                                                </span>
-                                                <span className="text-[11px] font-bold text-amber-200 bg-amber-400/15 border border-amber-300/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
-                                                  🛠️ {careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}
-                                                </span>
-                                              </div>
-                                              <p className="text-xs text-emerald-100 font-medium leading-relaxed">
-                                                🏪 <strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}
-                                              </p>
-                                              <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
-                                                <p className="text-xs text-amber-100 leading-relaxed font-medium">
-                                                  🎁 <strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}
-                                                </p>
-                                              </div>
-                                            </div>
-                                            <div className="pt-2.5 border-t border-white/10 space-y-1.5">
-                                              <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
-                                                {careerPlanLang === "tl" ? "Mga Serbisyo o Produktong Pwedeng Simulan:" : "Initial Services to Offer:"}
-                                              </span>
-                                              {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
-                                                <p key={sIdx} className="text-[11px] sm:text-xs text-emerald-100 flex items-start gap-2 font-medium leading-relaxed">
-                                                  <span className="text-amber-400 font-bold shrink-0 mt-0.5">★</span>
-                                                  <span>{srv}</span>
-                                                </p>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Phase 3 & Local Support Grid */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 text-xs bg-black/25 p-3.5 sm:p-4.5 rounded-xl border border-white/10">
-                                          <div className="space-y-2">
-                                            <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
-                                              <span>📈</span> {careerPlanLang === "tl" ? "1–2 Taon na Pag-asenso sa Karera:" : "1–2 Year Long-Term Elevation:"}
-                                            </span>
-                                            {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
-                                              <p key={mIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
-                                                <span className="text-purple-400 shrink-0 mt-0.5">◆</span>
-                                                <span>{milestone}</span>
-                                              </p>
-                                            ))}
-                                          </div>
-                                          <div className="space-y-2">
-                                            <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
-                                              <span>🤝</span> {careerPlanLang === "tl" ? "Mga Malalapit na Tanggapan sa San Luis:" : "Local Support Contacts in San Luis:"}
-                                            </span>
-                                            {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
-                                              <p key={cIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
-                                                <span className="text-emerald-400 shrink-0 mt-0.5">📍</span>
-                                                <span>{contact}</span>
-                                              </p>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="text-center py-6 sm:py-8 space-y-3 bg-black/20 rounded-xl border border-dashed border-white/20 p-4 sm:p-6">
-                                        <Sparkles className="w-9 h-9 sm:w-10 sm:h-10 text-amber-400 mx-auto animate-pulse" />
-                                        <h5 className="font-extrabold text-white text-sm sm:text-base leading-snug">
-                                          Your Training is Certified! Ready to Build Your Post-Graduation Career Plan?
-                                        </h5>
-                                        <p className="text-xs text-emerald-100 max-w-lg mx-auto leading-relaxed font-medium">
-                                          Click the button below to have Google Gemini AI analyze your completed <strong>{app.programTitle}</strong> credentials and build a real-life wage employment & local entrepreneurship plan in San Luis, Pampanga.
-                                        </p>
-                                        <button
-                                          onClick={() => handleGenerateCareerPlan(program)}
-                                          disabled={isGeneratingPlan}
-                                          className="w-full sm:w-auto mt-3 px-6 py-3 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
-                                        >
-                                          {isGeneratingPlan ? (
-                                            <>
-                                              <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                                              Generating your realistic Gemini plan...
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Sparkles className="w-4 h-4 text-slate-950" />
-                                              Generate Gemini Post-Graduation Career Plan
-                                            </>
-                                          )}
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            } else {
-                              return (
-                                <div className="space-y-4 w-full">
-                                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3.5 flex items-start gap-3">
-                                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                                    <div>
-                                      <p className="text-xs font-bold text-emerald-800">Enrolled and Active</p>
-                                      <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5 font-medium">
-                                        Congratulations! Your application has been approved by the TESDA office. You have successfully completed Step 2! You are now officially enrolled in <strong>{app.programTitle}</strong> at <strong>{provider}</strong> and on track to complete your training (Step 3).
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  {/* Beautiful Academic Schedule Details inside Pathway card */}
-                                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3.5">
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                                      <span>🏫</span> Active Academic & Class Schedule:
-                                    </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                      <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-                                        <Calendar className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
-                                        <div>
-                                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Days</span>
-                                          <span className="text-xs font-bold text-gray-800">{scheduleDays}</span>
-                                        </div>
-                                      </div>
-
-                                      <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-                                        <Clock className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
-                                        <div>
-                                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Hours & Session</span>
-                                          <span className="text-xs font-bold text-gray-800">
-                                            {timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-                                        <span className="text-base text-amber-500 mt-0.5 shrink-0">📍</span>
-                                        <div>
-                                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Room / Lab</span>
-                                          <span className="text-xs font-bold text-gray-800">{room} ({location})</span>
-                                        </div>
-                                      </div>
-
-                                      <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-                                        <span className="text-base text-amber-500 mt-0.5 shrink-0">👤</span>
-                                        <div>
-                                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Professor / Instructor</span>
-                                          <span className="text-xs font-bold text-gray-800">{instructor}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="text-[10px] text-gray-500 italic pt-1 border-t border-slate-100">
-                                      Please report to class at {location} in your proper training attire with your trainee ID card.
-                                    </div>
-                                  </div>
-
-                                  {/* Locked Step 4 Milestone Notice */}
-                                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
-                                    <div className="flex items-center gap-2.5">
-                                      <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-bold shrink-0">
-                                        <Lock className="w-3.5 h-3.5" />
-                                      </div>
-                                      <div>
-                                        <span className="font-extrabold text-slate-800 block text-xs">
-                                          Step 4: Livelihood Placement & Gemini Career Plan
-                                        </span>
-                                        <span className="text-[11px] text-slate-500 font-medium">
-                                          This milestone and your Google Gemini Post-Graduation Career Plan will unlock once your Step 3 training is complete and certified.
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-end sm:self-auto">
-                                      Locked Milestone
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            }
-                          })()}
-                        </div>
-                      );
-                    })}
+            {/* Phase 2: Dual Pathways (Wage Employment & Local Entrepreneurship) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
+              {/* Track A: Wage Employment */}
+              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
+                    <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md w-fit">
+                      {careerPlanLang === "tl" ? "Opsyon A • Trabaho at Suweldo" : "Track A • Wage Employment"}
+                    </span>
+                    <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-400/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
+                      <Coins className="w-3 h-3 text-emerald-300 shrink-0" />
+                      <span>{displayPlan.employmentTrack.estimatedSalary}</span>
+                    </span>
                   </div>
-                );
-              })()}
+                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span><strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}</span>
+                  </p>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
+                      {careerPlanLang === "tl" ? "Mga Trabahong Bagay Sayo:" : "Recommended Entry Job Roles:"}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {displayPlan.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
+                        <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-lg text-white border border-white/10 shadow-2xs flex items-center gap-1.5">
+                          <Briefcase className="w-3 h-3 text-cyan-300 shrink-0" />
+                          <span>{role}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-xs text-emerald-100">
+                  {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
+                    <p key={stIdx} className="flex items-start gap-2 text-[11px] sm:text-xs leading-relaxed">
+                      <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
+                      <span>{step}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
 
-              {/* Goals segment */}
-              <div className="bg-white p-6 border border-gray-150 rounded-2xl shadow-xs">
-                <span className="text-xs uppercase font-bold text-gray-400 tracking-wider">Livelihood Landmark Goal</span>
-                <p className="text-sm font-semibold text-emerald-950 italic mt-2 bg-emerald-50/50 p-4 rounded-xl leading-relaxed">
-                  "{youthProfile.livelihoodGoal}"
-                </p>
+              {/* Track B: Entrepreneurship & Freelancing */}
+              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
+                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md w-fit">
+                      {careerPlanLang === "tl" ? "Opsyon B • Sariling Negosyo at Raket" : "Track B • Self-Employment & Freelance"}
+                    </span>
+                    <span className="text-[11px] font-bold text-amber-200 bg-amber-400/15 border border-amber-300/25 px-2.5 py-0.5 rounded-md flex items-center gap-1.5 w-fit">
+                      <Wrench className="w-3 h-3 text-amber-300 shrink-0" />
+                      <span>{careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-center gap-1">
+                    <Store className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                    <span><strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}</span>
+                  </p>
+                  <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
+                    <p className="text-xs text-amber-100 leading-relaxed font-medium flex items-center gap-1">
+                      <Gift className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      <span><strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-white/10 space-y-1.5">
+                  <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
+                    {careerPlanLang === "tl" ? "Mga Serbisyo o Produktong Pwedeng Simulan:" : "Initial Services to Offer:"}
+                  </span>
+                  {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
+                    <p key={sIdx} className="text-[11px] sm:text-xs text-emerald-100 flex items-start gap-2 font-medium leading-relaxed">
+                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
+                      <span>{srv}</span>
+                    </p>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {/* Phase 3 & Local Support Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 text-xs bg-black/25 p-3.5 sm:p-4.5 rounded-xl border border-white/10">
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+                  <span>{careerPlanLang === "tl" ? "1–2 Taon na Pag-asenso sa Karera:" : "1–2 Year Long-Term Elevation:"}</span>
+                </span>
+                {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
+                  <p key={mIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
+                    <span className="text-purple-400 shrink-0 mt-0.5">◆</span>
+                    <span>{milestone}</span>
+                  </p>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
+                  <Handshake className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                  <span>{careerPlanLang === "tl" ? "Mga Malalapit na Tanggapan sa San Luis:" : "Local Support Contacts in San Luis:"}</span>
+                </span>
+                {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
+                  <p key={cIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{contact}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6 sm:py-8 space-y-3 bg-black/20 rounded-xl border border-dashed border-white/20 p-4 sm:p-6">
+            <Sparkles className="w-9 h-9 sm:w-10 sm:h-10 text-amber-400 mx-auto animate-pulse" />
+            <h5 className="font-extrabold text-white text-sm sm:text-base leading-snug">
+              Your Training is Certified! Ready to Build Your Post-Graduation Career Plan?
+            </h5>
+            <p className="text-xs text-emerald-100 max-w-lg mx-auto leading-relaxed font-medium">
+              Click the button below to have Google Gemini AI analyze your completed <strong>{app.programTitle}</strong> credentials and build a real-life wage employment & local entrepreneurship plan in San Luis, Pampanga.
+            </p>
+            <button
+              onClick={() => handleGenerateCareerPlan(program)}
+              disabled={isGeneratingPlan}
+              className="w-full sm:w-auto mt-3 px-6 py-3 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              {isGeneratingPlan ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  Generating your realistic Gemini plan...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-slate-950" />
+                  Generate Gemini Post-Graduation Career Plan
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+} else {
+  return (
+    <div className="space-y-4 w-full">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3.5 flex items-start gap-3">
+        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-xs font-bold text-emerald-800">Enrolled and Active</p>
+          <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5 font-medium">
+            Congratulations! Your application has been approved by the TESDA office. You have successfully completed Step 2! You are now officially enrolled in <strong>{app.programTitle}</strong> at <strong>{provider}</strong> and on track to complete your training (Step 3).
+          </p>
+        </div>
+      </div>
+
+      {/* Beautiful Academic Schedule Details inside Pathway card */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3.5">
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <School className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <span>Active Academic & Class Schedule:</span>
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
+            <Calendar className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
+            <div>
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Days</span>
+              <span className="text-xs font-bold text-gray-800">{scheduleDays}</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
+            <Clock className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
+            <div>
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Hours & Session</span>
+              <span className="text-xs font-bold text-gray-800">
+                {timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
+            <MapPin className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Room / Lab</span>
+              <span className="text-xs font-bold text-gray-800">{room} ({location})</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
+            <User className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Professor / Instructor</span>
+              <span className="text-xs font-bold text-gray-800">{instructor}</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-[10px] text-gray-500 italic pt-1 border-t border-slate-100">
+          Please report to class at {location} in your proper training attire with your trainee ID card.
+        </div>
+      </div>
+
+      {/* Locked Step 4 Milestone Notice */}
+      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-bold shrink-0">
+            <Lock className="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <span className="font-extrabold text-slate-800 block text-xs">
+              Step 4: Livelihood Placement & Gemini Career Plan
+            </span>
+            <span className="text-[11px] text-slate-500 font-medium">
+              This milestone and your Google Gemini Post-Graduation Career Plan will unlock once your Step 3 training is complete and certified.
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-end sm:self-auto">
+          Locked Milestone
+        </span>
+      </div>
+    </div>
+  );
+}
+                          }) ()}
+                        </div >
+                      );
+                    })}
+                  </div >
+                );
+              }) ()}
+
+{/* Goals segment */ }
+<div className="bg-white p-6 border border-gray-150 rounded-2xl shadow-xs">
+  <span className="text-xs uppercase font-bold text-gray-400 tracking-wider">Livelihood Landmark Goal</span>
+  <p className="text-sm font-semibold text-emerald-950 italic mt-2 bg-emerald-50/50 p-4 rounded-xl leading-relaxed">
+    "{youthProfile.livelihoodGoal}"
+  </p>
+</div>
+            </div >
           )}
 
-          {/* PROFILE TAB SCREEN */}
-          {activeTab === YouthScreen.PROFILE && (
-            <div className="space-y-6">
-              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
+{/* PROFILE TAB SCREEN */ }
+{
+  activeTab === YouthScreen.PROFILE && (
+    <div className="space-y-6">
+      {/* Profile Hero & Identity Card */}
+      <div
+        className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+        style={{
+          background: "radial-gradient(circle at 80% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+        }}
+      >
+        {/* Botanical Plant Leaves */}
+        <GrowthPlantAnimation />
 
-                {/* Content */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    My Profile & Skills
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage your personal demographics, livelihood goals, competency skills, and account security.
-                  </p>
-                </div>
-              </div>
-
-              {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                <div
-                  className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
-                >
-                  {[
-                    { id: "profile", label: "Personal Details", icon: User },
-                    { id: "skills", label: "Skills & Competencies", icon: Award },
-                    { id: "security", label: "Security & Password", icon: Lock },
-                    { id: "notifications", label: "Alerts & Notifications", icon: Bell },
-                    { id: "badge", label: "Digital ID Card", icon: ShieldCheck },
-                  ].map((tab) => {
-                    const isActive = profileActiveTab === tab.id;
-                    const IconComponent = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setProfileActiveTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${
-                          isActive
-                            ? "bg-[#0A6B43] text-white shadow-xs"
-                            : "bg-transparent text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/70"
-                        }`}
-                      >
-                        <IconComponent
-                          fill={isActive ? "currentColor" : "none"}
-                          className={`w-4 h-4 shrink-0 transition-all duration-200 ease-out ${
-                            isActive
-                              ? `text-white ${
-                                  tab.id === "security"
-                                    ? "[&>path]:fill-none"
-                                    : tab.id === "badge"
-                                    ? "[&>path:last-child]:stroke-[#0A6B43] [&>path:last-child]:fill-none"
-                                    : ""
-                                }`
-                              : "text-gray-500 hover:text-[#0A6B43]"
-                          }`}
-                        />
-                        <span className="transition-colors duration-200 ease-out">{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <AnimatePresence mode="wait">
-                {/* Sub-Tab 1: Personal Details Form */}
-                {profileActiveTab === "profile" && (
-                  <motion.div
-                    key="profile"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start pb-24"
-                  >
-                  <div className="lg:col-span-3 bg-white rounded-2xl p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                    <form onSubmit={handleSaveProfileDetails} className="space-y-6">
-                      <div className="border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                          <User className="w-4.5 h-4.5 text-[#0A6B43]" />
-                          Personal Demographics
-                        </h3>
-                      </div>
-
-                      {/* Section 1: Basic Information */}
-                      <div className="space-y-3.5">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Basic Information
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Full Name</label>
-                            <input type="text" disabled value={youthProfile.name} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Account Login Email</label>
-                            <input type="email" disabled value={currentUser?.email || youthProfile.email || "Registered Email"} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Date of Birth *</label>
-                            <SiKapDatePicker
-                              value={editBirthdate}
-                              onChange={handleDOBChange}
-                              disabled={!isEditingProfile || isUnverified}
-                              max={new Date().toISOString().split("T")[0]}
-                              placeholder="Select date of birth"
-                              buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Age (Years Old)</label>
-                            <input
-                              type="number"
-                              disabled
-                              readOnly
-                              value={editAge || (editBirthdate ? calculateAge(editBirthdate) : youthProfile.age) || ""}
-                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
-                              title="Age is automatically determined from your Date of Birth"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Sex / Gender *</label>
-                            <CustomSelect
-                              disabled={!isEditingProfile || isUnverified}
-                              value={editGender}
-                              onChange={(val) => setEditGender(val)}
-                              options={[
-                                { value: "Male", label: "Male" },
-                                { value: "Female", label: "Female" }
-                              ]}
-                              size="md"
-                              placeholder="Select Gender"
-                              buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number *</label>
-                            <input
-                              type="text"
-                              required
-                              disabled={!isEditingProfile || isUnverified}
-                              value={editPhone}
-                              onChange={(e) => setEditPhone(formatContactNumber(e.target.value))}
-                              className={`w-full p-2.5 border rounded-lg text-sm font-medium transition-colors ${isEditingProfile
-                                ? "bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                                : "bg-gray-50 border-gray-200 text-gray-500 cursor-default"
-                                }`}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 2: Residence & Location */}
-                      <div className="space-y-3.5 pt-1">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Residence & Location
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Registered Barangay</label>
-                            <input type="text" disabled value={`Barangay ${youthProfile.barangay || "San Luis"}`} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Purok / Zone *</label>
-                            <CustomSelect
-                              disabled={!isEditingProfile || isUnverified}
-                              value={editPurok}
-                              onChange={(val) => setEditPurok(val)}
-                              options={["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"]}
-                              size="md"
-                              placeholder="Select Purok"
-                              buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 3: Education & Background */}
-                      <div className="space-y-3.5 pt-1">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                          <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Education & Employment Profile
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Educational Attainment *</label>
-                            <CustomSelect
-                              disabled={!isEditingProfile || isUnverified}
-                              value={normalizeEducationalAttainment(editEdu)}
-                              onChange={(val) => setEditEdu(val)}
-                              options={EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))}
-                              size="md"
-                              placeholder="Select Educational Attainment"
-                              buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Youth Status *</label>
-                            <CustomSelect
-                              disabled={!isEditingProfile || isUnverified}
-                              value={editStatus}
-                              onChange={(val) => setEditStatus(val)}
-                              options={[
-                                { value: "Out-of-school", label: "Out-of-School Youth (OSY)" },
-                                { value: "In-school", label: "In-School Youth" },
-                                { value: "Employed", label: "Employed" },
-                                { value: "Self-employed", label: "Self-Employed / Freelance" },
-                                { value: "Unemployed", label: "Unemployed Jobseeker" },
-                                { value: "Working Student", label: "Working Student" },
-                                { value: "Graduate", label: "TVET / College Graduate" }
-                              ]}
-                              size="md"
-                              placeholder="Select Status"
-                              buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                            />
-                          </div>
-                          <div className="space-y-1 sm:col-span-2">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Preferred Vocational Sector *</label>
-                            <CustomSelect
-                              disabled={!isEditingProfile || isUnverified}
-                              value={editSector}
-                              onChange={(val) => setEditSector(val)}
-                              options={[
-                                "Information & Communications Technology (ICT)",
-                                "IT & Digital",
-                                "Agriculture, Forestry and Fishery",
-                                "Automotive and Land Transportation",
-                                "Construction",
-                                "Electrical and Electronics",
-                                "Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)",
-                                "Heavy Equipment Operation",
-                                "Metals and Engineering / Welding",
-                                "Process Food and Beverages / Culinary",
-                                "Tourism / Hotel and Restaurant Services",
-                                "Social, Community Development and other Services / Caregiving",
-                                "Human Health / Health Care",
-                                "Visual and Performing Arts / Creative",
-                                "Garments and Textiles",
-                                "Wholesale and Retail / Sales",
-                                "Logistics and Warehousing",
-                                "Maritime",
-                                "Utilities / Solar Power",
-                                "Language and Culture",
-                                "Entrepreneurship & Management",
-                                "General / Multi-Sector"
-                              ]}
-                              size="md"
-                              placeholder="Select Vocational Sector"
-                              buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 4: Special Inclusivity & Priority Classifications */}
-                      <div className="space-y-3.5 pt-1">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                          <Heart className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Special Inclusivity & Priority Classifications
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
-                            } ${editSoloParent ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
-                            }`}>
-                            <input
-                              type="checkbox"
-                              disabled={!isEditingProfile || isUnverified}
-                              checked={editSoloParent}
-                              onChange={(e) => setEditSoloParent(e.target.checked)}
-                              className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] cursor-pointer"
-                            />
-                            <span className="text-sm font-medium">Solo Parent</span>
-                          </label>
-
-                          <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
-                            } ${editPwd ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
-                            }`}>
-                            <input
-                              type="checkbox"
-                              disabled={!isEditingProfile || isUnverified}
-                              checked={editPwd}
-                              onChange={(e) => setEditPwd(e.target.checked)}
-                              className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] cursor-pointer"
-                            />
-                            <span className="text-sm font-medium">PWD (Disability)</span>
-                          </label>
-
-                          <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
-                            } ${editIndigenous ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
-                            }`}>
-                            <input
-                              type="checkbox"
-                              disabled={!isEditingProfile || isUnverified}
-                              checked={editIndigenous}
-                              onChange={(e) => setEditIndigenous(e.target.checked)}
-                              className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] cursor-pointer"
-                            />
-                            <span className="text-sm font-medium">Indigenous (IP)</span>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex justify-end gap-2.5">
-                        {isEditingProfile ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={handleCancelEdit}
-                              disabled={isSavingProfile}
-                              className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={isSavingProfile || isUnverified}
-                              className={`px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
-                                }`}
-                            >
-                              {isSavingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                              Save Profile Changes
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isUnverified) {
-                                addToast("Cannot edit profile details while awaiting SK Verification", "error");
-                                return;
-                              }
-                              setIsEditingProfile(true);
-                            }}
-                            disabled={isUnverified}
-                            className={`px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
-                              }`}
-                          >
-                            <Edit className="w-4 h-4" />
-                            Edit Profile Details
-                          </button>
-                        )}
-                      </div>
-                    </form>
-                  </div>
-
-                  {/* Summary & Verification Card */}
-                  <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm">
-                      <div className="border-b border-gray-100 pb-3">
-                        <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
-                          <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
-                          Membership & Verification Status
-                        </h4>
-                      </div>
-
-                      <div className="flex justify-between items-center py-3.5 border-b border-gray-100">
-                        <span className="text-gray-500 font-medium">SK Verification:</span>
-                        <span className={`font-extrabold text-xs px-2.5 py-0.5 rounded-full border ${youthProfile.approvalStatus === "Approved"
-                          ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                          : youthProfile.approvalStatus === "Rejected"
-                            ? "bg-red-50 text-red-700 border-red-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}>
-                          {youthProfile.approvalStatus === "Approved" ? "VERIFIED KK MEMBER" : youthProfile.approvalStatus === "Rejected" ? "DECLINED" : "PENDING VERIFICATION"}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between items-center py-3.5 border-b border-gray-100">
-                        <span className="text-gray-500 font-medium">Registered Date:</span>
-                        <span className="font-medium text-gray-700">{youthProfile.registeredDate || "Registered"}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center py-3.5 border-b border-gray-100">
-                        <span className="text-gray-500 font-medium">Verified Date:</span>
-                        <span className="font-medium text-gray-700">
-                          {youthProfile.approvalStatus === "Approved"
-                            ? ((youthProfile as any).approvalDate || (youthProfile as any).verifiedDate || youthProfile.registeredDate || "Verified")
-                            : "Pending Approval"}
-                        </span>
-                      </div>
-
-                      {/* Special Badges */}
-                      {(youthProfile.soloParent || youthProfile.pwd || youthProfile.indigenous) && (
-                        <div className="py-3.5 border-b border-gray-100 flex justify-between items-center">
-                          <span className="text-gray-500 font-medium text-xs">Priority Classification:</span>
-                          <div className="flex flex-wrap gap-1.5 justify-end">
-                            {youthProfile.soloParent && (
-                              <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs font-semibold px-2 py-0.5 rounded-md">
-                                Solo Parent
-                              </span>
-                            )}
-                            {youthProfile.pwd && (
-                              <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold px-2 py-0.5 rounded-md">
-                                PWD
-                              </span>
-                            )}
-                            {youthProfile.indigenous && (
-                              <span className="bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold px-2 py-0.5 rounded-md">
-                                Indigenous (IP)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Submitted Government ID Details */}
-                      <div className="pt-3.5 space-y-2.5">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Submitted Verification ID</span>
-                        <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500 font-medium">ID Type:</span>
-                            <span className="font-medium text-gray-800 text-right">{youthProfile.verificationIdType || "Government / Student ID"}</span>
-                          </div>
-
-                          {youthProfile.verificationIdNumber && (
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-500 font-medium">ID Number:</span>
-                              <span className="font-medium text-gray-800 text-right">
-                                {youthProfile.verificationIdNumber}
-                              </span>
-                            </div>
-                          )}
-
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-500 font-medium">ID Photo Attached:</span>
-                            {youthProfile.verificationIdImage ? (
-                              <div
-                                className="w-16 h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
-                                onClick={() => setShowIdPhotoModal(true)}
-                                title="Click to view full ID photo"
-                              >
-                                <img
-                                  src={youthProfile.verificationIdImage}
-                                  alt="ID Preview"
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">No image submitted</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  </motion.div>
+        {/* Identity Header Content */}
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
+            {/* Avatar Initials Badge with Verification Indicator & Profile Picture Upload */}
+            <div className="relative shrink-0 group">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl sm:text-3xl shadow-lg border-2 border-emerald-300/40 relative overflow-hidden">
+                {profilePictureUrl ? (
+                  <img
+                    src={profilePictureUrl}
+                    alt={youthProfile.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : youthProfile.name ? (
+                  youthProfile.name
+                    .split(" ")
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((n) => n[0]?.toUpperCase())
+                    .join("")
+                ) : (
+                  "KK"
                 )}
 
-                {/* Sub-Tab 2: Skills, Interests & Prior Experiences */}
-                {profileActiveTab === "skills" && (
-                  <motion.div
-                    key="skills"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="space-y-6"
-                  >
-                  {/* Livelihood & Career Goal Card */}
-                  <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                      <div>
-                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                          <Target className="w-4.5 h-4.5 text-[#0A6B43]" />
-                          Livelihood & Career Goal *
-                        </h3>
-                        <p className="text-sm text-gray-400 font-medium mt-0.5">
-                          Your overarching career aspiration or livelihood ambition (15% weight in AI matchmaking)
+                {/* Hover / Active Change Photo Overlay */}
+                <label
+                  htmlFor="hero-profile-pic-input"
+                  className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white"
+                  title="Change Profile Picture"
+                >
+                  {isUploadingPic ? (
+                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 text-emerald-300" />
+                      <span className="text-[9px] font-black tracking-wider uppercase mt-0.5 text-white">Change</span>
+                    </>
+                  )}
+                </label>
+                <input
+                  id="hero-profile-pic-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleProfilePictureUpload}
+                  disabled={isUploadingPic}
+                />
+              </div>
+
+              {/* Verification Badge */}
+              <div
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md z-10"
+                title={youthProfile.approvalStatus === "Approved" ? "Verified KK Member" : "Verification Pending"}
+              >
+                {youthProfile.approvalStatus === "Approved" ? (
+                  <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                ) : (
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                )}
+              </div>
+            </div>
+
+            {/* Member Details */}
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-black text-xl sm:text-2xl lg:text-3xl text-white tracking-tight leading-tight">
+                  {youthProfile.name}
+                </h2>
+                <span
+                  className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border shadow-2xs ${youthProfile.approvalStatus === "Approved"
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
+                    : youthProfile.approvalStatus === "Rejected"
+                      ? "bg-red-500/20 text-red-300 border-red-400/40"
+                      : "bg-amber-500/20 text-amber-300 border-amber-400/40"
+                    }`}
+                >
+                  <ShieldCheck className="w-3 h-3 shrink-0" />
+                  <span>
+                    {youthProfile.approvalStatus === "Approved"
+                      ? "Verified KK Member"
+                      : youthProfile.approvalStatus === "Rejected"
+                        ? "Declined"
+                        : "Pending Verification"}
+                  </span>
+                </span>
+              </div>
+
+              {/* Location & Status Badges */}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-100/90 font-medium">
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-0.5 rounded-md backdrop-blur-xs">
+                  <MapPin className="w-3 h-3 text-emerald-300 shrink-0" />
+                  <span>Barangay {youthProfile.barangay || "San Luis"} • {youthProfile.purok || "Purok 1"}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-0.5 rounded-md backdrop-blur-xs">
+                  <GraduationCap className="w-3 h-3 text-emerald-300 shrink-0" />
+                  <span>{youthProfile.currentStatus || "Youth Resident"}</span>
+                </span>
+              </div>
+
+              {/* Quick Contact & Demographics Strip */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-100/80 pt-1">
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-emerald-300 shrink-0" />
+                  <span>{youthProfile.contactNumber || "No phone"}</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <Mail className="w-3 h-3 text-emerald-300 shrink-0" />
+                  <span className="truncate max-w-[200px] sm:max-w-none">{currentUser?.email || youthProfile.email || "No email"}</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-emerald-300 shrink-0" />
+                  <span>Age: {youthProfile.age} yrs</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Digital ID Action */}
+          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-3 sm:pt-0 border-t border-white/10 sm:border-0">
+            <button
+              type="button"
+              onClick={() => setProfileActiveTab("badge")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#0A6B43] hover:bg-emerald-50 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+              <span>View Official Digital ID</span>
+            </button>
+            <span className="text-[10px] text-emerald-200/70 font-semibold hidden sm:inline">
+              Official SK LGU Credential
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-Tab Navigation Bar */}
+      <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        <div
+          className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
+        >
+          {[
+            { id: "profile", label: "Personal Details", icon: User },
+            { id: "skills", label: "Skills & Competencies", icon: Award },
+            { id: "security", label: "Security & Password", icon: Lock },
+            { id: "notifications", label: "Alerts & Notifications", icon: Bell },
+            { id: "badge", label: "Digital ID Card", icon: ShieldCheck },
+          ].map((tab) => {
+            const isActive = profileActiveTab === tab.id;
+            const IconComponent = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setProfileActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${isActive
+                  ? "bg-[#0A6B43] text-white shadow-xs"
+                  : "bg-transparent text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/70"
+                  }`}
+              >
+                <IconComponent
+                  fill={isActive ? "currentColor" : "none"}
+                  className={`w-4 h-4 shrink-0 transition-all duration-200 ease-out ${isActive
+                    ? `text-white ${tab.id === "security"
+                      ? "[&>path]:fill-none"
+                      : tab.id === "badge"
+                        ? "[&>path:last-child]:stroke-[#0A6B43] [&>path:last-child]:fill-none"
+                        : ""
+                    }`
+                    : "text-gray-500 hover:text-[#0A6B43]"
+                    }`}
+                />
+                <span className="transition-colors duration-200 ease-out">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* Sub-Tab 1: Personal Details Dossier */}
+        {profileActiveTab === "profile" && (
+          <motion.div
+            key="profile"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start pb-24"
+          >
+            {/* Left Column: Personal Dossier Info or Active Edit Form */}
+            <div className="lg:col-span-3 bg-white rounded-2xl p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+              {!isEditingProfile ? (
+                /* Read-Only Dossier Mode */
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                    <div>
+                      <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
+                        <User className="w-4.5 h-4.5 text-[#0A6B43]" />
+                        Personal Demographics & Profile
+                      </h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        Official member record registered with Katipunan ng Kabataan
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isUnverified) {
+                          addToast("Cannot edit profile details while awaiting SK Verification", "error");
+                          return;
+                        }
+                        setIsEditingProfile(true);
+                      }}
+                      disabled={isUnverified}
+                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-white shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
+                        }`}
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Edit Details</span>
+                    </button>
+                  </div>
+
+                  {/* Basic Information Dossier */}
+                  <div className="space-y-2.5">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                      Basic Demographics
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Full Name</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.name}</p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Login Email</span>
+                        <p className="text-sm font-bold text-slate-800 truncate" title={currentUser?.email || youthProfile.email || "Registered Email"}>
+                          {currentUser?.email || youthProfile.email || "Registered Email"}
                         </p>
                       </div>
-                      {!isEditingGoal ? (
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Contact Phone</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.contactNumber || "Not recorded"}</p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Date of Birth</span>
+                        <p className="text-sm font-bold text-slate-800">
+                          {youthProfile.birthdate
+                            ? (() => {
+                              try {
+                                const d = new Date(youthProfile.birthdate);
+                                return isNaN(d.getTime()) ? String(youthProfile.birthdate) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                              } catch {
+                                return String(youthProfile.birthdate);
+                              }
+                            })()
+                            : "Not recorded"}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Age</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.age} years old</p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Sex / Gender</span>
+                        <p className="text-sm font-bold text-slate-800">{spellOutGender(youthProfile.gender) || "Not recorded"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Residence & Location */}
+                  <div className="space-y-2.5 pt-1">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                      Residence & Location
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Barangay</span>
+                        <p className="text-sm font-bold text-slate-800">Barangay {youthProfile.barangay || "San Luis"}</p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Purok / Zone</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.purok || "Purok 1"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Education & Employment Profile */}
+                  <div className="space-y-2.5 pt-1">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                      Education & Employment Profile
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Educational Attainment</span>
+                        <p className="text-sm font-bold text-slate-800">{normalizeEducationalAttainment(youthProfile.educationalAttainment) || "High School"}</p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Current Status</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.currentStatus || "Out-of-School Youth"}</p>
+                      </div>
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1 sm:col-span-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Preferred Vocational Sector</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.sectorPreference || "General / Multi-Sector"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Special Inclusivity Badges */}
+                  <div className="space-y-2.5 pt-1">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                      Special Inclusivity & Priority Classifications
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className={`p-3 rounded-xl border flex items-center justify-between ${youthProfile.soloParent ? "bg-purple-50/80 border-purple-200 text-purple-900" : "bg-slate-50/60 border-slate-200/60 text-slate-400"}`}>
+                        <span className="text-xs font-bold">Solo Parent</span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${youthProfile.soloParent ? "bg-purple-200/70 text-purple-800" : "bg-slate-200/60 text-slate-500"}`}>
+                          {youthProfile.soloParent ? "Yes" : "No"}
+                        </span>
+                      </div>
+                      <div className={`p-3 rounded-xl border flex items-center justify-between ${youthProfile.pwd ? "bg-blue-50/80 border-blue-200 text-blue-900" : "bg-slate-50/60 border-slate-200/60 text-slate-400"}`}>
+                        <span className="text-xs font-bold">PWD (Disability)</span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${youthProfile.pwd ? "bg-blue-200/70 text-blue-800" : "bg-slate-200/60 text-slate-500"}`}>
+                          {youthProfile.pwd ? "Yes" : "No"}
+                        </span>
+                      </div>
+                      <div className={`p-3 rounded-xl border flex items-center justify-between ${youthProfile.indigenous ? "bg-amber-50/80 border-amber-200 text-amber-900" : "bg-slate-50/60 border-slate-200/60 text-slate-400"}`}>
+                        <span className="text-xs font-bold">Indigenous (IP)</span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${youthProfile.indigenous ? "bg-amber-200/70 text-amber-800" : "bg-slate-200/60 text-slate-500"}`}>
+                          {youthProfile.indigenous ? "Yes" : "No"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Edit Form Mode */
+                <form onSubmit={handleSaveProfileDetails} className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                      <Edit className="w-4.5 h-4.5 text-[#0A6B43]" />
+                      Edit Profile Details
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Discard
+                    </button>
+                  </div>
+
+                  {/* Section 1: Basic Information */}
+                  <div className="space-y-3.5">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Basic Information
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Full Name</label>
+                        <input type="text" disabled value={youthProfile.name} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Account Login Email</label>
+                        <input type="email" disabled value={currentUser?.email || youthProfile.email || "Registered Email"} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Date of Birth *</label>
+                        <SiKapDatePicker
+                          value={editBirthdate}
+                          onChange={handleDOBChange}
+                          disabled={!isEditingProfile || isUnverified}
+                          max={new Date().toISOString().split("T")[0]}
+                          placeholder="Select date of birth"
+                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Age (Years Old)</label>
+                        <input
+                          type="number"
+                          disabled
+                          readOnly
+                          value={editAge || (editBirthdate ? calculateAge(editBirthdate) : youthProfile.age) || ""}
+                          className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                          title="Age is automatically determined from your Date of Birth"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Sex / Gender *</label>
+                        <CustomSelect
+                          disabled={!isEditingProfile || isUnverified}
+                          value={editGender}
+                          onChange={(val) => setEditGender(val)}
+                          options={[
+                            { value: "Male", label: "Male" },
+                            { value: "Female", label: "Female" }
+                          ]}
+                          size="md"
+                          placeholder="Select Gender"
+                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number *</label>
+                        <input
+                          type="text"
+                          required
+                          disabled={!isEditingProfile || isUnverified}
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(formatContactNumber(e.target.value))}
+                          className={`w-full p-2.5 border rounded-lg text-sm font-medium transition-colors ${isEditingProfile
+                            ? "bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                            : "bg-gray-50 border-gray-200 text-gray-500 cursor-default"
+                            }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Residence & Location */}
+                  <div className="space-y-3.5 pt-1">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Residence & Location
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Registered Barangay</label>
+                        <input type="text" disabled value={`Barangay ${youthProfile.barangay || "San Luis"}`} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Purok / Zone *</label>
+                        <CustomSelect
+                          disabled={!isEditingProfile || isUnverified}
+                          value={editPurok}
+                          onChange={(val) => setEditPurok(val)}
+                          options={["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"]}
+                          size="md"
+                          placeholder="Select Purok"
+                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Education & Background */}
+                  <div className="space-y-3.5 pt-1">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Education & Employment Profile
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Educational Attainment *</label>
+                        <CustomSelect
+                          disabled={!isEditingProfile || isUnverified}
+                          value={normalizeEducationalAttainment(editEdu)}
+                          onChange={(val) => setEditEdu(val)}
+                          options={EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))}
+                          size="md"
+                          placeholder="Select Educational Attainment"
+                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Youth Status *</label>
+                        <CustomSelect
+                          disabled={!isEditingProfile || isUnverified}
+                          value={editStatus}
+                          onChange={(val) => setEditStatus(val)}
+                          options={[
+                            { value: "Out-of-school", label: "Out-of-School Youth (OSY)" },
+                            { value: "In-school", label: "In-School Youth" },
+                            { value: "Employed", label: "Employed" },
+                            { value: "Self-employed", label: "Self-Employed / Freelance" },
+                            { value: "Unemployed", label: "Unemployed Jobseeker" },
+                            { value: "Working Student", label: "Working Student" },
+                            { value: "Graduate", label: "TVET / College Graduate" }
+                          ]}
+                          size="md"
+                          placeholder="Select Status"
+                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Preferred Vocational Sector *</label>
+                        <CustomSelect
+                          disabled={!isEditingProfile || isUnverified}
+                          value={editSector}
+                          onChange={(val) => setEditSector(val)}
+                          options={[
+                            "Information & Communications Technology (ICT)",
+                            "IT & Digital",
+                            "Agriculture, Forestry and Fishery",
+                            "Automotive and Land Transportation",
+                            "Construction",
+                            "Electrical and Electronics",
+                            "Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)",
+                            "Heavy Equipment Operation",
+                            "Metals and Engineering / Welding",
+                            "Process Food and Beverages / Culinary",
+                            "Tourism / Hotel and Restaurant Services",
+                            "Social, Community Development and other Services / Caregiving",
+                            "Human Health / Health Care",
+                            "Visual and Performing Arts / Creative",
+                            "Garments and Textiles",
+                            "Wholesale and Retail / Sales",
+                            "Logistics and Warehousing",
+                            "Maritime",
+                            "Utilities / Solar Power",
+                            "Language and Culture",
+                            "Entrepreneurship & Management",
+                            "General / Multi-Sector"
+                          ]}
+                          size="md"
+                          placeholder="Select Vocational Sector"
+                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Special Inclusivity & Priority Classifications */}
+                  <div className="space-y-3.5 pt-1">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <Heart className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Special Inclusivity & Priority Classifications
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
+                        } ${editSoloParent ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
+                        }`}>
+                        <input
+                          type="checkbox"
+                          disabled={!isEditingProfile || isUnverified}
+                          checked={editSoloParent}
+                          onChange={(e) => setEditSoloParent(e.target.checked)}
+                          className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] cursor-pointer"
+                        />
+                        <span className="text-sm font-medium">Solo Parent</span>
+                      </label>
+
+                      <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
+                        } ${editPwd ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
+                        }`}>
+                        <input
+                          type="checkbox"
+                          disabled={!isEditingProfile || isUnverified}
+                          checked={editPwd}
+                          onChange={(e) => setEditPwd(e.target.checked)}
+                          className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] cursor-pointer"
+                        />
+                        <span className="text-sm font-medium">PWD (Disability)</span>
+                      </label>
+
+                      <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
+                        } ${editIndigenous ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
+                        }`}>
+                        <input
+                          type="checkbox"
+                          disabled={!isEditingProfile || isUnverified}
+                          checked={editIndigenous}
+                          onChange={(e) => setEditIndigenous(e.target.checked)}
+                          className="w-4.5 h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] cursor-pointer"
+                        />
+                        <span className="text-sm font-medium">Indigenous (IP)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      disabled={isSavingProfile}
+                      className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingProfile || isUnverified}
+                      className={`px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
+                        }`}
+                    >
+                      {isSavingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Save Profile Changes
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            {/* Right Column: Summary & Verification Card */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Profile Photo Management Card */}
+              <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm space-y-4">
+                <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                  <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
+                    <Camera className="w-4.5 h-4.5 text-[#0A6B43]" />
+                    Official Profile Picture
+                  </h4>
+                  {profilePictureUrl && (
+                    <span className="text-[11px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
+                    {profilePictureUrl ? (
+                      <img
+                        src={profilePictureUrl}
+                        alt={youthProfile.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : youthProfile.name ? (
+                      youthProfile.name
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((n) => n[0]?.toUpperCase())
+                        .join("")
+                    ) : (
+                      "KK"
+                    )}
+                    {isUploadingPic && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label
+                        htmlFor="tab-profile-pic-input"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0A6B43] text-white hover:bg-[#075332] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{profilePictureUrl ? "Change Photo" : "Upload Photo"}</span>
+                      </label>
+                      <input
+                        id="tab-profile-pic-input"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProfilePictureUpload}
+                        disabled={isUploadingPic}
+                      />
+
+                      {profilePictureUrl && (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (isUnverified) {
-                              addToast("Cannot edit career goal while awaiting SK Verification", "error");
-                              return;
-                            }
-                            setIsEditingGoal(true);
-                          }}
-                          disabled={isUnverified}
-                          className={`px-4 py-2 h-9 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
+                          onClick={handleRemoveProfilePicture}
+                          disabled={isUploadingPic}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors border border-red-200 cursor-pointer disabled:opacity-50"
                         >
-                          <Edit className="w-4 h-4" />
-                          Edit Goal
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remove</span>
                         </button>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCareerGoalInput(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
-                              setIsEditingGoal(false);
-                            }}
-                            disabled={isSavingGoal}
-                            className="px-4 py-2 h-9 min-w-[100px] rounded-lg text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer flex items-center justify-center"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSaveCareerGoal}
-                            disabled={isSavingGoal || isUnverified}
-                            className="px-4 py-2 h-9 min-w-[100px] bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                          >
-                            {isSavingGoal ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                            Save Goal
-                          </button>
-                        </div>
                       )}
                     </div>
+                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+                      Square JPEG, PNG, or WebP. Auto-optimized for Katipunan ng Kabataan Digital ID & official records.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="space-y-2">
-                      {isEditingGoal ? (
-                        <textarea
-                          rows={3}
-                          required
-                          value={careerGoalInput}
-                          onChange={(e) => setCareerGoalInput(e.target.value)}
-                          placeholder="Describe your career aspiration or livelihood goal..."
-                          className="w-full p-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 bg-white focus:ring-1 focus:ring-emerald-500 shadow-2xs focus:outline-hidden"
-                        />
-                      ) : (
-                        <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 text-gray-800 text-sm leading-relaxed font-medium">
-                          {youthProfile.goalRaw || youthProfile.livelihoodGoal ? (
-                            <span>{youthProfile.goalRaw || youthProfile.livelihoodGoal}</span>
-                          ) : (
-                            <span className="italic text-gray-400">No career goal specified yet. Click &quot;Edit Goal&quot; to define your livelihood aspiration.</span>
-                          )}
-                        </div>
+              <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm">
+                <div className="border-b border-gray-100 pb-3">
+                  <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
+                    <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                    Membership & Verification
+                  </h4>
+                </div>
+
+                <div className="flex justify-between items-center py-3.5 border-b border-gray-100">
+                  <span className="text-gray-500 font-medium">SK Verification:</span>
+                  <span className={`font-extrabold text-xs px-2.5 py-0.5 rounded-full border ${youthProfile.approvalStatus === "Approved"
+                    ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                    : youthProfile.approvalStatus === "Rejected"
+                      ? "bg-red-50 text-red-700 border-red-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}>
+                    {youthProfile.approvalStatus === "Approved" ? "VERIFIED KK MEMBER" : youthProfile.approvalStatus === "Rejected" ? "DECLINED" : "PENDING VERIFICATION"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-3.5 border-b border-gray-100">
+                  <span className="text-gray-500 font-medium">Registered Date:</span>
+                  <span className="font-medium text-gray-700">{youthProfile.registeredDate || "Registered"}</span>
+                </div>
+
+                <div className="flex justify-between items-center py-3.5 border-b border-gray-100">
+                  <span className="text-gray-500 font-medium">Verified Date:</span>
+                  <span className="font-medium text-gray-700">
+                    {youthProfile.approvalStatus === "Approved"
+                      ? ((youthProfile as any).approvalDate || (youthProfile as any).verifiedDate || youthProfile.registeredDate || "Verified")
+                      : "Pending Approval"}
+                  </span>
+                </div>
+
+                {/* Special Badges */}
+                {(youthProfile.soloParent || youthProfile.pwd || youthProfile.indigenous) && (
+                  <div className="py-3.5 border-b border-gray-100 flex justify-between items-center">
+                    <span className="text-gray-500 font-medium text-xs">Priority Classification:</span>
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                      {youthProfile.soloParent && (
+                        <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs font-semibold px-2 py-0.5 rounded-md">
+                          Solo Parent
+                        </span>
+                      )}
+                      {youthProfile.pwd && (
+                        <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold px-2 py-0.5 rounded-md">
+                          PWD
+                        </span>
+                      )}
+                      {youthProfile.indigenous && (
+                        <span className="bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold px-2 py-0.5 rounded-md">
+                          Indigenous (IP)
+                        </span>
                       )}
                     </div>
                   </div>
-                  {/* 1. Competency Skills & Qualifications Card */}
-                  <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                    <div className="border-b border-gray-100 pb-3">
-                      <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                        <Award className="w-4.5 h-4.5 text-amber-500" />
-                        Competency Skills & Technical Qualifications
-                      </h3>
-                      <p className="text-sm text-gray-400 font-medium mt-0.5">Skills listed here are directly scored by the CBF matching engine (50% weight)</p>
+                )}
+
+                {/* Submitted Government ID Details */}
+                <div className="pt-3.5 space-y-2.5">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Submitted Verification ID</span>
+                  <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">ID Type:</span>
+                      <span className="font-medium text-gray-800 text-right">{youthProfile.verificationIdType || "Government / Student ID"}</span>
                     </div>
 
-                    {/* Add Skill Inline Input: Type field on the left and Add button on the right */}
-                    <div className="flex items-center gap-2 w-full">
-                      <input
-                        type="text"
-                        disabled={isUnverified}
-                        placeholder={isUnverified ? "Awaiting verification to add skills..." : "Type skill (e.g. Baking, Basic Computing, Carpentry)..."}
-                        value={newSkillInput}
-                        onChange={(e) => setNewSkillInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            if (isUnverified) {
-                              addToast("Cannot add skills while account is awaiting SK verification", "error");
-                              return;
-                            }
-                            handleAddSkillSubmit();
-                          }
-                        }}
-                        className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
-                      />
-                      <button
-                        type="button"
-                        disabled={isUnverified}
-                        onClick={() => {
+                    {youthProfile.verificationIdNumber && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 font-medium">ID Number:</span>
+                        <span className="font-medium text-gray-800 text-right font-mono text-xs">
+                          {youthProfile.verificationIdNumber}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">ID Photo Attached:</span>
+                      {youthProfile.verificationIdImage ? (
+                        <div
+                          className="w-16 h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
+                          onClick={() => setShowIdPhotoModal(true)}
+                          title="Click to view full ID photo"
+                        >
+                          <img
+                            src={youthProfile.verificationIdImage}
+                            alt="ID Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">No image submitted</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fast Link to Digital ID Card */}
+                <div className="pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setProfileActiveTab("badge")}
+                    className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                    <span>View Official Digital ID Card</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Sub-Tab 2: Skills, Interests & Prior Experiences - Balanced 2-Column Grid */}
+        {profileActiveTab === "skills" && (
+          <motion.div
+            key="skills"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="space-y-6 pb-24"
+          >
+            {/* Top: Livelihood & Career Goal Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                      <Target className="w-4.5 h-4.5 text-[#0A6B43]" />
+                      Livelihood & Career Goal
+                    </h3>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      15% Match Weight
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-400 font-medium mt-0.5">
+                    Your overarching career aspiration or livelihood ambition
+                  </p>
+                </div>
+                {!isEditingGoal ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isUnverified) {
+                        addToast("Cannot edit career goal while awaiting SK Verification", "error");
+                        return;
+                      }
+                      setIsEditingGoal(true);
+                    }}
+                    disabled={isUnverified}
+                    className={`px-4 py-2 h-9 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit Goal
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCareerGoalInput(youthProfile.goalRaw || youthProfile.livelihoodGoal || "");
+                        setIsEditingGoal(false);
+                      }}
+                      disabled={isSavingGoal}
+                      className="px-4 py-2 h-9 min-w-[100px] rounded-lg text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer flex items-center justify-center"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveCareerGoal}
+                      disabled={isSavingGoal || isUnverified}
+                      className="px-4 py-2 h-9 min-w-[100px] bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingGoal ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Save Goal
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {isEditingGoal ? (
+                  <textarea
+                    rows={3}
+                    required
+                    value={careerGoalInput}
+                    onChange={(e) => setCareerGoalInput(e.target.value)}
+                    placeholder="Describe your career aspiration or livelihood goal..."
+                    className="w-full p-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 bg-white focus:ring-1 focus:ring-emerald-500 shadow-2xs focus:outline-hidden"
+                  />
+                ) : (
+                  <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 text-gray-800 text-sm leading-relaxed font-medium">
+                    {youthProfile.goalRaw || youthProfile.livelihoodGoal ? (
+                      <span>{youthProfile.goalRaw || youthProfile.livelihoodGoal}</span>
+                    ) : (
+                      <span className="italic text-gray-400">No career goal specified yet. Click &quot;Edit Goal&quot; to define your livelihood aspiration.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Middle: 2-Column Balanced Grid: Skills + Interests */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 1. Competency Skills & Qualifications Card */}
+              <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                        <Award className="w-4.5 h-4.5 text-amber-500" />
+                        Competency Skills
+                      </h3>
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        50% Match Weight
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">Scored directly by the CBF AI matching engine</p>
+                  </div>
+
+                  {/* Add Skill Inline Input */}
+                  <div className="flex items-center gap-2 w-full">
+                    <input
+                      type="text"
+                      disabled={isUnverified}
+                      placeholder={isUnverified ? "Awaiting verification..." : "e.g. Baking, Basic Computing..."}
+                      value={newSkillInput}
+                      onChange={(e) => setNewSkillInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
                           if (isUnverified) {
                             addToast("Cannot add skills while account is awaiting SK verification", "error");
                             return;
                           }
                           handleAddSkillSubmit();
-                        }}
-                        className={`px-4 py-2 h-10 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add
-                      </button>
-                    </div>
-
-                    {/* Active Registered Skills Tags */}
-                    <div className="flex flex-wrap gap-2">
-                      {youthProfile.skills && youthProfile.skills.length > 0 ? (
-                        youthProfile.skills.map((s) => (
-                          <span key={s} className="bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5 shadow-2xs">
-                            <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            {s}
-                            <button
-                              onClick={() => {
-                                if (isUnverified) {
-                                  addToast("Cannot remove skills in View-Only Mode", "error");
-                                  return;
-                                }
-                                handleRemoveSkillLocal(s);
-                              }}
-                              disabled={isUnverified}
-                              className="font-bold text-xs text-amber-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
-                              title="Remove skill"
-                            >
-                              &times;
-                            </button>
-                          </span>
-                        ))
-                      ) : (
-                        <p className="text-xs text-gray-400 italic font-medium py-1">No competency skills added yet. Add above to boost your match score.</p>
-                      )}
-                    </div>
+                        }
+                      }}
+                      className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={isUnverified}
+                      onClick={() => {
+                        if (isUnverified) {
+                          addToast("Cannot add skills while account is awaiting SK verification", "error");
+                          return;
+                        }
+                        handleAddSkillSubmit();
+                      }}
+                      className={`px-4 py-2 h-10 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add
+                    </button>
                   </div>
 
-                  {/* 2. Vocational Interests & Sector Preferences Card */}
-                  <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                    <div className="border-b border-gray-100 pb-3">
+                  {/* Active Registered Skills Tags */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                      youthProfile.skills.map((s) => (
+                        <span key={s} className="bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                          <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          {s}
+                          <button
+                            onClick={() => {
+                              if (isUnverified) {
+                                addToast("Cannot remove skills in View-Only Mode", "error");
+                                return;
+                              }
+                              handleRemoveSkillLocal(s);
+                            }}
+                            disabled={isUnverified}
+                            className="font-bold text-xs text-amber-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
+                            title="Remove skill"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-400 italic font-medium py-1">No competency skills added yet.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Vocational Interests & Sector Preferences Card */}
+              <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
                       <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
                         <Compass className="w-4.5 h-4.5 text-[#0A6B43]" />
-                        Vocational Interests & Sector Preferences
+                        Vocational Interests
                       </h3>
-                      <p className="text-sm text-gray-400 font-medium mt-0.5">Fields and industries you are passionate about (20% weight in matchmaking)</p>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        20% Match Weight
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">Fields and industries you are passionate about</p>
+                  </div>
 
-                    {/* Add Preference Inline Input: Type field on the left and Add button on the right */}
-                    <div className="flex items-center gap-2 w-full">
-                      <input
-                        type="text"
-                        disabled={isUnverified}
-                        placeholder={isUnverified ? "Awaiting verification to add interests..." : "Type interest (e.g. Graphic Design, Web Development, Cooking)..."}
-                        value={newPrefInput}
-                        onChange={(e) => setNewPrefInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            if (isUnverified) {
-                              addToast("Cannot add interests while account is awaiting SK verification", "error");
-                              return;
-                            }
-                            handleAddPreference(newPrefInput);
-                          }
-                        }}
-                        className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
-                      />
-                      <button
-                        type="button"
-                        disabled={isUnverified}
-                        onClick={() => {
+                  {/* Add Preference Inline Input */}
+                  <div className="flex items-center gap-2 w-full">
+                    <input
+                      type="text"
+                      disabled={isUnverified}
+                      placeholder={isUnverified ? "Awaiting verification..." : "e.g. Graphic Design, Web Dev..."}
+                      value={newPrefInput}
+                      onChange={(e) => setNewPrefInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
                           if (isUnverified) {
                             addToast("Cannot add interests while account is awaiting SK verification", "error");
                             return;
                           }
                           handleAddPreference(newPrefInput);
-                        }}
-                        className={`px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {(youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).length > 0 ? (
-                        (youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).map((pref) => (
-                          <span key={pref} className="bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-1 rounded-lg border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                            <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            {pref}
-                            <button
-                              onClick={() => handleRemovePreference(pref)}
-                              disabled={isUnverified}
-                              className="font-bold text-xs text-emerald-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
-                              title="Remove interest"
-                            >
-                              &times;
-                            </button>
-                          </span>
-                        ))
-                      ) : (
-                        <p className="text-xs text-gray-400 italic font-medium py-1">No vocational interests listed. Add above to refine your matches.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 3. Prior Work & Practical Experiences Card */}
-                  <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                    <div className="border-b border-gray-100 pb-3">
-                      <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                        <Briefcase className="w-4.5 h-4.5 text-blue-600" />
-                        Prior Work & Practical Experiences
-                      </h3>
-                      <p className="text-sm text-gray-400 font-medium mt-0.5">Informal gigs, past employment, hands-on hobbies, or volunteer work (15% weight)</p>
-                    </div>
-
-                    {/* Add Experience Inline Input: Type field on the left and Add button on the right */}
-                    <div className="flex items-center gap-2 w-full">
-                      <input
-                        type="text"
-                        disabled={isUnverified}
-                        placeholder={isUnverified ? "Awaiting verification to add experiences..." : "Type prior experience (e.g. Phone Repair, Store Assistant, Cooking Helper)..."}
-                        value={newExpInput}
-                        onChange={(e) => setNewExpInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            if (isUnverified) {
-                              addToast("Cannot add experiences while account is awaiting SK verification", "error");
-                              return;
-                            }
-                            handleAddExperience(newExpInput);
-                          }
-                        }}
-                        className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
-                      />
-                      <button
-                        type="button"
-                        disabled={isUnverified}
-                        onClick={() => {
-                          if (isUnverified) {
-                            addToast("Cannot add experiences while account is awaiting SK verification", "error");
-                            return;
-                          }
-                          handleAddExperience(newExpInput);
-                        }}
-                        className={`px-4 py-2 h-10 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {youthProfile.experiencesRaw && youthProfile.experiencesRaw.length > 0 ? (
-                        youthProfile.experiencesRaw.map((exp) => (
-                          <span key={exp} className="bg-blue-50 text-blue-950 text-xs font-bold px-3 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5 shadow-2xs">
-                            <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                            {exp}
-                            <button
-                              onClick={() => handleRemoveExperience(exp)}
-                              disabled={isUnverified}
-                              className="font-bold text-xs text-blue-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
-                              title="Remove experience"
-                            >
-                              &times;
-                            </button>
-                          </span>
-                        ))
-                      ) : (
-                        <p className="text-xs text-gray-400 italic font-medium py-1">No prior work experiences listed. Add above to boost practical experience scoring.</p>
-                      )}
-                    </div>
-                  </div>
-                  </motion.div>
-                )}
-
-                {/* Sub-Tab 3: Account Security */}
-                {profileActiveTab === "security" && (
-                  <motion.div
-                    key="security"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] max-w-xl"
-                  >
-                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
-                    <div className="border-b border-gray-100 pb-3">
-                      <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                        <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
-                        Account Security & Password
-                      </h3>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPass ? "text" : "password"}
-                          required
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Enter current password..."
-                          className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showNewPass ? "text" : "password"}
-                          required
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Enter new password (min. 6 characters)..."
-                          className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPass ? "text" : "password"}
-                          required
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-type new password..."
-                          className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPass(!showConfirmPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        {isChangingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                        Update Password
-                      </button>
-                    </div>
-                  </form>
-                  </motion.div>
-                )}
-
-                {/* Sub-Tab: Notifications & Alerts Preferences */}
-                {profileActiveTab === "notifications" && (
-                  <motion.div
-                    key="notifications"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="w-full max-w-[740px]"
-                  >
-                  <NotificationSettingsCard
-                    userRole="KK_YOUTH"
-                    userEmail={currentUser?.email}
-                    addToast={addToast}
-                    className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
-                  />
-                  </motion.div>
-                )}
-
-                {/* Sub-Tab 4: Digital ID Card */}
-                {profileActiveTab === "badge" && (() => {
-                  const userCompletedApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Archived") || [];
-                  const userEnrolledApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Enrolled") || [];
-                  const savedPlan = currentSavedPlan || generatedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
-                  const cardGender = spellOutGender(youthProfile.gender);
-                  const formattedBirthdate = youthProfile.birthdate
-                    ? (() => {
-                        try {
-                          const d = new Date(youthProfile.birthdate);
-                          return isNaN(d.getTime())
-                            ? String(youthProfile.birthdate)
-                            : d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-                        } catch {
-                          return String(youthProfile.birthdate);
                         }
-                      })()
-                    : "Not recorded";
-
-                  return (
-                    <motion.div
-                      key="badge"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="space-y-6 max-w-2xl"
+                      }}
+                      className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={isUnverified}
+                      onClick={() => {
+                        if (isUnverified) {
+                          addToast("Cannot add interests while account is awaiting SK verification", "error");
+                          return;
+                        }
+                        handleAddPreference(newPrefInput);
+                      }}
+                      className={`px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
-                    <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                      <div className="border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                          <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
-                          Digital ID Card
-                        </h3>
-                        <p className="text-sm text-gray-400 font-medium mt-0.5">
-                          Official Katipunan ng Kabataan identification credential for San Luis, Pampanga
-                        </p>
-                      </div>
-
-                      {/* Official Digital ID Card */}
-                      <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
-                        {/* Top Section: Organization Header */}
-                        <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
-                          {/* Left Logo: Municipality of San Luis Seal */}
-                          <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
-                            <img
-                              src="/san-luis-seal.png"
-                              alt="Municipality of San Luis Seal"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-
-                          {/* Centered Institutional Information */}
-                          <div className="text-center flex-1 px-1 min-w-0">
-                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
-                              Republic of the Philippines
-                            </p>
-                            <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
-                              Municipality of San Luis
-                            </p>
-                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
-                              Sangguniang Kabataan
-                            </p>
-                          </div>
-
-                          {/* Right Logo: Sangguniang Kabataan */}
-                          <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
-                            <img
-                              src="/sk-logo.png"
-                              alt="Sangguniang Kabataan Logo"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Second Section: Full-Width Title Bar */}
-                        <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
-                          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
-                            Katipunan ng Kabataan Identification Card
-                          </span>
-                        </div>
-
-                        {/* Main Content Area: Two Columns */}
-                        <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
-                          {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
-                          <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
-                            <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-gray-200 bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
-                                <User className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
-                              </div>
-                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1.5">Member Photo</span>
-                            </div>
-
-                            {/* ID Number in one row without ellipsis */}
-                            <div className="mt-2 text-center w-full">
-                              <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
-                                ID: {youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Right Column: Member's Information in compact rows and columns */}
-                          <div className="flex-1 w-full space-y-2.5 min-w-0">
-                            {/* Member Name (Uppercase) */}
-                            <div className="border-b border-gray-100 pb-1.5">
-                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Name</span>
-                              <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
-                                {youthProfile.name}
-                              </h4>
-                            </div>
-
-                            {/* Compact Grid: Phone Number (5 cols), Gender (3 cols), Birthday (4 cols) */}
-                            <div className="grid grid-cols-12 gap-2">
-                              <div className="col-span-5 min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
-                                <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                                  {youthProfile.contactNumber || "N/A"}
-                                </span>
-                              </div>
-
-                              <div className="col-span-3 min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block whitespace-nowrap">Gender</span>
-                                <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                                  {cardGender}
-                                </span>
-                              </div>
-
-                              <div className="col-span-4 min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Birthday</span>
-                                <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                                  {formattedBirthdate}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Address */}
-                            <div className="border-t border-gray-100 pt-1.5">
-                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Address</span>
-                              <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
-                                {youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay {youthProfile.barangay || "San Isidro"}, San Luis, Pampanga
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Completed TESDA Programs Section on ID Card if any */}
-                        {userCompletedApps.length > 0 && (
-                          <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
-                            <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
-                              <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              <span className="text-[10px] uppercase tracking-wider">TVET Qualifications:</span>
-                              <span className="font-semibold text-gray-800 text-[11px] truncate">{userCompletedApps.map(a => a.programTitle).join(", ")}</span>
-                            </div>
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
-                              Graduate ✓
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Action Button: Moved to Bottom Right */}
-                      <div className="flex justify-end pt-3 w-full">
-                        <button
-                          onClick={() => {
-                            const fullIdStr = youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`;
-                            const completedStr = userCompletedApps.length > 0 ? `\nCertified Programs: ${userCompletedApps.map(a => a.programTitle).join(", ")}` : "";
-                            navigator.clipboard?.writeText(
-                              `Katipunan ng Kabataan Digital ID Card:\nName: ${youthProfile.name.toUpperCase()}\nID: ${fullIdStr}\nPhone: ${youthProfile.contactNumber || "N/A"}\nGender: ${cardGender}\nBirthday: ${formattedBirthdate}\nAddress: ${youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay ${youthProfile.barangay || "San Isidro"}, San Luis, Pampanga${completedStr}`
-                            );
-                            addToast("Digital ID Card information copied to clipboard!", "success");
-                          }}
-                          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                        >
-                          <Copy className="w-4 h-4 text-[#0A6B43]" />
-                          Copy Digital ID Info
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Saved Gemini Career Plan Section under ID Card */}
-                    {savedPlan ? (
-                      <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
-                        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
-                              <Sparkles className="w-4.5 h-4.5 text-amber-600" />
-                            </div>
-                            <div>
-                              <span className="text-xs font-black uppercase text-[#0A6B43] tracking-wider block">
-                                Verified Career Roadmap
-                              </span>
-                              <h4 className="font-extrabold text-gray-900 text-base sm:text-lg">
-                                {savedPlan.roadmapTitle}
-                              </h4>
-                            </div>
-                          </div>
-                          <span className="text-xs text-gray-400 font-medium">
-                            Saved on: {savedPlan.generatedDate || "Recently"}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                          {savedPlan.summary}
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                          <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 space-y-1.5 text-sm">
-                            <span className="text-xs font-black uppercase text-emerald-800 tracking-wider block">
-                              💼 Wage Employment Track
-                            </span>
-                            <p className="text-emerald-950 font-bold">
-                              {savedPlan.employmentTrack?.targetRoles?.join(", ")}
-                            </p>
-                            <p className="text-emerald-800 text-[13px]">
-                              Est. Salary: <strong className="text-emerald-900">{savedPlan.employmentTrack?.estimatedSalary}</strong>
-                            </p>
-                          </div>
-
-                          <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-100 space-y-1.5 text-sm">
-                            <span className="text-xs font-black uppercase text-amber-800 tracking-wider block">
-                              🛠️ Freelance & Enterprise Track
-                            </span>
-                            <p className="text-amber-950 font-bold">
-                              {savedPlan.entrepreneurshipTrack?.businessConcept}
-                            </p>
-                            <p className="text-amber-800 text-[13px]">
-                              {savedPlan.entrepreneurshipTrack?.starterFunding}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-sm">
-                          <button
-                            onClick={() => setActiveTab(YouthScreen.PATHWAY)}
-                            className="text-[#0A6B43] hover:text-[#075332] font-bold text-sm flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>View Full Pathway & Steps</span>
-                            <ArrowRight className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard?.writeText(
-                                `Career Roadmap: ${savedPlan.roadmapTitle}\nSummary: ${savedPlan.summary}\nTarget Salary: ${savedPlan.employmentTrack?.estimatedSalary}\nRoles: ${savedPlan.employmentTrack?.targetRoles?.join(", ")}`
-                              );
-                              addToast("Career Plan summary copied to clipboard!", "success");
-                            }}
-                            className="text-gray-500 hover:text-gray-700 font-bold text-sm flex items-center gap-1 cursor-pointer"
-                          >
-                            <Copy className="w-4 h-4" />
-                            <span>Copy Summary</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </motion.div>
-                );
-              })()}
-            </AnimatePresence>
-          </div>
-        )}
-
-        </div>
-
-        {/* Floating Add Skill Modal */}
-        {showAddSkillModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-            <div className="bg-white w-full max-w-md rounded-2xl p-5 sm:p-6 space-y-4 animate-in zoom-in-95 border border-emerald-100 shadow-2xl">
-              <div className="flex justify-between items-center pb-2.5 border-b border-gray-150">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center font-bold">
-                    <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4" />
+                      Add
+                    </button>
                   </div>
-                  <h4 className="font-bold text-gray-900 text-base">Add Competency Skill</h4>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).length > 0 ? (
+                      (youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).map((pref) => (
+                        <span key={pref} className="bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-1 rounded-lg border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                          <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          {pref}
+                          <button
+                            onClick={() => handleRemovePreference(pref)}
+                            disabled={isUnverified}
+                            className="font-bold text-xs text-emerald-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
+                            title="Remove interest"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-400 italic font-medium py-1">No vocational interests listed.</p>
+                    )}
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Bottom: 3. Prior Work & Practical Experiences Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+              <div className="border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                    <Briefcase className="w-4.5 h-4.5 text-blue-600" />
+                    Prior Work & Practical Experiences
+                  </h3>
+                  <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    15% Match Weight
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400 font-medium mt-0.5">Informal gigs, past employment, hands-on hobbies, or volunteer work</p>
+              </div>
+
+              {/* Add Experience Inline Input */}
+              <div className="flex items-center gap-2 w-full max-w-xl">
+                <input
+                  type="text"
+                  disabled={isUnverified}
+                  placeholder={isUnverified ? "Awaiting verification to add experiences..." : "e.g. Phone Repair, Store Assistant, Cooking Helper..."}
+                  value={newExpInput}
+                  onChange={(e) => setNewExpInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (isUnverified) {
+                        addToast("Cannot add experiences while account is awaiting SK verification", "error");
+                        return;
+                      }
+                      handleAddExperience(newExpInput);
+                    }
+                  }}
+                  className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+                />
                 <button
-                  onClick={() => setShowAddSkillModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                  title="Close modal"
+                  type="button"
+                  disabled={isUnverified}
+                  onClick={() => {
+                    if (isUnverified) {
+                      addToast("Cannot add experiences while account is awaiting SK verification", "error");
+                      return;
+                    }
+                    handleAddExperience(newExpInput);
+                  }}
+                  className={`px-4 py-2 h-10 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
-                  <X className="w-4.5 h-4.5" />
+                  <Plus className="w-4 h-4" />
+                  Add
                 </button>
               </div>
 
-              <form onSubmit={handleAddSkillSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase block">Skill or Trade Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Baking, Basic Computing, Carpentry"
-                    value={newSkillInput}
-                    onChange={(e) => setNewSkillInput(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                  />
-                  <p className="text-xs text-gray-400">Enter a technical skill, vocational trade, or practical knowledge.</p>
+              <div className="flex flex-wrap gap-2">
+                {youthProfile.experiencesRaw && youthProfile.experiencesRaw.length > 0 ? (
+                  youthProfile.experiencesRaw.map((exp) => (
+                    <span key={exp} className="bg-blue-50 text-blue-950 text-xs font-bold px-3 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5 shadow-2xs">
+                      <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      {exp}
+                      <button
+                        onClick={() => handleRemoveExperience(exp)}
+                        disabled={isUnverified}
+                        className="font-bold text-xs text-blue-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
+                        title="Remove experience"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-400 italic font-medium py-1">No prior work experiences listed.</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Sub-Tab 3: Account Security - Balanced 2-Column Layout */}
+        {profileActiveTab === "security" && (
+          <motion.div
+            key="security"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-4xl pb-24"
+          >
+            <div className="lg:col-span-3 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+              <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
+                <div className="border-b border-gray-100 pb-3">
+                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                    <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
+                    Account Security & Password
+                  </h3>
                 </div>
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-gray-150">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddSkillModal(false)}
-                    className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-bold rounded-xl transition-colors cursor-pointer text-center"
-                  >
-                    Cancel
-                  </button>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPass ? "text" : "password"}
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password..."
+                      className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPass(!showCurrentPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPass ? "text" : "password"}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password (min. 6 characters)..."
+                      className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPass(!showNewPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPass ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-type new password..."
+                      className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPass(!showConfirmPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    className="w-full sm:w-auto bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white text-sm font-bold py-2.5 px-5 rounded-xl shadow-xs transition-colors cursor-pointer text-center"
+                    disabled={isChangingPassword}
+                    className="px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    Confirm & Refresh Matches
+                    {isChangingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                    Update Password
                   </button>
                 </div>
               </form>
             </div>
-          </div>
+
+            {/* Security Overview & Guidelines Card */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 text-xs">
+                <div className="border-b border-gray-100 pb-2.5">
+                  <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                    Security Best Practices
+                  </h4>
+                </div>
+                <ul className="space-y-2 text-gray-600 font-medium">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                    <span>At least 6 characters long</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                    <span>Use uppercase and lowercase letters</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                    <span>Include numbers or symbols</span>
+                  </li>
+                </ul>
+
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80 text-emerald-950">
+                    <p className="font-bold text-[11px] uppercase tracking-wider text-[#0A6B43]">LGU Verified Credentials</p>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      Your SiKap account is linked to your Katipunan ng Kabataan profile and TESDA TVET placements. Keep your password confidential.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
 
-        {/* Complete Program Details Modal Popup */}
-        {viewingProgramModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 overflow-y-auto" style={{ zIndex: 50 }}>
-            <div className="bg-white w-full max-w-2xl rounded-2xl p-6 sm:p-7 space-y-5 animate-in zoom-in-95 border border-emerald-100 shadow-2xl max-h-[90vh] overflow-y-auto my-auto">
-              {/* Modal Top Header */}
-              <div className="flex justify-between items-start gap-4 pb-4 border-b border-gray-100">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                    <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 tracking-wider inline-block">
-                      {viewingProgramModal.program.provider || "TESDA Accredited Program"}
-                    </span>
-                    {isProgramEnded(viewingProgramModal.program) && (
-                      <span className="text-[10px] font-extrabold uppercase text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200 tracking-wider inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-purple-600" />
-                        Training Term Concluded
-                      </span>
-                    )}
+        {/* Sub-Tab 4: Notifications & Alerts Preferences - Balanced 2-Column Layout */}
+        {profileActiveTab === "notifications" && (
+          <motion.div
+            key="notifications"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-4xl pb-24"
+          >
+            <div className="lg:col-span-3">
+              <NotificationSettingsCard
+                userRole="KK_YOUTH"
+                userEmail={currentUser?.email}
+                addToast={addToast}
+                className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
+              />
+            </div>
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 text-xs">
+                <div className="border-b border-gray-100 pb-2.5">
+                  <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-[#0A6B43]" />
+                    Official Notification Channels
+                  </h4>
+                </div>
+                <div className="space-y-3 text-gray-600 font-medium">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <span className="font-bold text-slate-800 text-xs block">Web Push Alerts</span>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Real-time browser notifications for application updates, enrollment approvals, and newly announced scholarships.
+                    </p>
                   </div>
-                  <h3 className="font-extrabold text-gray-900 text-xl leading-snug">
-                    {viewingProgramModal.program.title}
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <span className="font-bold text-slate-800 text-xs block">Official Email Dispatch</span>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Important administrative documents, training commencement notices, and verification codes sent directly to your registered inbox.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Sub-Tab 4: Digital ID Card */}
+        {profileActiveTab === "badge" && (() => {
+          const userCompletedApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Archived") || [];
+          const userEnrolledApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Enrolled") || [];
+          const savedPlan = currentSavedPlan || generatedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
+          const cardGender = spellOutGender(youthProfile.gender);
+          const formattedBirthdate = youthProfile.birthdate
+            ? (() => {
+              try {
+                const d = new Date(youthProfile.birthdate);
+                return isNaN(d.getTime())
+                  ? String(youthProfile.birthdate)
+                  : d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+              } catch {
+                return String(youthProfile.birthdate);
+              }
+            })()
+            : "Not recorded";
+
+          return (
+            <motion.div
+              key="badge"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="space-y-6 max-w-2xl"
+            >
+              <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                <div className="border-b border-gray-100 pb-3">
+                  <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                    <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                    Digital ID Card
                   </h3>
-                  <p className="text-xs text-gray-500 mt-1 font-medium flex items-center gap-2">
-                    <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#0A6B43]" /> {viewingProgramModal.program.location}</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#0A6B43]" /> {viewingProgramModal.program.trainingHours} hours</span>
+                  <p className="text-sm text-gray-400 font-medium mt-0.5">
+                    Official Katipunan ng Kabataan identification credential for San Luis, Pampanga
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
+
+                {/* Official Digital ID Card */}
+                <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
+                  {/* Top Section: Organization Header */}
+                  <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
+                    {/* Left Logo: Municipality of San Luis Seal */}
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                      <img
+                        src="/san-luis-seal.png"
+                        alt="Municipality of San Luis Seal"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+
+                    {/* Centered Institutional Information */}
+                    <div className="text-center flex-1 px-1 min-w-0">
+                      <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                        Republic of the Philippines
+                      </p>
+                      <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
+                        Municipality of San Luis
+                      </p>
+                      <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                        Sangguniang Kabataan
+                      </p>
+                    </div>
+
+                    {/* Right Logo: Sangguniang Kabataan */}
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                      <img
+                        src="/sk-logo.png"
+                        alt="Sangguniang Kabataan Logo"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Second Section: Full-Width Title Bar */}
+                  <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
+                      Katipunan ng Kabataan Identification Card
+                    </span>
+                  </div>
+
+                  {/* Main Content Area: Two Columns */}
+                  <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
+                    {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
+                    <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
+                      <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-gray-200 bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden shadow-2xs group">
+                        {profilePictureUrl ? (
+                          <img
+                            src={profilePictureUrl}
+                            alt={youthProfile.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center p-2 text-center">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
+                              <User className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
+                            </div>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1.5">No Photo</span>
+                          </div>
+                        )}
+
+                        {/* Hover / Direct upload overlay for Digital ID Card */}
+                        <label
+                          htmlFor="id-card-profile-pic-input"
+                          className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white"
+                          title="Change ID Photo"
+                        >
+                          {isUploadingPic ? (
+                            <Loader2 className="w-5 h-5 text-white animate-spin" />
+                          ) : (
+                            <>
+                              <Camera className="w-5 h-5 text-emerald-300" />
+                              <span className="text-[9px] font-black tracking-wider uppercase mt-0.5 text-white">
+                                {profilePictureUrl ? "Change" : "Add Photo"}
+                              </span>
+                            </>
+                          )}
+                        </label>
+                        <input
+                          id="id-card-profile-pic-input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleProfilePictureUpload}
+                          disabled={isUploadingPic}
+                        />
+                      </div>
+
+                      {/* ID Number in one row without ellipsis */}
+                      <div className="mt-2 text-center w-full">
+                        <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
+                          ID: {youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Member's Information in compact rows and columns */}
+                    <div className="flex-1 w-full space-y-2.5 min-w-0">
+                      {/* Member Name (Uppercase) */}
+                      <div className="border-b border-gray-100 pb-1.5">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Name</span>
+                        <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
+                          {youthProfile.name}
+                        </h4>
+                      </div>
+
+                      {/* Compact Grid: Phone Number (5 cols), Gender (3 cols), Birthday (4 cols) */}
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-5 min-w-0">
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
+                          <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                            {youthProfile.contactNumber || "N/A"}
+                          </span>
+                        </div>
+
+                        <div className="col-span-3 min-w-0">
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block whitespace-nowrap">Gender</span>
+                          <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                            {cardGender}
+                          </span>
+                        </div>
+
+                        <div className="col-span-4 min-w-0">
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Birthday</span>
+                          <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                            {formattedBirthdate}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Address */}
+                      <div className="border-t border-gray-100 pt-1.5">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Address</span>
+                        <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
+                          {youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay {youthProfile.barangay || "San Isidro"}, San Luis, Pampanga
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Completed TESDA Programs Section on ID Card if any */}
+                  {userCompletedApps.length > 0 && (
+                    <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
+                        <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span className="text-[10px] uppercase tracking-wider">TVET Qualifications:</span>
+                        <span className="font-semibold text-gray-800 text-[11px] truncate">{userCompletedApps.map(a => a.programTitle).join(", ")}</span>
+                      </div>
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
+                        Graduate ✓
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Button: Moved to Bottom Right */}
+                <div className="flex justify-end pt-3 w-full">
                   <button
-                    onClick={() => setViewingProgramModal(null)}
-                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                    onClick={() => {
+                      const fullIdStr = youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`;
+                      const completedStr = userCompletedApps.length > 0 ? `\nCertified Programs: ${userCompletedApps.map(a => a.programTitle).join(", ")}` : "";
+                      navigator.clipboard?.writeText(
+                        `Katipunan ng Kabataan Digital ID Card:\nName: ${youthProfile.name.toUpperCase()}\nID: ${fullIdStr}\nPhone: ${youthProfile.contactNumber || "N/A"}\nGender: ${cardGender}\nBirthday: ${formattedBirthdate}\nAddress: ${youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay ${youthProfile.barangay || "San Isidro"}, San Luis, Pampanga${completedStr}`
+                      );
+                      addToast("Digital ID Card information copied to clipboard!", "success");
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <X className="w-5 h-5" />
+                    <Copy className="w-4 h-4 text-[#0A6B43]" />
+                    Copy Digital ID Info
                   </button>
                 </div>
               </div>
 
-              {/* 4-Factor Transparent CBF Score Breakdown */}
-              {(() => {
-                const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
-                return (
-                  <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                      <span className="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5" />
-                        Transparent CBF Match Breakdown
-                      </span>
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${breakdown.passedSkillGate
-                        ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
-                        : "bg-red-950/80 text-red-300 border-red-500/40"
-                        }`}>
-                        {breakdown.passedSkillGate ? "Passed Skill Gate ✓" : "Skill Gate Excluded ✗"}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Skill (50%)</p>
-                        <p className="text-sm font-black text-emerald-400 mt-0.5">{breakdown.skillPoints} pts</p>
-                        <p className="text-[9px] text-gray-400">{breakdown.skillMatch}% Match</p>
+              {/* Saved Gemini Career Plan Section under ID Card */}
+              {savedPlan ? (
+                <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
+                        <Sparkles className="w-4.5 h-4.5 text-amber-600" />
                       </div>
-                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Pref (25%)</p>
-                        <p className="text-sm font-black text-blue-400 mt-0.5">{breakdown.preferencePoints} pts</p>
-                        <p className="text-[9px] text-gray-400">{breakdown.preferenceMatch}% Match</p>
-                      </div>
-                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Exp (15%)</p>
-                        <p className="text-sm font-black text-amber-400 mt-0.5">{breakdown.experiencePoints} pts</p>
-                        <p className="text-[9px] text-gray-400">{breakdown.experienceMatch}% Match</p>
-                      </div>
-                      <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Goal (10%)</p>
-                        <p className="text-sm font-black text-purple-400 mt-0.5">{breakdown.goalPoints} pts</p>
-                        <p className="text-[9px] text-gray-400">{breakdown.goalMatch}% Match</p>
+                      <div>
+                        <span className="text-xs font-black uppercase text-[#0A6B43] tracking-wider block">
+                          Verified Career Roadmap
+                        </span>
+                        <h4 className="font-extrabold text-gray-900 text-base sm:text-lg">
+                          {savedPlan.roadmapTitle}
+                        </h4>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs pt-1 border-t border-slate-800 gap-1">
-                      <span className="text-gray-400 font-medium">Program Category: <strong className="text-slate-200">{breakdown.categoryName}</strong></span>
-                      <span className="font-extrabold text-emerald-400 text-sm">Overall Fit: {breakdown.finalScore}%</span>
+                    <span className="text-xs text-gray-400 font-medium">
+                      Saved on: {savedPlan.generatedDate || "Recently"}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                    {savedPlan.summary}
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 space-y-1.5 text-sm">
+                      <span className="text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                        <span>Wage Employment Track</span>
+                      </span>
+                      <p className="text-emerald-950 font-bold">
+                        {savedPlan.employmentTrack?.targetRoles?.join(", ")}
+                      </p>
+                      <p className="text-emerald-800 text-[13px]">
+                        Est. Salary: <strong className="text-emerald-900">{savedPlan.employmentTrack?.estimatedSalary}</strong>
+                      </p>
+                    </div>
+
+                    <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-100 space-y-1.5 text-sm">
+                      <span className="text-xs font-black uppercase text-amber-800 tracking-wider flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>Freelance & Enterprise Track</span>
+                      </span>
+                      <p className="text-amber-950 font-bold">
+                        {savedPlan.entrepreneurshipTrack?.businessConcept}
+                      </p>
+                      <p className="text-amber-800 text-[13px]">
+                        {savedPlan.entrepreneurshipTrack?.starterFunding}
+                      </p>
                     </div>
                   </div>
-                );
-              })()}
 
-              {/* Gemini AI Match Rationale */}
-              <div className="bg-emerald-50/90 p-4 rounded-xl border border-emerald-200/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                    Gemini AI Match Rationale
-                  </span>
-                  <span className="text-xs font-extrabold text-emerald-700">
-                    {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% CBF Match Fit
-                  </span>
-                </div>
-                <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                  "{featuredLang === "tl" && featuredAdviceTl
-                    ? featuredAdviceTl
-                    : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`)}"
-                </p>
-              </div>
-
-              {/* Complete Program Details Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-gray-50/80 p-4 rounded-xl border border-gray-150">
-                <div className="space-y-2.5">
-                  <p className="text-gray-700 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Course Duration:</strong> {viewingProgramModal.program.trainingHours} Hours {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) ? `(${formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate)})` : ""}</p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Training Schedule:</strong> {formatTrainingDays(viewingProgramModal.program.trainingDays)}</p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Timeslot & Session:</strong> {(() => {
-                    const ts = formatProgramTimeslot(viewingProgramModal.program.startTime, viewingProgramModal.program.endTime);
-                    return `${ts.formattedRange}${ts.sessionType !== "Custom" ? ` (${ts.sessionType})` : ""}`;
-                  })()}</p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Facility / Room:</strong> {viewingProgramModal.program.room || "Main Training Facility"}</p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Trainer / Instructor:</strong> {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}</p>
-                </div>
-                <div className="space-y-2.5">
-                  <p className="text-gray-700 flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Program Cost:</strong> <span className="font-extrabold text-emerald-700">{viewingProgramModal.program.cost || "100% Free / Subsidized"}</span></p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Available Slots:</strong> <span className="font-bold text-gray-900">{viewingProgramModal.program.slotsRemaining} / {viewingProgramModal.program.slotsTotal}</span> open</p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Contact Registrar:</strong> {viewingProgramModal.program.contactPerson || "TESDA Registrar"} ({viewingProgramModal.program.contactNumber || "N/A"})</p>
-                  <p className="text-gray-700 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" /> <strong>Eligibility:</strong> {viewingProgramModal.program.eligibility || "Open to all KK Youth"}</p>
-                </div>
-              </div>
-
-              {/* Physical Requirements */}
-              {viewingProgramModal.program.requiredDocuments && viewingProgramModal.program.requiredDocuments.length > 0 && (
-                <div className="bg-amber-50/80 p-4 rounded-xl border border-amber-200/80 space-y-2">
-                  <p className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    Physical Requirements Needed Beforehand
-                  </p>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-4 list-disc text-xs text-amber-900 font-medium">
-                    {viewingProgramModal.program.requiredDocuments.map((doc, dIdx) => (
-                      <li key={dIdx}>{doc}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Required Skills */}
-              {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                    Recommended Prerequisite Competencies
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {viewingProgramModal.program.requiredSkills.map((sk, sIdx) => (
-                      <span key={sIdx} className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
-                        {sk}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Modal Action Footer */}
-              {(() => {
-                const prog = viewingProgramModal.program;
-                const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
-                const isCompleted = isProgramCompleted(prog);
-                const isEnrolled = app?.status === "Enrolled";
-                const isDeclined = app?.status === "Declined";
-                const isEnded = isProgramEnded(prog);
-                const isFull = !app && prog.slotsRemaining <= 0;
-                const overlapWarning = getOverlapWarning(prog);
-                const isDisabled = isCompleted || !!app || isFull || isEnded || !!overlapWarning || isUnverified;
-
-                return (
-                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100">
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-sm">
                     <button
-                      onClick={() => setViewingProgramModal(null)}
-                      className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => setActiveTab(YouthScreen.PATHWAY)}
+                      className="text-[#0A6B43] hover:text-[#075332] font-bold text-sm flex items-center gap-1 cursor-pointer"
                     >
-                      Close Details
+                      <span>View Full Pathway & Steps</span>
+                      <ArrowRight className="w-4 h-4" />
                     </button>
-
-                    {isCompleted ? (
-                      <button
-                        disabled
-                        className="w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center gap-2 cursor-not-allowed shadow-xs"
-                      >
-                        <CheckCircle className="w-4 h-4 text-purple-600" />
-                        Already Completed & Certified ✓
-                      </button>
-                    ) : isEnded && !app ? (
-                      <button
-                        disabled
-                        className="w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center gap-2 cursor-not-allowed shadow-xs"
-                      >
-                        <Clock className="w-4 h-4 text-purple-600" />
-                        Program Term Ended
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          handleDirectApply(viewingProgramModal.program);
-                        }}
-                        disabled={isDisabled}
-                        className={`w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${app
-                          ? isEnrolled
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                            : isDeclined
-                              ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
-                              : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
-                          : isFull
-                            ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                            : overlapWarning
-                              ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
-                              : isUnverified
-                                ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
-                                : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
-                          }`}
-                      >
-                        {app ? (
-                          isEnrolled ? (
-                            <>
-                              <CheckCircle className="w-4 h-4 text-emerald-600" />
-                              Currently Enrolled
-                            </>
-                          ) : isDeclined ? (
-                            <>
-                              <XCircle className="w-4 h-4 text-red-500" />
-                              Application Declined
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-4 h-4 text-blue-600 animate-spin" />
-                              Application Under Review
-                            </>
-                          )
-                        ) : isFull ? (
-                          "Class Slots Full"
-                        ) : overlapWarning ? (
-                          "Schedule Overlap Detected"
-                        ) : isUnverified ? (
-                          "Pending SK Verification"
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4 text-white" />
-                            Apply for this Program
-                          </>
-                        )}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(
+                          `Career Roadmap: ${savedPlan.roadmapTitle}\nSummary: ${savedPlan.summary}\nTarget Salary: ${savedPlan.employmentTrack?.estimatedSalary}\nRoles: ${savedPlan.employmentTrack?.targetRoles?.join(", ")}`
+                        );
+                        addToast("Career Plan summary copied to clipboard!", "success");
+                      }}
+                      className="text-gray-500 hover:text-gray-700 font-bold text-sm flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4" />
+                      <span>Copy Summary</span>
+                    </button>
                   </div>
-                );
-              })()}
+                </div>
+              ) : null}
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+        </div >
+
+  {/* Floating Add Skill Modal */ }
+{
+  showAddSkillModal && (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setShowAddSkillModal(false);
+      }}
+    >
+      <div className="bg-white w-full max-w-md rounded-2xl p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 ease-out border border-emerald-100 shadow-2xl">
+        <div className="flex justify-between items-center pb-2.5 border-b border-gray-150">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center font-bold">
+              <Plus className="w-4 h-4" />
+            </div>
+            <h4 className="font-bold text-gray-900 text-base">Add Competency Skill</h4>
+          </div>
+          <button
+            onClick={() => setShowAddSkillModal(false)}
+            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+            title="Close modal"
+          >
+            <X className="w-4.5 h-4.5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleAddSkillSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-400 uppercase block">Skill or Trade Name</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Baking, Basic Computing, Carpentry"
+              value={newSkillInput}
+              onChange={(e) => setNewSkillInput(e.target.value)}
+              className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+            />
+            <p className="text-xs text-gray-400">Enter a technical skill, vocational trade, or practical knowledge.</p>
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-gray-150">
+            <button
+              type="button"
+              onClick={() => setShowAddSkillModal(false)}
+              className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-bold rounded-xl transition-colors cursor-pointer text-center"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="w-full sm:w-auto bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white text-sm font-bold py-2.5 px-5 rounded-xl shadow-xs transition-colors cursor-pointer text-center"
+            >
+              Confirm & Refresh Matches
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+{/* Complete Program Details Modal Popup */ }
+{
+  viewingProgramModal && (
+    <div
+      className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
+      style={{ zIndex: 50 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setViewingProgramModal(null);
+      }}
+    >
+      <div className="relative bg-white w-full max-w-2xl rounded-2xl sm:rounded-3xl border border-emerald-100 shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Modal Top Header (Pinned at Top) */}
+        <div className="p-4 sm:p-5 sm:px-6 border-b border-gray-150 shrink-0 bg-white">
+          <div className="flex items-start justify-between gap-3">
+            {/* Badges / Provider Row */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0 flex-1">
+              <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 tracking-wider">
+                {viewingProgramModal.program.provider || "TESDA Accredited Program"}
+              </span>
+              {isProgramEnded(viewingProgramModal.program) && (
+                <span className="text-[10px] font-extrabold uppercase text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200 tracking-wider inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-purple-600" />
+                  Training Term Concluded
+                </span>
+              )}
+            </div>
+
+            {/* Actions & Close Button */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="hidden sm:block">
+                <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
+              </div>
+              <button
+                onClick={() => setViewingProgramModal(null)}
+                className="text-gray-400 hover:text-gray-700 p-2 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+                aria-label="Close modal"
+                title="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Direct Application Confirmation Modal (Centered Desktop style) */}
-        {showApplyModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 100 }}>
-            <div className="bg-white rounded-xl p-6 shadow-2xl text-center space-y-4 max-w-[340px] animate-in zoom-in-95 border border-emerald-100">
-              <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto animate-bounce" />
-              <div>
-                <h4 className="font-bold text-gray-800 text-sm sm:text-base">Apply for training?</h4>
-                <p className="text-xs text-gray-500 leading-relaxed mt-2 font-medium">
-                  This will submit your application directly to TESDA for the <strong className="text-gray-700">{selectedProgramToApply?.title || "selected training program"}</strong>.
-                </p>
+          {/* Title and Mobile Match Score */}
+          <div className="mt-2.5 flex items-start justify-between gap-3">
+            <h3 className="font-extrabold text-gray-900 text-base sm:text-xl leading-snug flex-1 min-w-0 break-words">
+              {viewingProgramModal.program.title}
+            </h3>
+                  <div className="sm:hidden block shrink-0 pt-0.5">
+            <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
+          </div>
+        </div>
+
+        {/* Location and Duration Row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-600 font-medium">
+          <span className="inline-flex items-center gap-1.5 min-w-0">
+            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span className="truncate max-w-[220px] sm:max-w-none">{viewingProgramModal.program.location}</span>
+          </span>
+          <span className="hidden sm:inline text-gray-300">•</span>
+          <span className="inline-flex items-center gap-1.5 shrink-0">
+            <Timer className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <span>{viewingProgramModal.program.trainingHours} hours</span>
+          </span>
+        </div>
+      </div>
+
+              {/* Modal Scrollable Body */ }
+    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollbar p-4 sm:p-6 space-y-4 sm:space-y-5">
+      {/* 4-Factor Transparent CBF Score Breakdown */}
+      {(() => {
+        const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
+        return (
+          <div className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-2">
+              <span className="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 shrink-0" />
+                <span>Transparent CBF Match Breakdown</span>
+              </span>
+              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border shrink-0 ${breakdown.passedSkillGate
+                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                : "bg-red-950/80 text-red-300 border-red-500/40"
+                }`}>
+                {breakdown.passedSkillGate ? "Passed Skill Gate ✓" : "Skill Gate Excluded ✗"}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Skill (50%)</p>
+                <p className="text-sm sm:text-base font-black text-emerald-400 mt-0.5">{breakdown.skillPoints} pts</p>
+                <p className="text-[9px] text-gray-400">{breakdown.skillMatch}% Match</p>
               </div>
-              <div className="flex gap-2 pt-2">
+              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Pref (25%)</p>
+                <p className="text-sm sm:text-base font-black text-blue-400 mt-0.5">{breakdown.preferencePoints} pts</p>
+                <p className="text-[9px] text-gray-400">{breakdown.preferenceMatch}% Match</p>
+              </div>
+              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Exp (15%)</p>
+                <p className="text-sm sm:text-base font-black text-amber-400 mt-0.5">{breakdown.experiencePoints} pts</p>
+                <p className="text-[9px] text-gray-400">{breakdown.experienceMatch}% Match</p>
+              </div>
+              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Goal (10%)</p>
+                <p className="text-sm sm:text-base font-black text-purple-400 mt-0.5">{breakdown.goalPoints} pts</p>
+                <p className="text-[9px] text-gray-400">{breakdown.goalMatch}% Match</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs pt-2 border-t border-slate-800 gap-1.5">
+              <span className="text-gray-400 font-medium">Program Category: <strong className="text-slate-200">{breakdown.categoryName}</strong></span>
+              <span className="font-extrabold text-emerald-400 text-xs sm:text-sm">Overall Fit: {breakdown.finalScore}%</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Gemini AI Match Rationale */}
+      <div className="bg-emerald-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-emerald-200/80 space-y-2 shadow-2xs">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
+            Gemini AI Match Rationale
+          </span>
+          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
+            {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% CBF Match Fit
+          </span>
+        </div>
+        <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
+          &ldquo;{featuredLang === "tl" && featuredAdviceTl
+            ? featuredAdviceTl
+            : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`)}&rdquo;
+        </p>
+      </div>
+
+      {/* Complete Program Details Grid */}
+      <div className="bg-gray-50/80 rounded-xl sm:rounded-2xl border border-gray-200/80 p-3.5 sm:p-4.5 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-gray-200/60">
+          <span className="text-[11px] font-extrabold uppercase text-gray-700 tracking-wider flex items-center gap-1.5">
+            <ClipboardList className="w-4 h-4 text-[#0A6B43] shrink-0" />
+            Program Specifications & Logistics
+          </span>
+          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+            Verified Schedule
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs">
+          {/* Course Duration */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Timer className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Course Duration</span>
+              <p className="font-bold text-gray-800 leading-snug break-words">
+                {viewingProgramModal.program.trainingHours} Hours
+                {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) && (
+                  <span className="text-gray-500 font-normal block sm:inline sm:ml-1 text-[11px]">
+                    ({formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate)})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Training Schedule */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Calendar className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Training Schedule</span>
+              <p className="font-bold text-gray-800 leading-snug break-words">
+                {formatTrainingDays(viewingProgramModal.program.trainingDays)}
+              </p>
+            </div>
+          </div>
+
+          {/* Timeslot & Session */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Timeslot & Session</span>
+              <p className="font-bold text-gray-800 leading-snug break-words">
+                {(() => {
+                  const ts = formatProgramTimeslot(viewingProgramModal.program.startTime, viewingProgramModal.program.endTime);
+                  return `${ts.formattedRange}${ts.sessionType !== "Custom" ? ` (${ts.sessionType})` : ""}`;
+                })()}
+              </p>
+            </div>
+          </div>
+
+          {/* Facility / Room */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Building2 className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Facility / Room</span>
+              <p className="font-bold text-gray-800 leading-snug break-words">
+                {viewingProgramModal.program.room || "Main Training Facility"}
+              </p>
+            </div>
+          </div>
+
+          {/* Trainer / Instructor */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <UserCheck className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Trainer / Instructor</span>
+              <p className="font-bold text-gray-800 leading-snug break-words">
+                {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}
+              </p>
+            </div>
+          </div>
+
+          {/* Program Cost */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Coins className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Program Cost</span>
+              <p className="font-black text-emerald-700 leading-snug break-words">
+                {viewingProgramModal.program.cost || "100% Free / Subsidized"}
+              </p>
+            </div>
+          </div>
+
+          {/* Available Slots */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Users className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Available Slots</span>
+              <p className="font-bold text-gray-900 leading-snug break-words">
+                <span className="font-black text-[#0A6B43]">{viewingProgramModal.program.slotsRemaining}</span>
+                <span className="text-gray-500 font-medium"> / {viewingProgramModal.program.slotsTotal} open</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Contact Registrar */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Phone className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Contact Registrar</span>
+              <p className="font-bold text-gray-800 leading-snug break-words text-[11px] sm:text-xs">
+                {viewingProgramModal.program.contactPerson || "TESDA Registrar"}
+                {viewingProgramModal.program.contactNumber && (
+                  <span className="text-emerald-700 font-semibold block sm:inline sm:ml-1">
+                    ({viewingProgramModal.program.contactNumber})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Eligibility */}
+          <div className="sm:col-span-2 bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <GraduationCap className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Eligibility</span>
+              <p className="font-bold text-gray-800 leading-snug break-words text-[11px] sm:text-xs">
+                {viewingProgramModal.program.eligibility || "Open to all Katipunan ng Kabataan (KK) Youth"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Physical Requirements */}
+      {viewingProgramModal.program.requiredDocuments && viewingProgramModal.program.requiredDocuments.length > 0 && (
+        <div className="bg-amber-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-amber-200/80 space-y-2 shadow-2xs">
+          <p className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+            Physical Requirements Needed Beforehand:
+          </p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-amber-950 font-medium">
+            {viewingProgramModal.program.requiredDocuments.map((doc, dIdx) => (
+              <li key={dIdx} className="flex items-start gap-2 bg-white/70 p-2 rounded-lg border border-amber-200/60 shadow-2xs">
+                <span className="text-amber-600 font-bold shrink-0 leading-snug">•</span>
+                <span className="leading-snug break-words">{doc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Required Skills */}
+      {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+            Recommended Prerequisite Competencies:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {viewingProgramModal.program.requiredSkills.map((sk, sIdx) => (
+              <span key={sIdx} className="text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
+                {sk}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* Modal Action Footer (Pinned at Bottom) */ }
+    {
+      (() => {
+        const prog = viewingProgramModal.program;
+        const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+        const isCompleted = isProgramCompleted(prog);
+        const isEnrolled = app?.status === "Enrolled";
+        const isDeclined = app?.status === "Declined";
+        const isEnded = isProgramEnded(prog);
+        const isFull = !app && prog.slotsRemaining <= 0;
+        const overlapWarning = getOverlapWarning(prog);
+        const isDisabled = isCompleted || !!app || isFull || isEnded || !!overlapWarning || isUnverified;
+
+        return (
+          <div className="p-3.5 sm:p-5 border-t border-gray-150 shrink-0 bg-gray-50/95 rounded-b-2xl sm:rounded-b-3xl">
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3">
+              <button
+                onClick={() => setViewingProgramModal(null)}
+                className="w-full sm:w-auto px-5 py-2.5 sm:py-3 border border-gray-250 text-gray-700 bg-white hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer text-center shadow-2xs active:scale-98"
+              >
+                Close Details
+              </button>
+
+              {isCompleted ? (
+                <button
+                  disabled
+                  className="w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center gap-2 cursor-not-allowed shadow-xs"
+                >
+                  <CheckCircle className="w-4 h-4 text-purple-600" />
+                  Already Completed & Certified ✓
+                </button>
+              ) : isEnded && !app ? (
+                <button
+                  disabled
+                  className="w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center gap-2 cursor-not-allowed shadow-xs"
+                >
+                  <Clock className="w-4 h-4 text-purple-600" />
+                  Program Term Ended
+                </button>
+              ) : (
                 <button
                   onClick={() => {
-                    setShowApplyModal(false);
-                    setSelectedProgramToApply(null);
+                    handleDirectApply(viewingProgramModal.program);
                   }}
-                  className="flex-1 py-2 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  disabled={isDisabled}
+                  className={`w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${app
+                    ? isEnrolled
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                      : isDeclined
+                        ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
+                        : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
+                    : isFull
+                      ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                      : overlapWarning
+                        ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                        : isUnverified
+                          ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
+                          : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white cursor-pointer"
+                    }`}
                 >
-                  Cancel
+                  {app ? (
+                    isEnrolled ? (
+                      <>
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        Currently Enrolled
+                      </>
+                    ) : isDeclined ? (
+                      <>
+                        <XCircle className="w-4 h-4 text-red-500" />
+                        Application Declined
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-4 h-4 text-blue-600 animate-spin" />
+                        Application Under Review
+                      </>
+                    )
+                  ) : isFull ? (
+                    "Class Slots Full"
+                  ) : overlapWarning ? (
+                    "Schedule Overlap Detected"
+                  ) : isUnverified ? (
+                    "Pending SK Verification"
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 text-white" />
+                      Apply for this Program
+                    </>
+                  )}
                 </button>
-                <button
-                  onClick={confirmDirectApply}
-                  className="flex-1 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                >
-                  Apply Now
-                </button>
-              </div>
+              )}
             </div>
           </div>
-        )}
+        );
+      })()
+    }
+            </div >
+          </div >
+        )
+  }
 
-        {/* Verification ID Full Photo Modal */}
-        {showIdPhotoModal && youthProfile.verificationIdImage && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4" style={{ zIndex: 110 }}>
-            <div className="bg-white rounded-2xl p-6 shadow-2xl space-y-4 max-w-lg w-full animate-in zoom-in-95 border border-gray-200 max-h-[90vh] flex flex-col">
-              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
-                  <div>
-                    <h4 className="font-extrabold text-gray-900 text-sm">{youthProfile.verificationIdType || "Government ID"} Attached</h4>
-                    <p className="text-[11px] text-gray-500 font-medium">Uploaded for SK Verification</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowIdPhotoModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+  {/* Direct Application Confirmation Modal (Centered Desktop style) */ }
+  {
+    showApplyModal && (
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+        style={{ zIndex: 100 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setShowApplyModal(false);
+            setSelectedProgramToApply(null);
+          }
+        }}
+      >
+        <div className="bg-white rounded-2xl p-6 shadow-2xl text-center space-y-4 max-w-[360px] w-full animate-in fade-in zoom-in-95 duration-200 ease-out border border-emerald-100">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto shadow-2xs">
+            <CheckCircle className="w-9 h-9 text-[#0A6B43]" />
+          </div>
+          <div>
+            <h4 className="font-extrabold text-gray-900 text-base">Apply for training?</h4>
+            <p className="text-xs text-gray-500 leading-relaxed mt-2 font-medium">
+              This will submit your application directly to TESDA for the <strong className="text-gray-800">{selectedProgramToApply?.title || "selected training program"}</strong>.
+            </p>
+          </div>
+          <div className="flex gap-2.5 pt-2">
+            <button
+              onClick={() => {
+                setShowApplyModal(false);
+                setSelectedProgramToApply(null);
+              }}
+              className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-50 active:scale-98 transition-all cursor-pointer shadow-2xs"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDirectApply}
+              className="flex-1 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-xs"
+            >
+              Apply Now
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-              <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center p-2 min-h-[260px]">
-                <img
-                  src={youthProfile.verificationIdImage}
-                  alt="Full Government ID"
-                  className="max-h-[65vh] w-auto object-contain rounded-lg shadow-sm"
-                />
-              </div>
-
-              <div className="flex justify-between items-center pt-2 text-xs">
-                <span className="font-mono text-gray-600 font-bold">
-                  {youthProfile.verificationIdNumber ? `ID No: ${youthProfile.verificationIdNumber}` : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowIdPhotoModal(false)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                >
-                  Close Preview
-                </button>
+  {/* Verification ID Full Photo Modal */ }
+  {
+    showIdPhotoModal && youthProfile.verificationIdImage && (
+      <div
+        className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+        style={{ zIndex: 110 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowIdPhotoModal(false);
+        }}
+      >
+        <div className="bg-white rounded-2xl p-6 shadow-2xl space-y-4 max-w-lg w-full animate-in fade-in zoom-in-95 duration-200 ease-out border border-gray-200 max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
+              <div>
+                <h4 className="font-extrabold text-gray-900 text-sm">{youthProfile.verificationIdType || "Government ID"} Attached</h4>
+                <p className="text-[11px] text-gray-500 font-medium">Uploaded for SK Verification</p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowIdPhotoModal(false)}
+              className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        )}
 
-      </main>
-    </div>
+          <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center p-2 min-h-[260px]">
+            <img
+              src={youthProfile.verificationIdImage}
+              alt="Full Government ID"
+              className="max-h-[65vh] w-auto object-contain rounded-lg shadow-sm"
+            />
+          </div>
+
+          <div className="flex justify-between items-center pt-2 text-xs">
+            <span className="font-mono text-gray-600 font-bold">
+              {youthProfile.verificationIdNumber ? `ID No: ${youthProfile.verificationIdNumber}` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowIdPhotoModal(false)}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              Close Preview
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+      </main >
+    </div >
   );
 };

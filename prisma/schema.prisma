@@ -138,6 +138,7 @@ model YouthProfile {
   verificationIdType      String?
   verificationIdNumberEnc String?        // AES-256-GCM Encrypted
   verificationIdImageEnc  String?        // AES-256-GCM Encrypted
+  profilePicture          String?        // User Profile Avatar URL or Base64
   savedCareerPlan         String?        // JSON or formatted text of Gemini Career Plan
   savedMatchAdvice        String?        // JSON text of Cached Featured AI Match Advice
   referrals               Referral[]

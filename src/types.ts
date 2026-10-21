@@ -249,6 +249,7 @@ export interface YouthProfile {
   verificationIdType?: string;
   verificationIdNumber?: string;
   verificationIdImage?: string;
+  profilePicture?: string;
   savedCareerPlan?: any;
   savedMatchAdvice?: SavedMatchAdvice | null;
 }
