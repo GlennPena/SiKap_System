@@ -138,3 +138,23 @@ export function spellOutGender(gender?: string | null): string {
   if (trimmed === "f" || trimmed === "female") return "Female";
   return gender.charAt(0).toUpperCase() + gender.slice(1);
 }
+
+/**
+ * Converts a string to Title Case while preserving uppercase acronyms (e.g. IT, NC, SMAW, HVAC).
+ */
+export function toTitleCase(str?: string | null): string {
+  if (!str) return "";
+  return str
+    .trim()
+    .split(/\s+/)
+    .map(word => {
+      if (word.length >= 2 && word.length <= 5 && word === word.toUpperCase() && /^[A-Z0-9/]+$/.test(word)) {
+        return word;
+      }
+      return word
+        .split("-")
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join("-");
+    })
+    .join(" ");
+}

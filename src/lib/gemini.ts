@@ -204,7 +204,7 @@ export async function generateYouthPersonalizedAdviceBullets(
   const brgyName = youth.barangay?.trim() || "San Luis";
   const skillsStr = youth.skills && youth.skills.length > 0 ? youth.skills.join(" and ") : youth.sectorPreference || "your background skills";
   const goalStr = youth.livelihoodGoal || "your career goal";
-  const progTitle = topProg ? topProg.title : "TESDA Vocational Course";
+  const progTitle = topProg ? topProg.title : "TESDA Vocational Program";
   const provider = topProg ? topProg.provider : "TESDA GPSAT";
 
   const defaultBullets = [
@@ -445,7 +445,7 @@ export async function generateYouthLongTermCareerPlan(
   program?: TESDAProgram | null
 ): Promise<GeminiLongTermCareerPlan> {
   const firstName = (youth.name || "Youth Member").split(" ")[0];
-  const progTitle = program?.title || "TESDA NC II Certified Course";
+  const progTitle = program?.title || "TESDA NC II Certified Program";
   const provider = program?.provider || "TESDA Pampanga";
   const goalStr = youth.livelihoodGoal || "Certified Skilled Professional";
   const brgyStr = youth.barangay || "San Luis";

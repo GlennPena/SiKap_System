@@ -6,7 +6,8 @@ import {
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
   Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2,
-  Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck
+  Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck,
+  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
@@ -16,6 +17,49 @@ import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
+import { toTitleCase, isProgramEnded } from "../lib/utils";
+
+const getProgramCategory = (prog?: any): string => {
+  if (!prog) return "Information and Communication Technology";
+  if (typeof prog.category === "string" && prog.category.trim()) {
+    const found = CATEGORIES.find(c => c.id === prog.category || c.slug === prog.category || c.name.toLowerCase() === prog.category.toLowerCase());
+    if (found) return found.name;
+    return prog.category;
+  }
+  if (prog.category && typeof prog.category === "object" && prog.category.name) {
+    return prog.category.name;
+  }
+  if (prog.categoryId) {
+    const found = CATEGORIES.find(c => c.id === String(prog.categoryId));
+    if (found) return found.name;
+  }
+  const t = (prog.title || "").toLowerCase();
+  if (t.includes("computer") || t.includes("web") || t.includes("ict") || t.includes("programming") || t.includes("servicing") || t.includes("systems") || t.includes("hardware") || t.includes("software")) {
+    return "Information and Communication Technology";
+  }
+  if (t.includes("welding") || t.includes("metal") || t.includes("smaw") || t.includes("construction") || t.includes("carpentry") || t.includes("masonry") || t.includes("plumbing")) {
+    return "Construction";
+  }
+  if (t.includes("cook") || t.includes("baking") || t.includes("pastry") || t.includes("food") || t.includes("bread") || t.includes("beverage")) {
+    return "Process Food and Beverages";
+  }
+  if (t.includes("electric") || t.includes("wiring") || t.includes("electronics") || t.includes("solar")) {
+    return "Electrical and Electronics";
+  }
+  if (t.includes("automotive") || t.includes("motorcycle") || t.includes("driving") || t.includes("engine")) {
+    return "Automotive and Land Transport";
+  }
+  if (t.includes("agri") || t.includes("farm") || t.includes("crop") || t.includes("organic") || t.includes("aquaculture")) {
+    return "Agriculture";
+  }
+  if (t.includes("tourism") || t.includes("hotel") || t.includes("housekeeping") || t.includes("front office") || t.includes("bartending")) {
+    return "Tourism";
+  }
+  if (t.includes("care") || t.includes("health") || t.includes("nursing") || t.includes("patient")) {
+    return "Human Health/ Health Care";
+  }
+  return "Technical-Vocational Training";
+};
 
 interface TESDAPartnerPortalProps {
   programs: TESDAProgram[];
@@ -269,10 +313,34 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   // Program archive confirmation modal state
   const [programToArchive, setProgramToArchive] = useState<TESDAProgram | null>(null);
 
-  // Archived records state for the Archived History tab
+  // Archived records state for the Archived History tab & Catalog Archive View
   const [archivedProgramsList, setArchivedProgramsList] = useState<TESDAProgram[]>([]);
   const [archivedReferralsList, setArchivedReferralsList] = useState<ReferralPipelineItem[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
+  const [viewingArchivedPrograms, setViewingArchivedPrograms] = useState(false);
+
+  // Modal inline editing states for "View Program Details"
+  const [isEditingInModal, setIsEditingInModal] = useState(false);
+  const [isSavingModal, setIsSavingModal] = useState(false);
+  const [modalEditTitle, setModalEditTitle] = useState("");
+  const [modalEditLevel, setModalEditLevel] = useState("NC II");
+  const [modalEditCategoryId, setModalEditCategoryId] = useState("1");
+  const [modalEditTrainingHours, setModalEditTrainingHours] = useState<number | "">("");
+  const [modalEditSlotsTotal, setModalEditSlotsTotal] = useState<number | "">(25);
+  const [modalEditCost, setModalEditCost] = useState("Free");
+  const [modalEditLocation, setModalEditLocation] = useState("");
+  const [modalEditRoom, setModalEditRoom] = useState("");
+  const [modalEditInstructor, setModalEditInstructor] = useState("");
+  const [modalEditTrainingDays, setModalEditTrainingDays] = useState<string[]>([]);
+  const [modalEditStartTime, setModalEditStartTime] = useState("");
+  const [modalEditEndTime, setModalEditEndTime] = useState("");
+  const [modalEditStartDate, setModalEditStartDate] = useState("");
+  const [modalEditEndDate, setModalEditEndDate] = useState("");
+  const [modalEditEligibility, setModalEditEligibility] = useState("");
+  const [modalEditRequiredDocuments, setModalEditRequiredDocuments] = useState("");
+  const [modalEditRequiredSkills, setModalEditRequiredSkills] = useState("");
+  const [modalEditContactName, setModalEditContactName] = useState("");
+  const [modalEditContactPhone, setModalEditContactPhone] = useState("");
 
   // Helper to fetch archived records on demand
   const fetchArchivedData = async () => {
@@ -297,6 +365,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
+  // Fetch archived records on initial load so counter badge is immediately accurate
+  useEffect(() => {
+    fetchArchivedData();
+  }, []);
+
   // Helper to detect if program term / duration is concluded
   const isProgramDurationDone = (prog?: TESDAProgram | null) => {
     if (!prog || !prog.endDate) return false;
@@ -319,6 +392,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   // Programs Screen Search & Filter
   const [programSearchQuery, setProgramSearchQuery] = useState("");
   const [programLevelFilter, setProgramLevelFilter] = useState("All");
+  const [programCategoryFilter, setProgramCategoryFilter] = useState("All");
+  const [programStatusFilter, setProgramStatusFilter] = useState("All");
+  const [programCostFilter, setProgramCostFilter] = useState("All");
+  const [programViewMode, setProgramViewMode] = useState<"grid" | "table">("grid");
 
   const toggleProgramExpand = (title: string) => {
     setExpandedPrograms(prev => ({
@@ -687,20 +764,25 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   const handleDeleteProgram = async (progId: string, title: string) => {
     try {
-      const res = await fetch(`/api/programs?id=${progId}`, { method: "DELETE" });
+      const res = await fetch(`/api/programs?id=${progId}&permanent=true`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
         setPrograms(prev => prev.filter(p => p.id !== progId));
+        setArchivedProgramsList(prev => prev.filter(p => p.id !== progId));
         setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
-        addToast(data.message || `Program "${title}" and its enrollees removed from active dashboard and archived in database.`, "success");
+        addToast(data.message || `Program "${title}" permanently deleted.`, "success");
+        if (viewingProgram && viewingProgram.id === progId) {
+          setViewingProgram(null);
+        }
       } else {
         addToast(data.error || "Failed to delete program", "error");
       }
     } catch (err) {
       console.error("Error deleting program:", err);
       setPrograms(prev => prev.filter(p => p.id !== progId));
+      setArchivedProgramsList(prev => prev.filter(p => p.id !== progId));
       setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
-      addToast(`Program "${title}" has been archived.`, "success");
+      addToast(`Program "${title}" has been deleted.`, "success");
     }
   };
 
@@ -709,15 +791,198 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       const res = await fetch(`/api/programs?id=${progId}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
+        const archivedProg = programs.find(p => p.id === progId) || data.data;
+        if (archivedProg) {
+          setArchivedProgramsList(prev => [{ ...archivedProg, activeStatus: "Closed" as any }, ...prev.filter(p => p.id !== progId)]);
+        }
         setPrograms(prev => prev.filter(p => p.id !== progId));
         setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
-        addToast(data.message || `Program "${title}" and enrolled students have been concluded & archived. Ready for a new term!`, "success");
+        addToast(data.message || `Program "${title}" and enrolled students have been concluded & archived.`, "success");
+        if (viewingProgram && viewingProgram.id === progId) {
+          setViewingProgram(null);
+        }
       } else {
         addToast(data.error || "Failed to archive program term", "error");
       }
     } catch (err) {
       console.error("Error archiving program:", err);
       addToast(`Network error: Could not archive "${title}".`, "error");
+    }
+  };
+
+  const handleUnarchiveProgram = async (progId: string, title: string) => {
+    try {
+      const res = await fetch("/api/programs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: progId, activeStatus: "Active" })
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setArchivedProgramsList(prev => prev.filter(p => p.id !== progId));
+        setPrograms(prev => {
+          if (prev.some(p => p.id === progId)) {
+            return prev.map(p => p.id === progId ? data.data : p);
+          }
+          return [data.data, ...prev];
+        });
+        addToast(`Program "${title}" has been restored to Active Programs!`, "success");
+        if (viewingProgram && viewingProgram.id === progId) {
+          setViewingProgram(data.data);
+        }
+      } else {
+        addToast(data.error || "Failed to restore program", "error");
+      }
+    } catch (err: any) {
+      console.error("Error restoring program:", err);
+      addToast(err.message || "Failed to restore program", "error");
+    }
+  };
+
+  // Helper to start inline editing within the View Program Details dialog
+  const startEditingInModal = (prog: TESDAProgram) => {
+    const match = prog.title.match(/(.*)\s+(NC\s+I|NC\s+II|NC\s+III)$/i);
+    if (match) {
+      setModalEditTitle(match[1].trim());
+      setModalEditLevel(match[2].toUpperCase());
+    } else {
+      setModalEditTitle(prog.title);
+      setModalEditLevel("NC II");
+    }
+
+    let catId = prog.categoryId ? String(prog.categoryId) : "";
+    if (!catId && prog.category) {
+      const found = CATEGORIES.find(c => c.id === prog.category || c.name.toLowerCase() === String(prog.category).toLowerCase());
+      if (found) catId = found.id;
+    }
+    if (!catId) catId = "1";
+    setModalEditCategoryId(catId);
+
+    setModalEditTrainingHours(prog.trainingHours || "");
+    setModalEditLocation(prog.location || "");
+    setModalEditCost(prog.cost || "Free");
+    setModalEditSlotsTotal(prog.slotsTotal || 25);
+    setModalEditEligibility(prog.eligibility || "");
+    setModalEditRequiredDocuments(prog.requiredDocuments ? prog.requiredDocuments.join(', ') : "");
+    setModalEditRequiredSkills(prog.requiredSkills ? prog.requiredSkills.join(', ') : "");
+    setModalEditContactName(prog.contactPerson || "");
+    setModalEditContactPhone(prog.contactNumber || "");
+    setModalEditTrainingDays(prog.trainingDays || []);
+    setModalEditStartTime(parseTimeForInput(prog.startTime));
+    setModalEditEndTime(parseTimeForInput(prog.endTime));
+    setModalEditRoom(prog.room || "");
+    setModalEditInstructor(prog.instructor || "");
+    setModalEditStartDate(prog.startDate ? new Date(prog.startDate).toISOString().split('T')[0] : "");
+    setModalEditEndDate(prog.endDate ? new Date(prog.endDate).toISOString().split('T')[0] : "");
+    setIsEditingInModal(true);
+  };
+
+  // Auto-calculated hours for modal inline edit
+  const computedModalTrainingHours = useMemo(() => {
+    if (!modalEditStartDate || !modalEditEndDate || !modalEditStartTime || !modalEditEndTime || modalEditTrainingDays.length === 0) {
+      return null;
+    }
+    return computeProgramTrainingHours({
+      startDate: modalEditStartDate,
+      endDate: modalEditEndDate,
+      startTime: modalEditStartTime,
+      endTime: modalEditEndTime,
+      trainingDays: modalEditTrainingDays
+    });
+  }, [modalEditStartDate, modalEditEndDate, modalEditStartTime, modalEditEndTime, modalEditTrainingDays]);
+
+  const applyModalTimeslotPreset = (preset: "morning" | "afternoon" | "fullday" | "evening") => {
+    if (preset === "morning") {
+      setModalEditStartTime("08:00");
+      setModalEditEndTime("12:00");
+    } else if (preset === "afternoon") {
+      setModalEditStartTime("13:00");
+      setModalEditEndTime("17:00");
+    } else if (preset === "fullday") {
+      setModalEditStartTime("08:00");
+      setModalEditEndTime("17:00");
+    } else if (preset === "evening") {
+      setModalEditStartTime("17:30");
+      setModalEditEndTime("20:30");
+    }
+  };
+
+  const handleSaveModalEdits = async () => {
+    if (!viewingProgram) return;
+
+    if (!modalEditTitle.trim()) {
+      addToast("Please fill in the program title", "error");
+      return;
+    }
+
+    if (!modalEditTrainingHours || Number(modalEditTrainingHours) <= 0) {
+      addToast("Training hours must be greater than 0", "error");
+      return;
+    }
+
+    if (modalEditTrainingDays.length === 0) {
+      addToast("Please select at least one training day", "error");
+      return;
+    }
+
+    if (modalEditStartTime && modalEditEndTime && modalEditStartTime >= modalEditEndTime) {
+      addToast("Start time must be before end time", "error");
+      return;
+    }
+
+    if (modalEditStartDate && modalEditEndDate && new Date(modalEditStartDate) > new Date(modalEditEndDate)) {
+      addToast("Start date must be before or equal to end date", "error");
+      return;
+    }
+
+    setIsSavingModal(true);
+    const fullTitle = modalEditLevel && !modalEditTitle.toUpperCase().includes(modalEditLevel)
+      ? `${modalEditTitle.trim()} ${modalEditLevel}`.trim()
+      : modalEditTitle.trim();
+
+    const payload = {
+      id: viewingProgram.id,
+      title: fullTitle,
+      categoryId: modalEditCategoryId,
+      location: modalEditLocation,
+      trainingHours: Number(modalEditTrainingHours),
+      cost: modalEditCost,
+      slotsTotal: Number(modalEditSlotsTotal),
+      eligibility: modalEditEligibility,
+      requiredDocuments: modalEditRequiredDocuments ? modalEditRequiredDocuments.split(',').map(s => s.trim()).filter(Boolean) : [],
+      requiredSkills: modalEditRequiredSkills ? modalEditRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+      contactPerson: modalEditContactName,
+      contactNumber: modalEditContactPhone,
+      trainingDays: modalEditTrainingDays,
+      startTime: modalEditStartTime || undefined,
+      endTime: modalEditEndTime || undefined,
+      room: modalEditRoom,
+      instructor: modalEditInstructor,
+      startDate: modalEditStartDate || undefined,
+      endDate: modalEditEndDate || undefined,
+    };
+
+    try {
+      const res = await fetch("/api/programs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || "Failed to update program");
+      }
+
+      setPrograms(prev => prev.map(p => p.id === viewingProgram.id ? data.data : p));
+      setArchivedProgramsList(prev => prev.map(p => p.id === viewingProgram.id ? data.data : p));
+      setViewingProgram(data.data);
+      setIsEditingInModal(false);
+      addToast("Program details updated successfully!", "success");
+    } catch (err: any) {
+      addToast(err.message || "An error occurred", "error");
+    } finally {
+      setIsSavingModal(false);
     }
   };
 
@@ -775,7 +1040,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       list.push({
         id: "notif-tesda-programs",
         title: `Active Training Programs (${activePrograms.length})`,
-        desc: `${totalSlotsRemaining} open training slots available across courses.`,
+        desc: `${totalSlotsRemaining} open training slots available across programs.`,
         icon: <BookOpen className="w-4 h-4 text-[#0A6B43]" />,
         bg: "bg-emerald-100/70",
         action: () => {
@@ -850,16 +1115,55 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     });
   }, [allProgramTitles, groupedReferrals, isSearchActive]);
 
+  // Unique TESDA categories for filtering (derived from taxonomy CATEGORIES and existing programs)
+  const tesdaCategoryOptions = useMemo(() => {
+    const catSet = new Set<string>();
+    programs.forEach(p => {
+      const c = getProgramCategory(p);
+      if (c) catSet.add(c);
+    });
+    CATEGORIES.forEach(c => catSet.add(c.name));
+    return Array.from(catSet).sort().map(cat => ({ value: cat, label: cat }));
+  }, [programs]);
+
   // Filter for Programs Screen
   const filteredProgramsList = useMemo(() => {
-    return activePrograms.filter(prog => {
-      const matchesSearch = prog.title.toLowerCase().includes(programSearchQuery.toLowerCase()) ||
-        (prog.location && prog.location.toLowerCase().includes(programSearchQuery.toLowerCase())) ||
-        (prog.instructor && prog.instructor.toLowerCase().includes(programSearchQuery.toLowerCase()));
+    const sourceList = viewingArchivedPrograms ? archivedProgramsList : activePrograms;
+    return sourceList.filter(prog => {
+      const q = programSearchQuery.toLowerCase().trim();
+      const matchesSearch = !q ||
+        prog.title.toLowerCase().includes(q) ||
+        (prog.location && prog.location.toLowerCase().includes(q)) ||
+        (prog.instructor && prog.instructor.toLowerCase().includes(q)) ||
+        (prog.provider && prog.provider.toLowerCase().includes(q)) ||
+        (prog.requiredSkills && prog.requiredSkills.some(s => s.toLowerCase().includes(q)));
+
       const matchesLevel = programLevelFilter === "All" || prog.title.toUpperCase().includes(programLevelFilter);
-      return matchesSearch && matchesLevel;
+
+      const catName = getProgramCategory(prog);
+      const matchesCategory = programCategoryFilter === "All" ||
+        catName.toLowerCase().trim() === programCategoryFilter.toLowerCase().trim();
+
+      const isEnded = isProgramEnded(prog) || isProgramDurationDone(prog);
+      let matchesStatus = true;
+      if (programStatusFilter === "Active") {
+        matchesStatus = !isEnded && prog.activeStatus !== "Closed";
+      } else if (programStatusFilter === "Concluded") {
+        matchesStatus = isEnded || prog.activeStatus === "Closed";
+      }
+
+      let matchesCost = true;
+      if (programCostFilter === "Free") {
+        matchesCost = !prog.cost || prog.cost.toLowerCase().includes("free");
+      } else if (programCostFilter === "Subsidized") {
+        matchesCost = Boolean(prog.cost && prog.cost.toLowerCase().includes("subsidized"));
+      } else if (programCostFilter === "With Fee") {
+        matchesCost = Boolean(prog.cost && (prog.cost.toLowerCase().includes("fee") || prog.cost.toLowerCase().includes("paid")));
+      }
+
+      return matchesSearch && matchesLevel && matchesCategory && matchesStatus && matchesCost;
     });
-  }, [activePrograms, programSearchQuery, programLevelFilter]);
+  }, [viewingArchivedPrograms, archivedProgramsList, activePrograms, programSearchQuery, programLevelFilter, programCategoryFilter, programStatusFilter, programCostFilter]);
 
   // Helper to open applicant modal
   const openApplicantModal = (item: ReferralPipelineItem) => {
@@ -951,7 +1255,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <rect width="7" height="7" x="3" y="14" rx="2" />
                   </svg>
                 ),
-                badge: pendingReferralsCount > 0 ? pendingReferralsCount : undefined,
                 onClick: () => {
                   setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
                   setDashboardTab("all");
@@ -959,7 +1262,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               },
               {
                 id: TESDAPartnerScreen.PROGRAMS,
-                label: "Published Courses",
+                label: "Programs",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <path d="M12 6.25c-1.85-1.4-4.22-2.25-6.75-2.25H2v14.5h3.25c2.14 0 4.18.66 5.75 1.75V6.25z" />
@@ -972,28 +1275,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
                   </svg>
                 ),
-                badge: activePrograms.length > 0 ? activePrograms.length : undefined,
                 onClick: () => {
                   setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
-                }
-              },
-              {
-                id: TESDAPartnerScreen.ADD_PROGRAM,
-                label: "Post New Course",
-                activeIcon: (
-                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 6h-2v3H8v2h3v3h2v-3h3v-2h-3V8z" />
-                  </svg>
-                ),
-                inactiveIcon: (
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M8 12h8" />
-                    <path d="M12 8v8" />
-                  </svg>
-                ),
-                onClick: () => {
-                  handleNewProgramClick();
                 }
               },
               {
@@ -1021,7 +1304,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             ].map((tab) => {
               const isActive =
                 currentScreen === tab.id ||
-                (tab.id === TESDAPartnerScreen.ADD_PROGRAM && currentScreen === TESDAPartnerScreen.EDIT_PROGRAM);
+                (tab.id === TESDAPartnerScreen.PROGRAMS &&
+                  (currentScreen === TESDAPartnerScreen.ADD_PROGRAM || currentScreen === TESDAPartnerScreen.EDIT_PROGRAM));
 
               return (
                 <div key={tab.id} className="relative">
@@ -1065,12 +1349,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </span>
                       <span className="truncate">{tab.label}</span>
                     </div>
-
-                    {tab.badge !== undefined && tab.badge > 0 && (
-                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
-                        {tab.badge}
-                      </span>
-                    )}
                   </button>
                 </div>
               );
@@ -1146,9 +1424,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             <div className="min-w-0 flex-1">
               <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
                 {currentScreen === TESDAPartnerScreen.DASHBOARD && "Dashboard"}
-                {currentScreen === TESDAPartnerScreen.PROGRAMS && "Published Courses"}
-                {currentScreen === TESDAPartnerScreen.ADD_PROGRAM && "Post New Course"}
-                {currentScreen === TESDAPartnerScreen.EDIT_PROGRAM && "Edit Course"}
+                {currentScreen === TESDAPartnerScreen.PROGRAMS && "Programs"}
+                {currentScreen === TESDAPartnerScreen.ADD_PROGRAM && "Post New Program"}
+                {currentScreen === TESDAPartnerScreen.EDIT_PROGRAM && "Edit Program"}
                 {currentScreen === TESDAPartnerScreen.SETTINGS && "Settings"}
               </h1>
             </div>
@@ -1306,15 +1584,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
                           Ready to Archive
                         </span>
-                      </div>
-                      <p className="text-xs text-slate-700 font-medium mt-0.5">
+                      </div>                        <p className="text-xs text-slate-700 font-medium mt-0.5">
                         {completedPrograms.length === 1 ? (
                           <>
-                            <strong>"{completedPrograms[0].title}"</strong> training schedule has ended. Click below to archive the course and graduate its enrollees.
+                            <strong>"{completedPrograms[0].title}"</strong> training schedule has ended. Click below to archive the program and graduate its enrollees.
                           </>
                         ) : (
                           <>
-                            {completedPrograms.length} training courses have concluded their schedules. You can archive them to graduate their enrollees.
+                            {completedPrograms.length} training programs have concluded their schedules. You can archive them to graduate their enrollees.
                           </>
                         )}
                       </p>
@@ -1327,7 +1604,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         type="button"
                         onClick={() => setProgramToArchive(prog)}
                         className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                        title="Archive course and record enrollees as completed/graduated"
+                        title="Archive program and record enrollees as completed/graduated"
                       >
                         <Archive className="w-3.5 h-3.5" />
                         <span>Archive {completedPrograms.length > 1 ? prog.title.slice(0, 15) + '...' : 'Term & Enrollees'}</span>
@@ -1363,7 +1640,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {/* KPI Metric Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 <MetricCard
-                  title="Published Courses"
+                  title="Published Programs"
                   value={activePrograms.length}
                   subtitle={`${activePrograms.filter(p => p.slotsRemaining > 0).length} active · ${activePrograms.filter(p => p.slotsRemaining === 0).length} full`}
                   icon={<BookOpen className="w-5 h-5" />}
@@ -1392,60 +1669,60 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 />
               </div>
 
-              {/* View Selector Tabs & Global Search */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              {/* View Selector Tabs & Global Search - Standardized Main Card Container */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
                   {/* Segment Tabs */}
-                  <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl overflow-x-auto scrollbar-none w-full sm:w-auto shrink-0 max-w-full">
+                  <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0 max-w-full">
                     <button
                       onClick={() => setDashboardTab("all")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "all"
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "all"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
-                          : "text-slate-600 hover:text-slate-900"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
                       All Active ({activeReferrals.length})
                     </button>
                     <button
                       onClick={() => setDashboardTab("pending")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "pending"
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "pending"
                           ? "bg-white text-amber-700 shadow-xs font-extrabold"
-                          : "text-slate-600 hover:text-slate-900"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
                       <span>Pending</span>
                       {pendingReferralsCount > 0 && (
-                        <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                        <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
                           {pendingReferralsCount}
                         </span>
                       )}
                     </button>
                     <button
                       onClick={() => setDashboardTab("enrolled")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "enrolled"
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "enrolled"
                           ? "bg-white text-emerald-700 shadow-xs font-extrabold"
-                          : "text-slate-600 hover:text-slate-900"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
                       Enrolled ({enrolledReferralsCount})
                     </button>
                     <button
                       onClick={() => setDashboardTab("programs")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "programs"
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "programs"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
-                          : "text-slate-600 hover:text-slate-900"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
-                      Course Roster ({activePrograms.length})
+                      Program Roster ({activePrograms.length})
                     </button>
                     <button
                       onClick={() => {
                         setDashboardTab("archived");
                         fetchArchivedData();
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "archived"
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "archived"
                           ? "bg-white text-emerald-800 shadow-xs font-extrabold"
-                          : "text-slate-600 hover:text-slate-900"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
                       <Archive className="w-3.5 h-3.5" />
@@ -1457,10 +1734,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleNewProgramClick}
-                      className="w-full sm:w-auto px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                      className="w-full sm:w-auto px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Course
+                      <Plus className="w-4 h-4" />
+                      <span>Post New Program</span>
                     </button>
                   </div>
                 </div>
@@ -1469,14 +1746,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   {/* Search Input */}
                   <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search applicant, purok, or course..."
+                      placeholder="Search applicant, purok, or program…"
                       value={pipelineSearch}
                       onChange={(e) => setPipelineSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden transition-all"
+                      className="w-full h-[38px] pl-10 pr-8 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     />
+                    {pipelineSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPipelineSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Program Filter */}
@@ -1485,11 +1772,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       value={pipelineProgramFilter}
                       onChange={(val) => setPipelineProgramFilter(val)}
                       options={[
-                        { value: "All", label: "All Training Programs" },
+                        { value: "All", label: "All Programs" },
                         ...activePrograms.map(p => ({ value: p.title, label: p.title }))
                       ]}
                       size="sm"
-                      placeholder="All Training Programs"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                      placeholder="All Programs"
                     />
                   </div>
 
@@ -1499,10 +1787,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       value={pipelineBarangayFilter}
                       onChange={(val) => setPipelineBarangayFilter(val)}
                       options={[
-                        { value: "All", label: "All Barangays (San Luis)" },
+                        { value: "All", label: "All Barangays" },
                         ...uniqueBarangays.map(b => ({ value: b, label: `Brgy. ${b}` }))
                       ]}
                       size="sm"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
                       placeholder="All Barangays"
                     />
                   </div>
@@ -1520,6 +1809,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         { value: "Declined", label: "Declined" }
                       ]}
                       size="sm"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
                       placeholder="All Statuses"
                     />
                   </div>
@@ -1527,9 +1817,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 {/* Active Filter Clear Bar */}
                 {isSearchActive && (
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                    <span className="text-slate-500 font-medium">
-                      Showing <strong className="text-slate-900">{filteredReferrals.length}</strong> candidate match(es) across programs
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+                    <span className="text-gray-500 font-medium">
+                      Showing <strong className="text-gray-900">{filteredReferrals.length}</strong> candidate match(es) across programs
                     </span>
                     <button
                       onClick={() => {
@@ -1554,14 +1844,31 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {dashboardTab !== "programs" && dashboardTab !== "archived" && (
                 <div className="space-y-4">
                   {programTitlesToDisplay.length === 0 ? (
-                    <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-                        <Users className="w-6 h-6" />
+                    <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                      <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                        <Users className="w-7 h-7" />
                       </div>
-                      <h4 className="text-sm font-bold text-slate-900">No applicants found matching current filters</h4>
-                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        Try adjusting your search query, status filters, or barangay selections.
-                      </p>
+                      <div className="space-y-1.5">
+                        <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Applicants Found</h3>
+                        <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                          No Katipunan ng Kabataan applicants match your active search or filter configuration. Try adjusting your filters.
+                        </p>
+                      </div>
+                      {isSearchActive && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPipelineSearch("");
+                            setPipelineStatusFilter("All");
+                            setPipelineProgramFilter("All");
+                            setPipelineBarangayFilter("All");
+                            setDashboardTab("all");
+                          }}
+                          className="mt-2 px-3.5 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                        >
+                          Reset All Filters
+                        </button>
+                      )}
                     </div>
                   ) : (
                     programTitlesToDisplay.map((title) => {
@@ -1572,11 +1879,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       const slotsTotal = originalProgram?.slotsTotal || 30;
 
                       return (
-                        <div key={title} className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden transition-all">
+                        <div key={title} className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden transition-all">
                           {/* Program Accordion Header */}
                           <div
                             onClick={() => toggleProgramExpand(title)}
-                            className="p-3.5 sm:p-4 bg-gradient-to-r from-[#112F24] via-[#164132] to-[#1A4B3A] text-white border-b border-emerald-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-all hover:brightness-105 shadow-xs"
+                            className="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-900 via-[#0A4D36] to-emerald-950 text-white border-b border-emerald-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-all hover:brightness-105 shadow-xs"
                           >
                             <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center justify-center font-black shrink-0 shadow-xs mt-0.5 sm:mt-0">
@@ -1587,16 +1894,16 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   <h3 className="font-extrabold text-xs sm:text-sm text-white break-words sm:truncate" title={title}>
                                     {title}
                                   </h3>
-                                  <span className="text-[10px] font-black px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 border border-emerald-400/30 shrink-0">
+                                  <span className="text-[10px] font-extrabold px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 shrink-0">
                                     {programApplicants.length} Candidate{programApplicants.length !== 1 ? "s" : ""}
                                   </span>
                                   {isProgramDurationDone(originalProgram) && (
-                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1 shrink-0">
+                                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1 shrink-0">
                                       <Clock className="w-3 h-3 text-purple-300" /> Term Ended
                                     </span>
                                   )}
                                   {slotsRemaining !== undefined && (
-                                    <span className={`sm:hidden text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${slotsRemaining > 5
+                                    <span className={`sm:hidden text-[10px] font-extrabold px-2 py-0.5 rounded-full border shrink-0 ${slotsRemaining > 5
                                         ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/30"
                                         : slotsRemaining > 0
                                           ? "bg-amber-500/20 text-amber-200 border-amber-400/30"
@@ -1608,7 +1915,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 </div>
                                 <div className="flex items-center gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs text-emerald-200/80 mt-1.5 sm:mt-1 flex-wrap font-medium">
                                   {originalProgram?.trainingHours && (
-                                    <span className="bg-emerald-950/70 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-700/40 shrink-0">
+                                    <span className="bg-emerald-950/70 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-700/40 shrink-0 font-semibold">
                                       ⏱ {originalProgram.trainingHours} Hours
                                     </span>
                                   )}
@@ -1694,38 +2001,38 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               >
                                 <div className="overflow-x-auto">
                                   {programApplicants.length === 0 ? (
-                                    <div className="p-6 text-center text-xs text-slate-400 font-medium">
+                                    <div className="p-6 text-center text-xs text-gray-400 font-medium">
                                       No applicants enrolled or registered under this program for the selected filters.
                                     </div>
                                   ) : (
                                     <table className="w-full text-left text-xs border-collapse">
                                       <thead>
-                                        <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-wider">
-                                          <th className="py-3 px-5">Candidate Name</th>
+                                        <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">
+                                          <th className="py-3 px-4">Candidate Name</th>
                                           <th className="py-3 px-4">Barangay & Purok</th>
                                           <th className="py-3 px-4">Match Score</th>
                                           <th className="py-3 px-4">Applied Date</th>
                                           <th className="py-3 px-4">Status</th>
-                                          <th className="py-3 px-5 text-right">Admissions Action</th>
+                                          <th className="py-3 px-4 text-right">Admissions Action</th>
                                         </tr>
                                       </thead>
-                                      <tbody className="divide-y divide-slate-100">
+                                      <tbody className="divide-y divide-gray-100">
                                         {programApplicants.map((item) => (
-                                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                          <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
                                             {/* Name & Quick Profile */}
-                                            <td className="py-3.5 px-5">
+                                            <td className="py-3.5 px-4">
                                               <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black text-xs shrink-0">
+                                                <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
                                                   {item.youthName.charAt(0)}
                                                 </div>
                                                 <div>
                                                   <button
                                                     onClick={() => openApplicantModal(item)}
-                                                    className="font-bold text-slate-900 hover:text-[#0A6B43] hover:underline cursor-pointer text-left block"
+                                                    className="font-bold text-gray-900 hover:text-[#0A6B43] hover:underline cursor-pointer text-left block text-sm"
                                                   >
                                                     {item.youthName}
                                                   </button>
-                                                  <span className="text-[10px] text-slate-400 font-medium">
+                                                  <span className="text-[11px] text-gray-500 font-medium">
                                                     Katipunan ng Kabataan
                                                   </span>
                                                 </div>
@@ -1733,44 +2040,44 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                             </td>
 
                                             {/* Residency */}
-                                            <td className="py-3.5 px-4 font-semibold text-slate-700">
+                                            <td className="py-3.5 px-4 font-semibold text-gray-700">
                                               <div className="flex items-center gap-1.5">
-                                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                                                 <span>Purok {item.purok}, Brgy. {item.barangay}</span>
                                               </div>
                                             </td>
 
                                             {/* Match Score */}
                                             <td className="py-3.5 px-4">
-                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200">
                                                 <Sparkles className="w-3 h-3 text-emerald-600" />
-                                                {item.matchScore}% AI Match
+                                                {item.matchScore}% Match
                                               </span>
                                             </td>
 
                                             {/* Applied Date */}
-                                            <td className="py-3.5 px-4 text-slate-500 font-medium">
+                                            <td className="py-3.5 px-4 text-gray-500 font-medium">
                                               {item.referralDate}
                                             </td>
 
                                             {/* Status Badge */}
                                             <td className="py-3.5 px-4">
                                               <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${item.status === "Enrolled"
-                                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                                  ? "bg-emerald-50 text-[#0A6B43] border-emerald-250"
                                                   : item.status === "Pending"
-                                                    ? "bg-amber-50 text-amber-800 border-amber-200"
-                                                    : "bg-red-50 text-red-800 border-red-200"
+                                                    ? "bg-amber-50 text-amber-800 border-amber-250"
+                                                    : "bg-red-50 text-red-700 border-red-200"
                                                 }`}>
                                                 {item.status}
                                               </span>
                                             </td>
 
                                             {/* Actions */}
-                                            <td className="py-3.5 px-5 text-right">
+                                            <td className="py-3.5 px-4 text-right">
                                               <div className="flex items-center justify-end gap-1.5">
                                                 <button
                                                   onClick={() => openApplicantModal(item)}
-                                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                                  className="px-2.5 py-1.5 bg-white hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-250 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
                                                   title="View Full Profile Dossier"
                                                 >
                                                   <Eye className="w-3.5 h-3.5" />
@@ -1781,7 +2088,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                                   <>
                                                     <button
                                                       onClick={() => handleUpdateReferralStatus(item.id, "Enrolled")}
-                                                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                                                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                                                       title="Accept & Enroll Trainee"
                                                     >
                                                       <Check className="w-3.5 h-3.5" />
@@ -1789,14 +2096,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                                     </button>
                                                     <button
                                                       onClick={() => handleUpdateReferralStatus(item.id, "Declined")}
-                                                      className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                                      className="p-1.5 bg-white hover:bg-red-50 text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
                                                       title="Decline Application"
                                                     >
                                                       <X className="w-3.5 h-3.5" />
                                                     </button>
                                                   </>
                                                 ) : (
-                                                  <span className="text-[10px] text-slate-400 font-bold px-2 py-1 bg-slate-50 rounded-md">
+                                                  <span className="text-[10px] text-gray-400 font-bold px-2 py-1 bg-gray-50 border border-gray-200 rounded-md">
                                                     Processed
                                                   </span>
                                                 )}
@@ -1819,42 +2126,44 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               )}
 
               {/* ============================================================ */}
-              {/* TAB 4: Course Roster Grid */}
+              {/* TAB 4: Program Roster Grid */}
               {/* ============================================================ */}
               {dashboardTab === "programs" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
                   {activePrograms.map((prog) => (
-                    <div key={prog.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
-                      <div className="p-4 sm:p-5">
-                        <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-3">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-md shrink-0">
+                    <div key={prog.id} className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between h-full group">
+                      <div>
+                        {/* Header: Cost/Hours & Status Badge */}
+                        <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2 mb-3">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-md shrink-0">
                             {prog.cost} · {prog.trainingHours}h
                           </span>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {isProgramDurationDone(prog) && (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 shrink-0">
                                 <Clock className="w-3 h-3 text-purple-600" /> Ended
                               </span>
                             )}
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                              }`}>
+                            <span className={`text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide ${
+                              prog.slotsRemaining > 0 ? "bg-emerald-50 text-[#0A6B43] border-emerald-200" : "bg-red-50 text-red-700 border-red-200"
+                            }`}>
                               {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Left` : "Full Capacity"}
                             </span>
                           </div>
                         </div>
 
-                        <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-[#0A6B43] transition-colors leading-snug sm:leading-tight mb-2 break-words">
+                        <h3 className="font-extrabold text-base text-gray-900 group-hover:text-[#0A6B43] transition-colors leading-snug tracking-tight mb-2.5 break-words">
                           {prog.title}
                         </h3>
 
-                        <div className="space-y-2 text-xs text-slate-600 mb-4">
+                        <div className="space-y-2 text-xs text-gray-600 mb-4">
                           {/* Schedule & Timeslot Badge */}
-                          <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
                               <div className="min-w-0 flex-1">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule & Timeslot</p>
-                                <p className="text-xs font-black text-slate-900 break-words sm:truncate">
+                                <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Schedule & Timeslot</p>
+                                <p className="text-xs font-bold text-gray-900 break-words sm:truncate">
                                   {getProgramFullSchedule(prog)}
                                 </p>
                               </div>
@@ -1862,11 +2171,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             {(() => {
                               const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
                               return ts.sessionType !== "Custom" ? (
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                    ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                      ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                        "bg-purple-100 text-purple-900 border border-purple-200"
-                                  }`}>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${
+                                  ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                  "bg-purple-100 text-purple-900 border border-purple-200"
+                                }`}>
                                   {ts.sessionType}
                                 </span>
                               ) : null;
@@ -1874,32 +2184,32 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="break-words sm:truncate">{prog.location || "San Luis Municipal Center"}</span>
+                            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="break-words sm:truncate font-medium">{prog.location || "San Luis Municipal Center"}</span>
                           </div>
                           {prog.instructor && (
                             <div className="flex items-center gap-2">
-                              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="break-words sm:truncate">Trainer: {prog.instructor}</span>
+                              <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="break-words sm:truncate font-medium">Trainer: {prog.instructor}</span>
                             </div>
                           )}
                           {(prog.startDate || prog.endDate) && (
                             <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="break-words sm:truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
+                              <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="break-words sm:truncate font-medium">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
                             </div>
                           )}
                         </div>
 
                         {/* Capacity meter */}
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 mb-1">
+                        <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-150">
+                          <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">
                             <span>Enrollment Capacity</span>
                             <span>{prog.slotsTotal - prog.slotsRemaining} / {prog.slotsTotal}</span>
                           </div>
-                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                          <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
                             <div
-                              className="bg-[#0A6B43] h-full rounded-full"
+                              className="bg-[#0A6B43] h-full rounded-full transition-all duration-300"
                               style={{ width: `${Math.min(100, Math.round(((prog.slotsTotal - prog.slotsRemaining) / prog.slotsTotal) * 100))}%` }}
                             />
                           </div>
@@ -1907,41 +2217,49 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
 
                       {/* Card Footer Actions */}
-                      <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+                      <div className="pt-3 pb-0.5 border-t border-gray-100 mt-3 flex items-center justify-between">
                         <button
-                          onClick={() => setViewingProgram(prog)}
-                          className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+                          type="button"
+                          onClick={() => {
+                            setViewingProgram(prog);
+                            setIsEditingInModal(false);
+                          }}
+                          className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 text-[#0A6B43] border border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
                         >
                           <Eye className="w-3.5 h-3.5" /> Details
                         </button>
                         <div className="flex items-center gap-1">
                           {isProgramDurationDone(prog) ? (
                             <button
+                              type="button"
                               onClick={() => setProgramToArchive(prog)}
-                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
                               title="Conclude Term & Archive Students"
                             >
                               <Archive className="w-3 h-3" /> Archive Term
                             </button>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => setProgramToArchive(prog)}
-                              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                               title="Archive Program"
                             >
                               <Archive className="w-3.5 h-3.5" />
                             </button>
                           )}
                           <button
+                            type="button"
                             onClick={() => handleOpenEditModal(prog)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                             title="Edit Program"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setProgramToDelete(prog)}
-                            className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title="Delete Program"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1954,80 +2272,85 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               )}
 
               {/* ============================================================ */}
-              {/* TAB 5: Archived History (Closed/Concluded Courses & Trainees) */}
+              {/* TAB 5: Archived History (Closed/Concluded Programs & Trainees) */}
               {/* ============================================================ */}
               {dashboardTab === "archived" && (
                 <div className="space-y-6">
-                  <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                        <Archive className="w-4 h-4 text-emerald-700" />
+                      <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+                        <Archive className="w-4 h-4 text-[#0A6B43]" />
                         Archived Training Programs & Graduated Trainees
                       </h3>
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">
-                        Historical repository of concluded and deleted training terms. The active dashboard remains uncluttered while graduate records and audit trails remain safely preserved.
+                      <p className="text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">
+                        Historical repository of concluded and archived training terms. The active dashboard remains uncluttered while graduate records and audit trails remain safely preserved.
                       </p>
                     </div>
                     <button
+                      type="button"
                       onClick={fetchArchivedData}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0"
+                      className="px-3.5 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
                     >
                       Refresh Archive
                     </button>
                   </div>
 
                   {loadingArchived ? (
-                    <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                      <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                      <p className="text-xs text-slate-500 font-bold">Loading archived records from database...</p>
+                    <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center">
+                      <div className="w-8 h-8 border-3 border-[#0A6B43] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <p className="text-xs text-gray-500 font-bold">Loading archived records from database...</p>
                     </div>
                   ) : archivedProgramsList.length === 0 && archivedReferralsList.length === 0 ? (
-                    <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
-                      <Archive className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                      <h4 className="text-sm font-bold text-slate-900">No Archived Programs or Enrollees</h4>
-                      <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                        When you archive a program or conclude a training term whose duration is done, it will be safely filed here and hidden from your active dashboard.
-                      </p>
+                    <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center max-w-lg mx-auto space-y-3">
+                      <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                        <Archive className="w-7 h-7" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-base font-extrabold text-gray-900">No Archived Programs or Enrollees</h4>
+                        <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                          When you archive a program or conclude a training term whose duration is done, it will be safely filed here and hidden from your active dashboard.
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {/* Archived Courses Grid */}
+                      {/* Archived Programs Grid */}
                       {archivedProgramsList.length > 0 && (
                         <div>
-                          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">
+                          <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider mb-3">
                             Concluded & Archived Programs ({archivedProgramsList.length})
                           </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {archivedProgramsList.map(prog => {
                               const programArchivedEnrollees = archivedReferralsList.filter(r => r.programTitle === prog.title || r.programId === prog.id);
                               return (
-                                <div key={prog.id} className="bg-slate-50/90 border border-slate-200 rounded-2xl p-5 shadow-xs">
+                                <div key={prog.id} className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs hover:shadow-sm transition-all">
                                   <div className="flex justify-between items-start gap-2 mb-2">
-                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded-md">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
                                       Archived Term
                                     </span>
-                                    <span className="text-[10px] font-bold text-slate-500">
+                                    <span className="text-[10px] font-bold text-gray-500">
                                       {prog.trainingHours}h · {prog.cost}
                                     </span>
                                   </div>
-                                  <h4 className="font-extrabold text-sm text-slate-900 mb-2">{prog.title}</h4>
-                                  <div className="space-y-1 text-xs text-slate-500 mb-3">
+                                  <h4 className="font-extrabold text-sm text-gray-900 mb-2">{prog.title}</h4>
+                                  <div className="space-y-1 text-xs text-gray-500 mb-3">
                                     {prog.location && (
-                                      <p className="truncate flex items-center gap-1">
-                                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <p className="truncate flex items-center gap-1 font-medium">
+                                        <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
                                         <span>{prog.location}</span>
                                       </p>
                                     )}
                                     {prog.endDate && (
-                                      <p className="truncate flex items-center gap-1">
-                                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <p className="truncate flex items-center gap-1 font-medium">
+                                        <Clock className="w-3 h-3 text-gray-400 shrink-0" />
                                         <span>Concluded on: {formatProgramDate(prog.endDate)}</span>
                                       </p>
                                     )}
                                   </div>
-                                  <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
-                                    <span className="text-slate-500 font-medium">Archived Enrollees</span>
-                                    <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                  <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-xs">
+                                    <span className="text-gray-500 font-medium">Archived Enrollees</span>
+                                    <span className="font-bold text-gray-900 bg-emerald-50 text-[#0A6B43] px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
                                       {programArchivedEnrollees.length} Trainees
                                     </span>
                                   </div>
@@ -2039,21 +2362,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       )}
 
                       {/* Archived Enrollees Table */}
-                      <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                          <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                      <div className="bg-white border border-gray-200/90 rounded-2xl overflow-hidden shadow-xs">
+                        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                          <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
                             Archived Enrollees & Graduates Record ({archivedReferralsList.length})
                           </h4>
                         </div>
                         {archivedReferralsList.length === 0 ? (
-                          <div className="p-8 text-center text-xs text-slate-400 font-medium">
+                          <div className="p-8 text-center text-xs text-gray-400 font-medium">
                             No student records currently marked as archived.
                           </div>
                         ) : (
                           <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs border-collapse">
                               <thead>
-                                <tr className="bg-slate-50 text-slate-400 font-bold text-[10px] uppercase tracking-wider border-b border-slate-100">
+                                <tr className="bg-gray-50/70 text-gray-500 font-bold text-[11px] uppercase tracking-wider border-b border-gray-200">
                                   <th className="py-3 px-4">Candidate Name</th>
                                   <th className="py-3 px-4">Barangay & Purok</th>
                                   <th className="py-3 px-4">Archived Program</th>
@@ -2061,25 +2384,25 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   <th className="py-3 px-4">Record Status</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-100">
+                              <tbody className="divide-y divide-gray-100">
                                 {archivedReferralsList.map(item => (
-                                  <tr key={item.id} className="hover:bg-slate-50/80">
-                                    <td className="py-3 px-4 font-bold text-slate-900">
+                                  <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
+                                    <td className="py-3 px-4 font-bold text-gray-900">
                                       {item.youthName}
                                     </td>
-                                    <td className="py-3 px-4 text-slate-600">
+                                    <td className="py-3 px-4 text-gray-600 font-medium">
                                       Purok {item.purok}, Brgy. {item.barangay}
                                     </td>
-                                    <td className="py-3 px-4 font-medium text-slate-700">
+                                    <td className="py-3 px-4 font-medium text-gray-700">
                                       {item.programTitle}
                                     </td>
                                     <td className="py-3 px-4">
-                                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                      <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                         {item.matchScore}% Match
                                       </span>
                                     </td>
                                     <td className="py-3 px-4">
-                                      <span className="inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300">
+                                      <span className="inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
                                         Archived
                                       </span>
                                     </td>
@@ -2116,207 +2439,456 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Published Courses Catalog
+                    Published Programs Catalog
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage and publish certified technical-vocational courses and training programs for San Luis youths.
+                    Manage and publish certified technical-vocational training programs for San Luis youths.
                   </p>
                 </div>
               </div>
 
-              {/* Header with Search and New Program Button */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">Active Training Programs</h3>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    {activePrograms.length} active courses · Certified under TESDA GPSAT
-                  </p>
-                </div>
-                <button
-                  onClick={handleNewProgramClick}
-                  className="px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  Post New Course
-                </button>
-              </div>
+              {/* Programs Catalog Card Container */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Title, Counter Badge, and Action Buttons (Archived & Post New Program) */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">
+                      {viewingArchivedPrograms ? "Archived Training Programs" : "Active Training Programs"}
+                    </h3>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border leading-none ${
+                      viewingArchivedPrograms
+                        ? "bg-gray-100 text-gray-700 border-gray-300"
+                        : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                    }`}>
+                      {filteredProgramsList.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                    {/* Post New Program Button */}
+                    {!viewingArchivedPrograms && (
+                      <button
+                        type="button"
+                        onClick={handleNewProgramClick}
+                        className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Post New Program</span>
+                      </button>
+                    )}
 
-              {/* Filters Bar */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search by course title, trainer, location..."
-                    value={programSearchQuery}
-                    onChange={(e) => setProgramSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="min-w-[160px]">
-                  <CustomSelect
-                    value={programLevelFilter}
-                    onChange={(val) => setProgramLevelFilter(val)}
-                    options={[
-                      { value: "All", label: "All Certifications" },
-                      { value: "NC I", label: "NC I Courses" },
-                      { value: "NC II", label: "NC II Courses" },
-                      { value: "NC III", label: "NC III Courses" }
-                    ]}
-                    size="sm"
-                    placeholder="All Certifications"
-                  />
-                </div>
-              </div>
-
-              {/* Programs Grid */}
-              {filteredProgramsList.length === 0 ? (
-                <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 text-center">
-                  <BookOpen className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                  <h4 className="text-sm font-bold text-slate-900">No training programs found</h4>
-                  <p className="text-xs text-slate-500 mt-1">Try clearing your search terms or create a new course listing.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProgramsList.map((prog) => {
-                    const applicantsCount = referrals.filter(r => r.programTitle === prog.title).length;
-                    const enrolledCount = referrals.filter(r => r.programTitle === prog.title && r.status === "Enrolled").length;
-
-                    return (
-                      <div key={prog.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col justify-between group">
-                        <div className="p-4 sm:p-6">
-                          <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-3">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-md shrink-0">
-                              {prog.type || "Training"} Course
+                    {/* Archived Programs Button (Gray Color) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !viewingArchivedPrograms;
+                        setViewingArchivedPrograms(next);
+                        if (next) fetchArchivedData();
+                      }}
+                      className={`px-4 py-2 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0 ${
+                        viewingArchivedPrograms
+                          ? "bg-emerald-700 hover:bg-emerald-800"
+                          : "bg-gray-600 hover:bg-gray-700"
+                      }`}
+                      title={viewingArchivedPrograms ? "Switch back to active programs" : "View archived program catalog"}
+                    >
+                      {viewingArchivedPrograms ? (
+                        <>
+                          <Building2 className="w-4 h-4" />
+                          <span>View Active Programs</span>
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="w-4 h-4" />
+                          <span>Archived Programs</span>
+                          {archivedProgramsList.length > 0 && (
+                            <span className="ml-0.5 px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[10px] font-bold">
+                              {archivedProgramsList.length}
                             </span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {isProgramDurationDone(prog) && (
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1 shrink-0">
-                                  <Clock className="w-3 h-3 text-purple-600" /> Term Ended
-                                </span>
-                              )}
-                              <span className={`text-[10px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full shrink-0 ${prog.slotsRemaining > 0 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
-                                }`}>
-                                {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Open` : "Full"}
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Second Row: Search & Filters Toolbar */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by program title, trainer, skills, or location..."
+                      value={programSearchQuery}
+                      onChange={(e) => setProgramSearchQuery(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-8 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                    {programSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setProgramSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 sm:flex-initial">
+                      <CustomSelect
+                        value={programCategoryFilter}
+                        onChange={(val) => setProgramCategoryFilter(val)}
+                        options={[
+                          { value: "All", label: "All Categories" },
+                          ...tesdaCategoryOptions
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[145px]"
+                        placeholder="All Categories"
+                      />
+
+                      <CustomSelect
+                        value={programStatusFilter}
+                        onChange={(val) => setProgramStatusFilter(val)}
+                        options={[
+                          { value: "All", label: "All Status" },
+                          { value: "Active", label: "Active" },
+                          { value: "Concluded", label: "Concluded" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[110px]"
+                        placeholder="All Status"
+                      />
+
+                      <CustomSelect
+                        value={programCostFilter}
+                        onChange={(val) => setProgramCostFilter(val)}
+                        options={[
+                          { value: "All", label: "All Costs" },
+                          { value: "Free", label: "Free / TWSP" },
+                          { value: "Subsidized", label: "Subsidized" },
+                          { value: "With Fee", label: "With Fee" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[110px]"
+                        placeholder="All Costs"
+                      />
+
+                      <CustomSelect
+                        value={programLevelFilter}
+                        onChange={(val) => setProgramLevelFilter(val)}
+                        options={[
+                          { value: "All", label: "All Certifications" },
+                          { value: "NC I", label: "NC I Programs" },
+                          { value: "NC II", label: "NC II Programs" },
+                          { value: "NC III", label: "NC III Programs" },
+                          { value: "NC IV", label: "NC IV Programs" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[135px]"
+                        placeholder="All Certifications"
+                      />
+                    </div>
+
+                    {/* View Mode Switcher */}
+                    <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setProgramViewMode("grid")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${programViewMode === "grid"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                          }`}
+                        title="Grid Cards View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Grid</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProgramViewMode("table")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${programViewMode === "table"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                          }`}
+                        title="Table View"
+                      >
+                        <Table className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Table</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Programs Content (Empty State, Grid View, or Table View) */}
+                {filteredProgramsList.length === 0 ? (
+                  <div className="py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                      <BookOpen className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Training Programs Found</h4>
+                      <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                        Try adjusting your search terms or filter criteria, or publish a new training program listing.
+                      </p>
+                      {(programSearchQuery || programLevelFilter !== "All" || programCategoryFilter !== "All" || programStatusFilter !== "All" || programCostFilter !== "All") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProgramSearchQuery("");
+                            setProgramLevelFilter("All");
+                            setProgramCategoryFilter("All");
+                            setProgramStatusFilter("All");
+                            setProgramCostFilter("All");
+                          }}
+                          className="mt-2 px-3.5 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                        >
+                          Clear All Filters
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : programViewMode === "grid" ? (
+                  /* Grid Cards View */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+                    {filteredProgramsList.map((prog) => {
+                      const isEnded = isProgramEnded(prog) || isProgramDurationDone(prog);
+                      const isFull = (prog.slotsRemaining || 0) <= 0;
+
+                      return (
+                        <div
+                          key={prog.id}
+                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full"
+                        >
+                          <div className="flex-1 flex flex-col">
+                            {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
+                            <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
+                              <div className="min-w-0 space-y-0.5">
+                                <h3 className="font-extrabold text-gray-900 text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                  {prog.title}
+                                </h3>
+                                <p className="text-xs text-gray-500 font-medium truncate">
+                                  {getProgramCategory(prog)}
+                                </p>
+                              </div>
+
+                              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
+                                prog.activeStatus === "Closed"
+                                  ? "bg-gray-100 text-gray-700 border-gray-300"
+                                  : isEnded
+                                    ? "bg-gray-100 text-gray-600 border-gray-300"
+                                    : isFull
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                              }`}>
+                                {prog.activeStatus === "Closed" ? "Archived" : isEnded ? "Inactive" : "Active"}
                               </span>
                             </div>
-                          </div>
 
-                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 group-hover:text-[#0A6B43] transition-colors leading-snug sm:leading-tight mb-2 break-words">
-                            {prog.title}
-                          </h3>
-
-                          <p className="text-xs text-slate-500 font-medium mb-3 sm:mb-4">
-                            ⏱ {prog.trainingHours} Training Hours · {prog.cost}
-                          </p>
-
-                          <div className="space-y-2 text-xs text-slate-600 mb-5">
-                            {/* Schedule & Timeslot Badge */}
-                            <div className="bg-emerald-50/90 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Schedule & Timeslot</p>
-                                  <p className="text-xs font-black text-slate-900 break-words sm:truncate">
-                                    {getProgramFullSchedule(prog)}
+                            {/* Duration & Training Term: 2-column key-value block (moved above Available Slots) */}
+                            <div className="pt-2.5 pb-1">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                                    Duration
+                                  </span>
+                                  <p className="text-xs sm:text-sm font-medium text-gray-700 mt-0.5 truncate">
+                                    {prog.trainingHours ? `${prog.trainingHours} Hours` : "Flexible"}
+                                  </p>
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                                    Training Term
+                                  </span>
+                                  <p className="text-xs sm:text-sm font-medium text-gray-700 mt-0.5 truncate" title={(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}>
+                                    {(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}
                                   </p>
                                 </div>
                               </div>
-                              {(() => {
-                                const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
-                                return ts.sessionType !== "Custom" ? (
-                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                      ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                        ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                          "bg-purple-100 text-purple-900 border border-purple-200"
-                                    }`}>
-                                    {ts.sessionType}
+                            </div>
+
+                            {/* Break line between Duration and Available Slots */}
+                            <div className="border-t border-gray-100" />
+
+                            {/* Available Slots Progress Bar */}
+                            <div className="space-y-1.5 pt-2 pb-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Available Slots</span>
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${prog.activeStatus === "Closed" || isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
+                                  {prog.activeStatus === "Closed" ? "Archived Term" : isEnded ? "Concluded" : isFull ? "Slots Full" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
+                                </span>
+                              </div>
+                              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${prog.activeStatus === "Closed" || isEnded ? "bg-gray-400" : isFull ? "bg-red-400" : "bg-[#0A6B43]"}`}
+                                  style={{ width: prog.activeStatus === "Closed" || isEnded ? "100%" : `${Math.min(100, Math.max(0, ((prog.slotsTotal - prog.slotsRemaining) / (prog.slotsTotal || 1)) * 100))}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
+                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pb-3">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
+                                Target Competencies
+                              </span>
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
+                                  <>
+                                    {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
+                                      <span key={sIdx} className="text-[11px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
+                                        {toTitleCase(skill)}
+                                      </span>
+                                    ))}
+                                    {prog.requiredSkills.length > 3 && (
+                                      <span className="text-[10px] text-gray-400 font-bold self-center">
+                                        +{prog.requiredSkills.length - 3} more
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-400 italic py-0.5">
+                                    General Technical Skills
                                   </span>
-                                ) : null;
-                              })()}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                              <span className="break-words sm:truncate">{prog.location || "San Luis Municipal Hub"}</span>
-                            </div>
-                            {prog.instructor && (
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-slate-400 shrink-0" />
-                                <span className="break-words sm:truncate">Instructor: {prog.instructor}</span>
+                                )}
                               </div>
-                            )}
-                            {(prog.startDate || prog.endDate) && (
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-                                <span className="break-words sm:truncate">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
-                              </div>
-                            )}
+                            </div>
                           </div>
 
-                          {/* Enrollment Progress */}
-                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 mb-1.5">
-                              <span>Admissions Progress</span>
-                              <span>{enrolledCount} Enrolled / {applicantsCount} Applied</span>
-                            </div>
-                            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                              <div
-                                className="bg-[#0A6B43] h-full rounded-full"
-                                style={{ width: `${Math.min(100, Math.round((enrolledCount / (prog.slotsTotal || 30)) * 100))}%` }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card Footer Actions */}
-                        <div className="p-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
-                          <button
-                            onClick={() => setViewingProgram(prog)}
-                            className="text-xs font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View Syllabus
-                          </button>
-
-                          <div className="flex items-center gap-1.5">
-                            {isProgramDurationDone(prog) ? (
-                              <button
-                                onClick={() => setProgramToArchive(prog)}
-                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
-                                title="Conclude Term & Archive Students"
-                              >
-                                <Archive className="w-3.5 h-3.5" /> Archive Term
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setProgramToArchive(prog)}
-                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                                title="Archive Program"
-                              >
-                                <Archive className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                          {/* Card Footer: View Program Details on bottom right */}
+                          <div className="pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
                             <button
-                              onClick={() => handleOpenEditModal(prog)}
-                              className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                              type="button"
+                              onClick={() => {
+                                setViewingProgram(prog);
+                                setIsEditingInModal(false);
+                              }}
+                              className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
                             >
-                              <Pencil className="w-3.5 h-3.5" /> Edit
-                            </button>
-                            <button
-                              onClick={() => setProgramToDelete(prog)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                              title="Delete Course"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>View Program Details</span>
+                              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                             </button>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Table View */
+                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-[12px]">
+                        <thead>
+                          <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                            <th className="py-3 px-4 text-left">Program Title & Sector</th>
+                            <th className="py-3 px-4 text-left">Duration</th>
+                            <th className="py-3 px-4 text-left">Training Term</th>
+                            <th className="py-3 px-4 text-left">Available Slots</th>
+                            <th className="py-3 px-4 text-left">Target Competencies</th>
+                            <th className="py-3 px-4 text-left">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredProgramsList.map((prog) => {
+                            const isEnded = isProgramEnded(prog) || isProgramDurationDone(prog);
+                            const isFull = (prog.slotsRemaining || 0) <= 0;
+
+                            return (
+                              <tr key={prog.id} className="hover:bg-emerald-50/30 transition-colors group">
+                                <td className="py-3 px-4 max-w-[260px]">
+                                  <div className="space-y-0.5">
+                                    <span className="font-bold text-gray-900 group-hover:text-[#0A6B43] transition-colors line-clamp-1 block" title={prog.title}>
+                                      {prog.title}
+                                    </span>
+                                    <p className="text-[11px] text-gray-500 font-medium truncate">
+                                      {getProgramCategory(prog)}
+                                    </p>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className="font-medium text-gray-700 text-xs">
+                                    {prog.trainingHours ? `${prog.trainingHours} Hours` : "Flexible"}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className="font-medium text-gray-700 text-xs" title={(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}>
+                                    {(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <div className="space-y-1 min-w-[130px]">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className={`font-bold ${isEnded ? "text-gray-500" : isFull ? "text-red-600" : "text-gray-900"}`}>
+                                        {isEnded ? "Concluded" : isFull ? "Slots Full" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
+                                      </span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-300 ${isEnded ? "bg-gray-400" : isFull ? "bg-red-400" : "bg-[#0A6B43]"}`}
+                                        style={{ width: isEnded ? "100%" : `${Math.min(100, Math.max(0, ((prog.slotsTotal - prog.slotsRemaining) / (prog.slotsTotal || 1)) * 100))}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 max-w-[200px]">
+                                  <div className="flex flex-wrap gap-1 items-center">
+                                    {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
+                                      <>
+                                        {prog.requiredSkills.slice(0, 2).map((skill, sIdx) => (
+                                          <span key={sIdx} className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-1.5 py-0.5 rounded">
+                                            {toTitleCase(skill)}
+                                          </span>
+                                        ))}
+                                        {prog.requiredSkills.length > 2 && (
+                                          <span className="text-[10px] text-gray-400 font-bold">
+                                            +{prog.requiredSkills.length - 2}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-[11px] text-gray-400 italic">General Skills</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border tracking-wide ${
+                                    prog.activeStatus === "Closed"
+                                      ? "bg-gray-100 text-gray-700 border-gray-300"
+                                      : isEnded
+                                        ? "bg-gray-100 text-gray-600 border-gray-300"
+                                        : isFull
+                                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                                          : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                  }`}>
+                                    {prog.activeStatus === "Closed" ? "Archived" : isEnded ? "Inactive" : "Active"}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap text-right">
+                                  <div className="flex items-center justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setViewingProgram(prog);
+                                        setIsEditingInModal(false);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-[12px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer group"
+                                      title="View Program Details"
+                                    >
+                                      <span>View Program Details</span>
+                                      <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2338,7 +2910,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    {editingProgramId ? "Modify Training Course" : "Post New Course"}
+                    {editingProgramId ? "Modify Training Program" : "Post New Program"}
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     Configure curriculum parameters, schedules, capacity, and candidate prerequisites for youth learners.
@@ -2350,43 +2922,43 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <div className="flex items-center">
                 <button
                   type="button"
-                  onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
-                  className="inline-flex items-center gap-1.5 sm:gap-2 text-slate-600 hover:text-[#0A6B43] hover:border-emerald-300 font-bold text-xs bg-white border border-slate-200 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0 active:scale-95"
+                  onClick={() => setCurrentScreen(TESDAPartnerScreen.PROGRAMS)}
+                  className="inline-flex items-center gap-1.5 sm:gap-2 text-gray-600 hover:text-[#0A6B43] hover:border-emerald-300 font-bold text-xs bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition-all shadow-2xs hover:shadow-xs cursor-pointer shrink-0 active:scale-95"
                 >
-                  <ArrowLeft className="w-4 h-4 text-slate-500" />
-                  <span>Back to Dashboard</span>
+                  <ArrowLeft className="w-4 h-4 text-gray-500" />
+                  <span>Back to Programs</span>
                 </button>
               </div>
 
               {/* Form Layout: Expanded Form */}
               <div className="max-w-4xl mx-auto w-full">
-                <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-sm p-4 sm:p-6 md:p-8">
+                <div className="bg-white border border-gray-200/90 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-7 md:p-8">
                   <form onSubmit={handleAddProgramSubmit} className="space-y-6">
 
-                    {/* Section 1: Course Info */}
+                    {/* Section 1: Program Info */}
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                        <div className="w-6 h-6 rounded-md bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                           1
                         </div>
-                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Basic Course Identity</h4>
+                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Basic Program Identity</h4>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div className="sm:col-span-2 space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Training Course Title *</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Program Title *</label>
                           <input
                             type="text"
                             required
                             placeholder="e.g. Shielded Metal Arc Welding, Bread & Pastry Production"
                             value={progTitle}
                             onChange={(e) => setProgTitle(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Certification Level</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Certification Level</label>
                           <CustomSelect
                             value={progLevel}
                             onChange={(val) => setProgLevel(val)}
@@ -2396,17 +2968,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               { value: "NC III", label: "NC III" }
                             ]}
                             size="sm"
+                            buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                             placeholder="Select Level"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-emerald-700 uppercase">Vocational Category *</label>
+                          <label className="text-[11px] font-extrabold text-[#0A6B43] uppercase tracking-wider">Vocational Category *</label>
                           <CustomSelect
                             value={progCategoryId}
                             onChange={(val) => setProgCategoryId(val)}
                             options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
                             size="sm"
+                            buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                             placeholder="Select Category"
                           />
                         </div>
@@ -2415,7 +2989,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-bold text-slate-600 uppercase">Training Hours *</label>
+                            <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Hours *</label>
                             {computedTrainingHours && (
                               <button
                                 type="button"
@@ -2435,12 +3009,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             placeholder="e.g. 160"
                             value={progTrainingHours}
                             onChange={(e) => setProgTrainingHours(e.target.value === "" ? "" : Number(e.target.value))}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Slot Allocation *</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Slot Allocation *</label>
                           <input
                             type="number"
                             min="1"
@@ -2448,12 +3022,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             placeholder="e.g. 25"
                             value={progSlots}
                             onChange={(e) => setProgSlots(e.target.value === "" ? "" : Number(e.target.value))}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Cost Model</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Cost Model</label>
                           <CustomSelect
                             value={progCost}
                             onChange={(val) => setProgCost(val as any)}
@@ -2463,6 +3037,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               { value: "With Fee", label: "Fee-based" }
                             ]}
                             size="sm"
+                            buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                             placeholder="Select Cost"
                           />
                         </div>
@@ -2471,44 +3046,44 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     {/* Section 2: Schedule & Venue */}
                     <div className="space-y-4 pt-2">
-                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                        <div className="w-6 h-6 rounded-md bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                           2
                         </div>
-                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Schedule, Facility & Trainer</h4>
+                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Schedule, Facility & Trainer</h4>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Training Venue / Location</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Venue / Location</label>
                           <input
                             type="text"
                             placeholder="e.g. San Luis Training Center / GPSAT Guagua"
                             value={progLocation}
                             onChange={(e) => setProgLocation(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Assigned Room / Facility</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Assigned Room / Facility</label>
                           <input
                             type="text"
                             placeholder="e.g. Workshop Room B-102, Computer Lab 1"
                             value={progRoom}
                             onChange={(e) => setProgRoom(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-600 uppercase block">Training Days</label>
+                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider block">Training Days</label>
                         <div className="flex flex-wrap gap-2">
                           {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
                             <label key={day} className={`flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${progTrainingDays.includes(day)
                                 ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
-                                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                               }`}>
                               <input
                                 type="checkbox"
@@ -2526,10 +3101,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
 
                       {/* Timeslot Configuration */}
-                      <div className="space-y-3 bg-slate-50/60 p-3.5 rounded-2xl border border-slate-200/80">
+                      <div className="space-y-3 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-bold text-slate-700 uppercase">Training Timeslot</label>
-                          <span className="text-[10px] text-slate-400 font-medium">Select preset or set custom hours</span>
+                          <label className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Training Timeslot</label>
+                          <span className="text-[10px] text-gray-400 font-medium">Select preset or set custom hours</span>
                         </div>
 
                         {/* Presets */}
@@ -2539,7 +3114,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             onClick={() => applyTimeslotPreset("morning")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "12:00"
                                 ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
-                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Sun className="w-3 h-3 text-amber-600 shrink-0" />
@@ -2550,7 +3125,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             onClick={() => applyTimeslotPreset("afternoon")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "13:00" && progEndTime === "17:00"
                                 ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
-                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Sun className="w-3 h-3 text-blue-600 shrink-0" />
@@ -2561,7 +3136,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             onClick={() => applyTimeslotPreset("fullday")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "17:00"
                                 ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
-                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -2572,7 +3147,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             onClick={() => applyTimeslotPreset("evening")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "17:30" && progEndTime === "20:30"
                                 ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
-                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Moon className="w-3 h-3 text-purple-600 shrink-0" />
@@ -2599,12 +3174,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         </div>
 
                         {/* Live Schedule Preview */}
-                        <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
                             <div>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preview Display</p>
-                              <p className="text-xs font-black text-slate-900">
+                              <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Preview Display</p>
+                              <p className="text-xs font-bold text-gray-900">
                                 {formatTrainingDays(progTrainingDays)} · {formatProgramTimeslot(progStartTime, progEndTime).formattedRange}
                               </p>
                             </div>
@@ -2612,7 +3187,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           {(() => {
                             const ts = formatProgramTimeslot(progStartTime, progEndTime);
                             return ts.sessionType !== "Custom" ? (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
                                   ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
                                     ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
                                       "bg-purple-100 text-purple-900 border border-purple-200"
@@ -2627,7 +3202,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <SiKapDatePicker
                           label="Start Date"
-                          badgeText="Course Start"
+                          badgeText="Program Start"
                           value={progStartDate}
                           onChange={(val) => setProgStartDate(val)}
                           placeholder="Select start date"
@@ -2635,7 +3210,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                         <SiKapDatePicker
                           label="End Date"
-                          badgeText="Course End"
+                          badgeText="Program End"
                           value={progEndDate}
                           min={progStartDate || undefined}
                           onChange={(val) => setProgEndDate(val)}
@@ -2643,34 +3218,34 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         />
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Trainer / Instructor</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Trainer / Instructor</label>
                           <input
                             type="text"
                             placeholder="e.g. Engr. Danilo Santos, TVET Trainer"
                             value={progInstructor}
                             onChange={(e) => setProgInstructor(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
                       </div>
 
                       {/* Auto-Calculated Duration Summary Card */}
                       {computedTrainingHours && (
-                        <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                        <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
                               <Calculator className="w-4 h-4" />
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-900">
                                   Auto-Calculated Total: {computedTrainingHours.totalHours} Hours
                                 </span>
-                                <span className="text-[9px] bg-white text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
+                                <span className="text-[9px] bg-white text-[#0A6B43] font-bold px-2 py-0.5 rounded-md border border-emerald-200">
                                   {computedTrainingHours.dailyHours} hrs/day
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-600 font-medium mt-0.5 truncate">
+                              <p className="text-xs text-gray-600 font-medium mt-0.5 truncate">
                                 {computedTrainingHours.sessionCount} class days scheduled between {formatProgramDateRange(progStartDate, progEndDate)}
                                 {computedTrainingHours.deductedLunch ? " (excl. 1h lunch)" : ""}
                               </p>
@@ -2692,87 +3267,87 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     {/* Section 3: Requirements & Contacts */}
                     <div className="space-y-4 pt-2">
-                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                        <div className="w-6 h-6 rounded-md bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs">
+                      <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                           3
                         </div>
-                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Admissions & Contact Info</h4>
+                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Admissions & Contact Info</h4>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-600 uppercase">Eligibility Criteria</label>
+                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
                         <textarea
                           rows={2}
                           placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
                           value={progEligibility}
                           onChange={(e) => setProgEligibility(e.target.value)}
-                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                          className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Required Documents (comma separated)</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Required Documents (comma separated)</label>
                           <input
                             type="text"
                             placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Photocopy of Valid ID"
                             value={progRequiredDocuments}
                             onChange={(e) => setProgRequiredDocuments(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Target Prerequisite Skills</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Target Prerequisite Skills</label>
                           <input
                             type="text"
                             placeholder="e.g. Basic Math, English comprehension, Willingness to learn"
                             value={progRequiredSkills}
                             onChange={(e) => setProgRequiredSkills(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Officer Contact Name</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Officer Contact Name</label>
                           <input
                             type="text"
                             placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
                             value={progContactName}
                             onChange={(e) => setProgContactName(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-slate-600 uppercase">Official Phone Number</label>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Official Phone Number</label>
                           <input
                             type="text"
                             placeholder="e.g. +63 917 123 4567 / (045) 900-1234"
                             value={progContactPhone}
                             onChange={(e) => setProgContactPhone(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
+                    <div className="pt-4 border-t border-gray-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
                       <button
                         type="button"
-                        onClick={() => setCurrentScreen(TESDAPartnerScreen.DASHBOARD)}
-                        className="px-5 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                        onClick={() => setCurrentScreen(TESDAPartnerScreen.PROGRAMS)}
+                        className="px-5 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-7 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer text-center"
+                        className="px-7 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer text-center"
                       >
-                        {editingProgramId ? "Save Changes" : "Publish Training Course"}
+                        {editingProgramId ? "Save Program Changes" : "Publish Training Program"}
                       </button>
                     </div>
 
@@ -2808,13 +3383,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* Sub-Tab Navigation Bar */}
               <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-slate-200">
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-200/90">
                   <button
                     type="button"
                     onClick={() => setProfileActiveTab("profile")}
                     className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "profile"
                       ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
                       }`}
                   >
                     <Building2 className="w-4 h-4 shrink-0" />
@@ -2825,7 +3400,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     onClick={() => setProfileActiveTab("security")}
                     className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "security"
                       ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
                       }`}
                   >
                     <Lock className="w-4 h-4 shrink-0" />
@@ -2836,7 +3411,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     onClick={() => setProfileActiveTab("notifications")}
                     className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "notifications"
                       ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
                       }`}
                   >
                     <Bell className="w-4 h-4 shrink-0" />
@@ -2847,7 +3422,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     onClick={() => setProfileActiveTab("badge")}
                     className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "badge"
                       ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
                       }`}
                   >
                     <Award className="w-4 h-4 shrink-0" />
@@ -2861,23 +3436,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   {/* Left Column (3 cols) */}
                   <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-slate-100">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-gray-100">
                         <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-emerald-600 shrink-0 mt-0.5 sm:mt-0">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#0A6B43] text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-emerald-600 shrink-0 mt-0.5 sm:mt-0">
                             {repName.charAt(0).toUpperCase() || "T"}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                              <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">{repName}</h3>
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                              <h3 className="text-sm sm:text-base font-extrabold text-gray-900 truncate">{repName}</h3>
+                              <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
                                 Verified TVET Focal
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
+                            <p className="text-xs text-gray-500 font-medium mt-0.5 truncate">
                               {centerName}
                             </p>
-                            <p className="text-xs font-mono text-slate-600 mt-1 truncate">
+                            <p className="text-xs font-mono text-gray-600 mt-1 truncate">
                               {repEmail}
                             </p>
                           </div>
@@ -2886,8 +3461,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           type="button"
                           onClick={() => setIsEditingProfile(!isEditingProfile)}
                           className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${isEditingProfile
-                              ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                              : "bg-[#0A6B43] text-white hover:bg-[#085435]"
+                              ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                              : "bg-[#0A6B43] text-white hover:bg-[#075332]"
                             }`}
                         >
                           <Edit className="w-3.5 h-3.5 shrink-0" />
@@ -2898,36 +3473,36 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       {/* View Mode */}
                       {!isEditingProfile ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Training Institution</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{centerName}</p>
+                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
+                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Institution</p>
+                            <p className="text-xs font-bold text-gray-800 mt-1">{centerName}</p>
                           </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Accredited Representative</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{repName}</p>
+                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
+                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Accredited Representative</p>
+                            <p className="text-xs font-bold text-gray-800 mt-1">{repName}</p>
                           </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Institutional Email</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{repEmail}</p>
+                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
+                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Institutional Email</p>
+                            <p className="text-xs font-bold text-gray-800 mt-1">{repEmail}</p>
                           </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Contact / Hotline</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{repPhone}</p>
+                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
+                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Contact / Hotline</p>
+                            <p className="text-xs font-bold text-gray-800 mt-1">{repPhone}</p>
                           </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Institution Classification</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">Public Vocational Institution (TESDA-Administered)</p>
+                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
+                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Institution Classification</p>
+                            <p className="text-xs font-bold text-gray-800 mt-1">Public Vocational Institution (TESDA-Administered)</p>
                           </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Regional Jurisdiction</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">District II, Pampanga · Region III Central Luzon</p>
+                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
+                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Regional Jurisdiction</p>
+                            <p className="text-xs font-bold text-gray-800 mt-1">District II, Pampanga · Region III Central Luzon</p>
                           </div>
-                          <div className="sm:col-span-2 p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-100 flex items-center justify-between">
+                          <div className="sm:col-span-2 p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-150 flex items-center justify-between">
                             <div>
-                              <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">UTPRAS Operating Status</p>
-                              <p className="text-xs text-slate-600 mt-0.5">Fully certified under Unified TVET Program Registration & Accreditation System</p>
+                              <p className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider">UTPRAS Operating Status</p>
+                              <p className="text-xs text-gray-600 mt-0.5 font-medium">Fully certified under Unified TVET Program Registration & Accreditation System</p>
                             </div>
-                            <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">
+                            <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
                               ACTIVE
                             </span>
                           </div>
@@ -2937,50 +3512,50 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <form onSubmit={handleSaveProfileSubmit} className="space-y-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="sm:col-span-2">
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
                                 Training Institution / Center Name
                               </label>
                               <input
                                 type="text"
                                 value={centerName}
                                 onChange={(e) => setCenterName(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
                                 required
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
                                 Accredited Focal Representative
                               </label>
                               <input
                                 type="text"
                                 value={repName}
                                 onChange={(e) => setRepName(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
                                 required
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
                                 Institutional Email
                               </label>
                               <input
                                 type="email"
                                 value={repEmail}
                                 onChange={(e) => setRepEmail(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
                                 required
                               />
                             </div>
                             <div className="sm:col-span-2">
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
+                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
                                 Official Contact / Landline
                               </label>
                               <input
                                 type="text"
                                 value={repPhone}
                                 onChange={(e) => setRepPhone(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
                               />
                             </div>
                           </div>
@@ -2989,14 +3564,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               type="button"
                               onClick={() => setIsEditingProfile(false)}
                               disabled={isSavingProfile}
-                              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={isSavingProfile}
-                              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2"
+                              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
                             >
                               {isSavingProfile ? (
                                 <>
@@ -3018,59 +3593,59 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                   {/* Right Column (2 cols): Authority & Accreditation Card */}
                   <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-200 shrink-0">
                           <Award className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="text-sm font-black text-slate-900">TVET Center Authority</h4>
-                          <p className="text-[11px] text-slate-500">Accredited Training Partner Clearance</p>
+                          <h4 className="text-sm font-extrabold text-gray-900">TVET Center Authority</h4>
+                          <p className="text-[11px] text-gray-500 font-medium">Accredited Training Partner Clearance</p>
                         </div>
                       </div>
 
                       <div className="space-y-3 pt-2">
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Clearance Level</span>
-                          <span className="text-xs font-black text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded-md">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
+                          <span className="text-xs text-gray-600 font-medium">Clearance Level</span>
+                          <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/60 px-2 py-0.5 rounded-md border border-emerald-200">
                             Institutional Partner (Tier 4)
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Active Programs</span>
-                          <span className="text-xs font-bold text-slate-900">
-                            {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Course(s)
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
+                          <span className="text-xs text-gray-600 font-medium">Active Programs</span>
+                          <span className="text-xs font-bold text-gray-900">
+                            {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Program(s)
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Enrolled Youth</span>
-                          <span className="text-xs font-bold text-slate-900">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
+                          <span className="text-xs text-gray-600 font-medium">Enrolled Youth</span>
+                          <span className="text-xs font-bold text-gray-900">
                             {referrals.filter((r) => r.status === "Enrolled").length} Trainee(s)
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Supervisory Office</span>
-                          <span className="text-xs font-bold text-slate-900">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
+                          <span className="text-xs text-gray-600 font-medium">Supervisory Office</span>
+                          <span className="text-xs font-bold text-gray-900">
                             TESDA Pampanga PO
                           </span>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Accreditation Code</span>
-                          <span className="text-xs font-mono font-bold text-slate-700">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
+                          <span className="text-xs text-gray-600 font-medium">Accreditation Code</span>
+                          <span className="text-xs font-mono font-bold text-gray-700">
                             UTPRAS-R03-PAM-2024
                           </span>
                         </div>
                       </div>
 
-                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
-                        <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                      <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-200/80 text-[11px] text-gray-600 leading-relaxed">
+                        <p className="font-bold text-gray-800 mb-1 flex items-center gap-1.5">
                           <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43]" />
                           Republic Act No. 7796 Mandate
                         </p>
-                        Authorized under the Technical Education and Skills Development Act to evaluate youth course applications, administer competency training, and report graduation outcomes.
+                        Authorized under the Technical Education and Skills Development Act to evaluate youth program applications, administer competency training, and report graduation outcomes.
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100">
+                      <div className="pt-2 border-t border-gray-100">
                         <button
                           type="button"
                           disabled={isLoggingOut}
@@ -3098,17 +3673,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* TAB 2: ACCOUNT SECURITY */}
               {profileActiveTab === "security" && (
-                <div className="max-w-2xl bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                  <div className="border-b border-slate-100 pb-4">
+                <div className="max-w-2xl bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                  <div className="border-b border-gray-100 pb-4">
                     <div className="flex items-start sm:items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
                         <Lock className="w-5 h-5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                        <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">
                           Update Account Password
                         </h3>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed font-medium">
                           Ensure your institutional training partner credentials remain secure.
                         </p>
                       </div>
@@ -3117,7 +3692,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                   <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-extrabold text-gray-700 mb-1">
                         Current Password
                       </label>
                       <div className="relative">
@@ -3126,13 +3701,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           placeholder="••••••••"
-                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
+                          className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 pr-10 text-gray-900 transition-colors"
                           required
                         />
                         <button
                           type="button"
                           onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                         >
                           {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -3140,7 +3715,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-extrabold text-gray-700 mb-1">
                         New Password (minimum 6 characters)
                       </label>
                       <div className="relative">
@@ -3149,14 +3724,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="••••••••"
-                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
+                          className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 pr-10 text-gray-900 transition-colors"
                           required
                           minLength={6}
                         />
                         <button
                           type="button"
                           onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                         >
                           {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -3164,7 +3739,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-extrabold text-gray-700 mb-1">
                         Confirm New Password
                       </label>
                       <input
@@ -3172,7 +3747,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] text-slate-900"
+                        className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
                         required
                         minLength={6}
                       />
@@ -3180,7 +3755,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
                       <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <span>
+                      <span className="font-medium">
                         Updating your password will immediately secure your portal. Please ensure you keep a secure institutional record.
                       </span>
                     </div>
@@ -3189,7 +3764,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <button
                         type="submit"
                         disabled={isChangingPassword}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                       >
                         {isChangingPassword ? (
                           <>
@@ -3280,7 +3855,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         navigator.clipboard.writeText(info);
                         addToast("TVET Institution Credential copied to clipboard!", "success");
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-2xs hover:shadow-xs transition-colors cursor-pointer"
                     >
                       <Copy className="w-4 h-4 text-[#0A6B43]" />
                       Copy Credential Details
@@ -3304,7 +3879,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           }}
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto animate-in fade-in duration-200"
         >
-          <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-white rounded-3xl max-w-2xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200 ease-out">
 
             {/* Modal Top Header */}
             <div className="bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white p-6 flex justify-between items-center shrink-0">
@@ -3331,6 +3906,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <span className="text-base font-black text-white">{selectedApplicant.matchScore || 85}%</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setSelectedApplicant(null)}
                   className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
                 >
@@ -3347,42 +3923,42 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 {/* Column 1: Contact & Education */}
                 <div className="space-y-4">
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                  <h5 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1.5">
                     Residency & Contact
                   </h5>
 
                   <div className="space-y-3 text-xs">
                     <div className="flex items-start gap-2.5">
-                      <Phone className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <Phone className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Contact Number</p>
-                        <p className="font-bold text-slate-800">{selectedApplicant.contactNumber || "N/A"}</p>
+                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Contact Number</p>
+                        <p className="font-bold text-gray-800">{selectedApplicant.contactNumber || "N/A"}</p>
                       </div>
                     </div>
 
                     {selectedApplicant.email && (
                       <div className="flex items-start gap-2.5">
-                        <Mail className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <Mail className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Email Address</p>
-                          <p className="font-bold text-slate-800">{selectedApplicant.email}</p>
+                          <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Email Address</p>
+                          <p className="font-bold text-gray-800">{selectedApplicant.email}</p>
                         </div>
                       </div>
                     )}
 
                     <div className="flex items-start gap-2.5">
-                      <GraduationCap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <GraduationCap className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Educational Attainment</p>
-                        <p className="font-bold text-slate-800">{selectedApplicant.educationalAttainment}</p>
+                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Educational Attainment</p>
+                        <p className="font-bold text-gray-800">{selectedApplicant.educationalAttainment}</p>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-2.5">
-                      <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <Info className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Status Category</p>
-                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10px]">
+                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Status Category</p>
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-emerald-50 text-[#0A6B43] border border-emerald-200 font-bold text-[10px]">
                           Out-of-School Youth (OSY)
                         </span>
                       </div>
@@ -3392,13 +3968,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 {/* Column 2: Skills & Career Path */}
                 <div className="space-y-4">
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                  <h5 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1.5">
                     Skills & Competencies
                   </h5>
 
                   <div className="space-y-3 text-xs">
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1.5">Declared Skills</p>
+                      <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-1.5">Declared Skills</p>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedApplicant.skills && selectedApplicant.skills.length > 0 ? (
                           selectedApplicant.skills.map((s, idx) => (
@@ -3407,13 +3983,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             </span>
                           ))
                         ) : (
-                          <span className="text-slate-400 italic">No skills registered</span>
+                          <span className="text-gray-400 italic">No skills registered</span>
                         )}
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-bold text-amber-700 uppercase mb-1.5">Aspirational Interests</p>
+                      <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider mb-1.5">Aspirational Interests</p>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedApplicant.interests && selectedApplicant.interests.length > 0 ? (
                           selectedApplicant.interests.map((i, idx) => (
@@ -3422,14 +3998,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             </span>
                           ))
                         ) : (
-                          <span className="text-slate-400 italic">No interests declared</span>
+                          <span className="text-gray-400 italic">No interests declared</span>
                         )}
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Career & Livelihood Goal</p>
-                      <p className="text-xs text-slate-700 italic font-medium">
+                    <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-150">
+                      <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-1">Career & Livelihood Goal</p>
+                      <p className="text-xs text-gray-700 italic font-medium">
                         "{selectedApplicant.livelihoodGoal || "Seeking technical training and livelihood certification."}"
                       </p>
                     </div>
@@ -3441,7 +4017,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-slate-50 border-t border-slate-100 p-4 px-6 flex items-center justify-between gap-3 shrink-0">
+            <div className="bg-gray-50/80 border-t border-gray-100 p-4 px-6 flex items-center justify-between gap-3 shrink-0">
               <div>
                 {(() => {
                   const activeRef = referrals.find(
@@ -3449,8 +4025,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   );
                   if (!activeRef) return null;
                   return (
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border ${activeRef.status === "Enrolled"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider border ${activeRef.status === "Enrolled"
+                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
                         : activeRef.status === "Pending"
                           ? "bg-amber-50 text-amber-800 border-amber-200"
                           : "bg-red-50 text-red-800 border-red-200"
@@ -3471,6 +4047,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   return (
                     <>
                       <button
+                        type="button"
                         onClick={() => {
                           handleUpdateReferralStatus(activeRef.id, "Declined");
                           setSelectedApplicant(null);
@@ -3480,11 +4057,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         Decline
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           handleUpdateReferralStatus(activeRef.id, "Enrolled");
                           setSelectedApplicant(null);
                         }}
-                        className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+                        className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
                       >
                         Accept & Enroll
                       </button>
@@ -3493,8 +4071,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 })()}
 
                 <button
+                  type="button"
                   onClick={() => setSelectedApplicant(null)}
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
                 >
                   Close
                 </button>
@@ -3506,158 +4085,735 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       )}
 
       {/* ============================================================ */}
-      {/* PROGRAM SYLLABUS & DETAILS MODAL */}
+      {/* PROGRAM SYLLABUS & DETAILS MODAL (VIEW & INLINE EDIT) */}
       {/* ============================================================ */}
       {viewingProgram && (
         <div 
           onClick={(e) => {
-            if (e.target === e.currentTarget) setViewingProgram(null);
+            if (e.target === e.currentTarget) {
+              setViewingProgram(null);
+              setIsEditingInModal(false);
+            }
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
         >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 flex flex-col max-h-[85vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl sm:max-w-4xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-200 ease-out">
 
             {/* Header */}
-            <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-start justify-between">
-              <div>
-                <span className="text-[10px] font-black text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md uppercase tracking-wider mb-2 inline-block border border-emerald-200">
-                  {viewingProgram.type || "Training"} Course
-                </span>
-                <h3 className="text-lg font-black text-slate-900 leading-tight">{viewingProgram.title}</h3>
-                <p className="text-xs text-slate-500 font-semibold mt-1">{viewingProgram.provider || "TESDA Guagua / San Luis Hub"}</p>
+            <div className="p-5 sm:p-6 border-b border-gray-100 bg-gray-50/70 flex items-start justify-between shrink-0">
+              <div className="min-w-0 pr-3">
+                <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 leading-tight truncate">
+                  {viewingProgram.title}
+                </h3>
+                <p className="text-xs text-gray-500 font-medium mt-1 truncate">
+                  {getProgramCategory(viewingProgram)}
+                </p>
               </div>
-              <button
-                onClick={() => setViewingProgram(null)}
-                className="p-2 bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition-all border border-slate-200 cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              {/* Status Badge: Active / Inactive / Archived, or Edit Mode when in edit mode */}
+              {(() => {
+                const isEnded = isProgramEnded(viewingProgram) || isProgramDurationDone(viewingProgram);
+                const isFull = (viewingProgram.slotsRemaining || 0) <= 0;
+
+                if (isEditingInModal) {
+                  return (
+                    <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full border shrink-0 tracking-wider bg-amber-50 text-amber-800 border-amber-300 shadow-2xs">
+                      Edit Mode
+                    </span>
+                  );
+                }
+
+                return (
+                  <span className={`text-[10px] font-extrabold uppercase px-3 py-1 rounded-full border shrink-0 tracking-wider ${
+                    viewingProgram.activeStatus === "Closed"
+                      ? "bg-gray-100 text-gray-700 border-gray-300"
+                      : isEnded
+                        ? "bg-gray-100 text-gray-600 border-gray-300"
+                        : isFull
+                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                          : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                  }`}>
+                    {viewingProgram.activeStatus === "Closed" ? "Archived" : isEnded ? "Inactive" : "Active"}
+                  </span>
+                );
+              })()}
             </div>
 
-            {/* Details Content */}
-            <div className="p-6 overflow-y-auto space-y-6 text-xs">
+            {/* Modal Body: Scrollable Information Grid */}
+            <div className="p-5 sm:p-7 overflow-y-auto space-y-7 text-xs">
 
-              {/* Quick Metrics */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-emerald-50/60 rounded-xl p-3.5 border border-emerald-100 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold shrink-0">
-                    <Clock className="w-4 h-4" />
+              {/* Section 1: Basic Program Identity */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-0.5">
+                  <BookOpen className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">
+                    Basic Program Identity
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  {/* Program Title */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Program Title
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        value={modalEditTitle}
+                        onChange={(e) => setModalEditTitle(e.target.value)}
+                        placeholder="e.g. Shielded Metal Arc Welding"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.title || "—"}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Duration & Term</p>
-                    <p className="text-sm font-black text-slate-900">{viewingProgram.trainingHours} Hours</p>
-                    {(viewingProgram.startDate || viewingProgram.endDate) && (
-                      <p className="text-[10px] font-bold text-emerald-800 mt-0.5">
-                        {formatProgramDateRange(viewingProgram.startDate, viewingProgram.endDate)}
-                      </p>
+
+                  {/* Certification Level */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Certification Level
+                    </span>
+                    {isEditingInModal ? (
+                      <CustomSelect
+                        value={modalEditLevel}
+                        onChange={(val) => setModalEditLevel(val)}
+                        options={[
+                          { value: "NC I", label: "NC I" },
+                          { value: "NC II", label: "NC II" },
+                          { value: "NC III", label: "NC III" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="Select Level"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {(() => {
+                            const match = viewingProgram.title?.match(/(NC\s+I|NC\s+II|NC\s+III)$/i);
+                            return match ? match[1].toUpperCase() : (viewingProgram.type || "NC II");
+                          })()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vocational Category */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Vocational Category
+                    </span>
+                    {isEditingInModal ? (
+                      <CustomSelect
+                        value={modalEditCategoryId}
+                        onChange={(val) => setModalEditCategoryId(val)}
+                        options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="Select Category"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {getProgramCategory(viewingProgram)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Training Duration (Hours) */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                        Training Duration
+                      </span>
+                      {isEditingInModal && computedModalTrainingHours && (
+                        <button
+                          type="button"
+                          onClick={() => setModalEditTrainingHours(computedModalTrainingHours.totalHours)}
+                          className="text-[10px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+                          title="Apply auto-computed duration"
+                        >
+                          <Zap className="w-3 h-3 text-emerald-600" />
+                          <span>Auto: {computedModalTrainingHours.totalHours}h</span>
+                        </button>
+                      )}
+                    </div>
+                    {isEditingInModal ? (
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 160"
+                        value={modalEditTrainingHours}
+                        onChange={(e) => setModalEditTrainingHours(e.target.value === "" ? "" : Number(e.target.value))}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.trainingHours} Hours
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Capacity / Slots */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Slot Allocation
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 25"
+                        value={modalEditSlotsTotal}
+                        onChange={(e) => setModalEditSlotsTotal(e.target.value === "" ? "" : Number(e.target.value))}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.slotsRemaining} available / {viewingProgram.slotsTotal} total capacity
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cost Model */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Cost Model
+                    </span>
+                    {isEditingInModal ? (
+                      <CustomSelect
+                        value={modalEditCost}
+                        onChange={(val) => setModalEditCost(val as any)}
+                        options={[
+                          { value: "Free", label: "Free (TESDA Subsidized)" },
+                          { value: "Subsidized", label: "Subsidized / Co-pay" },
+                          { value: "With Fee", label: "Fee-based" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="Select Cost"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free (TESDA Subsidized)" : viewingProgram.cost}
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                <div className="bg-teal-50/60 rounded-xl p-3.5 border border-teal-100 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center font-bold shrink-0">
-                    <Target className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Slot Allocation</p>
-                    <p className="text-sm font-black text-slate-900">{viewingProgram.slotsRemaining} / {viewingProgram.slotsTotal} Available</p>
-                  </div>
-                </div>
               </div>
 
-              {/* Schedule & Location */}
-              <div className="space-y-3">
-                <h4 className="font-black text-slate-900 border-b border-slate-100 pb-1.5 uppercase text-[10px] tracking-wider text-slate-400">
-                  Schedule & Facility
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-700">
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">Training Days</p>
-                    <p className="font-bold text-slate-900">{formatTrainingDays(viewingProgram.trainingDays)}</p>
+              {/* Section 2: Facility, Schedule & Trainer */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-0.5">
+                  <Calendar className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">
+                    Schedule, Facility & Trainer
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  {/* Venue / Location */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Training Venue / Location
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. San Luis Training Center / GPSAT Guagua"
+                        value={modalEditLocation}
+                        onChange={(e) => setModalEditLocation(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.location || "San Luis Training Center"}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">Time Slot & Session</p>
-                    {(() => {
-                      const ts = formatProgramTimeslot(viewingProgram.startTime, viewingProgram.endTime);
-                      return (
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="font-bold text-slate-900">{ts.formattedRange}</p>
-                          {ts.sessionType !== "Custom" && (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                    "bg-purple-100 text-purple-900 border border-purple-200"
-                              }`}>
-                              {ts.sessionType}
-                            </span>
-                          )}
+
+                  {/* Room / Facility */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Assigned Room / Facility
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. Workshop Room B-102"
+                        value={modalEditRoom}
+                        onChange={(e) => setModalEditRoom(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.room || "Main Workshop Area"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Trainer / Instructor */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Assigned Trainer / Instructor
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. Engr. Danilo Santos, TVET Trainer"
+                        value={modalEditInstructor}
+                        onChange={(e) => setModalEditInstructor(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.instructor || "Assigned TESDA Trainer"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Training Days */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Training Days
+                    </span>
+                    {isEditingInModal ? (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5 min-h-[38px] items-center">
+                        {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
+                          <label
+                            key={day}
+                            className={`flex items-center gap-1 px-2.5 py-1 border rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                              modalEditTrainingDays.includes(day)
+                                ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
+                                : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={modalEditTrainingDays.includes(day)}
+                              onChange={(e) => {
+                                if (e.target.checked) setModalEditTrainingDays(prev => [...prev, day]);
+                                else setModalEditTrainingDays(prev => prev.filter(d => d !== day));
+                              }}
+                              className="hidden"
+                            />
+                            {day.substring(0, 3)}
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {formatTrainingDays(viewingProgram.trainingDays)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Program Term Start Date */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Program Term Start Date
+                    </span>
+                    {isEditingInModal ? (
+                      <SiKapDatePicker
+                        label="Start Date"
+                        badgeText="Term Start"
+                        value={modalEditStartDate}
+                        onChange={(val) => setModalEditStartDate(val)}
+                        placeholder="Select start date"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {formatProgramDate(viewingProgram.startDate) || "TBD"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Program Term End Date */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Program Term End Date
+                    </span>
+                    {isEditingInModal ? (
+                      <SiKapDatePicker
+                        label="End Date"
+                        badgeText="Term End"
+                        value={modalEditEndDate}
+                        min={modalEditStartDate || undefined}
+                        onChange={(val) => setModalEditEndDate(val)}
+                        placeholder="Select end date"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {formatProgramDate(viewingProgram.endDate) || "TBD"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Timeslot & Session */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Training Timeslot & Session
+                    </span>
+                    {isEditingInModal ? (
+                      <div className="space-y-3 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80 mt-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Timeslot Presets</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Click to apply common shifts</span>
                         </div>
-                      );
-                    })()}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => applyModalTimeslotPreset("morning")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                              modalEditStartTime === "08:00" && modalEditEndTime === "12:00"
+                                ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            <Sun className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span>Morning (8 AM – 12 PM)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyModalTimeslotPreset("afternoon")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                              modalEditStartTime === "13:00" && modalEditEndTime === "17:00"
+                                ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            <Sun className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span>Afternoon (1 PM – 5 PM)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyModalTimeslotPreset("fullday")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                              modalEditStartTime === "08:00" && modalEditEndTime === "17:00"
+                                ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Full Day (8 AM – 5 PM)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyModalTimeslotPreset("evening")}
+                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                              modalEditStartTime === "17:30" && modalEditEndTime === "20:30"
+                                ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            <Moon className="w-3 h-3 text-purple-600 shrink-0" />
+                            <span>Evening (5:30 PM – 8:30 PM)</span>
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <SiKapTimePicker
+                            label="Start Time"
+                            badgeText="Training Start"
+                            value={modalEditStartTime}
+                            onChange={(val) => setModalEditStartTime(val)}
+                            placeholder="Select start time"
+                          />
+                          <SiKapTimePicker
+                            label="End Time"
+                            badgeText="Training End"
+                            value={modalEditEndTime}
+                            onChange={(val) => setModalEditEndTime(val)}
+                            placeholder="Select end time"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      (() => {
+                        const ts = formatProgramTimeslot(viewingProgram.startTime, viewingProgram.endTime);
+                        return (
+                          <div className="min-h-[38px] flex items-center gap-2 flex-wrap">
+                            <p className="text-[14px] font-semibold text-gray-900 leading-snug">{ts.formattedRange}</p>
+                            {ts.sessionType !== "Custom" && (
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                                ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                "bg-purple-100 text-purple-900 border border-purple-200"
+                              }`}>
+                                {ts.sessionType}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()
+                    )}
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">Venue / Room</p>
-                    <p className="font-bold text-slate-900">{viewingProgram.location} {viewingProgram.room ? `(${viewingProgram.room})` : ""}</p>
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-400 text-[10px] uppercase">Instructor</p>
-                    <p className="font-bold text-slate-900">{viewingProgram.instructor || "Assigned TESDA Trainer"}</p>
-                  </div>
-                  {(viewingProgram.startDate || viewingProgram.endDate) && (
-                    <div className="col-span-1 sm:col-span-2">
-                      <p className="font-bold text-slate-400 text-[10px] uppercase">Program Term Dates</p>
-                      <p className="font-bold text-slate-900">{formatProgramDateRange(viewingProgram.startDate, viewingProgram.endDate)}</p>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Eligibility & Documents */}
-              <div className="space-y-3">
-                <h4 className="font-black text-slate-900 border-b border-slate-100 pb-1.5 uppercase text-[10px] tracking-wider text-slate-400">
-                  Requirements & Eligibility
-                </h4>
-                <p className="p-3 bg-slate-50 rounded-xl border border-slate-100 leading-relaxed text-slate-700 font-medium">
-                  {viewingProgram.eligibility || 'Katipunan ng Kabataan registered resident of San Luis, Pampanga.'}
-                </p>
+              {/* Section 3: Admissions & Contacts */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-0.5">
+                  <UserCheck className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">
+                    Admissions, Prerequisites & Contacts
+                  </h4>
+                </div>
 
-                {viewingProgram.requiredDocuments && viewingProgram.requiredDocuments.length > 0 && (
-                  <div>
-                    <p className="font-bold text-slate-800 mb-1">Required Documents:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {viewingProgram.requiredDocuments.map((doc, idx) => (
-                        <span key={idx} className="bg-slate-100 text-slate-700 font-semibold px-2.5 py-1 rounded-md text-[10px]">
-                          {doc}
-                        </span>
-                      ))}
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                  {/* Eligibility Criteria */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Eligibility Criteria
+                    </span>
+                    {isEditingInModal ? (
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."
+                        value={modalEditEligibility}
+                        onChange={(e) => setModalEditEligibility(e.target.value)}
+                        className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-relaxed">
+                          {viewingProgram.eligibility || "Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Contact Details */}
-              <div className="space-y-2">
-                <h4 className="font-black text-slate-900 border-b border-slate-100 pb-1.5 uppercase text-[10px] tracking-wider text-slate-400">
-                  Contact Officer
-                </h4>
-                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <div>
-                    <p className="font-bold text-slate-900">{viewingProgram.contactPerson || "TESDA Officer"}</p>
-                    <p className="text-slate-500 font-medium">{viewingProgram.contactNumber || "+63 917 123 4567"}</p>
+                  {/* Required Documents */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Required Submission Documents
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Valid ID"
+                        value={modalEditRequiredDocuments}
+                        onChange={(e) => setModalEditRequiredDocuments(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center flex-wrap gap-1.5">
+                        {viewingProgram.requiredDocuments && viewingProgram.requiredDocuments.length > 0 ? (
+                          viewingProgram.requiredDocuments.map((doc, idx) => (
+                            <span key={idx} className="bg-gray-100 text-gray-800 font-semibold px-2.5 py-1 rounded-md text-[11px] border border-gray-200">
+                              {doc}
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                            Barangay Certificate, Valid ID, 2x2 Photo
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Prerequisite Skills */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Target Prerequisite Skills
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. Basic Math, English comprehension"
+                        value={modalEditRequiredSkills}
+                        onChange={(e) => setModalEditRequiredSkills(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center flex-wrap gap-1.5">
+                        {viewingProgram.requiredSkills && viewingProgram.requiredSkills.length > 0 ? (
+                          viewingProgram.requiredSkills.map((sk, idx) => (
+                            <span key={idx} className="bg-emerald-50 text-emerald-800 font-semibold px-2.5 py-1 rounded-md text-[11px] border border-emerald-200">
+                              {sk}
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                            Basic Literacy, High School Graduate
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Focal Officer / Contact Person */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Officer Contact Person
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
+                        value={modalEditContactName}
+                        onChange={(e) => setModalEditContactName(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.contactPerson || "TESDA Focal Person"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Official Phone Number */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Official Phone Number
+                    </span>
+                    {isEditingInModal ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. +63 917 123 4567"
+                        value={modalEditContactPhone}
+                        onChange={(e) => setModalEditContactPhone(e.target.value)}
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                    ) : (
+                      <div className="min-h-[38px] flex items-center">
+                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                          {viewingProgram.contactNumber || "+63 917 123 4567"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button
-                onClick={() => setViewingProgram(null)}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl cursor-pointer transition-all text-xs"
-              >
-                Close
-              </button>
+            {/* Modal Footer with Archive, Delete, Edit and Close */}
+            <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+              {isEditingInModal ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="text-xs font-bold text-gray-600">Editing Program Details</span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingInModal(false)}
+                      disabled={isSavingModal}
+                      className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveModalEdits}
+                      disabled={isSavingModal}
+                      className="px-5 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingModal ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Saving Changes...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Save Changes</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Left: Destructive & Archival actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {viewingProgram.activeStatus === "Closed" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleUnarchiveProgram(viewingProgram.id, viewingProgram.title)}
+                        className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                        title="Restore this archived program to active catalog"
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>Restore Program</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setProgramToArchive(viewingProgram)}
+                        className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                        title="Conclude term and move to Archived Programs"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                        <span>Archive Program</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setProgramToDelete(viewingProgram)}
+                      className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                      title="Permanently remove program from system"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Program</span>
+                    </button>
+                  </div>
+
+                  {/* Right: Close and Edit */}
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewingProgram(null);
+                        setIsEditingInModal(false);
+                      }}
+                      className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startEditingInModal(viewingProgram)}
+                      className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Edit Program</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
           </div>
@@ -3665,7 +4821,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       )}
 
       {/* ============================================================ */}
-      {/* POPUP MODAL: EDIT TRAINING COURSE (STAYS ON CURRENT TAB) */}
+      {/* POPUP MODAL: EDIT TRAINING PROGRAM (STAYS ON CURRENT TAB) */}
       {/* ============================================================ */}
       {editingProgramModal && (
         <div 
@@ -3674,7 +4830,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
         >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200 ease-out my-6">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-200 ease-out my-6">
 
             {/* Modal Header */}
             <div className="p-6 border-b border-emerald-900/40 bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white flex items-center justify-between shrink-0">
@@ -3684,7 +4840,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base sm:text-lg font-black tracking-tight leading-tight">
-                    Edit Training Course
+                    Edit Training Program
                   </h3>
                   <p className="text-xs text-emerald-200/80 font-medium truncate max-w-md">
                     {editingProgramModal.title}
@@ -3692,6 +4848,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingProgramModal(null)}
                 className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
               >
@@ -3703,30 +4860,30 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             <div className="p-6 overflow-y-auto space-y-6">
               <form id="edit-program-modal-form" onSubmit={handleEditModalSubmit} className="space-y-6">
 
-                {/* Section 1: Course Info */}
+                {/* Section 1: Program Info */}
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                    <div className="w-6 h-6 rounded-md bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                       1
                     </div>
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Basic Course Identity</h4>
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Basic Program Identity</h4>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Training Course Title *</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Program Title *</label>
                       <input
                         type="text"
                         required
                         placeholder="e.g. Shielded Metal Arc Welding, Bread & Pastry Production"
                         value={progTitle}
                         onChange={(e) => setProgTitle(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Certification Level</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Certification Level</label>
                       <CustomSelect
                         value={progLevel}
                         onChange={(val) => setProgLevel(val)}
@@ -3736,17 +4893,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "NC III", label: "NC III" }
                         ]}
                         size="sm"
+                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                         placeholder="Select Level"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-emerald-700 uppercase">Vocational Category *</label>
+                      <label className="text-[11px] font-extrabold text-[#0A6B43] uppercase tracking-wider">Vocational Category *</label>
                       <CustomSelect
                         value={progCategoryId}
                         onChange={(val) => setProgCategoryId(val)}
                         options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
                         size="sm"
+                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                         placeholder="Select Category"
                       />
                     </div>
@@ -3755,7 +4914,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-600 uppercase">Training Hours *</label>
+                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Hours *</label>
                         {computedTrainingHours && (
                           <button
                             type="button"
@@ -3775,12 +4934,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. 160"
                         value={progTrainingHours}
                         onChange={(e) => setProgTrainingHours(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Slot Allocation *</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Slot Allocation *</label>
                       <input
                         type="number"
                         min="1"
@@ -3788,12 +4947,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. 25"
                         value={progSlots}
                         onChange={(e) => setProgSlots(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Cost Model</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Cost Model</label>
                       <CustomSelect
                         value={progCost}
                         onChange={(val) => setProgCost(val as any)}
@@ -3803,6 +4962,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "With Fee", label: "Fee-based" }
                         ]}
                         size="sm"
+                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                         placeholder="Select Cost"
                       />
                     </div>
@@ -3811,44 +4971,44 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 {/* Section 2: Schedule & Venue */}
                 <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                    <div className="w-6 h-6 rounded-md bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                       2
                     </div>
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Schedule, Facility & Trainer</h4>
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Schedule, Facility & Trainer</h4>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Training Venue / Location</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Venue / Location</label>
                       <input
                         type="text"
                         placeholder="e.g. San Luis Training Center / GPSAT Guagua"
                         value={progLocation}
                         onChange={(e) => setProgLocation(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Assigned Room / Facility</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Assigned Room / Facility</label>
                       <input
                         type="text"
                         placeholder="e.g. Workshop Room B-102, Computer Lab 1"
                         value={progRoom}
                         onChange={(e) => setProgRoom(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 uppercase block">Training Days</label>
+                    <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider block">Training Days</label>
                     <div className="flex flex-wrap gap-2">
                       {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
                         <label key={day} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${progTrainingDays.includes(day)
                             ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
-                            : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                            : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                           }`}>
                           <input
                             type="checkbox"
@@ -3866,10 +5026,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
 
                   {/* Timeslot Configuration */}
-                  <div className="space-y-3 bg-slate-50/60 p-3.5 rounded-2xl border border-slate-200/80">
+                  <div className="space-y-3 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-bold text-slate-700 uppercase">Training Timeslot</label>
-                      <span className="text-[10px] text-slate-400 font-medium">Select preset or set custom hours</span>
+                      <label className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Training Timeslot</label>
+                      <span className="text-[10px] text-gray-400 font-medium">Select preset or set custom hours</span>
                     </div>
 
                     {/* Presets */}
@@ -3879,7 +5039,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         onClick={() => applyTimeslotPreset("morning")}
                         className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "12:00"
                             ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                           }`}
                       >
                         <Sun className="w-3 h-3 text-amber-600 shrink-0" />
@@ -3890,7 +5050,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         onClick={() => applyTimeslotPreset("afternoon")}
                         className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "13:00" && progEndTime === "17:00"
                             ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                           }`}
                       >
                         <Sun className="w-3 h-3 text-blue-600 shrink-0" />
@@ -3901,7 +5061,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         onClick={() => applyTimeslotPreset("fullday")}
                         className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "17:00"
                             ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                           }`}
                       >
                         <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -3912,7 +5072,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         onClick={() => applyTimeslotPreset("evening")}
                         className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "17:30" && progEndTime === "20:30"
                             ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                           }`}
                       >
                         <Moon className="w-3 h-3 text-purple-600 shrink-0" />
@@ -3939,12 +5099,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
 
                     {/* Live Schedule Preview */}
-                    <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preview Display</p>
-                          <p className="text-xs font-black text-slate-900">
+                          <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Preview Display</p>
+                          <p className="text-xs font-bold text-gray-900">
                             {formatTrainingDays(progTrainingDays)} · {formatProgramTimeslot(progStartTime, progEndTime).formattedRange}
                           </p>
                         </div>
@@ -3952,7 +5112,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       {(() => {
                         const ts = formatProgramTimeslot(progStartTime, progEndTime);
                         return ts.sessionType !== "Custom" ? (
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
                               ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
                                 ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
                                   "bg-purple-100 text-purple-900 border border-purple-200"
@@ -3967,7 +5127,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <SiKapDatePicker
                       label="Start Date"
-                      badgeText="Course Start"
+                      badgeText="Program Start"
                       value={progStartDate}
                       onChange={(val) => setProgStartDate(val)}
                       placeholder="Select start date"
@@ -3975,7 +5135,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                     <SiKapDatePicker
                       label="End Date"
-                      badgeText="Course End"
+                      badgeText="Program End"
                       value={progEndDate}
                       min={progStartDate || undefined}
                       onChange={(val) => setProgEndDate(val)}
@@ -3983,34 +5143,34 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     />
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Trainer / Instructor</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Trainer / Instructor</label>
                       <input
                         type="text"
                         placeholder="e.g. Engr. Danilo Santos, TVET Trainer"
                         value={progInstructor}
                         onChange={(e) => setProgInstructor(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
                   </div>
 
                   {/* Auto-Calculated Duration Summary Card */}
                   {computedTrainingHours && (
-                    <div className="bg-emerald-50/90 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
                           <Calculator className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-900">
                               Auto-Calculated Total: {computedTrainingHours.totalHours} Hours
                             </span>
-                            <span className="text-[9px] bg-white text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
+                            <span className="text-[9px] bg-white text-[#0A6B43] font-bold px-2 py-0.5 rounded-md border border-emerald-200">
                               {computedTrainingHours.dailyHours} hrs/day
                             </span>
                           </div>
-                          <p className="text-xs text-slate-600 font-medium mt-0.5 truncate">
+                          <p className="text-xs text-gray-600 font-medium mt-0.5 truncate">
                             {computedTrainingHours.sessionCount} class days scheduled between {formatProgramDateRange(progStartDate, progEndDate)}
                             {computedTrainingHours.deductedLunch ? " (excl. 1h lunch)" : ""}
                           </p>
@@ -4032,68 +5192,68 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 {/* Section 3: Requirements & Contacts */}
                 <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                    <div className="w-6 h-6 rounded-md bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                       3
                     </div>
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Admissions & Contact Info</h4>
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Admissions & Contact Info</h4>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-600 uppercase">Eligibility Criteria</label>
+                    <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
                     <textarea
                       rows={2}
                       placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
                       value={progEligibility}
                       onChange={(e) => setProgEligibility(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                      className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Required Documents (comma separated)</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Required Documents (comma separated)</label>
                       <input
                         type="text"
                         placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Photocopy of Valid ID"
                         value={progRequiredDocuments}
                         onChange={(e) => setProgRequiredDocuments(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Target Prerequisite Skills</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Target Prerequisite Skills</label>
                       <input
                         type="text"
                         placeholder="e.g. Basic Math, English comprehension, Willingness to learn"
                         value={progRequiredSkills}
                         onChange={(e) => setProgRequiredSkills(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Officer Contact Name</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Officer Contact Name</label>
                       <input
                         type="text"
                         placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
                         value={progContactName}
                         onChange={(e) => setProgContactName(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-600 uppercase">Official Phone Number</label>
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Official Phone Number</label>
                       <input
                         type="text"
                         placeholder="e.g. +63 917 123 4567 / (045) 900-1234"
                         value={progContactPhone}
                         onChange={(e) => setProgContactPhone(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     </div>
                   </div>
@@ -4103,20 +5263,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
+            <div className="p-4 px-6 border-t border-gray-100 bg-gray-50/80 flex items-center justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setEditingProgramModal(null)}
-                className="px-5 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                className="px-5 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 form="edit-program-modal-form"
-                className="px-6 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                className="px-6 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
               >
-                Update Course
+                Update Program
               </button>
             </div>
 
@@ -4147,8 +5307,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {/* ============================================================ */}
       <ConfirmationModal
         isOpen={!!programToDelete}
-        title={`Delete Course "${programToDelete?.title}"?`}
-        description={`Are you sure you want to delete "${programToDelete?.title}"? This will close the course and remove it together with its applicant records from the active dashboard.`}
+        title={`Delete Program "${programToDelete?.title}"?`}
+        description={`Are you sure you want to delete "${programToDelete?.title}"? This will close the program and remove it together with its applicant records from the active dashboard.`}
         confirmText="Delete Program"
         confirmVariant="red"
         onConfirm={() => {

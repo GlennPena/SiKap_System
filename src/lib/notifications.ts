@@ -218,7 +218,7 @@ export async function notifyNewApplicationReceived(params: {
     });
 
     const pushPayload: PushNotificationPayload = {
-      title: "New Course Applicant",
+      title: "New Program Applicant",
       body: `${params.youthName} (${params.barangayName}) applied for "${params.programTitle}".`,
       url: "/",
       tag: `new-app-${params.referralId}`
@@ -237,9 +237,9 @@ export async function notifyNewApplicationReceived(params: {
           subject: `New TESDA Applicant: ${params.youthName} - ${params.programTitle}`,
           html: `
             <div style="font-family: sans-serif; padding: 20px;">
-              <h2 style="color: #0A6B43;">New Course Application Received</h2>
+              <h2 style="color: #0A6B43;">New Program Application Received</h2>
               <p>Hello TESDA Representative,</p>
-              <p>A new youth member has applied for admission into one of your published technical-vocational courses:</p>
+              <p>A new youth member has applied for admission into one of your published technical-vocational programs:</p>
               <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                 <tr><td style="color: #6b7280; padding: 6px 0;">Applicant Name:</td><td style="font-weight: bold;">${params.youthName}</td></tr>
                 <tr><td style="color: #6b7280; padding: 6px 0;">Barangay:</td><td style="font-weight: bold;">${params.barangayName}</td></tr>

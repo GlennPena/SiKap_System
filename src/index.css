@@ -100,6 +100,11 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(10, 107, 67, 0.15);
 }
 
+/* Remove default browser focus outline on mouse click while preserving keyboard accessibility */
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* 3D Tile Flip Animation */
 @keyframes tile-flip-wave {
   0% {

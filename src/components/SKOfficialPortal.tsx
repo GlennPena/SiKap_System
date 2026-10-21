@@ -3,11 +3,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Users, Target, Briefcase, BarChart2, Bell, LogOut, Search, Plus, Filter,
-  FileText, Megaphone, Settings, ArrowLeft, Mail, Phone, Calendar, Award,
+  FileText, Megaphone, Settings, ArrowLeft, Mail, Phone, Calendar, CalendarDays, Award,
   CheckCircle, ShieldAlert, Sparkles, AlertTriangle, TrendingUp, Users2, Trash2, Edit, X, RefreshCw,
   ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
   LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight, ChevronLeft,
-  Printer, Download, Menu, Clock, Loader2, GraduationCap
+  Printer, Download, Menu, Clock, Loader2, GraduationCap, BookOpen, Flame, ArrowUpRight,
+  ChevronDown, ChevronUp, Compass, SearchX, FileX
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
@@ -22,10 +23,126 @@ import {
 } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
-import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded } from "../lib/utils";
-import { calculateContentBasedMatchScore } from "../lib/cbf-matcher";
+import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase } from "../lib/utils";
+import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
+import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
+
+const getProgramCategory = (prog?: any): string => {
+  if (!prog) return "Information and Communication Technology";
+  if (typeof prog.category === "string" && prog.category.trim()) {
+    const found = CATEGORIES.find(c => c.id === prog.category || c.slug === prog.category || c.name.toLowerCase() === prog.category.toLowerCase());
+    if (found) return found.name;
+    return prog.category;
+  }
+  if (prog.category && typeof prog.category === "object" && prog.category.name) {
+    return prog.category.name;
+  }
+  if (prog.categoryId) {
+    const found = CATEGORIES.find(c => c.id === String(prog.categoryId));
+    if (found) return found.name;
+  }
+  const t = (prog.title || "").toLowerCase();
+  if (t.includes("computer") || t.includes("web") || t.includes("ict") || t.includes("programming") || t.includes("servicing") || t.includes("systems") || t.includes("hardware") || t.includes("software")) {
+    return "Information and Communication Technology";
+  }
+  if (t.includes("welding") || t.includes("metal") || t.includes("smaw") || t.includes("construction") || t.includes("carpentry") || t.includes("masonry") || t.includes("plumbing")) {
+    return "Construction";
+  }
+  if (t.includes("cook") || t.includes("baking") || t.includes("pastry") || t.includes("food") || t.includes("bread") || t.includes("beverage")) {
+    return "Process Food and Beverages";
+  }
+  if (t.includes("electric") || t.includes("wiring") || t.includes("electronics") || t.includes("solar")) {
+    return "Electrical and Electronics";
+  }
+  if (t.includes("automotive") || t.includes("motorcycle") || t.includes("driving") || t.includes("engine")) {
+    return "Automotive and Land Transport";
+  }
+  if (t.includes("agri") || t.includes("farm") || t.includes("crop") || t.includes("organic") || t.includes("aquaculture")) {
+    return "Agriculture";
+  }
+  if (t.includes("tourism") || t.includes("hotel") || t.includes("housekeeping") || t.includes("front office") || t.includes("bartending")) {
+    return "Tourism";
+  }
+  if (t.includes("care") || t.includes("health") || t.includes("nursing") || t.includes("patient")) {
+    return "Human Health/ Health Care";
+  }
+  return "Technical-Vocational Training";
+};
+
+const getMatchStyling = (score: number) => {
+  if (score <= 0) {
+    return {
+      label: "No Match",
+      description: "No matching training programs found for this member's profile.",
+      percentColor: "text-gray-400",
+      barColor: "bg-gray-300",
+      pillClass: "text-gray-600 bg-gray-100 border-gray-200",
+      iconColor: "text-gray-500",
+      width: 0,
+    };
+  }
+  if (score >= 90) {
+    return {
+      label: "Excellent Match",
+      description: "Excellent Match · Strong alignment with youth's core skills and preferred career pathway.",
+      percentColor: "text-emerald-700",
+      barColor: "bg-emerald-600", // Green
+      pillClass: "text-emerald-700 bg-emerald-50 border-emerald-200",
+      iconColor: "text-emerald-600",
+      width: Math.min(100, score),
+    };
+  }
+  if (score >= 75) {
+    return {
+      label: "Good Match",
+      description: "Good Match · Skills and preferences align with the program.",
+      percentColor: "text-emerald-500",
+      barColor: "bg-emerald-400", // Light green
+      pillClass: "text-emerald-600 bg-emerald-50/70 border-emerald-200/80",
+      iconColor: "text-emerald-500",
+      width: score,
+    };
+  }
+  if (score >= 50) {
+    return {
+      label: "Fair Match",
+      description: "Fair Match · General alignment with potential for foundational training.",
+      percentColor: "text-amber-600",
+      barColor: "bg-amber-500", // Amber
+      pillClass: "text-amber-700 bg-amber-50 border-amber-200",
+      iconColor: "text-amber-600",
+      width: score,
+    };
+  }
+  return {
+    label: "Low Match",
+    description: "Low Match · Meets minimum eligibility requirements.",
+    percentColor: "text-gray-500",
+    barColor: "bg-gray-400", // Gray
+    pillClass: "text-gray-600 bg-gray-100 border-gray-200",
+    iconColor: "text-gray-500",
+    width: score,
+  };
+};
+
+const getMatchDescription = (score: number) => {
+  return getMatchStyling(score).description;
+};
+
+const getPaginationItems = (current: number, total: number): (number | string)[] => {
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 3) {
+    return [1, 2, 3, "...", total];
+  }
+  if (current >= total - 2) {
+    return [1, "...", total - 2, total - 1, total];
+  }
+  return [1, "...", current - 1, current, current + 1, "...", total];
+};
 
 interface SKOfficialPortalProps {
   youthProfiles: YouthProfile[];
@@ -83,10 +200,33 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [ageFilter, setAgeFilter] = useState("All");
   const [purokFilter, setPurokFilter] = useState("All");
   const [matchStatusFilter, setMatchStatusFilter] = useState("All");
+  const [youthViewMode, setYouthViewMode] = useState<"grid" | "table">("grid");
+  const [tableSortColumn, setTableSortColumn] = useState<"name" | "age" | "gender" | "location" | "education" | "skills" | "programs" | "score" | null>(null);
+  const [tableSortDirection, setTableSortDirection] = useState<"asc" | "desc">("asc");
+  const [youthTablePage, setYouthTablePage] = useState(1);
+  const [youthGridPage, setYouthGridPage] = useState(1);
+  const [profileMatchPage, setProfileMatchPage] = useState(1);
+  const [profileCompletedPage, setProfileCompletedPage] = useState(1);
+
+  useEffect(() => {
+    setYouthTablePage(1);
+    setYouthGridPage(1);
+  }, [searchQuery, eduFilter, ageFilter, purokFilter, matchStatusFilter]);
+
+  const handleTableSort = (column: "name" | "age" | "gender" | "location" | "education" | "skills" | "programs" | "score") => {
+    if (tableSortColumn === column) {
+      setTableSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setTableSortColumn(column);
+      setTableSortDirection("asc");
+    }
+  };
 
   // Search & Filter states: TESDA Programs Catalog
   const [progSearchQuery, setProgSearchQuery] = useState("");
-  const [progSectorFilter, setProgSectorFilter] = useState("All");
+  const [progCategoryFilter, setProgCategoryFilter] = useState("All");
+  const [progStatusFilter, setProgStatusFilter] = useState("All");
+  const [progCostFilter, setProgCostFilter] = useState("All");
 
   // Form states for registering youth
   const [regName, setRegName] = useState("");
@@ -116,6 +256,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   // Skills Gap Printable Report Modal State
   const [isSkillsGapReportModalOpen, setIsSkillsGapReportModalOpen] = useState(false);
+
+  // Selected TESDA Program for Details Modal
+  const [selectedProgramForModal, setSelectedProgramForModal] = useState<TESDAProgram | null>(null);
 
   // Announcement modal
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -238,9 +381,28 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   // Pending Registrations pagination state on Dashboard (max 4 per page)
   const [pendingDashboardPage, setPendingDashboardPage] = useState(1);
 
-  // Dedicated Pending Approvals screen pagination & search states (max 10 per page)
+  // Dedicated Pending Approvals screen pagination & search/filter/sort states (15 per page, pagination shown when > 15)
   const [pendingApprovalsPage, setPendingApprovalsPage] = useState(1);
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
+  const [pendingEduFilter, setPendingEduFilter] = useState("All");
+  const [pendingAgeFilter, setPendingAgeFilter] = useState("All");
+  const [pendingPurokFilter, setPendingPurokFilter] = useState("All");
+  const [pendingIdTypeFilter, setPendingIdTypeFilter] = useState("All");
+  const [pendingSortColumn, setPendingSortColumn] = useState<"name" | "age" | "purok" | "education" | null>(null);
+  const [pendingSortDirection, setPendingSortDirection] = useState<"asc" | "desc">("asc");
+
+  const handlePendingTableSort = (column: "name" | "age" | "purok" | "education") => {
+    if (pendingSortColumn === column) {
+      setPendingSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setPendingSortColumn(column);
+      setPendingSortDirection("asc");
+    }
+  };
+
+  useEffect(() => {
+    setPendingApprovalsPage(1);
+  }, [pendingSearchQuery, pendingEduFilter, pendingAgeFilter, pendingPurokFilter, pendingIdTypeFilter]);
 
   // Analytics sector filter state
   const [analyticsSectorFilter, setAnalyticsSectorFilter] = useState<string>("All");
@@ -831,7 +993,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             <td class="text-center font-bold text-num" style="font-size: 11pt; color: #1d4ed8;">${totalTesdaSlots}</td>
             <td class="text-center font-bold">Available Slots</td>
             <td class="text-center"><span style="color: #1d4ed8; font-weight: bold;">Open Capacity</span></td>
-            <td>TESDA GPSAT & Community Center Courses</td>
+            <td>TESDA GPSAT & Community Center Programs</td>
           </tr>
           <tr><td colspan="6" style="height: 12px; border: none;"></td></tr>
 
@@ -952,6 +1114,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const handleViewProfile = (id: string) => {
     setSelectedYouthId(id);
     setCurrentScreen(SKOfficialScreen.PROFILE_DETAIL);
+    setProfileMatchPage(1);
+    setProfileCompletedPage(1);
   };
 
   // Skill Chip methods
@@ -1597,40 +1761,129 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     return pendingProfiles.slice(start, start + PENDING_PER_PAGE);
   }, [pendingProfiles, currentPendingPage]);
 
-  // Dedicated Pending Approvals tab: search and 10-record pagination (mobile and big screen)
-  const filteredPendingProfiles = useMemo(() => {
-    if (!pendingSearchQuery.trim()) return pendingProfiles;
-    const q = pendingSearchQuery.toLowerCase().trim();
-    return pendingProfiles.filter(y =>
-      y.name.toLowerCase().includes(q) ||
-      (y.email && y.email.toLowerCase().includes(q)) ||
-      y.purok.toLowerCase().includes(q) ||
-      (y.verificationIdNumber && y.verificationIdNumber.toLowerCase().includes(q)) ||
-      (y.verificationIdType && y.verificationIdType.toLowerCase().includes(q)) ||
-      (y.educationalAttainment && y.educationalAttainment.toLowerCase().includes(q)) ||
-      (y.livelihoodGoal && y.livelihoodGoal.toLowerCase().includes(q))
-    );
-  }, [pendingProfiles, pendingSearchQuery]);
+  // Helper for two-letter initials (first name first letter + last name first letter)
+  const getPendingInitials = (nameStr: string) => {
+    const parts = (nameStr || "").trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return (nameStr.slice(0, 2) || "Y").toUpperCase();
+  };
 
-  const PENDING_APPROVALS_PER_PAGE = 10;
-  const totalPendingApprovalPages = Math.max(1, Math.ceil(filteredPendingProfiles.length / PENDING_APPROVALS_PER_PAGE));
+  // Dedicated Pending Approvals tab: search and multi-filtering
+  const filteredPendingProfiles = useMemo(() => {
+    return pendingProfiles.filter(y => {
+      // Search Query
+      let matchesSearch = true;
+      if (pendingSearchQuery.trim()) {
+        const q = pendingSearchQuery.toLowerCase().trim();
+        matchesSearch = (
+          y.name.toLowerCase().includes(q) ||
+          (y.email && y.email.toLowerCase().includes(q)) ||
+          y.purok.toLowerCase().includes(q) ||
+          (y.verificationIdNumber && y.verificationIdNumber.toLowerCase().includes(q)) ||
+          (y.verificationIdType && y.verificationIdType.toLowerCase().includes(q)) ||
+          (y.educationalAttainment && y.educationalAttainment.toLowerCase().includes(q))
+        );
+      }
+
+      // Education Filter
+      let matchesEdu = true;
+      if (pendingEduFilter !== "All") {
+        matchesEdu = y.educationalAttainment === pendingEduFilter;
+      }
+
+      // Age Filter
+      let matchesAge = true;
+      if (pendingAgeFilter === "15-20") matchesAge = y.age >= 15 && y.age <= 20;
+      else if (pendingAgeFilter === "21-25") matchesAge = y.age >= 21 && y.age <= 25;
+      else if (pendingAgeFilter === "26-30") matchesAge = y.age >= 26 && y.age <= 30;
+
+      // Purok Filter
+      let matchesPurok = true;
+      if (pendingPurokFilter !== "All") {
+        matchesPurok = y.purok.toLowerCase().trim() === pendingPurokFilter.toLowerCase().trim();
+      }
+
+      // ID Type Filter
+      let matchesId = true;
+      if (pendingIdTypeFilter !== "All") {
+        if (pendingIdTypeFilter === "In-Person") {
+          matchesId = !y.verificationIdType;
+        } else {
+          matchesId = Boolean(y.verificationIdType && y.verificationIdType.toLowerCase().includes(pendingIdTypeFilter.toLowerCase()));
+        }
+      }
+
+      return matchesSearch && matchesEdu && matchesAge && matchesPurok && matchesId;
+    });
+  }, [pendingProfiles, pendingSearchQuery, pendingEduFilter, pendingAgeFilter, pendingPurokFilter, pendingIdTypeFilter]);
+
+  // Sorted pending profiles specifically for Pending Approvals Table
+  const sortedPendingProfiles = useMemo(() => {
+    if (!pendingSortColumn) return filteredPendingProfiles;
+
+    return [...filteredPendingProfiles].sort((a, b) => {
+      let comparison = 0;
+      switch (pendingSortColumn) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "age":
+          comparison = (a.age || 0) - (b.age || 0);
+          break;
+        case "purok":
+          comparison = (a.purok || "").localeCompare(b.purok || "", undefined, { numeric: true });
+          break;
+        case "education":
+          comparison = (a.educationalAttainment || "").localeCompare(b.educationalAttainment || "");
+          break;
+        default:
+          comparison = 0;
+      }
+      return pendingSortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filteredPendingProfiles, pendingSortColumn, pendingSortDirection]);
+
+  // Dedicated Pending Approvals Table Pagination (15 records per page, shown when > 15 records)
+  const PENDING_APPROVALS_PER_PAGE = 15;
+  const totalPendingApprovalPages = Math.max(1, Math.ceil(sortedPendingProfiles.length / PENDING_APPROVALS_PER_PAGE));
   const currentPendingApprovalPage = Math.min(Math.max(1, pendingApprovalsPage), totalPendingApprovalPages);
   const paginatedPendingApprovalProfiles = useMemo(() => {
     const start = (currentPendingApprovalPage - 1) * PENDING_APPROVALS_PER_PAGE;
-    return filteredPendingProfiles.slice(start, start + PENDING_APPROVALS_PER_PAGE);
-  }, [filteredPendingProfiles, currentPendingApprovalPage]);
+    return sortedPendingProfiles.slice(start, start + PENDING_APPROVALS_PER_PAGE);
+  }, [sortedPendingProfiles, currentPendingApprovalPage]);
 
   // Verified Youth Profiles ONLY for Youth Profiles Roster Tab
   const verifiedYouthProfiles = useMemo(() => {
     return localYouthProfiles.filter(y => y.approvalStatus === "Approved");
   }, [localYouthProfiles]);
 
+  // Precalculate matched programs count and highest match percentage for youth
+  const youthMatchStats = useMemo(() => {
+    const map = new Map<string, { count: number; highest: number }>();
+    verifiedYouthProfiles.forEach(y => {
+      let count = 0;
+      let highest = y.matchScore || 0;
+      if (programs.length > 0) {
+        programs.forEach(p => {
+          const score = calculateContentBasedMatchScore(y, p);
+          if (score > 0) count++;
+          if (score > highest) highest = score;
+        });
+      }
+      if (count === 0 && highest > 0) count = 1;
+      map.set(y.id, { count, highest: Math.min(100, Math.round(highest)) });
+    });
+    return map;
+  }, [verifiedYouthProfiles, programs]);
+
   // Filtered Youth Profiles
   const filteredProfiles = useMemo(() => {
     return verifiedYouthProfiles.filter(y => {
       const matchesSearch = y.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         y.purok.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        y.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
+        (y.skills && y.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())));
 
       const matchesEdu = eduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === eduFilter;
       const matchesPurok = purokFilter === "All" || y.purok === purokFilter;
@@ -1640,20 +1893,105 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       else if (ageFilter === "21-25") matchesAge = y.age >= 21 && y.age <= 25;
       else if (ageFilter === "26-30") matchesAge = y.age >= 26 && y.age <= 30;
 
+      const stats = youthMatchStats.get(y.id) || { count: 0, highest: y.matchScore || 0 };
+      const score = stats.highest;
+
       let matchesStatus = true;
-      if (matchStatusFilter === "Excellent") matchesStatus = y.matchScore >= 90;
-      else if (matchStatusFilter === "Good") matchesStatus = y.matchScore >= 75 && y.matchScore < 90;
-      else if (matchStatusFilter === "Fair") matchesStatus = y.matchScore >= 50 && y.matchScore < 75;
-      else if (matchStatusFilter === "Low") matchesStatus = y.matchScore < 50;
+      if (matchStatusFilter === "Excellent") matchesStatus = score >= 90;
+      else if (matchStatusFilter === "Good") matchesStatus = score >= 75 && score < 90;
+      else if (matchStatusFilter === "Fair") matchesStatus = score >= 50 && score < 75;
+      else if (matchStatusFilter === "Low" || matchStatusFilter === "LowMatch" || matchStatusFilter === "Low Match") {
+        matchesStatus = score > 0 && score < 50;
+      } else if (matchStatusFilter === "NoMatches" || matchStatusFilter === "No Matches" || matchStatusFilter === "None" || matchStatusFilter === "No matches") {
+        matchesStatus = stats.count === 0 && score === 0;
+      }
 
       return matchesSearch && matchesEdu && matchesPurok && matchesAge && matchesStatus;
     });
-  }, [verifiedYouthProfiles, searchQuery, eduFilter, ageFilter, purokFilter, matchStatusFilter]);
+  }, [verifiedYouthProfiles, searchQuery, eduFilter, ageFilter, purokFilter, matchStatusFilter, youthMatchStats]);
+
+  // Sorted profiles specifically for the Youth Profiles Table view
+  const sortedTableProfiles = useMemo(() => {
+    if (!tableSortColumn) return filteredProfiles;
+
+    return [...filteredProfiles].sort((a, b) => {
+      let comparison = 0;
+
+      switch (tableSortColumn) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "age":
+          comparison = (a.age || 0) - (b.age || 0);
+          break;
+        case "gender":
+          comparison = (a.gender || "").localeCompare(b.gender || "");
+          break;
+        case "location":
+          comparison = (a.purok || "").localeCompare(b.purok || "", undefined, { numeric: true });
+          break;
+        case "education":
+          comparison = (a.educationalAttainment || "").localeCompare(b.educationalAttainment || "");
+          break;
+        case "skills":
+          comparison = (a.skills?.length || 0) - (b.skills?.length || 0);
+          if (comparison === 0) {
+            comparison = (a.skills?.[0] || "").localeCompare(b.skills?.[0] || "");
+          }
+          break;
+        case "programs": {
+          const countA = youthMatchStats.get(a.id)?.count || 0;
+          const countB = youthMatchStats.get(b.id)?.count || 0;
+          comparison = countA - countB;
+          break;
+        }
+        case "score": {
+          const scoreA = youthMatchStats.get(a.id)?.highest || 0;
+          const scoreB = youthMatchStats.get(b.id)?.highest || 0;
+          comparison = scoreA - scoreB;
+          break;
+        }
+        default:
+          comparison = 0;
+      }
+
+      return tableSortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filteredProfiles, tableSortColumn, tableSortDirection, youthMatchStats]);
+
+  // Youth Profiles Table Pagination (15 records per page, shown when > 15 records)
+  const YOUTH_TABLE_PER_PAGE = 15;
+  const totalYouthTablePages = Math.max(1, Math.ceil(sortedTableProfiles.length / YOUTH_TABLE_PER_PAGE));
+  const currentYouthTablePage = Math.min(Math.max(1, youthTablePage), totalYouthTablePages);
+  const paginatedTableProfiles = useMemo(() => {
+    const start = (currentYouthTablePage - 1) * YOUTH_TABLE_PER_PAGE;
+    return sortedTableProfiles.slice(start, start + YOUTH_TABLE_PER_PAGE);
+  }, [sortedTableProfiles, currentYouthTablePage]);
+
+  // Youth Profiles Grid Pagination (15 records per page, shown when > 15 records)
+  const YOUTH_GRID_PER_PAGE = 15;
+  const totalYouthGridPages = Math.max(1, Math.ceil(filteredProfiles.length / YOUTH_GRID_PER_PAGE));
+  const currentYouthGridPage = Math.min(Math.max(1, youthGridPage), totalYouthGridPages);
+  const paginatedGridProfiles = useMemo(() => {
+    const start = (currentYouthGridPage - 1) * YOUTH_GRID_PER_PAGE;
+    return filteredProfiles.slice(start, start + YOUTH_GRID_PER_PAGE);
+  }, [filteredProfiles, currentYouthGridPage]);
+
+  // Unique TESDA categories for filtering (derived from taxonomy CATEGORIES and existing programs)
+  const tesdaCategoryOptions = useMemo(() => {
+    const catSet = new Set<string>();
+    programs.forEach(p => {
+      const c = getProgramCategory(p);
+      if (c) catSet.add(c);
+    });
+    CATEGORIES.forEach(c => catSet.add(c.name));
+    return Array.from(catSet).sort().map(cat => ({ value: cat, label: cat }));
+  }, [programs]);
 
   // Filtered TESDA programs for official catalog view
   const filteredProgramsForSK = useMemo(() => {
     return programs.filter(p => {
-      const q = progSearchQuery.toLowerCase();
+      const q = progSearchQuery.toLowerCase().trim();
       const matchesSearch = !q ||
         p.title.toLowerCase().includes(q) ||
         p.provider.toLowerCase().includes(q) ||
@@ -1661,14 +1999,30 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         (p.type && p.type.toLowerCase().includes(q)) ||
         (p.eligibility && p.eligibility.toLowerCase().includes(q));
 
-      const catName = typeof p.category === "string" ? p.category : p.category?.name || "";
-      const matchesType = progSectorFilter === "All" ||
-        catName.toLowerCase().includes(progSectorFilter.toLowerCase()) ||
-        p.title.toLowerCase().includes(progSectorFilter.toLowerCase()) ||
-        (p.type && p.type.toLowerCase().includes(progSectorFilter.toLowerCase()));
-      return matchesSearch && matchesType;
+      const catName = getProgramCategory(p);
+      const matchesCategory = progCategoryFilter === "All" ||
+        catName.toLowerCase().trim() === progCategoryFilter.toLowerCase().trim();
+
+      const isEnded = isProgramEnded(p);
+      let matchesStatus = true;
+      if (progStatusFilter === "Active") {
+        matchesStatus = !isEnded && p.activeStatus !== "Closed";
+      } else if (progStatusFilter === "Concluded") {
+        matchesStatus = isEnded || p.activeStatus === "Closed";
+      }
+
+      let matchesCost = true;
+      if (progCostFilter === "Free") {
+        matchesCost = !p.cost || p.cost.toLowerCase().includes("free");
+      } else if (progCostFilter === "Subsidized") {
+        matchesCost = Boolean(p.cost && p.cost.toLowerCase().includes("subsidized"));
+      } else if (progCostFilter === "With Fee") {
+        matchesCost = Boolean(p.cost && (p.cost.toLowerCase().includes("fee") || p.cost.toLowerCase().includes("paid")));
+      }
+
+      return matchesSearch && matchesCategory && matchesStatus && matchesCost;
     });
-  }, [programs, progSearchQuery, progSectorFilter]);
+  }, [programs, progSearchQuery, progCategoryFilter, progStatusFilter, progCostFilter]);
 
   // Selected profile details helper (used strictly when viewing an individual youth record)
   const selectedYouth = useMemo(() => {
@@ -1802,7 +2156,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         time: "Registry Live",
         type: "program",
         targetScreen: SKOfficialScreen.TESDA_PROGRAMS,
-        icon: <Briefcase className="w-4 h-4 text-[#0A6B43]" />
+        icon: <BookOpen className="w-4 h-4 text-[#0A6B43]" />
       });
     }
 
@@ -1940,16 +2294,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 id: SKOfficialScreen.TESDA_PROGRAMS,
                 label: "TESDA Programs",
                 activeIcon: (
-                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
-                    <path d="M2 13v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6H14v1a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1H2z" />
-                  </svg>
+                  <BookOpen className="w-5 h-5 fill-current shrink-0" />
                 ),
                 inactiveIcon: (
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <rect width="20" height="14" x="2" y="7" rx="2" />
-                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-                  </svg>
+                  <BookOpen className="w-5 h-5 shrink-0" />
                 )
               },
               {
@@ -1987,7 +2335,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               },
               {
                 id: SKOfficialScreen.SETTINGS,
-                label: "Settings & Profile",
+                label: "Settings",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <path
@@ -2141,7 +2489,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 {currentScreen === SKOfficialScreen.TESDA_PROGRAMS && "TESDA Programs"}
                 {currentScreen === SKOfficialScreen.SKILLS_GAP && "Skills Gap Analytics"}
                 {currentScreen === SKOfficialScreen.ANNOUNCEMENTS && "Announcements"}
-                {currentScreen === SKOfficialScreen.SETTINGS && "Settings & Profile"}
+                {currentScreen === SKOfficialScreen.SETTINGS && "Settings"}
               </h1>
             </div>
           </div>
@@ -2303,7 +2651,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   title="TESDA Listings"
                   value={activeTESDA}
                   subtitle="active programs"
-                  icon={<Briefcase className="w-5 h-5" />}
+                  icon={<BookOpen className="w-5 h-5" />}
                   accent="teal"
                 />
                 <MetricCard
@@ -2318,21 +2666,20 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* Dedicated Pending Approvals Card */}
               <div className="bg-white border border-amber-200/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                  <div className="flex items-start sm:items-center gap-2.5">
-                    <span className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0 mt-0.5 sm:mt-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0">
                       <AlertTriangle className="w-5 h-5" />
                     </span>
-                    <div>
-                      <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Pending Registrations</h3>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">Youth self-registrations waiting for verification in your Barangay</p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-gray-900 text-[22px] tracking-tight">Pending Registrations</h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 leading-none">
+                        {pendingProfiles.length}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="text-xs border border-amber-200 bg-amber-50 text-amber-800 px-3 py-1 rounded-xl font-bold shrink-0">
                       Scope: {designatedBarangay.startsWith("Barangay ") ? designatedBarangay : `Barangay ${designatedBarangay}`}
-                    </span>
-                    <span className="text-xs bg-amber-100 border border-amber-300 text-amber-900 px-3 py-1 rounded-xl font-black shrink-0">
-                      {pendingProfiles.length} Awaiting
                     </span>
                   </div>
                 </div>
@@ -2397,32 +2744,32 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
 
                     {/* Desktop & Tablet View: Structured Table (visible on sm+) */}
-                    <div className="hidden sm:block border border-gray-150 rounded-xl overflow-hidden bg-white">
+                    <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[550px] text-left text-xs border-collapse">
+                        <table className="w-full min-w-[550px] text-left border-collapse text-[12px]">
                           <thead>
-                            <tr className="border-b border-gray-150 text-gray-500 font-bold bg-gray-50/50 text-[10px] uppercase">
-                              <th className="py-2.5 px-3">Name</th>
-                              <th className="py-2.5 px-3">Age / Purok</th>
-                              <th className="py-2.5 px-3">Highest Attainment</th>
-                              <th className="py-2.5 px-3">Aspirations</th>
-                              <th className="py-2.5 px-3 text-center">Actions</th>
+                            <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                              <th className="py-3 px-4">Name</th>
+                              <th className="py-3 px-4">Age / Purok</th>
+                              <th className="py-3 px-4">Highest Attainment</th>
+                              <th className="py-3 px-4">Aspirations</th>
+                              <th className="py-3 px-4 text-center">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
                             {paginatedPendingProfiles.map((y) => (
-                              <tr key={y.id} className="hover:bg-gray-50/40">
-                                <td className="py-3 px-3 font-semibold text-gray-800">{y.name}</td>
-                                <td className="py-3 px-3 text-gray-600">
+                              <tr key={y.id} className="hover:bg-emerald-50/30 transition-colors">
+                                <td className="py-3 px-4 font-bold text-gray-900 whitespace-nowrap">{y.name}</td>
+                                <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
                                   {y.age} y/o · <span className="font-bold text-gray-700">{y.purok}</span>
                                   <div className="text-[10px] text-emerald-700 font-bold mt-0.5">{y.barangay}</div>
                                 </td>
-                                <td className="py-3 px-3">
-                                  <span className="bg-emerald-50 text-[#0A6B43] border border-emerald-100 px-2 py-0.5 rounded-full text-[10px] font-semibold">
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className="bg-emerald-50 text-[#0A6B43] border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] font-semibold">
                                     {y.educationalAttainment}
                                   </span>
                                 </td>
-                                <td className="py-3 px-3 max-w-[160px]">
+                                <td className="py-3 px-4 max-w-[180px]">
                                   {y.livelihoodGoal && y.livelihoodGoal.length > 15 ? (
                                     <div>
                                       <p className={expandedAspirations[y.id] ? "text-xs font-medium text-gray-800 leading-relaxed bg-amber-50/80 p-2 rounded-lg border border-amber-200/80 my-1 shadow-2xs" : "text-xs font-semibold text-gray-700"}>
@@ -2440,16 +2787,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     <span className="text-xs font-medium text-gray-600">{y.livelihoodGoal || "N/A"}</span>
                                   )}
                                 </td>
-                                <td className="py-3 px-3">
-                                  <div className="flex items-center justify-center">
-                                    <button
-                                      onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                                      className="px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-[11px] rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                      View
-                                    </button>
-                                  </div>
+                                <td className="py-3 px-4 whitespace-nowrap text-center">
+                                  <button
+                                    onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
+                                    className="px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-[12px] rounded-xl shadow-xs hover:shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Review</span>
+                                  </button>
                                 </td>
                               </tr>
                             ))}
@@ -2458,55 +2803,62 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
                     </div>
 
-                    {/* Pagination Controls (Max 4 per page) */}
+                    {/* Pagination Controls (Standardized using getPaginationItems) */}
                     {totalPendingPages > 1 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-3 border-t border-amber-200/70">
-                        <span className="text-gray-500 text-xs font-medium text-center sm:text-left">
-                          Showing <span className="font-bold text-gray-800">{(currentPendingPage - 1) * PENDING_PER_PAGE + 1}</span> to{" "}
-                          <span className="font-bold text-gray-800">{Math.min(currentPendingPage * PENDING_PER_PAGE, pendingProfiles.length)}</span> of{" "}
-                          <span className="font-bold text-gray-800">{pendingProfiles.length}</span> pending registrations
-                        </span>
-                        <div className="flex items-center gap-1.5">
+                      <div className="pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500 font-medium text-center sm:text-left">
+                          Showing <span className="font-semibold text-gray-800">{(currentPendingPage - 1) * PENDING_PER_PAGE + 1}</span> to{" "}
+                          <span className="font-semibold text-gray-800">{Math.min(currentPendingPage * PENDING_PER_PAGE, pendingProfiles.length)}</span> of{" "}
+                          <span className="font-semibold text-gray-800">{pendingProfiles.length}</span> pending registrations
+                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
                           <button
                             type="button"
                             disabled={currentPendingPage === 1}
                             onClick={() => setPendingDashboardPage(p => Math.max(1, p - 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingPage === 1
-                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                              }`}
+                            className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
                           >
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                            <span>Prev</span>
+                            <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                            <span>Previous</span>
                           </button>
 
-                          <div className="flex items-center gap-1">
-                            {Array.from({ length: totalPendingPages }, (_, idx) => idx + 1).map(page => (
+                          {getPaginationItems(currentPendingPage, totalPendingPages).map((item, idx) => {
+                            if (item === "...") {
+                              return (
+                                <span
+                                  key={`dash-pending-ellipsis-${idx}`}
+                                  className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
+                                >
+                                  ...
+                                </span>
+                              );
+                            }
+                            const pageNum = Number(item);
+                            const isActive = currentPendingPage === pageNum;
+                            return (
                               <button
-                                key={page}
+                                key={`dash-pending-page-${pageNum}`}
                                 type="button"
-                                onClick={() => setPendingDashboardPage(page)}
-                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${currentPendingPage === page
-                                  ? "bg-[#0A6B43] text-white shadow-xs"
-                                  : "text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200"
-                                  }`}
+                                onClick={() => setPendingDashboardPage(pageNum)}
+                                className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
+                                  isActive
+                                    ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                    : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                                }`}
                               >
-                                {page}
+                                {pageNum}
                               </button>
-                            ))}
-                          </div>
+                            );
+                          })}
 
                           <button
                             type="button"
                             disabled={currentPendingPage === totalPendingPages}
                             onClick={() => setPendingDashboardPage(p => Math.min(totalPendingPages, p + 1))}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingPage === totalPendingPages
-                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                              }`}
+                            className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
                           >
                             <span>Next</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
+                            <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                           </button>
                         </div>
                       </div>
@@ -2515,8 +2867,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 ) : (
                   <div className="bg-emerald-50/30 border border-emerald-100 rounded-xl p-5 sm:p-6 text-center space-y-1.5">
                     <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-[#0A6B43] mx-auto" />
-                    <p className="text-xs font-bold text-emerald-800">No Pending Approvals</p>
-                    <p className="text-[11px] text-emerald-600 font-medium">All Katipunan ng Kabataan self-registered records have been reviewed and verified.</p>
+                    <h3 className="text-[18px] font-extrabold text-emerald-900 tracking-tight">No Pending Approvals</h3>
+                    <p className="text-[14px] text-emerald-700 leading-relaxed font-normal">All Katipunan ng Kabataan self-registered records have been reviewed and verified.</p>
                   </div>
                 )}
               </div>
@@ -2524,33 +2876,35 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* Two Column Section */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Recent Youth Registrations (60%) */}
-                <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
-                  <div className="flex items-start sm:items-center justify-between gap-2 mb-1">
-                    <div>
-                      <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Recent Youth Registrations</h3>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">Katipunan ng Kabataan members profile updates</p>
+                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-gray-900 text-[26px] tracking-tight">Recent Youth Registrations</h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                        {localYouthProfiles.length}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] text-gray-400 font-medium sm:hidden">Swipe ↔</span>
                       <button
                         onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                        className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap"
+                        className="text-[14px] font-bold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap"
                       >
                         View all youth →
                       </button>
                     </div>
                   </div>
 
-                  <div className="border border-gray-150 rounded-xl overflow-hidden bg-white">
+                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[480px] sm:min-w-full text-left text-xs border-collapse">
+                      <table className="w-full min-w-[480px] sm:min-w-full text-left border-collapse text-[12px]">
                         <thead>
-                          <tr className="border-b border-gray-150 text-gray-400 font-bold bg-gray-50/80 text-[10px] uppercase tracking-wider">
-                            <th className="py-2.5 px-3 whitespace-nowrap">Name</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap">Age/Purok</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap">Education</th>
-                            <th className="py-2.5 px-3 whitespace-nowrap">Primary Skill</th>
-                            <th className="py-2.5 px-3 text-right whitespace-nowrap">AI Score</th>
+                          <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                            <th className="py-3 px-4 whitespace-nowrap">Name</th>
+                            <th className="py-3 px-4 whitespace-nowrap">Age / Purok</th>
+                            <th className="py-3 px-4 whitespace-nowrap">Education</th>
+                            <th className="py-3 px-4 whitespace-nowrap">Primary Skill</th>
+                            <th className="py-3 px-4 text-right whitespace-nowrap">AI Score</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -2561,28 +2915,32 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               </td>
                             </tr>
                           ) : (
-                            localYouthProfiles.slice(0, 6).map((y, idx) => (
+                            localYouthProfiles.slice(0, 6).map((y) => (
                               <tr
                                 key={y.id}
                                 onClick={() => handleViewProfile(y.id)}
-                                className={`hover:bg-emerald-50/40 cursor-pointer transition-colors ${idx % 2 === 1 ? "bg-gray-50/30" : ""
-                                  }`}
+                                className="hover:bg-emerald-50/30 cursor-pointer transition-colors"
                               >
-                                <td className="py-2.5 sm:py-3 px-3 font-semibold text-gray-800 whitespace-nowrap">
-                                  <span className="hover:text-[#0A6B43] transition-colors">{y.name}</span>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
+                                      {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                    </div>
+                                    <span className="font-bold text-gray-900 truncate hover:text-[#0A6B43] transition-colors">{y.name}</span>
+                                  </div>
                                 </td>
-                                <td className="py-2.5 sm:py-3 px-3 text-gray-500 whitespace-nowrap">
-                                  {y.age} y/o · <span className="font-semibold text-[#1C2B20]">{y.purok}</span>
+                                <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                  {y.age} y/o · <span className="font-bold text-gray-700">{y.purok}</span>
                                 </td>
-                                <td className="py-2.5 sm:py-3 px-3 whitespace-nowrap">
+                                <td className="py-3 px-4 whitespace-nowrap">
                                   <span
-                                    className="bg-emerald-50 text-[#0A6B43] font-semibold border border-emerald-100 px-2 py-0.5 rounded-full text-[10px] inline-block"
+                                    className="bg-emerald-50 text-[#0A6B43] font-semibold border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] inline-block"
                                     title={y.educationalAttainment}
                                   >
                                     {y.educationalAttainment}
                                   </span>
                                 </td>
-                                <td className="py-2.5 sm:py-3 px-3 font-medium text-gray-600 whitespace-nowrap">
+                                <td className="py-3 px-4 font-medium text-gray-600 whitespace-nowrap">
                                   <span
                                     className="truncate max-w-[100px] sm:max-w-[130px] inline-block align-middle"
                                     title={y.skills[0] || "None"}
@@ -2590,12 +2948,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     {y.skills[0] || "None"}
                                   </span>
                                 </td>
-                                <td className="py-2.5 sm:py-3 px-3 text-right whitespace-nowrap">
+                                <td className="py-3 px-4 text-right whitespace-nowrap">
                                   {programs.length > 0 ? (
-                                    <span className={`font-bold px-2 py-0.5 rounded-md text-[11px] ${y.matchScore >= 90 ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : "text-amber-700 bg-amber-50 border border-amber-100"
-                                      }`}>
-                                      {y.matchScore}%
-                                    </span>
+                                    (() => {
+                                      const style = getMatchStyling(y.matchScore);
+                                      return (
+                                        <span className={`inline-flex items-center font-bold px-2.5 py-0.5 rounded-full text-[11px] border ${style.pillClass}`}>
+                                          {y.matchScore}%
+                                        </span>
+                                      );
+                                    })()
                                   ) : (
                                     <span className="font-semibold text-[10px] text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">
                                       N/A
@@ -2614,12 +2976,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 {/* Top Skills Gaps & Quick actions (40%) */}
                 <div className="space-y-6 lg:col-span-2">
                   <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
-                    <h3 className="font-extrabold text-gray-900 text-base tracking-tight mb-3.5">Top Skills Gaps Identified</h3>
+                    <div className="flex items-center gap-2 mb-3.5">
+                      <h3 className="font-extrabold text-gray-900 text-[22px] tracking-tight">Top Skills Gaps Identified</h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                        {localSkillsGaps.length}
+                      </span>
+                    </div>
                     <div className="space-y-3">
                       {localSkillsGaps.every(g => g.count === 0) ? (
                         <div className="p-4 bg-emerald-50/40 border border-emerald-100/60 rounded-xl text-center space-y-1 my-1">
-                          <p className="text-xs font-bold text-emerald-800">No Critical Skills Gaps</p>
-                          <p className="text-[10px] text-gray-500 font-medium leading-relaxed">All registered youth in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} have sufficient skill coverage for their preferred sectors.</p>
+                          <h3 className="text-[18px] font-extrabold text-emerald-900 tracking-tight">No Critical Skills Gaps</h3>
+                          <p className="text-[14px] text-gray-600 font-normal leading-relaxed">All registered youth in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} have sufficient skill coverage for their preferred sectors.</p>
                         </div>
                       ) : (
                         localSkillsGaps.slice(0, 3).map((gap) => {
@@ -2649,14 +3016,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
                     <button
                       onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
-                      className="w-full mt-4 py-2.5 text-center border border-dashed border-emerald-300 hover:border-emerald-500 text-xs font-bold text-[#0A6B43] bg-emerald-50/30 hover:bg-emerald-50/60 rounded-xl transition-colors cursor-pointer"
+                      className="w-full mt-4 py-2.5 text-center border border-dashed border-emerald-300 hover:border-emerald-500 text-[14px] font-bold text-[#0A6B43] bg-emerald-50/30 hover:bg-emerald-50/60 rounded-xl transition-colors cursor-pointer"
                     >
                       View Skills Gap Reports →
                     </button>
                   </div>
 
                   <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
-                    <h3 className="font-extrabold text-gray-900 text-base tracking-tight mb-3">Quick Actions</h3>
+                    <h3 className="font-extrabold text-gray-900 text-[22px] tracking-tight mb-3">Quick Actions</h3>
                     <div className="grid grid-cols-1 gap-2.5">
                       <button
                         onClick={() => {
@@ -2722,172 +3089,653 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">KK Member Registry</h3>
-                  <p className="text-xs text-gray-500 font-medium">
-                    {localYouthProfiles.length} registered KK members · Barangay {designatedBarangay}, San Luis
-                  </p>
+              {/* Single Main Card Container for Registered Youth, Search & Results */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Registered Youth on left, Register Youth on right */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Registered Youth</h3>
+                  <button
+                    onClick={() => {
+                      resetRegForm();
+                      setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
+                    }}
+                    className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-4 sm:px-5 py-2.5 rounded-xl text-[14px] font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-4.5 h-4.5 shrink-0" />
+                    <span>Register Youth</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    resetRegForm();
-                    setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
-                  }}
-                  className="bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2 transition-all self-start sm:self-auto cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  Register Youth
-                </button>
-              </div>
 
-              {/* Filter Bar */}
-              <div className="bg-white p-4 sm:p-5 border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col md:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search by name, skill, or purok…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <CustomSelect
-                    value={eduFilter}
-                    onChange={(val) => setEduFilter(val)}
-                    options={[
-                      { value: "All", label: "All Education" },
-                      ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
-                    ]}
-                    size="sm"
-                    placeholder="All Education"
-                  />
+                {/* Second Row: Search bar with current filters + Grid/Table view */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, skill, or purok…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 sm:flex-initial">
+                      <CustomSelect
+                        value={eduFilter}
+                        onChange={(val) => setEduFilter(val)}
+                        options={[
+                          { value: "All", label: "All Education" },
+                          ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Education"
+                      />
 
-                  <CustomSelect
-                    value={ageFilter}
-                    onChange={(val) => setAgeFilter(val)}
-                    options={[
-                      { value: "All", label: "All Ages" },
-                      { value: "15-20", label: "15–20 y/o" },
-                      { value: "21-25", label: "21–25 y/o" },
-                      { value: "26-30", label: "26–30 y/o" }
-                    ]}
-                    size="sm"
-                    placeholder="All Ages"
-                  />
+                      <CustomSelect
+                        value={ageFilter}
+                        onChange={(val) => setAgeFilter(val)}
+                        options={[
+                          { value: "All", label: "All Ages" },
+                          { value: "15-20", label: "15–20 y/o" },
+                          { value: "21-25", label: "21–25 y/o" },
+                          { value: "26-30", label: "26–30 y/o" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Ages"
+                      />
 
-                  <CustomSelect
-                    value={purokFilter}
-                    onChange={(val) => setPurokFilter(val)}
-                    options={[
-                      { value: "All", label: "All Puroks" },
-                      { value: "Purok 1", label: "Purok 1" },
-                      { value: "Purok 2", label: "Purok 2" },
-                      { value: "Purok 3", label: "Purok 3" },
-                      { value: "Purok 4", label: "Purok 4" }
-                    ]}
-                    size="sm"
-                    placeholder="All Puroks"
-                  />
+                      <CustomSelect
+                        value={purokFilter}
+                        onChange={(val) => setPurokFilter(val)}
+                        options={[
+                          { value: "All", label: "All Puroks" },
+                          { value: "Purok 1", label: "Purok 1" },
+                          { value: "Purok 2", label: "Purok 2" },
+                          { value: "Purok 3", label: "Purok 3" },
+                          { value: "Purok 4", label: "Purok 4" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Puroks"
+                      />
 
-                  <CustomSelect
-                    value={matchStatusFilter}
-                    onChange={(val) => setMatchStatusFilter(val)}
-                    options={[
-                      { value: "All", label: "All AI Matches" },
-                      { value: "Excellent", label: "Excellent (≥90%)" },
-                      { value: "Good", label: "Good (75%-89%)" },
-                      { value: "Fair", label: "Fair (50%-74%)" }
-                    ]}
-                    size="sm"
-                    placeholder="All AI Matches"
-                  />
-                </div>
-              </div>
-
-              {/* Grid of Profiles */}
-              {filteredProfiles.length === 0 ? (
-                <EmptyState
-                  title="No Youth Matches Found"
-                  description="We couldn't find any Katipunan ng Kabataan members matching your active filter configuration. Try broadening your criteria."
-                  actionLabel="Clear Filters"
-                  onAction={() => {
-                    setSearchQuery("");
-                    setEduFilter("All");
-                    setAgeFilter("All");
-                    setPurokFilter("All");
-                    setMatchStatusFilter("All");
-                  }}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredProfiles.map((y) => (
-                    <div
-                      key={y.id}
-                      className="bg-white border border-gray-100/80 rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] flex flex-col justify-between"
-                      id={`youth-card-${y.id}`}
-                    >
-                      <div>
-                        {/* Avatar & Header */}
-                        <div className="flex items-start gap-3 mb-3.5">
-                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
-                            {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-gray-900 text-base truncate leading-snug tracking-tight">{y.name}</h4>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {y.gender ? `${y.gender} · ` : ""}{y.age} y/o · {y.purok}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Status Pills */}
-                        <div className="flex flex-wrap gap-1.5 mb-3.5">
-                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-xl uppercase tracking-wider ${y.currentStatus === "Out-of-school"
-                            ? "bg-amber-50 text-amber-700 border border-amber-100"
-                            : "bg-blue-50 text-blue-700 border border-blue-100"
-                            }`}>
-                            {y.currentStatus}
-                          </span>
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 bg-emerald-50 text-[#0A6B43] border border-emerald-100 rounded-xl uppercase">
-                            {y.educationalAttainment}
-                          </span>
-                        </div>
-
-                        {/* Skills Row */}
-                        <div className="space-y-1.5 mb-4">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key Competencies</span>
-                          <div className="flex flex-wrap gap-1">
-                            {y.skills.slice(0, 3).map((skill) => (
-                              <span key={skill} className="text-[10px] font-medium text-emerald-800 bg-emerald-50/60 px-2.5 py-0.5 rounded-xl">
-                                {skill}
-                              </span>
-                            ))}
-                            {y.skills.length > 3 && (
-                              <span className="text-[10px] font-bold text-gray-400 px-1.5 py-0.5">
-                                +{y.skills.length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Match Indicator & CTA */}
-                      <div className="pt-3.5 border-t border-gray-50 flex items-center justify-between">
-                        <FlameMatchScore score={y.matchScore} hasPrograms={programs.length > 0} />
-                        <button
-                          onClick={() => handleViewProfile(y.id)}
-                          className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] px-3.5 py-2 hover:bg-emerald-50 rounded-xl transition-colors cursor-pointer"
-                        >
-                          View Profile →
-                        </button>
-                      </div>
+                      <CustomSelect
+                        value={matchStatusFilter}
+                        onChange={(val) => setMatchStatusFilter(val)}
+                        options={[
+                          { value: "All", label: "All Matches" },
+                          { value: "Excellent", label: "Excellent (≥90%)" },
+                          { value: "Good", label: "Good (75%-89%)" },
+                          { value: "Fair", label: "Fair (50%-74%)" },
+                          { value: "Low", label: "Low Match (<50%)" },
+                          { value: "NoMatches", label: "No Matches" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Matches"
+                      />
                     </div>
-                  ))}
+
+                    {/* View Mode Switcher */}
+                    <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setYouthViewMode("grid")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${youthViewMode === "grid"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                          }`}
+                        title="Grid Cards View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Grid</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setYouthViewMode("table")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${youthViewMode === "table"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                          }`}
+                        title="Table View"
+                      >
+                        <Table className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Table</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* Results Section (Grid View or Table View) */}
+                <div>
+                  {filteredProfiles.length === 0 ? (
+                    <EmptyState
+                      title="No Youth Matches Found"
+                      description="We couldn't find any Katipunan ng Kabataan members matching your active filter configuration. Try broadening your criteria."
+                      actionLabel="Clear Filters"
+                      onAction={() => {
+                        setSearchQuery("");
+                        setEduFilter("All");
+                        setAgeFilter("All");
+                        setPurokFilter("All");
+                        setMatchStatusFilter("All");
+                        setYouthTablePage(1);
+                        setYouthGridPage(1);
+                      }}
+                    />
+                  ) : youthViewMode === "grid" ? (
+                    /* Grid Cards View - Lift on hover instead of green border */
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {paginatedGridProfiles.map((y) => {
+                          const stats = youthMatchStats.get(y.id) || { count: 0, highest: y.matchScore || 0 };
+                          return (
+                            <div
+                              key={y.id}
+                              className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between"
+                              id={`youth-card-${y.id}`}
+                            >
+                              <div>
+                                {/* Avatar - Name, _ years old . gender */}
+                                <div className="flex items-center gap-3 mb-3.5">
+                                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
+                                    {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="font-bold text-gray-900 text-base truncate leading-snug tracking-tight">{y.name}</h4>
+                                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                      {y.age} years old · {y.gender || "Youth"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Break Line between Avatar and Purok */}
+                                <hr className="border-gray-100 my-3.5" />
+
+                                {/* Location (Purok) & Highest Educational Attainment in one row */}
+                                <div className="flex items-center gap-2 text-xs text-gray-600 mb-4 min-w-0">
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span className="font-medium">{y.purok}</span>
+                                  </div>
+                                  <span className="text-gray-300 shrink-0 select-none">·</span>
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span className="truncate font-medium" title={y.educationalAttainment}>
+                                      {y.educationalAttainment}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Key Skills & pills */}
+                                <div className="space-y-1.5 mb-5">
+                                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Key Skills</span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {y.skills && y.skills.length > 0 ? (
+                                      <>
+                                        {y.skills.slice(0, 3).map((skill) => (
+                                          <span key={skill} className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100/70 px-2.5 py-0.5 rounded-full">
+                                            {skill}
+                                          </span>
+                                        ))}
+                                        {y.skills.length > 3 && (
+                                          <span className="text-[10px] font-bold text-gray-400 px-1 py-0.5">
+                                            +{y.skills.length - 3} more
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] font-semibold px-2.5 py-0.5 bg-gray-100 text-gray-500 border border-gray-200/80 rounded-full">
+                                        No Skills Specified
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card Footer: # Match & % Highest Score pills on left, View Profile -> on right */}
+                              <div className="pt-3.5 border-t border-gray-100 flex items-center justify-between gap-2 mt-auto">
+                                {(stats.count > 0 || stats.highest > 0) ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {/* # Match pill with Target icon */}
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-[#0A6B43] border border-emerald-200/80">
+                                      <Target className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                      <span>{Math.max(1, stats.count)} {Math.max(1, stats.count) === 1 ? "Match" : "Matches"}</span>
+                                    </span>
+
+                                    {/* % Highest Score pill with Fire (Flame) icon */}
+                                    {(() => {
+                                      const matchStyle = getMatchStyling(stats.highest);
+                                      return (
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${matchStyle.pillClass}`}>
+                                          <Flame className={`w-3 h-3 shrink-0 ${matchStyle.iconColor}`} />
+                                          <span>{stats.highest}% Highest Score</span>
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <div />
+                                )}
+
+                                {/* View Profile with up-right arrow */}
+                                <button
+                                  onClick={() => handleViewProfile(y.id)}
+                                  className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
+                                >
+                                  <span>View Profile</span>
+                                  <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Grid Pagination Footer (appears when > 15 records) */}
+                      {filteredProfiles.length > 15 && (
+                        <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Showing <span className="font-semibold text-gray-800">{(currentYouthGridPage - 1) * YOUTH_GRID_PER_PAGE + 1}</span> to{" "}
+                            <span className="font-semibold text-gray-800">{Math.min(filteredProfiles.length, currentYouthGridPage * YOUTH_GRID_PER_PAGE)}</span> of{" "}
+                            <span className="font-semibold text-gray-800">{filteredProfiles.length}</span> members
+                          </p>
+
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                            {/* Previous Button */}
+                            <button
+                              type="button"
+                              disabled={currentYouthGridPage === 1}
+                              onClick={() => setYouthGridPage(p => Math.max(1, p - 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                              <span>Previous</span>
+                            </button>
+
+                            {/* Page Numbers & Ellipsis */}
+                            {getPaginationItems(currentYouthGridPage, totalYouthGridPages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span
+                                    key={`ellipsis-grid-${idx}`}
+                                    className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
+                                  >
+                                    ...
+                                  </span>
+                                );
+                              }
+
+                              const pageNum = Number(item);
+                              const isActive = currentYouthGridPage === pageNum;
+
+                              return (
+                                <button
+                                  key={`grid-page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => setYouthGridPage(pageNum)}
+                                  className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
+                                    isActive
+                                      ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                      : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+
+                            {/* Next Button */}
+                            <button
+                              type="button"
+                              disabled={currentYouthGridPage === totalYouthGridPages}
+                              onClick={() => setYouthGridPage(p => Math.min(totalYouthGridPages, p + 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Table View */
+                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-[12px]">
+                          <thead>
+                            <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("name")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "name" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Youth Member (${tableSortColumn === "name" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Youth Member</span>
+                                  {tableSortColumn === "name" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("age")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "age" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Age (${tableSortColumn === "age" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Age</span>
+                                  {tableSortColumn === "age" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("gender")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "gender" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Gender (${tableSortColumn === "gender" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Gender</span>
+                                  {tableSortColumn === "gender" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("location")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "location" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Location (${tableSortColumn === "location" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Location</span>
+                                  {tableSortColumn === "location" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("education")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "education" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Education (${tableSortColumn === "education" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Education</span>
+                                  {tableSortColumn === "education" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("skills")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "skills" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Key Skills (${tableSortColumn === "skills" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Key Skills</span>
+                                  {tableSortColumn === "skills" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("programs")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "programs" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Matched Programs (${tableSortColumn === "programs" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Matched Programs</span>
+                                  {tableSortColumn === "programs" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTableSort("score")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    tableSortColumn === "score" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Highest Score (${tableSortColumn === "score" ? (tableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Highest Score</span>
+                                  {tableSortColumn === "score" ? (
+                                    tableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {paginatedTableProfiles.map((y) => {
+                              const stats = youthMatchStats.get(y.id) || { count: 0, highest: y.matchScore || 0 };
+                              return (
+                                <tr key={y.id} className="hover:bg-emerald-50/30 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
+                                        {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-gray-900 truncate">{y.name}</p>
+                                        <p className="text-[11px] text-gray-400 truncate">{y.email || "No email"}</p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.age} y/o
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.gender || "Youth"}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.purok}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.educationalAttainment}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-wrap gap-1 max-w-xs">
+                                      {y.skills && y.skills.length > 0 ? (
+                                        <>
+                                          {y.skills.slice(0, 2).map((skill) => (
+                                            <span key={skill} className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100/60 px-2 py-0.5 rounded-md">
+                                              {skill}
+                                            </span>
+                                          ))}
+                                          {y.skills.length > 2 && (
+                                            <span className="text-[11px] font-bold text-gray-400 px-1 py-0.5">
+                                              +{y.skills.length - 2}
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <span className="text-[11px] font-semibold px-2 py-0.5 bg-gray-100 text-gray-500 border border-gray-200/80 rounded-md">
+                                          No Skills Specified
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-700 whitespace-nowrap font-semibold text-[12px]">
+                                    {stats.count} {stats.count === 1 ? "Program" : "Programs"}
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    {(() => {
+                                      const styling = getMatchStyling(stats.highest);
+                                      return (
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-16 bg-gray-200 h-2 rounded-full overflow-hidden">
+                                            <div
+                                              className={`h-full rounded-full ${styling.barColor} transition-all duration-300`}
+                                              style={{ width: `${stats.highest > 0 ? Math.min(100, Math.max(6, stats.highest)) : 0}%` }}
+                                            />
+                                          </div>
+                                          <span className={`font-bold text-[12px] ${styling.percentColor}`}>
+                                            {stats.highest}%
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                                    <button
+                                      onClick={() => handleViewProfile(y.id)}
+                                      title="View Profile"
+                                      className="w-8.5 h-8.5 rounded-full bg-white border border-gray-200/90 text-[#0A6B43] shadow-xs hover:bg-[#0A6B43] hover:text-white hover:border-[#0A6B43] hover:shadow-sm inline-flex items-center justify-center transition-all cursor-pointer active:scale-95 group mx-auto outline-none focus:outline-none focus:ring-0 focus-visible:outline-none"
+                                    >
+                                      <ArrowUpRight className="w-4.5 h-4.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Table Pagination Footer */}
+                      {sortedTableProfiles.length > 15 && (
+                        <div className="border-t border-gray-100 px-4 py-3 sm:px-6 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Showing <span className="font-semibold text-gray-800">{(currentYouthTablePage - 1) * YOUTH_TABLE_PER_PAGE + 1}</span> to{" "}
+                            <span className="font-semibold text-gray-800">{Math.min(sortedTableProfiles.length, currentYouthTablePage * YOUTH_TABLE_PER_PAGE)}</span> of{" "}
+                            <span className="font-semibold text-gray-800">{sortedTableProfiles.length}</span> members
+                          </p>
+
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                            {/* Previous Button */}
+                            <button
+                              type="button"
+                              disabled={currentYouthTablePage === 1}
+                              onClick={() => setYouthTablePage(p => Math.max(1, p - 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                              <span>Previous</span>
+                            </button>
+
+                            {/* Page Numbers & Ellipsis */}
+                            {getPaginationItems(currentYouthTablePage, totalYouthTablePages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span
+                                    key={`ellipsis-${idx}`}
+                                    className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
+                                  >
+                                    ...
+                                  </span>
+                                );
+                              }
+
+                              const pageNum = Number(item);
+                              const isActive = currentYouthTablePage === pageNum;
+
+                              return (
+                                <button
+                                  key={`page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => setYouthTablePage(pageNum)}
+                                  className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
+                                    isActive
+                                      ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                      : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+
+                            {/* Next Button */}
+                            <button
+                              type="button"
+                              disabled={currentYouthTablePage === totalYouthTablePages}
+                              onClick={() => setYouthTablePage(p => Math.min(totalYouthTablePages, p + 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -2897,9 +3745,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                  className="inline-flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-[#0A6B43] transition-colors cursor-pointer py-1 -ml-1 sm:ml-0"
+                  className="group inline-flex items-center gap-2 text-[14px] font-bold text-gray-500 hover:text-[#0A6B43] transition-colors cursor-pointer py-1 -ml-1 sm:ml-0"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-4 h-4 transition-transform duration-200 ease-out group-hover:-translate-x-1.5" />
                   Back to Youth Profiles List
                 </button>
               </div>
@@ -2918,7 +3766,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 pt-1 md:pt-0 border-t border-amber-200/60 md:border-t-0">
                     <button
                       onClick={() => setVerifyingYouth(selectedYouth)}
-                      className="flex-1 sm:flex-none px-3.5 py-2 bg-white border border-amber-300 hover:bg-amber-100/50 text-amber-800 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                      className="flex-1 sm:flex-none px-3.5 py-2 bg-white border border-amber-300 hover:bg-amber-100/50 text-amber-800 text-[14px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Inspect ID
                     </button>
@@ -2927,7 +3775,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         handleApproveYouth(selectedYouth.id);
                         setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
                       }}
-                      className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
                     >
                       Approve Profile
                     </button>
@@ -2936,7 +3784,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         handleRejectYouth(selectedYouth.id);
                         setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
                       }}
-                      className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
                     >
                       Reject
                     </button>
@@ -2944,464 +3792,683 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
-                {/* Left Card: Youth Summary (40%) */}
-                <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-2 space-y-5">
-                  <div className="flex flex-col items-center text-center pb-5 border-b border-gray-100">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-lg sm:text-xl mb-3 shadow-sm">
-                      {selectedYouth.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 break-words tracking-tight">{selectedYouth.name}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5 break-words">
-                      {selectedYouth.gender ? `${selectedYouth.gender} · ` : ""}{selectedYouth.age} years old · {selectedYouth.purok}
-                    </p>
-                    <p className="text-xs text-gray-400 break-words">Barangay {selectedYouth.barangay.replace(/^Barangay\s+/i, "")} · San Luis</p>
+              {(() => {
+                const isSameYouth = (rYouthName?: string, rYouthId?: string, youth?: YouthProfile) => {
+                  if (!youth) return false;
+                  if (rYouthId && youth.id && rYouthId === youth.id) return true;
+                  if (!rYouthName) return false;
+                  const a = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                  const b = youth.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                  return a === b || a.includes(b) || b.includes(a);
+                };
 
-                    <div className="flex flex-wrap gap-1.5 justify-center mt-3.5">
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${selectedYouth.currentStatus === "Out-of-school"
-                        ? "bg-amber-50 text-amber-700 border border-amber-100"
-                        : "bg-blue-50 text-blue-700 border border-blue-100"
-                        }`}>
-                        {selectedYouth.currentStatus}
-                      </span>
-                      {selectedYouth.soloParent && (
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 bg-red-50 text-red-700 border border-red-100 rounded-full">
-                          Solo Parent
-                        </span>
-                      )}
-                      {selectedYouth.pwd && (
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full">
-                          PWD
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                const isApplicationCompleted = (status?: string) => {
+                  const s = (status || "").toLowerCase().trim();
+                  return s === "archived" || s === "completed" || s === "done" || s === "graduated";
+                };
 
-                  {/* Skills Section */}
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Primary Competencies</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedYouth.skills.map((skill) => (
-                        <span key={skill} className="text-xs font-semibold text-emerald-800 bg-emerald-50/70 border border-emerald-100/40 px-2.5 py-1 rounded-full">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                const memberReferrals = referrals.filter(r => isSameYouth(r.youthName, (r as any).youthId, selectedYouth));
+                let completedApplications = memberReferrals.filter(r => isApplicationCompleted(r.status));
 
-                  {/* Preferred Sector */}
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block flex items-center gap-1.5">
-                      <Briefcase className="w-3.5 h-3.5 text-[#0A6B43]" />
-                      Preferred Vocational Sector
-                    </span>
-                    <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-[#0A6B43] break-words">{selectedYouth.sectorPreference || "Technical Vocational / Unspecified"}</span>
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-[#0A6B43] text-white rounded-full shrink-0">
-                        Priority Focus
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Livelihood Goal */}
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Livelihood Goal</span>
-                    <div className="p-3.5 bg-emerald-50/50 rounded-lg border border-emerald-100 text-xs italic text-emerald-900 font-medium leading-relaxed break-words">
-                      "{selectedYouth.livelihoodGoal}"
-                    </div>
-                  </div>
-
-                  {/* Contact Information */}
-                  <div className="space-y-2.5 pt-4 border-t border-gray-100 text-xs">
-                    <div className="flex items-center gap-2.5 text-gray-600 min-w-0">
-                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="truncate">{selectedYouth.contactNumber || "+63 917 123 4567"}</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-gray-600 min-w-0">
-                      <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="truncate">Profile Created: {selectedYouth.registeredDate}</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 text-gray-600 min-w-0">
-                      <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="font-semibold text-gray-800 break-all">{selectedYouth.email || "No email registered"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Area: Matched Opportunities (Applied + Best Match) & Completed Training Programs (60%) */}
-                {(() => {
-                  const isSameYouth = (rYouthName?: string, rYouthId?: string, youth?: YouthProfile) => {
-                    if (!youth) return false;
-                    if (rYouthId && youth.id && rYouthId === youth.id) return true;
-                    if (!rYouthName) return false;
-                    const a = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                    const b = youth.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                    return a === b || a.includes(b) || b.includes(a);
-                  };
-
-                  const isApplicationCompleted = (status?: string) => {
-                    const s = (status || "").toLowerCase().trim();
-                    return s === "archived" || s === "completed" || s === "done" || s === "graduated";
-                  };
-
-                  const memberReferrals = referrals.filter(r => isSameYouth(r.youthName, (r as any).youthId, selectedYouth));
-                  let completedApplications = memberReferrals.filter(r => isApplicationCompleted(r.status));
-
-                  // Ensure Glenn's completed Web Development NC III NC II qualification always reflects
-                  const isGlenn = selectedYouth.name.toLowerCase().includes("glenn") || selectedYouth.email?.toLowerCase().includes("glenn");
-                  if (isGlenn && !completedApplications.some(c => c.programTitle.toLowerCase().includes("web"))) {
-                    completedApplications = [
-                      ...completedApplications,
-                      {
-                        id: "cmtqq1swt0009f19sex63fhqs",
-                        youthName: selectedYouth.name,
-                        purok: selectedYouth.purok,
-                        barangay: selectedYouth.barangay,
-                        programTitle: "Web Development NC III NC II",
-                        programId: "cmthm4t0l000kwb3w9eocdnoa",
-                        matchScore: 60,
-                        applicationDate: "Oct 1, 2026",
-                        referralDate: "Oct 1, 2026",
-                        status: "Archived",
-                        program: {
-                          id: "cmthm4t0l000kwb3w9eocdnoa",
-                          title: "Web Development NC III NC II",
-                          provider: "TESDA Pampanga",
-                          location: "TESDA ICT Training Center – Pampanga",
-                          trainingHours: 420,
-                          cost: "Free",
-                          slotsTotal: 25,
-                          slotsRemaining: 0,
-                          eligibility: "At least 18 years old; basic computer literacy; able to communicate effectively"
-                        }
+                // Ensure Glenn's completed Web Development NC III NC II qualification always reflects
+                const isGlenn = selectedYouth.name.toLowerCase().includes("glenn") || selectedYouth.email?.toLowerCase().includes("glenn");
+                if (isGlenn && !completedApplications.some(c => c.programTitle.toLowerCase().includes("web"))) {
+                  completedApplications = [
+                    ...completedApplications,
+                    {
+                      id: "cmtqq1swt0009f19sex63fhqs",
+                      youthName: selectedYouth.name,
+                      purok: selectedYouth.purok,
+                      barangay: selectedYouth.barangay,
+                      programTitle: "Web Development NC III NC II",
+                      programId: "cmthm4t0l000kwb3w9eocdnoa",
+                      matchScore: 60,
+                      applicationDate: "Oct 1, 2026",
+                      referralDate: "Oct 1, 2026",
+                      status: "Archived",
+                      program: {
+                        id: "cmthm4t0l000kwb3w9eocdnoa",
+                        title: "Web Development NC III NC II",
+                        provider: "TESDA Pampanga",
+                        location: "TESDA ICT Training Center – Pampanga",
+                        trainingHours: 420,
+                        cost: "Free",
+                        slotsTotal: 25,
+                        slotsRemaining: 0,
+                        eligibility: "At least 18 years old; basic computer literacy; able to communicate effectively"
                       }
-                    ];
-                  }
+                    }
+                  ];
+                }
 
-                  const isProgramCompleted = (progTitle: string, progId?: string) => {
-                    const t = (progTitle || "").toLowerCase().trim();
-                    return completedApplications.some(c => {
-                      if (progId && c.programId && c.programId === progId) return true;
-                      const ct = c.programTitle.toLowerCase().trim();
-                      return ct === t || (t.length > 3 && ct.includes(t)) || (ct.length > 3 && t.includes(ct));
-                    });
-                  };
-
-                  // Active applied programs that are not completed
-                  const appliedActiveApplications = memberReferrals.filter(r => !isApplicationCompleted(r.status));
-
-                  // Find candidate uncompleted programs and identify the best AI match
-                  const uncompletedPrograms = programs.filter(p => !isProgramCompleted(p.title, p.id));
-                  const scoredUncompleted = uncompletedPrograms
-                    .map(p => ({
-                      prog: p,
-                      matchScore: calculateContentBasedMatchScore(selectedYouth, p)
-                    }))
-                    .sort((a, b) => b.matchScore - a.matchScore);
-
-                  const bestMatch = scoredUncompleted[0];
-
-                  const isBestMatchAlreadyApplied = bestMatch && appliedActiveApplications.some(
-                    app => (bestMatch.prog.id && app.programId === bestMatch.prog.id) ||
-                      app.programTitle.toLowerCase().trim() === bestMatch.prog.title.toLowerCase().trim()
-                  );
-
-                  // Assemble opportunities to display: applied programs + best matched program (even if not applied)
-                  const displayedOpportunities: Array<{
-                    id: string;
-                    title: string;
-                    provider: string;
-                    location: string;
-                    trainingHours: number | string;
-                    cost: string;
-                    slotsText: string;
-                    eligibility: string;
-                    matchScore: number;
-                    statusBadge: React.ReactNode;
-                    appliedDate?: string;
-                    isBestMatchNotApplied?: boolean;
-                  }> = [];
-
-                  // If the best match has not been applied yet, show it prominently
-                  if (bestMatch && !isBestMatchAlreadyApplied) {
-                    const isBestEnded = isProgramEnded(bestMatch.prog);
-                    displayedOpportunities.push({
-                      id: `best-${bestMatch.prog.id}`,
-                      title: bestMatch.prog.title,
-                      provider: bestMatch.prog.provider,
-                      location: bestMatch.prog.location,
-                      trainingHours: bestMatch.prog.trainingHours,
-                      cost: bestMatch.prog.cost,
-                      slotsText: isBestEnded ? "Term Ended" : `${bestMatch.prog.slotsRemaining}/${bestMatch.prog.slotsTotal} slots`,
-                      eligibility: bestMatch.prog.eligibility,
-                      matchScore: bestMatch.matchScore,
-                      isBestMatchNotApplied: true,
-                      statusBadge: isBestEnded ? (
-                        <span className="text-xs font-bold px-3 py-1 rounded-lg border bg-purple-50 text-purple-700 border-purple-300 flex items-center gap-1.5 shrink-0 shadow-2xs">
-                          <Clock className="w-3.5 h-3.5 text-purple-600" /> Best Match · Term Ended
-                        </span>
-                      ) : (
-                        <span className="text-xs font-bold px-3 py-1 rounded-lg border bg-emerald-50 text-[#0A6B43] border-emerald-300 flex items-center gap-1.5 shrink-0 shadow-2xs">
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Best Match · Not Yet Applied
-                        </span>
-                      )
-                    });
-                  }
-
-                  // Add active applied programs
-                  appliedActiveApplications.forEach((app) => {
-                    const prog = programs.find(p => (app.programId && p.id === app.programId) || p.title.toLowerCase().trim() === app.programTitle.toLowerCase().trim()) || app.program;
-                    const isTopFit = bestMatch && (bestMatch.prog.id === app.programId || bestMatch.prog.title.toLowerCase().trim() === app.programTitle.toLowerCase().trim());
-                    const score = app.matchScore || (prog ? calculateContentBasedMatchScore(selectedYouth, prog as any) : selectedYouth.matchScore);
-                    const isEnded = prog ? isProgramEnded(prog as any) : false;
-
-                    displayedOpportunities.push({
-                      id: app.id,
-                      title: prog?.title || app.programTitle,
-                      provider: prog?.provider || "TESDA Partner Provider",
-                      location: prog?.location || "San Luis, Pampanga",
-                      trainingHours: prog?.trainingHours ? `${prog.trainingHours} hrs` : "Standard",
-                      cost: prog?.cost || "Free",
-                      slotsText: prog?.slotsRemaining !== undefined ? (isEnded ? "Term Ended" : `${prog.slotsRemaining}/${prog.slotsTotal} slots`) : "Active Term",
-                      eligibility: prog?.eligibility || "Open to all qualified KK youth",
-                      matchScore: score,
-                      appliedDate: app.applicationDate || app.referralDate,
-                      statusBadge: (
-                        <div className="flex items-center gap-1.5">
-                          {isTopFit && (
-                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 text-[#0A6B43] border border-emerald-250 shrink-0">
-                              Top Fit
-                            </span>
-                          )}
-                          {isEnded && (
-                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
-                              Term Ended
-                            </span>
-                          )}
-                          <span className={`text-xs font-bold px-3 py-1 rounded-lg border shrink-0 text-center ${app.status === "Enrolled"
-                            ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                            : app.status === "Declined"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                            }`}>
-                            {app.status === "Enrolled"
-                              ? "Officially Enrolled ✓"
-                              : app.status === "Declined"
-                                ? "Declined"
-                                : "Application Under Review ⏳"}
-                          </span>
-                        </div>
-                      )
-                    });
+                const isProgramCompleted = (progTitle: string, progId?: string) => {
+                  const t = (progTitle || "").toLowerCase().trim();
+                  return completedApplications.some(c => {
+                    if (progId && c.programId && c.programId === progId) return true;
+                    const ct = c.programTitle.toLowerCase().trim();
+                    return ct === t || (t.length > 3 && ct.includes(t)) || (ct.length > 3 && t.includes(ct));
                   });
+                };
 
-                  return (
-                    <div className="lg:col-span-3 space-y-6">
-                      {/* Section 1: Matched Opportunities (Shows applied programs + best matched unapplied program) */}
-                      <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
-                        <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-3.5 mb-4">
-                          <div className="min-w-0">
-                            <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-1.5 truncate tracking-tight">
-                              <Target className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-                              Matched Opportunities
-                            </h3>
-                            <p className="text-xs text-gray-400 font-medium mt-0.5">
-                              Applied Courses & Top Compatibility Alignment
+                // Active applied programs that are not completed
+                const appliedActiveApplications = memberReferrals.filter(r => !isApplicationCompleted(r.status));
+
+                // Find candidate uncompleted programs and identify the best AI match
+                const uncompletedPrograms = programs.filter(p => !isProgramCompleted(p.title, p.id));
+                const scoredUncompleted = uncompletedPrograms
+                  .map(p => ({
+                    prog: p,
+                    matchScore: calculateContentBasedMatchScore(selectedYouth, p)
+                  }))
+                  .sort((a, b) => b.matchScore - a.matchScore);
+
+                const bestMatch = scoredUncompleted[0];
+
+                const isBestMatchAlreadyApplied = bestMatch && appliedActiveApplications.some(
+                  app => (bestMatch.prog.id && app.programId === bestMatch.prog.id) ||
+                    app.programTitle.toLowerCase().trim() === bestMatch.prog.title.toLowerCase().trim()
+                );
+
+                // Assemble opportunities to display: applied programs + best matched program (even if not applied)
+                const displayedOpportunities: Array<{
+                  id: string;
+                  title: string;
+                  category: string;
+                  provider: string;
+                  location: string;
+                  trainingHours: number | string;
+                  cost: string;
+                  slotsText: string;
+                  eligibility: string;
+                  matchScore: number;
+                  isApplied: boolean;
+                  status: string;
+                  statusBadge: React.ReactNode;
+                  appliedDate?: string;
+                  isBestMatchNotApplied?: boolean;
+                }> = [];
+
+                appliedActiveApplications.forEach((app) => {
+                  const prog = programs.find(p => (app.programId && p.id === app.programId) || p.title.toLowerCase().trim() === app.programTitle.toLowerCase().trim()) || app.program;
+                  const score = app.matchScore || (prog ? calculateContentBasedMatchScore(selectedYouth, prog as any) : selectedYouth.matchScore);
+                  const isEnrolled = app.status === "Enrolled";
+                  const isDeclined = app.status === "Declined";
+
+                  displayedOpportunities.push({
+                    id: app.id,
+                    title: prog?.title || app.programTitle,
+                    category: getProgramCategory(prog),
+                    provider: prog?.provider || "TESDA Partner Provider",
+                    location: prog?.location || "San Luis, Pampanga",
+                    trainingHours: prog?.trainingHours ? `${prog.trainingHours} hrs` : "Standard",
+                    cost: prog?.cost || "Free",
+                    slotsText: prog?.slotsRemaining !== undefined ? (isProgramEnded(prog as any) ? "Term Ended" : `${prog.slotsRemaining}/${prog.slotsTotal} slots`) : "Active Term",
+                    eligibility: prog?.eligibility || "Open to all qualified KK youth",
+                    matchScore: score,
+                    isApplied: true,
+                    status: app.status || "Applied",
+                    appliedDate: app.applicationDate || app.referralDate,
+                    statusBadge: (
+                      <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border shrink-0 flex items-center gap-1 ${
+                        isEnrolled
+                          ? "bg-emerald-50 text-[#0A6B43] border-emerald-250"
+                          : isDeclined
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-emerald-50 text-[#0A6B43] border-emerald-250"
+                      }`}>
+                        {isEnrolled ? (
+                          "Enrolled"
+                        ) : isDeclined ? (
+                          "Declined"
+                        ) : (
+                          <>
+                            <Check className="w-3 h-3 text-[#0A6B43]" /> Applied
+                          </>
+                        )}
+                      </span>
+                    )
+                  });
+                });
+
+                scoredUncompleted.forEach((item) => {
+                  const isAlreadyAdded = displayedOpportunities.some(
+                    d => (item.prog.id && d.id === item.prog.id) ||
+                      d.title.toLowerCase().trim() === item.prog.title.toLowerCase().trim()
+                  );
+                  if (item.matchScore > 0 && !isAlreadyAdded) {
+                    const isEnded = isProgramEnded(item.prog);
+                    displayedOpportunities.push({
+                      id: `match-${item.prog.id}`,
+                      title: item.prog.title,
+                      category: getProgramCategory(item.prog),
+                      provider: item.prog.provider,
+                      location: item.prog.location,
+                      trainingHours: item.prog.trainingHours,
+                      cost: item.prog.cost,
+                      slotsText: isEnded ? "Term Ended" : `${item.prog.slotsRemaining}/${item.prog.slotsTotal} slots`,
+                      eligibility: item.prog.eligibility,
+                      matchScore: item.matchScore,
+                      isApplied: false,
+                      status: "Not Applied",
+                      isBestMatchNotApplied: true,
+                      statusBadge: (
+                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 shrink-0">
+                          Not Applied
+                        </span>
+                      )
+                    });
+                  }
+                });
+
+                displayedOpportunities.sort((a, b) => b.matchScore - a.matchScore);
+
+                const PROFILE_MATCH_PER_PAGE = 3;
+                const totalMatchOppPages = Math.max(1, Math.ceil(displayedOpportunities.length / PROFILE_MATCH_PER_PAGE));
+                const currentMatchOppPage = Math.min(Math.max(1, profileMatchPage), totalMatchOppPages);
+                const paginatedOpportunities = displayedOpportunities.slice(
+                  (currentMatchOppPage - 1) * PROFILE_MATCH_PER_PAGE,
+                  currentMatchOppPage * PROFILE_MATCH_PER_PAGE
+                );
+
+                const PROFILE_COMPLETED_PER_PAGE = 3;
+                const totalCompletedPages = Math.max(1, Math.ceil(completedApplications.length / PROFILE_COMPLETED_PER_PAGE));
+                const currentCompletedPage = Math.min(Math.max(1, profileCompletedPage), totalCompletedPages);
+                const paginatedCompletedApplications = completedApplications.slice(
+                  (currentCompletedPage - 1) * PROFILE_COMPLETED_PER_PAGE,
+                  currentCompletedPage * PROFILE_COMPLETED_PER_PAGE
+                );
+
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left Card: Youth Summary, Personal Info, Skills & Career Goals (lg:col-span-5) */}
+                    <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-5 space-y-5">
+                      {/* Avatar - Name, Email (matching Youth Profile card format) */}
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                          {selectedYouth.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-gray-900 text-lg truncate leading-snug tracking-tight">{selectedYouth.name}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">{selectedYouth.email || "No email provided"}</p>
+                        </div>
+                      </div>
+
+                      {/* Break Line after email */}
+                      <hr className="border-gray-100" />
+
+                      {/* Personal Information */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 pb-0.5">
+                          <User className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+                          <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">Personal Information</h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-gray-900">
+                          {/* Age */}
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Age</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                              {selectedYouth.age} years old
                             </p>
                           </div>
+
+                          {/* Gender */}
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Gender</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                              {selectedYouth.gender || "Female"}
+                            </p>
+                          </div>
+
+                          {/* Contact Number (switched with Location) */}
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Contact Number</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                              {selectedYouth.contactNumber || "+63 967 676 7676"}
+                            </p>
+                          </div>
+
+                          {/* Educational Attainment */}
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Educational Attainment</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                              {selectedYouth.educationalAttainment || "Senior High School Graduate"}
+                            </p>
+                          </div>
+
+                          {/* Registration Date */}
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Registration Date</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                              {selectedYouth.registeredDate || "October 20, 2026"}
+                            </p>
+                          </div>
+
+                          {/* Verified Date */}
+                          <div>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Verified Date</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                              {selectedYouth.approvalStatus === "Approved" ? (selectedYouth.registeredDate || "October 20, 2026") : "October 20, 2026"}
+                            </p>
+                          </div>
+
+                          {/* Location (switched with Contact Number, extended to the right column) */}
+                          <div className="col-span-1 sm:col-span-2">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Location</span>
+                            <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug break-words">
+                              {selectedYouth.purok}, Barangay {selectedYouth.barangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Break line BEFORE additional info */}
+                      <hr className="border-gray-100" />
+
+                      {/* Additional Information */}
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-2">Additional Information</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedYouth.soloParent && (
+                            <span className="text-[11px] font-semibold px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200/80 rounded-full">
+                              Solo Parent
+                            </span>
+                          )}
+                          {selectedYouth.currentStatus === "Out-of-school" && (
+                            <span className="text-[11px] font-semibold px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-full">
+                              Out-of-School Youth
+                            </span>
+                          )}
+                          {selectedYouth.indigenous && (
+                            <span className="text-[11px] font-semibold px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200/80 rounded-full">
+                              Indigenous
+                            </span>
+                          )}
+                          {selectedYouth.pwd && (
+                            <span className="text-[11px] font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded-full">
+                              PWD
+                            </span>
+                          )}
+                          {selectedYouth.currentStatus && selectedYouth.currentStatus !== "Out-of-school" && (
+                            <span className="text-[11px] font-semibold px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200/80 rounded-full">
+                              {selectedYouth.currentStatus}
+                            </span>
+                          )}
+                          {!selectedYouth.soloParent && !selectedYouth.indigenous && !selectedYouth.pwd && !selectedYouth.currentStatus && (
+                            <span className="text-[11px] text-gray-400 italic">None specified</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Break line AFTER additional info */}
+                      <hr className="border-gray-100" />
+
+                      {/* Skills & Career Goals */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 pb-0.5">
+                          <Compass className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+                          <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">Skills & Career Goals</h4>
+                        </div>
+
+                        {/* Key Skills */}
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-2">Key Skills</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedYouth.skills && selectedYouth.skills.length > 0 ? (
+                              selectedYouth.skills.map((skill) => (
+                                <span key={skill} className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
+                                  {skill}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs font-semibold px-3 py-1 bg-gray-100 text-gray-500 border border-gray-200/80 rounded-full">
+                                No Skills Specified
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Preferred Sector */}
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">Preferred Sector</span>
+                          <p className="text-[14px] font-semibold text-gray-900 leading-snug break-words">
+                            {selectedYouth.sectorPreference || "Information & Communications Technology (ICT)"}
+                          </p>
+                        </div>
+
+                        {/* Livelihood Goal */}
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">Livelihood Goal</span>
+                          <p className="text-[14px] font-medium text-gray-800 italic leading-relaxed break-words">
+                            "{selectedYouth.livelihoodGoal || "I want to leverage my skills."}"
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Two Separate Cards (lg:col-span-7 space-y-6) */}
+                    <div className="lg:col-span-7 space-y-6">
+                      {/* Card 1: Matched Opportunities */}
+                      <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-4">
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2 mb-0.5">
+                          <div className="flex items-center gap-2">
+                            <Target className="w-5 h-5 text-emerald-600 shrink-0" />
+                            <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Matched Opportunities</h3>
+                          </div>
                           {displayedOpportunities.length > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2.5 py-0.5 rounded-full shrink-0">
-                              {displayedOpportunities.length} {displayedOpportunities.length === 1 ? "Program" : "Programs"} Available
+                            <span className="text-[11px] font-bold text-gray-700 bg-gray-100/90 border border-gray-200 px-2.5 py-0.5 rounded-full shrink-0">
+                              {displayedOpportunities.length} {displayedOpportunities.length === 1 ? "Program" : "Programs"}
                             </span>
                           )}
                         </div>
 
                         {displayedOpportunities.length === 0 ? (
-                          <div className="bg-gray-50/70 border border-gray-150 rounded-xl p-6 sm:p-8 text-center space-y-2.5">
-                            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-1">
-                              <Target className="w-6 h-6 opacity-80" />
+                          <div className="mt-2 sm:mt-3 bg-gray-50/70 border border-dashed border-gray-200/90 rounded-xl p-8 sm:p-10 text-center">
+                            <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center mx-auto text-gray-400 mb-3">
+                              <SearchX className="w-6 h-6 text-gray-400" />
                             </div>
-                            <p className="text-xs sm:text-sm font-bold text-gray-800">No Matched or Applied Programs</p>
-                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium leading-relaxed max-w-sm mx-auto">
-                              No active training courses match this youth profile at this time. When TESDA partners publish new programs or the member applies directly, they will appear here.
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-gray-800">No Matching Training Programs Yet</p>
+                              <p className="text-xs text-gray-500 max-w-sm mx-auto leading-normal">
+                                Training opportunities matching this member’s skills and preferences will appear here.
+                              </p>
+                            </div>
                           </div>
                         ) : (
-                          <div className="space-y-4">
-                            {displayedOpportunities.map((item) => (
-                              <div
-                                key={item.id}
-                                className={`border rounded-xl p-4 transition-all space-y-3 ${item.isBestMatchNotApplied
-                                  ? "bg-emerald-50/20 border-emerald-250 shadow-2xs hover:border-emerald-400"
-                                  : "bg-gray-50 border-gray-150 hover:border-emerald-200"
-                                  }`}
-                              >
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                                  <div className="min-w-0">
-                                    <h4 className="font-bold text-gray-900 text-sm sm:text-base leading-snug break-words">
-                                      {item.title}
-                                    </h4>
-                                    <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mt-0.5 truncate">
-                                      {item.provider}
-                                    </p>
-                                  </div>
-                                  <FlameMatchScore score={item.matchScore} hasPrograms={true} className="self-start sm:self-auto shrink-0" />
-                                </div>
-
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-gray-600 bg-white p-2.5 rounded-lg border border-gray-150">
-                                  <div className="min-w-0">
-                                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Location</span>
-                                    <span className="font-semibold text-gray-800 truncate block" title={item.location}>
-                                      {item.location}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Duration</span>
-                                    <span className="font-semibold text-gray-800">
-                                      {typeof item.trainingHours === "number" ? `${item.trainingHours} hrs` : item.trainingHours}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Cost</span>
-                                    <span className="font-semibold text-gray-800">{item.cost}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Slots</span>
-                                    <span className="font-semibold text-gray-800">{item.slotsText}</span>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-gray-500 border-t border-gray-100/80 pt-2.5">
-                                  <span className="line-clamp-2 sm:truncate sm:max-w-[280px] flex items-center gap-1" title={item.eligibility}>
-                                    <GraduationCap className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                    <span>{item.eligibility ? `Eligibility: ${item.eligibility}` : "Open to all qualified KK youth"}</span>
-                                  </span>
-                                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                                    {item.appliedDate && (
-                                      <span className="text-[10px] text-gray-400">
-                                        Applied: {item.appliedDate}
-                                      </span>
-                                    )}
+                          <div className="mt-2 sm:mt-3 space-y-3.5">
+                            {paginatedOpportunities.map((item) => {
+                              const styling = getMatchStyling(item.matchScore);
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-2xs hover:border-gray-300 transition-all space-y-3"
+                                >
+                                  {/* Row 1: Program Title & Category on left, Status Badge on right */}
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-0.5">
+                                      <h4 className="font-bold text-gray-900 text-sm sm:text-base leading-snug">
+                                        {item.title}
+                                      </h4>
+                                      <p className="text-xs sm:text-[13px] text-gray-500 font-medium">
+                                        {item.category}
+                                      </p>
+                                    </div>
                                     {item.statusBadge}
                                   </div>
+
+                                  {/* Compatibility Score & Progress Graph */}
+                                  <div className="space-y-1.5 pt-0.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Compatibility Score</span>
+                                      <span className={`text-[10px] font-extrabold uppercase tracking-wider ${styling.percentColor}`}>
+                                        {item.matchScore}% · {styling.label}
+                                      </span>
+                                    </div>
+
+                                    {/* Progress Bar Graph */}
+                                    <div className="w-full bg-gray-200 h-2 sm:h-2 rounded-full overflow-hidden">
+                                      {item.matchScore > 0 ? (
+                                        <div
+                                          className={`${styling.barColor} h-full rounded-full transition-all duration-500`}
+                                          style={{ width: `${Math.min(100, item.matchScore)}%` }}
+                                        />
+                                      ) : (
+                                        <div className="w-0 h-full" />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Pagination Footer (appears when > 3 records) */}
+                            {displayedOpportunities.length > 3 && (
+                              <div className="pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                <p className="text-xs text-gray-500 font-medium">
+                                  Showing <span className="font-semibold text-gray-800">{(currentMatchOppPage - 1) * PROFILE_MATCH_PER_PAGE + 1}</span> to{" "}
+                                  <span className="font-semibold text-gray-800">{Math.min(displayedOpportunities.length, currentMatchOppPage * PROFILE_MATCH_PER_PAGE)}</span> of{" "}
+                                  <span className="font-semibold text-gray-800">{displayedOpportunities.length}</span> {displayedOpportunities.length === 1 ? "opportunity" : "opportunities"}
+                                </p>
+
+                                <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                                  {/* Previous Button */}
+                                  <button
+                                    type="button"
+                                    disabled={currentMatchOppPage === 1}
+                                    onClick={() => setProfileMatchPage(p => Math.max(1, p - 1))}
+                                    className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                                  >
+                                    <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                                    <span>Previous</span>
+                                  </button>
+
+                                  {/* Page Numbers */}
+                                  {getPaginationItems(currentMatchOppPage, totalMatchOppPages).map((item, idx) => {
+                                    if (item === "...") {
+                                      return (
+                                        <span
+                                          key={`match-ellipsis-${idx}`}
+                                          className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
+                                        >
+                                          ...
+                                        </span>
+                                      );
+                                    }
+
+                                    const pageNum = Number(item);
+                                    const isActive = currentMatchOppPage === pageNum;
+
+                                    return (
+                                      <button
+                                        key={`match-page-${pageNum}`}
+                                        type="button"
+                                        onClick={() => setProfileMatchPage(pageNum)}
+                                        className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
+                                          isActive
+                                            ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                            : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                                        }`}
+                                      >
+                                        {pageNum}
+                                      </button>
+                                    );
+                                  })}
+
+                                  {/* Next Button */}
+                                  <button
+                                    type="button"
+                                    disabled={currentMatchOppPage === totalMatchOppPages}
+                                    onClick={() => setProfileMatchPage(p => Math.min(totalMatchOppPages, p + 1))}
+                                    className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                                  >
+                                    <span>Next</span>
+                                    <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                                  </button>
                                 </div>
                               </div>
-                            ))}
+                            )}
                           </div>
                         )}
                       </div>
 
-                      {/* Section 2: Completed Training Programs (Shows concluded/graduated courses) */}
-                      <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                          <div>
-                            <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-1.5 tracking-tight">
-                              <Award className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
-                              Completed Training Programs
-                            </h3>
-                            <p className="text-xs text-gray-400 font-medium mt-0.5">TESDA Certified Qualifications & Concluded Courses</p>
+                      {/* Card 2: Completed Training Programs */}
+                      <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-4">
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2 mb-0.5">
+                          <div className="flex items-center gap-2">
+                            <Award className="w-5 h-5 text-emerald-600 shrink-0" />
+                            <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Completed Training Programs</h3>
                           </div>
                           {completedApplications.length > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2.5 py-0.5 rounded-full shrink-0">
-                              {completedApplications.length} {completedApplications.length === 1 ? "Program" : "Programs"} Completed
+                            <span className="text-[11px] font-bold text-gray-700 bg-gray-100/90 border border-gray-200 px-2.5 py-0.5 rounded-full shrink-0">
+                              {completedApplications.length} {completedApplications.length === 1 ? "Program" : "Programs"}
                             </span>
                           )}
                         </div>
 
                         {completedApplications.length === 0 ? (
-                          <div className="bg-gray-50/70 border border-dashed border-gray-200 rounded-xl p-6 sm:p-8 text-center space-y-2.5">
-                            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-1">
-                              <Award className="w-6 h-6 opacity-80" />
+                          <div className="mt-2 sm:mt-3 bg-gray-50/70 border border-dashed border-gray-200/90 rounded-xl p-8 sm:p-10 text-center">
+                            <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center mx-auto text-gray-400 mb-3">
+                              <FileX className="w-6 h-6 text-gray-400" />
                             </div>
-                            <p className="text-xs sm:text-sm font-bold text-gray-800">No Completed Training Programs Yet</p>
-                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium leading-relaxed max-w-sm mx-auto">
-                              This member has not yet graduated or concluded a TESDA course. Completed qualifications and certified achievements will be recorded here upon term conclusion.
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-gray-800">No Completed Training Programs Yet</p>
+                              <p className="text-xs text-gray-500 max-w-sm mx-auto leading-normal">
+                                Completed TESDA programs and certifications will appear here.
+                              </p>
+                            </div>
                           </div>
                         ) : (
-                          <div className="space-y-3.5">
-                            {completedApplications.map((app) => {
+                          <div className="mt-2 sm:mt-3 space-y-3.5">
+                            {paginatedCompletedApplications.map((app) => {
                               const prog = programs.find(p => (app.programId && p.id === app.programId) || p.title.toLowerCase().trim() === app.programTitle.toLowerCase().trim()) || app.program;
+                              const programTitle = prog?.title || app.programTitle;
+                              const category = getProgramCategory(prog);
+                              const score = app.matchScore || (prog ? calculateContentBasedMatchScore(selectedYouth, prog as any) : 100);
+                              const styling = getMatchStyling(score);
+
                               return (
                                 <div
                                   key={app.id}
-                                  className="bg-emerald-50/40 border border-emerald-200/80 rounded-xl p-3.5 sm:p-4 space-y-3"
+                                  className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-2xs hover:border-gray-300 transition-all space-y-3"
                                 >
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                                    <div className="min-w-0">
-                                      <span className="text-[10px] uppercase font-bold tracking-wider text-[#0A6B43] bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-md inline-block mb-1">
-                                        {prog?.provider || "TESDA Pampanga"}
-                                      </span>
-                                      <h4 className="font-bold text-gray-800 text-xs sm:text-sm leading-snug break-words">
-                                        {prog?.title || app.programTitle}
+                                  {/* Row 1: Program Title & Category on left, Status Badge on right */}
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-0.5">
+                                      <h4 className="font-bold text-gray-900 text-sm sm:text-base leading-snug">
+                                        {programTitle}
                                       </h4>
+                                      <p className="text-xs sm:text-[13px] text-gray-500 font-medium">
+                                        {category}
+                                      </p>
                                     </div>
-                                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-600 text-white shadow-2xs self-start sm:self-auto shrink-0 flex items-center gap-1.5">
-                                      <CheckCircle className="w-3.5 h-3.5" /> Completed & Certified ✓
+                                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-250 shrink-0">
+                                      Completed
                                     </span>
                                   </div>
 
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-gray-600 bg-white p-2.5 rounded-lg border border-emerald-100">
-                                    <div className="min-w-0">
-                                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Location</span>
-                                      <span className="font-semibold text-gray-800 truncate block" title={prog?.location || "TESDA ICT Training Center – Pampanga"}>
-                                        {prog?.location || "TESDA ICT Training Center – Pampanga"}
+                                  {/* Compatibility Score & Progress Graph */}
+                                  <div className="space-y-1.5 pt-0.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Compatibility Score</span>
+                                      <span className={`text-[10px] font-extrabold uppercase tracking-wider ${styling.percentColor}`}>
+                                        {score}% · {styling.label}
                                       </span>
                                     </div>
-                                    <div>
-                                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Training Hours</span>
-                                      <span className="font-semibold text-gray-800">
-                                        {prog?.trainingHours ? `${prog.trainingHours} hrs` : "420 hrs"}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Status</span>
-                                      <span className="font-semibold text-emerald-700">Graduate</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-gray-400 block text-[10px] uppercase font-bold">Concluded Date</span>
-                                      <span className="font-semibold text-gray-800">
-                                        {app.applicationDate || app.referralDate || "Term Concluded"}
-                                      </span>
+
+                                    {/* Progress Bar Graph */}
+                                    <div className="w-full bg-gray-200 h-2 sm:h-2 rounded-full overflow-hidden">
+                                      {score > 0 ? (
+                                        <div
+                                          className={`${styling.barColor} h-full rounded-full transition-all duration-500`}
+                                          style={{ width: `${Math.min(100, score)}%` }}
+                                        />
+                                      ) : (
+                                        <div className="w-0 h-full" />
+                                      )}
                                     </div>
                                   </div>
 
-                                  <div className="p-2.5 bg-white/80 rounded-lg border border-emerald-100/80 flex items-start gap-2 text-[11px] text-emerald-900 font-medium">
-                                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                    <span>
-                                      Vocational qualification achieved! This Katipunan ng Kabataan member has acquired accredited skills and is ready for livelihood placement, local enterprise support, or industry assessment.
-                                    </span>
-                                  </div>
+                                  {/* Row 4: Description */}
+                                  <p className="text-xs sm:text-[13px] text-gray-500 font-medium">
+                                    Certified Qualification · Successfully completed and accredited by TESDA.
+                                  </p>
                                 </div>
                               );
                             })}
+
+                            {/* Pagination Footer (appears when > 3 records) */}
+                            {completedApplications.length > 3 && (
+                              <div className="pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                <p className="text-xs text-gray-500 font-medium">
+                                  Showing <span className="font-semibold text-gray-800">{(currentCompletedPage - 1) * PROFILE_COMPLETED_PER_PAGE + 1}</span> to{" "}
+                                  <span className="font-semibold text-gray-800">{Math.min(completedApplications.length, currentCompletedPage * PROFILE_COMPLETED_PER_PAGE)}</span> of{" "}
+                                  <span className="font-semibold text-gray-800">{completedApplications.length}</span> {completedApplications.length === 1 ? "program" : "programs"}
+                                </p>
+
+                                <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                                  {/* Previous Button */}
+                                  <button
+                                    type="button"
+                                    disabled={currentCompletedPage === 1}
+                                    onClick={() => setProfileCompletedPage(p => Math.max(1, p - 1))}
+                                    className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                                  >
+                                    <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                                    <span>Previous</span>
+                                  </button>
+
+                                  {getPaginationItems(currentCompletedPage, totalCompletedPages).map((item, idx) => {
+                                    if (item === "...") {
+                                      return (
+                                        <span
+                                          key={`comp-ellipsis-${idx}`}
+                                          className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
+                                        >
+                                          ...
+                                        </span>
+                                      );
+                                    }
+
+                                    const pageNum = Number(item);
+                                    const isActive = currentCompletedPage === pageNum;
+
+                                    return (
+                                      <button
+                                        key={`comp-page-${pageNum}`}
+                                        type="button"
+                                        onClick={() => setProfileCompletedPage(pageNum)}
+                                        className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
+                                          isActive
+                                            ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                            : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                                        }`}
+                                      >
+                                        {pageNum}
+                                      </button>
+                                    );
+                                  })}
+
+                                  {/* Next Button */}
+                                  <button
+                                    type="button"
+                                    disabled={currentCompletedPage === totalCompletedPages}
+                                    onClick={() => setProfileCompletedPage(p => Math.min(totalCompletedPages, p + 1))}
+                                    className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                                  >
+                                    <span>Next</span>
+                                    <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
-                  );
-                })()}
-              </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
           {currentScreen === SKOfficialScreen.REGISTER_YOUTH && (
             <div className="space-y-6">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                  className="p-2 rounded-xl border border-gray-200 text-gray-400 hover:text-[#0A6B43] hover:bg-emerald-50/50 transition-all cursor-pointer"
+                  className="h-[38px] px-3 rounded-xl border border-gray-200 text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/50 bg-white transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 text-xs font-semibold"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back</span>
                 </button>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">Register New Youth Member</h2>
-                  <p className="text-xs text-gray-500 font-medium">Encode Katipunan ng Kabataan members profile for skills assessment</p>
+                  <h2 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Register New Youth Member</h2>
                 </div>
               </div>
 
               {/* Form Container */}
-              <div className="max-w-2xl mx-auto bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-6 md:p-8 relative">
+              <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-6 md:p-8 relative">
 
                 {/* AI assessment overlay loader */}
                 {isRegistering && (
@@ -3536,7 +4603,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           value={regName}
                           onChange={(e) => setRegName(e.target.value)}
                           placeholder="e.g. Juan dela Cruz"
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                         />
                       </div>
 
@@ -3551,6 +4618,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               { value: "Female", label: "Female" }
                             ]}
                             size="sm"
+                            buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                             placeholder="Select Gender"
                           />
                         </div>
@@ -3563,7 +4631,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             max={30}
                             value={regAge}
                             onChange={(e) => setRegAge(e.target.value === "" ? "" : Number(e.target.value))}
-                            className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                         </div>
                         <div className="space-y-1">
@@ -3578,6 +4646,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               { value: "Purok 4", label: "Purok 4" }
                             ]}
                             size="sm"
+                            buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                             placeholder="Select Purok"
                           />
                         </div>
@@ -3618,7 +4687,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           value={regContact}
                           onChange={(e) => setRegContact(formatContactNumber(e.target.value))}
                           placeholder="+63 9xx xxx xxxx"
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                         />
                       </div>
                     </div>
@@ -3636,7 +4705,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           value={regEmail}
                           onChange={(e) => setRegEmail(e.target.value)}
                           placeholder="e.g. hazel.palma@sanluispampanga.gov.ph"
-                          className="w-full p-2.5 border border-emerald-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full h-[40px] px-3.5 border border-emerald-200 bg-white rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 transition-colors"
                         />
                       </div>
 
@@ -3651,7 +4720,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           value={regPassword}
                           onChange={(e) => setRegPassword(e.target.value)}
                           placeholder="Min 6 characters"
-                          className="w-full p-2.5 border border-emerald-200 bg-white rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full h-[40px] px-3.5 border border-emerald-200 bg-white rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 transition-colors"
                         />
                       </div>
                     </div>
@@ -3674,6 +4743,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           onChange={(val) => setRegEdu(val)}
                           options={EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))}
                           size="sm"
+                          buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                           placeholder="Select Education"
                         />
                       </div>
@@ -3687,7 +4757,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           type="text"
                           readOnly
                           value="Out-of-school Youth (OSY)"
-                          className="w-full p-2.5 border border-emerald-300 bg-emerald-50/80 rounded-lg text-xs font-extrabold text-emerald-900 cursor-not-allowed shadow-2xs"
+                          className="w-full h-[40px] px-3.5 border border-emerald-300 bg-emerald-50/80 rounded-xl text-[13px] font-extrabold text-emerald-900 cursor-not-allowed shadow-2xs"
                         />
                       </div>
                     </div>
@@ -3710,7 +4780,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         onChange={(e) => setSkillInput(e.target.value)}
                         onKeyDown={handleAddSkill}
                         placeholder="Type a skill e.g. Welding, Food Safety, Typing and press Enter"
-                        className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                        className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                       <div className="flex flex-wrap gap-1 mt-2">
                         {regSkills.map((s) => (
@@ -3732,6 +4802,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           onChange={(val) => setRegSector(val)}
                           options={VOCATIONAL_SECTOR_OPTIONS.map(sec => ({ value: sec, label: sec }))}
                           size="sm"
+                          buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                           placeholder="Select Sector"
                         />
                       </div>
@@ -3744,7 +4815,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           value={regGoal}
                           onChange={(e) => setRegGoal(e.target.value)}
                           placeholder="e.g. Set up computer repair shop, enroll in Welding NC II"
-                          className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                         />
                       </div>
                     </div>
@@ -3818,13 +4889,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       type="button"
                       onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                      className="px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      className="px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 active:scale-95 text-[14px] font-bold rounded-xl transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+                      className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
                     >
                       Register and Generate Matches
                     </button>
@@ -3859,173 +4930,249 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Search & Sector Filter Toolbar */}
-              <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex-1 relative">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    placeholder="Search by program title, provider, or competency skills..."
-                    value={progSearchQuery}
-                    onChange={(e) => setProgSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <CustomSelect
-                    value={progSectorFilter}
-                    onChange={(val) => setProgSectorFilter(val)}
-                    options={[
-                      { value: "All", label: `All Sectors (${programs.length})` },
-                      { value: "IT", label: "IT & Technology" },
-                      { value: "Tourism", label: "Tourism & Hospitality" },
-                      { value: "Automotive", label: "Automotive & Transport" },
-                      { value: "Construction", label: "Construction & Metals" },
-                      { value: "Agriculture", label: "Agriculture" },
-                      { value: "Health", label: "Health & Social Care" }
-                    ]}
-                    size="sm"
-                    placeholder="All Sectors"
-                  />
-                </div>
-              </div>
-
-              {/* Grid lists / Empty State */}
-              {filteredProgramsForSK.length === 0 ? (
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
-                    <Briefcase className="w-7 h-7" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-extrabold text-gray-800 text-base">No Matching TESDA Programs Found</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                      {programs.length === 0
-                        ? "There are currently no active vocational training programs published in the system database. As soon as partner institutions like TESDA GPSAT add new courses, they will appear here."
-                        : "No training programs match your current search query or sector filter. Try adjusting your filters."}
-                    </p>
+              {/* TESDA Programs Catalog Card Container */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Title and Counter Badge */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">TESDA Programs Catalog</h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                      {programs.length}
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredProgramsForSK.map((prog) => {
-                    const isFull = (prog.slotsRemaining || 0) <= 0;
-                    const isEnded = isProgramEnded(prog);
-                    // Count how many verified KK members in this local barangay match this program
-                    const matchedYouthInBrgy = localYouthProfiles.filter(y => calculateContentBasedMatchScore(y, prog) >= 60);
 
-                    return (
-                      <div
-                        key={prog.id}
-                        className="bg-white border border-gray-100/80 hover:border-emerald-300 rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between space-y-4"
+                {/* Second Row: Search & Filters Toolbar */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by program title, provider, or competency skills…"
+                      value={progSearchQuery}
+                      onChange={(e) => setProgSearchQuery(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-8 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                    {progSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setProgSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                        title="Clear search"
                       >
-                        <div className="space-y-3">
-                          {/* Header: Provider badge + Sector */}
-                          <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
-                            <div className="flex items-center gap-2">
-                              <span className="w-7 h-7 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black text-xs shrink-0 border border-emerald-200">
-                                TS
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1 sm:flex-initial">
+                      <CustomSelect
+                        value={progCategoryFilter}
+                        onChange={(val) => setProgCategoryFilter(val)}
+                        options={[
+                          { value: "All", label: "All Categories" },
+                          ...tesdaCategoryOptions
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[170px]"
+                        placeholder="All Categories"
+                      />
+
+                      <CustomSelect
+                        value={progStatusFilter}
+                        onChange={(val) => setProgStatusFilter(val)}
+                        options={[
+                          { value: "All", label: "All Status" },
+                          { value: "Active", label: "Active" },
+                          { value: "Concluded", label: "Concluded" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[120px]"
+                        placeholder="All Status"
+                      />
+
+                      <CustomSelect
+                        value={progCostFilter}
+                        onChange={(val) => setProgCostFilter(val)}
+                        options={[
+                          { value: "All", label: "All Costs" },
+                          { value: "Free", label: "Free / TWSP" },
+                          { value: "Subsidized", label: "Subsidized" },
+                          { value: "With Fee", label: "With Fee" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[120px]"
+                        placeholder="All Costs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid lists / Empty State */}
+                {filteredProgramsForSK.length === 0 ? (
+                  <div className="py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                      <BookOpen className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Matching TESDA Programs Found</h3>
+                      <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                        {programs.length === 0
+                          ? "There are currently no active vocational training programs published in the system database. As soon as partner institutions like TESDA GPSAT add new programs, they will appear here."
+                          : "No training programs match your current search query or filter criteria. Try adjusting your filters."}
+                      </p>
+                      {(progSearchQuery || progCategoryFilter !== "All" || progStatusFilter !== "All" || progCostFilter !== "All") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProgSearchQuery("");
+                            setProgCategoryFilter("All");
+                            setProgStatusFilter("All");
+                            setProgCostFilter("All");
+                          }}
+                          className="mt-2 px-3.5 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                        >
+                          Clear All Filters
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+                    {filteredProgramsForSK.map((prog) => {
+                      const isFull = (prog.slotsRemaining || 0) <= 0;
+                      const isEnded = isProgramEnded(prog);
+                      // Count how many verified KK members in this local barangay match this program
+                      const matchedYouthInBrgy = localYouthProfiles.filter(y => calculateContentBasedMatchScore(y, prog) >= 60);
+
+                      // Count how many KK youth members in this local barangay applied for this program
+                      const appliedYouthInBrgy = referrals.filter(r => {
+                        const matchesProg = (r.programId && r.programId === prog.id) ||
+                          (r.programTitle && r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim());
+                        if (!matchesProg) return false;
+                        const rBrgy = (r.barangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+                        const dBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
+                        return rBrgy === dBrgy || localYouthProfiles.some(y => (r.youthId && y.id === r.youthId) || y.name.toLowerCase().trim() === (r.youthName || "").toLowerCase().trim());
+                      });
+
+                      return (
+                        <div
+                          key={prog.id}
+                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full"
+                        >
+                          <div className="flex-1 flex flex-col">
+                            {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
+                            <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
+                              <div className="min-w-0 space-y-0.5">
+                                <h3 className="font-extrabold text-gray-900 text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                  {prog.title}
+                                </h3>
+                                <p className="text-xs text-gray-500 font-medium truncate">
+                                  {getProgramCategory(prog)}
+                                </p>
+                              </div>
+
+                              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
+                                isEnded
+                                  ? "bg-gray-100 text-gray-600 border-gray-300"
+                                  : isFull
+                                    ? "bg-amber-50 text-amber-800 border-amber-250"
+                                    : "bg-emerald-50 text-[#0A6B43] border-emerald-250"
+                              }`}>
+                                {isEnded ? "Inactive" : "Active"}
                               </span>
-                              <div>
-                                <span className="text-[11px] font-bold text-gray-900 block">{prog.provider}</span>
-                                <span className="text-[10px] text-gray-400 font-medium">National Certificate (NC)</span>
+                            </div>
+
+                            {/* Available Slots Progress Bar */}
+                            <div className="space-y-1.5 pt-2.5 pb-2.5">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Available Slots</span>
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
+                                  {isEnded ? "Concluded" : isFull ? "Slots Full" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
+                                </span>
+                              </div>
+                              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${isEnded ? "bg-gray-400" : isFull ? "bg-red-400" : "bg-[#0A6B43]"}`}
+                                  style={{ width: isEnded ? "100%" : `${Math.min(100, Math.max(0, ((prog.slotsTotal - prog.slotsRemaining) / (prog.slotsTotal || 1)) * 100))}%` }}
+                                />
                               </div>
                             </div>
 
-                            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${isEnded
-                              ? "bg-purple-100 text-purple-800 border-purple-300 flex items-center gap-1"
-                              : isFull
-                                ? "bg-red-50 text-red-700 border-red-200"
-                                : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              }`}>
-                              {isEnded ? "Term Ended" : isFull ? "Slots Filled" : "Active Offering"}
-                            </span>
-                          </div>
-
-                          {/* Program Title */}
-                          <div>
-                            <h3 className="font-extrabold text-gray-900 text-base leading-snug tracking-tight">{prog.title}</h3>
-                            {prog.eligibility && (
-                              <p className="text-xs text-gray-500 font-medium mt-1 line-clamp-2 leading-relaxed">
-                                {prog.eligibility}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Key Specs Pills */}
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
-                              <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="truncate">{prog.trainingHours} Hours {isEnded ? "(Concluded)" : ""}</span>
-                            </div>
-                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
-                              <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="truncate">{prog.location.includes("GPSAT") || prog.location.includes("PTC") ? "GPSAT Campus" : "San Luis Hub"}</span>
-                            </div>
-                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
-                              <Award className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="truncate">{prog.cost || "Free / TWSP"}</span>
-                            </div>
-                            <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-1.5 text-gray-700">
-                              <Briefcase className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span className="truncate">{prog.type || "Vocational Training"}</span>
-                            </div>
-                          </div>
-
-                          {/* Slots Progress Bar */}
-                          <div>
-                            <div className="flex justify-between text-[11px] font-semibold text-gray-500 mb-1">
-                              <span>{isEnded ? "Status" : "Available Slots"}</span>
-                              <span className={isEnded ? "text-purple-700 font-bold" : isFull ? "text-red-600 font-bold" : "text-gray-900 font-bold"}>
-                                {isEnded ? "CONCLUDED" : isFull ? "FULL" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
+                            {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
+                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pb-3">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
+                                Target Competencies
                               </span>
-                            </div>
-                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${isEnded ? "bg-purple-400" : isFull ? "bg-red-400" : "bg-[#0A6B43]"}`}
-                                style={{ width: isEnded ? "100%" : `${Math.min(100, Math.max(0, ((prog.slotsTotal - prog.slotsRemaining) / (prog.slotsTotal || 1)) * 100))}%` }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Competencies / Skills Acquired */}
-                          {prog.requiredSkills && prog.requiredSkills.length > 0 && (
-                            <div>
-                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">Target Competencies</span>
-                              <div className="flex flex-wrap gap-1">
-                                {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
-                                  <span key={sIdx} className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
-                                    {skill}
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
+                                  <>
+                                    {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
+                                      <span key={sIdx} className="text-[11px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
+                                        {toTitleCase(skill)}
+                                      </span>
+                                    ))}
+                                    {prog.requiredSkills.length > 3 && (
+                                      <span className="text-[10px] text-gray-400 font-bold self-center">
+                                        +{prog.requiredSkills.length - 3} more
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-gray-400 italic py-0.5">
+                                    General Technical Skills
                                   </span>
-                                ))}
-                                {prog.requiredSkills.length > 3 && (
-                                  <span className="text-[10px] text-gray-400 font-bold">+{prog.requiredSkills.length - 3} more</span>
                                 )}
                               </div>
                             </div>
-                          )}
-                        </div>
 
-                        {/* Card Footer: Local Barangay Matched Youth Count */}
-                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-1.5 text-xs text-[#0A6B43] font-bold bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-xl w-full justify-between">
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3.5 h-3.5" />
-                              <span>{matchedYouthInBrgy.length} Youth Matched in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</span>
-                            </span>
-                            <span className="text-[10px] font-extrabold bg-white text-emerald-800 px-1.5 py-0.2 rounded-md border border-emerald-200">
-                              {localYouthProfiles.length > 0 ? `${Math.round((matchedYouthInBrgy.length / localYouthProfiles.length) * 100)}%` : "0%"}
-                            </span>
+                            {/* Main Content: Number of Youth Match & Youth Applied (Pinned to bottom of upper flex) */}
+                            <div className="border-t border-gray-100 mt-auto">
+                              {/* Row 1: Number of Youth Match */}
+                              <div className="py-2.5 flex justify-between items-center gap-2">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 leading-normal">
+                                  Number of Youth Match in Brgy. {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 shrink-0 leading-normal" title={localYouthProfiles.length > 0 ? `${Math.round((matchedYouthInBrgy.length / localYouthProfiles.length) * 100)}% of verified youth in ${designatedBarangay}` : "0%"}>
+                                  {matchedYouthInBrgy.length} Matched
+                                </span>
+                              </div>
+
+                              {/* Thin gray line between them */}
+                              <div className="border-t border-gray-100" />
+
+                              {/* Row 2: Youth Applied */}
+                              <div className="py-2.5 flex justify-between items-center gap-2">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 leading-normal">
+                                  Youth Applied in Brgy. {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 shrink-0 leading-normal">
+                                  {appliedYouthInBrgy.length} Applied
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer: View Program Details with up-right arrow */}
+                          <div className="pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProgramForModal(prog)}
+                              className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
+                            >
+                              <span>View Program Details</span>
+                              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                            </button>
                           </div>
                         </div>
-
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
           {currentScreen === SKOfficialScreen.SKILLS_GAP && (
             <div className="space-y-5 sm:space-y-6">
@@ -4051,12 +5198,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Header & Controls Toolbar */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">Competency Diagnostics</h3>
-                  <p className="text-xs text-gray-500 font-medium mt-0.5">
-                    Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} · Labor Market Alignment
-                  </p>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Competency Diagnostics</h3>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                    {localSkillsGaps.length}
+                  </span>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                   <div className="w-full sm:w-auto min-w-[200px]">
@@ -4072,6 +5219,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         { value: "Agriculture", label: "Agriculture & Agribusiness" }
                       ]}
                       size="sm"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
                       placeholder="All Sector Categories"
                     />
                   </div>
@@ -4079,7 +5227,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       type="button"
                       onClick={handleExportSkillsGapExcel}
-                      className="flex-1 sm:flex-none justify-center bg-white hover:bg-gray-50 text-emerald-800 border border-emerald-300 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                      className="flex-1 sm:flex-none justify-center h-[38px] px-4 rounded-xl border border-gray-200 bg-white text-emerald-800 hover:bg-emerald-50 text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
                       title="Export Skills Gap Report to styled Excel spreadsheet (.xls)"
                     >
                       <Download className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -4088,7 +5236,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsSkillsGapReportModalOpen(true)}
-                      className="flex-1 sm:flex-none justify-center bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                      className="flex-1 sm:flex-none justify-center h-[38px] px-4 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
                       title="Generate printable Skills Gap Analytics report and PDF summary"
                     >
                       <Printer className="w-4 h-4 shrink-0" />
@@ -4103,9 +5251,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                     <BarChart2 className="w-7 h-7" />
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="font-extrabold text-gray-800 text-base">No Youth Registered Yet</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
+                  <div className="space-y-1.5">
+                    <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Youth Registered Yet</h3>
+                    <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
                       Skills gap analytics are calculated automatically from registered youth profiles in <strong>Barangay {designatedBarangay}</strong>. Once KK members register or self-verify, their skill gaps will analyze here.
                     </p>
                   </div>
@@ -4205,15 +5353,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 sm:gap-6">
                         {/* Competency Deficiency Analysis Card */}
-                        <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
+                        <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 border-b border-gray-100 pb-3">
-                            <div>
-                              <h3 className="font-extrabold text-gray-900 text-base tracking-tight">Competency Deficiency Analysis</h3>
-                              <p className="text-xs text-gray-500 font-medium mt-0.5">Relative skill deficiency rates across registered youth</p>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Competency Deficiency Analysis</h3>
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                                {filteredGaps.length}
+                              </span>
                             </div>
-                            <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 uppercase tracking-wider self-start sm:self-auto">
-                              {filteredGaps.length} {filteredGaps.length === 1 ? "Identified Gap" : "Identified Gaps"}
-                            </span>
                           </div>
 
                           {/* Criticality Rating Legend for Academic & Executive Triage */}
@@ -4238,7 +5385,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           </div>
 
                           {filteredGaps.length === 0 ? (
-                            <div className="text-center py-8 px-4 text-xs text-gray-400 bg-gray-50/60 rounded-xl border border-gray-100">
+                            <div className="text-center py-8 px-4 text-[14px] text-gray-400 bg-gray-50/60 rounded-xl border border-gray-100">
                               No competency gaps found under the "{analyticsSectorFilter}" sector category.
                             </div>
                           ) : (
@@ -4283,16 +5430,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         </div>
 
                         {/* AI Strategic Policy Recommendations */}
-                        <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-2 space-y-4">
+                        <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-2 space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 border-b border-gray-100 pb-3">
                             <div>
-                              <h3 className="font-extrabold text-gray-900 text-base tracking-tight">AI Policy Directives</h3>
+                              <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight leading-tight">AI Policy Directives</h3>
                               <p className="text-xs text-gray-500 font-medium mt-0.5">Strategic youth livelihood & TVET pathways</p>
                             </div>
                             <button
                               onClick={handleGenerateAiPolicyReport}
                               disabled={isGeneratingAiReport}
-                              className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50 active:scale-95"
+                              className="w-full sm:w-auto justify-center h-[38px] px-4 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
                             >
                               <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                               <span>{isGeneratingAiReport ? "Analyzing..." : "Ask Gemini AI"}</span>
@@ -4368,11 +5515,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Active Bulletins Card Container */}
-              <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                {/* Card Header Toolbar */}
-                <div className="p-4 sm:p-6 pb-0 sm:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-[22px] font-extrabold text-gray-900 tracking-tight">Active Announcements</h3>
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Title and Post Button */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Active Announcements</h3>
                     <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
                       {localAnnouncements.length}
                     </span>
@@ -4397,38 +5544,37 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   </button>
                 </div>
 
-                {/* Card Body */}
-                <div className="p-4 sm:p-6 space-y-5">
-                  {/* Search & Category Filter Toolbar */}
-                  {localAnnouncements.length > 0 && (
-                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
-                      <div className="flex-1 relative">
-                        <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                        <input
-                          type="text"
-                          placeholder="Search announcements by title, content, venue, or contact..."
-                          value={annSearchQuery}
-                          onChange={(e) => setAnnSearchQuery(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs text-gray-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                        />
-                      </div>
-                      <div className="w-full sm:w-48 shrink-0">
-                        <CustomSelect
-                          value={annCategoryFilter}
-                          onChange={(val) => setAnnCategoryFilter(val)}
-                          options={[
-                            { value: "All", label: `All Categories (${localAnnouncements.length})` },
-                            { value: "Program Update", label: "Program Update" },
-                            { value: "Event", label: "Event" },
-                            { value: "Reminder", label: "Reminder" },
-                            { value: "General", label: "General" }
-                          ]}
-                          size="sm"
-                          placeholder="All Categories"
-                        />
-                      </div>
+                {/* Second Row: Search & Category Filter Toolbar */}
+                {localAnnouncements.length > 0 && (
+                  <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search announcements by title, content, venue, or contact…"
+                        value={annSearchQuery}
+                        onChange={(e) => setAnnSearchQuery(e.target.value)}
+                        className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
                     </div>
-                  )}
+                    <div className="w-full lg:w-48 shrink-0">
+                      <CustomSelect
+                        value={annCategoryFilter}
+                        onChange={(val) => setAnnCategoryFilter(val)}
+                        options={[
+                          { value: "All", label: `All Categories (${localAnnouncements.length})` },
+                          { value: "Program Update", label: "Program Update" },
+                          { value: "Event", label: "Event" },
+                          { value: "Reminder", label: "Reminder" },
+                          { value: "General", label: "General" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Categories"
+                      />
+                    </div>
+                  </div>
+                )}
 
                   {/* Announcements cards / Empty State */}
                   {localAnnouncements.length === 0 ? (
@@ -4448,22 +5594,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           No Announcements Yet
                         </h3>
                         <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
-                          Keep your KK youth updated by posting your first barangay announcement.
+                          Keep your KK youth updated by posting an important barangay announcement today.
                         </p>
                       </div>
                     </div>
                   ) : filteredAnnouncements.length === 0 ? (
                     <div className="py-10 text-center max-w-md mx-auto space-y-2">
                       <Search className="w-8 h-8 text-gray-300 mx-auto" />
-                      <p className="text-sm font-bold text-gray-800">No Announcements Match Your Search</p>
-                      <p className="text-xs text-gray-500">Try adjusting your keyword search or category filter.</p>
+                      <p className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Announcements Match Your Search</p>
+                      <p className="text-[14px] text-gray-500 leading-relaxed font-normal">Try adjusting your keyword search or category filter.</p>
                       <button
                         type="button"
                         onClick={() => {
                           setAnnSearchQuery("");
                           setAnnCategoryFilter("All");
                         }}
-                        className="mt-2 text-xs font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                        className="mt-2 text-[14px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
                       >
                         Reset Filters
                       </button>
@@ -4476,9 +5622,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         return (
                           <div
                             key={ann.id}
-                            className={`bg-white border rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-4 ${isCancelled
+                            className={`bg-white border rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between space-y-4 ${isCancelled
                               ? "border-red-200 bg-red-50/20"
-                              : "border-gray-200/80 hover:border-emerald-200"
+                              : "border-gray-200/90 hover:border-emerald-200"
                               }`}
                           >
                             <div className="space-y-3">
@@ -4590,8 +5736,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   )}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
           {currentScreen === SKOfficialScreen.SETTINGS && (
             <div className="space-y-6">
@@ -4608,7 +5753,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Settings & Profile
+                    Settings
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     Manage official administrative profile, security credentials, system notifications, and ID credentials.
@@ -4634,7 +5779,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         key={tab.id}
                         type="button"
                         onClick={() => setActiveSettingsTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${isActive
+                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[14px] font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${isActive
                           ? "bg-[#0A6B43] text-white shadow-xs"
                           : "bg-transparent text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/70"
                           }`}
@@ -4671,8 +5816,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   >
                     <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
                       <div className="border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                          <User className="w-4.5 h-4.5 text-[#0A6B43]" />
+                        <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                          <User className="w-5 h-5 text-[#0A6B43]" />
                           Personal Demographics
                         </h3>
                       </div>
@@ -4692,14 +5837,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 required
                                 value={settingsName}
                                 onChange={(e) => setSettingsName(e.target.value)}
-                                className="w-full p-2.5 border rounded-lg text-sm font-medium transition-colors bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                               />
                             ) : (
                               <input
                                 type="text"
                                 disabled
                                 value={settingsName}
-                                className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                                className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                               />
                             )}
                           </div>
@@ -4710,7 +5855,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               type="text"
                               disabled
                               value={settingsPos}
-                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                             />
                           </div>
 
@@ -4722,14 +5867,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 required
                                 value={settingsEmail}
                                 onChange={(e) => setSettingsEmail(e.target.value)}
-                                className="w-full p-2.5 border rounded-lg text-sm font-medium transition-colors bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                               />
                             ) : (
                               <input
                                 type="email"
                                 disabled
                                 value={settingsEmail}
-                                className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                                className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                               />
                             )}
                           </div>
@@ -4742,14 +5887,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 required
                                 value={settingsPhone}
                                 onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
-                                className="w-full p-2.5 border rounded-lg text-sm font-medium transition-colors bg-white border-gray-300 text-gray-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                               />
                             ) : (
                               <input
                                 type="text"
                                 disabled
                                 value={settingsPhone || "Not configured"}
-                                className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                                className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                               />
                             )}
                           </div>
@@ -4769,7 +5914,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               type="text"
                               disabled
                               value={`Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}`}
-                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                             />
                           </div>
                           <div className="space-y-1">
@@ -4778,7 +5923,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               type="text"
                               disabled
                               value="San Luis"
-                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                             />
                           </div>
                           <div className="space-y-1">
@@ -4787,7 +5932,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               type="text"
                               disabled
                               value="Pampanga"
-                              className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default"
+                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
                             />
                           </div>
                         </div>
@@ -4808,14 +5953,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 }
                               }}
                               disabled={isSavingProfile}
-                              className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
+                              className="px-4 py-2.5 rounded-xl text-[14px] font-bold text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 transition-all cursor-pointer"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={isSavingProfile}
-                              className="px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332]"
+                              className="px-5 py-2.5 rounded-xl text-[14px] font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-95"
                             >
                               {isSavingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                               Save Profile Changes
@@ -4825,7 +5970,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => setIsEditingProfile(true)}
-                            className="px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332]"
+                            className="px-5 py-2.5 rounded-xl text-[14px] font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-95"
                           >
                             <Edit className="w-4 h-4" />
                             Edit Profile Details
@@ -4848,8 +5993,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   >
                     <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
                       <div className="border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                          <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
+                        <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                          <Lock className="w-5 h-5 text-[#0A6B43]" />
                           Account Security & Password
                         </h3>
                       </div>
@@ -4863,7 +6008,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
                             placeholder="Enter current password..."
-                            className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            className="w-full h-[40px] px-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                           <button
                             type="button"
@@ -4884,7 +6029,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             placeholder="Enter new password (min. 6 characters)..."
-                            className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            className="w-full h-[40px] px-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                           <button
                             type="button"
@@ -4905,7 +6050,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="Re-type new password..."
-                            className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                            className="w-full h-[40px] px-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                           />
                           <button
                             type="button"
@@ -4921,7 +6066,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         <button
                           type="submit"
                           disabled={isChangingPassword}
-                          className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                          className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-[14px] font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
                         >
                           {isChangingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                           Update Account Password
@@ -4964,13 +6109,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   >
                     <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
                       <div className="border-b border-gray-100 pb-3">
-                        <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                          <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                        <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                          <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
                           Official SK Digital ID Card
                         </h3>
-                        <p className="text-sm text-gray-400 font-medium mt-0.5">
-                          Official Sangguniang Kabataan identification credential for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
-                        </p>
                       </div>
 
                       {/* Official Digital ID Card */}
@@ -5114,7 +6256,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             );
                             addToast("Official Digital ID Card information copied to clipboard!", "success");
                           }}
-                          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-sm rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                          className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[14px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                         >
                           <Copy className="w-4 h-4 text-[#0A6B43]" />
                           Copy Digital ID Info
@@ -5150,599 +6292,616 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Action Toolbar with Scope & Controls */}
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3.5 sm:gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                    Barangay Governance
-                  </span>
-                  <span className="text-xs font-bold text-gray-500">
-                    Barangay {designatedBarangay} · {councilors.length} Members
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
-                  {/* View Mode Switcher */}
-                  <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-bold">
-                    <button
-                      onClick={() => setCouncilorViewMode("grid")}
-                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${councilorViewMode === "grid"
-                        ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
-                        : "text-gray-500 hover:text-gray-800"
-                        }`}
-                      title="Grid Cards View"
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                      <span className="hidden md:inline">Grid</span>
-                    </button>
-                    <button
-                      onClick={() => setCouncilorViewMode("table")}
-                      className={`p-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${councilorViewMode === "table"
-                        ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
-                        : "text-gray-500 hover:text-gray-800"
-                        }`}
-                      title="Table View"
-                    >
-                      <Table className="w-4 h-4" />
-                      <span className="hidden md:inline">Table</span>
-                    </button>
+              {/* SK Council Members Card Container */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Card Header Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">SK Council Members</h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                      {localCouncilors.length}
+                    </span>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      if (localCouncilors.length >= 11) {
-                        addToast("Council roster is at full capacity (Maximum 11 members: 7 Councilors, 2 Secretaries, 2 Treasurers).", "info");
-                        return;
-                      }
-                      setCouncilorName("");
-                      setCouncilorEmail("");
-                      if (roleCounts.councilorsCount < 7) {
-                        setCouncilorRole("SK Councilor");
-                      } else if (roleCounts.secretariesCount < 2) {
-                        setCouncilorRole("Secretary");
-                      } else if (roleCounts.treasurersCount < 2) {
-                        setCouncilorRole("Treasurer");
-                      }
-                      generateCouncilorPassword();
-                      setIsAddCouncilorOpen(true);
-                    }}
-                    className="bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Member ({localCouncilors.length}/11)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Newly Created Councilor Credentials Callout Banner */}
-              {createdCouncilorAccount && (
-                <div className="bg-gradient-to-r from-emerald-950 via-[#164132] to-[#0D2E22] rounded-2xl p-5 sm:p-6 text-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-emerald-500/40 relative animate-in fade-in slide-in-from-top-3 duration-200">
-                  <button
-                    onClick={() => setCreatedCouncilorAccount(null)}
-                    className="absolute top-3 right-3 text-emerald-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                    title="Dismiss"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="space-y-1.5 max-w-2xl pr-8 lg:pr-0">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-900/80 px-2.5 py-0.5 rounded-md border border-emerald-600/40">
-                          Account Provisioned & Ready
-                        </span>
-                      </div>
-                      <h3 className="text-base font-extrabold text-white">
-                        {createdCouncilorAccount.role}: {createdCouncilorAccount.name}
-                      </h3>
-                      <p className="text-xs text-emerald-100/80 leading-relaxed">
-                        Official login credentials have been configured. Provide these details to the member to allow them to access the Barangay {designatedBarangay} official portal.
-                      </p>
-                      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 pt-1.5 text-xs">
-                        <span className="bg-black/35 px-3 py-1.5 rounded-lg border border-white/10 text-emerald-200 font-mono break-all">
-                          Email: <strong className="text-white">{createdCouncilorAccount.email}</strong>
-                        </span>
-                        <span className="bg-black/35 px-3 py-1.5 rounded-lg border border-white/10 text-emerald-200 font-mono break-all">
-                          Temp Password: <strong className="text-amber-300">{createdCouncilorAccount.password}</strong>
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto shrink-0">
+                    {/* View Mode Switcher */}
+                    <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => {
-                          const text = `Sangguniang Kabataan Portal Access Credentials\nBarangay: Barangay ${designatedBarangay}\nName: ${createdCouncilorAccount.name}\nRole: ${createdCouncilorAccount.role}\nLogin Email: ${createdCouncilorAccount.email}\nTemporary Password: ${createdCouncilorAccount.password}\nPortal Link: ${window.location.origin}`;
-                          navigator.clipboard?.writeText(text);
-                          addToast("Credentials copied to clipboard!", "success");
-                        }}
-                        className="w-full sm:w-auto px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                      >
-                        <Copy className="w-4 h-4" />
-                        Copy Full Credentials
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Executive Stat Cards Grid (Responsive 2x2 on Mobile, 4-col on Desktop) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* Stat 1: Total Members */}
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Council Roster</span>
-                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0">
-                      <Users2 className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900">{localCouncilors.length}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 11 Capacity</span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate" title="7 SK Councilors • 2 Secretaries • 2 Treasurers">
-                      7 Councilors • 2 Sec • 2 Treas
-                    </p>
-                  </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-[#0A6B43] h-full transition-all duration-300 rounded-full"
-                      style={{ width: `${Math.min((localCouncilors.length / 11) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Stat 2: Active Officials */}
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Active Officials</span>
-                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100 shrink-0">
-                      <UserCheck className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900">{activeCouncilorCount}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
-                        {localCouncilors.length > 0 ? Math.round((activeCouncilorCount / localCouncilors.length) * 100) : 0}%
-                      </span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 flex items-center gap-1.5 truncate">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
-                      Authorized Access
-                    </p>
-                  </div>
-                </div>
-
-                {/* Stat 3: Appointees */}
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Appointees</span>
-                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100 shrink-0">
-                      <Shield className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900">
-                        {roleCounts.secretariesCount + roleCounts.treasurersCount}
-                      </span>
-                      <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 4 Appointees</span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate">
-                      {roleCounts.secretariesCount}/2 Sec • {roleCounts.treasurersCount}/2 Treas
-                    </p>
-                  </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-                      style={{ width: `${Math.min(((roleCounts.secretariesCount + roleCounts.treasurersCount) / 4) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Stat 4: Presiding Officer */}
-                <div className="bg-linear-to-br from-emerald-950 to-[#1C2B20] text-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3 border border-emerald-800/40">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300 uppercase tracking-wider truncate">Presiding Officer</span>
-                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-800/60 text-amber-400 flex items-center justify-center border border-emerald-700/50 shrink-0">
-                      <Award className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm sm:text-base font-extrabold text-white truncate" title={settingsName}>
-                      {settingsName}
-                    </h4>
-                    <p className="text-[10px] sm:text-[11px] text-amber-400 font-bold uppercase tracking-wider mt-0.5">
-                      SK Chairperson
-                    </p>
-                    <p className="text-[9px] sm:text-[10px] text-emerald-300 font-medium mt-0.5 truncate">
-                      Barangay {designatedBarangay}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters & Search Toolbar */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-3">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  {/* Search Bar */}
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={councilorSearch}
-                      onChange={(e) => setCouncilorSearch(e.target.value)}
-                      placeholder="Search by name, email, or contact..."
-                      className="w-full pl-9.5 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden transition-all"
-                    />
-                    {councilorSearch && (
-                      <button
-                        onClick={() => setCouncilorSearch("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        title="Clear search"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Status Filter */}
-                  <div className="flex items-center gap-1.5 self-start md:self-auto flex-wrap">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase mr-1">Status:</span>
-                    {["All", "Active", "Inactive"].map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => setCouncilorStatusFilter(st)}
-                        className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${councilorStatusFilter === st
-                          ? "bg-emerald-900 text-white shadow-2xs"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        type="button"
+                        onClick={() => setCouncilorViewMode("grid")}
+                        className={`h-full px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer text-xs ${councilorViewMode === "grid"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                           }`}
+                        title="Grid Cards View"
                       >
-                        {st}
+                        <LayoutGrid className="w-4 h-4" />
+                        <span className="hidden md:inline">Grid</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Role Filter Pills */}
-                <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-gray-100 overflow-x-auto pb-1 scrollbar-none">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase shrink-0">Role Filter:</span>
-                  {[
-                    { id: "All", label: `All (${localCouncilors.length}/11)` },
-                    { id: "SK Councilor", label: `Councilors (${roleCounts.councilorsCount}/7)` },
-                    { id: "Secretary", label: `Secretaries (${roleCounts.secretariesCount}/2)` },
-                    { id: "Treasurer", label: `Treasurers (${roleCounts.treasurersCount}/2)` }
-                  ].map((rf) => (
-                    <button
-                      key={rf.id}
-                      onClick={() => setCouncilorRoleFilter(rf.id)}
-                      className={`px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${councilorRoleFilter === rf.id
-                        ? "bg-[#0A6B43] text-white shadow-2xs font-bold"
-                        : "bg-gray-50 text-gray-600 hover:bg-gray-150 border border-gray-200"
-                        }`}
-                    >
-                      {rf.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Councilors Roster View / Empty States */}
-              {localCouncilors.length === 0 ? (
-                /* Primary Empty State */
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto shadow-2xs">
-                    <Users2 className="w-7 h-7 sm:w-8 sm:h-8" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <h3 className="font-extrabold text-gray-900 text-base sm:text-lg">Build Your Barangay SK Council</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                      No councilors, secretaries, or treasurers are registered for <strong>Barangay {designatedBarangay}</strong> yet. Provision accounts to empower your team with administrative portal access.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setCouncilorName("");
-                      setCouncilorEmail("");
-                      setCouncilorRole("SK Councilor");
-                      generateCouncilorPassword();
-                      setIsAddCouncilorOpen(true);
-                    }}
-                    className="inline-flex items-center gap-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add First Council Member
-                  </button>
-                </div>
-              ) : filteredCouncilors.length === 0 ? (
-                /* Filter Result Empty State */
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-8 sm:p-10 text-center max-w-md mx-auto space-y-3 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 mx-auto">
-                    <Search className="w-6 h-6" />
-                  </div>
-                  <h4 className="font-bold text-gray-800 text-sm">No Matching Council Members</h4>
-                  <p className="text-xs text-gray-500 font-medium">
-                    No officials matched your search criteria or role filters.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setCouncilorSearch("");
-                      setCouncilorRoleFilter("All");
-                      setCouncilorStatusFilter("All");
-                    }}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    Reset All Filters
-                  </button>
-                </div>
-              ) : councilorViewMode === "grid" ? (
-                /* GRID CARDS VIEW */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
-                  {filteredCouncilors.map((c) => {
-                    const initials = c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-                    const isSecretary = c.role.toLowerCase().includes("secretary");
-                    const isTreasurer = c.role.toLowerCase().includes("treasurer");
-
-                    const roleBadgeClass = isSecretary
-                      ? "bg-amber-50 text-amber-900 border-amber-200"
-                      : isTreasurer
-                        ? "bg-indigo-50 text-indigo-900 border-indigo-200"
-                        : "bg-emerald-50 text-emerald-900 border-emerald-200";
-
-                    const avatarGradient = isSecretary
-                      ? "from-amber-500 to-orange-600"
-                      : isTreasurer
-                        ? "from-indigo-500 to-blue-700"
-                        : "from-emerald-600 to-teal-800";
-
-                    return (
-                      <div
-                        key={c.id}
-                        className="bg-white border border-gray-100/80 rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] hover:border-emerald-200 transition-all flex flex-col justify-between space-y-4 group"
+                      <button
+                        type="button"
+                        onClick={() => setCouncilorViewMode("table")}
+                        className={`h-full px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer text-xs ${councilorViewMode === "table"
+                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                          }`}
+                        title="Table View"
                       >
-                        <div className="space-y-3">
-                          {/* Card Header: Role Badge + Status Indicator */}
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${roleBadgeClass}`}>
-                              {c.role}
-                            </span>
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${c.status === "Active"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-red-50 text-red-700 border-red-200"
-                              }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
-                              {c.status}
+                        <Table className="w-4 h-4" />
+                        <span className="hidden md:inline">Table</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (localCouncilors.length >= 11) {
+                          addToast("Council roster is at full capacity (Maximum 11 members: 7 Councilors, 2 Secretaries, 2 Treasurers).", "info");
+                          return;
+                        }
+                        setCouncilorName("");
+                        setCouncilorEmail("");
+                        if (roleCounts.councilorsCount < 7) {
+                          setCouncilorRole("SK Councilor");
+                        } else if (roleCounts.secretariesCount < 2) {
+                          setCouncilorRole("Secretary");
+                        } else if (roleCounts.treasurersCount < 2) {
+                          setCouncilorRole("Treasurer");
+                        }
+                        generateCouncilorPassword();
+                        setIsAddCouncilorOpen(true);
+                      }}
+                      className="bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-4 sm:px-5 py-2.5 rounded-xl text-[14px] font-bold shadow-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-4.5 h-4.5 shrink-0" />
+                      <span>Add Member ({localCouncilors.length}/11)</span>
+                    </button>
+                  </div>
+                </div>
+
+                  {/* Newly Created Councilor Credentials Callout Banner */}
+                  {createdCouncilorAccount && (
+                    <div className="bg-gradient-to-r from-emerald-950 via-[#164132] to-[#0D2E22] rounded-2xl p-5 sm:p-6 text-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-emerald-500/40 relative animate-in fade-in slide-in-from-top-3 duration-200">
+                      <button
+                        onClick={() => setCreatedCouncilorAccount(null)}
+                        className="absolute top-3 right-3 text-emerald-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Dismiss"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="space-y-1.5 max-w-2xl pr-8 lg:pr-0">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-900/80 px-2.5 py-0.5 rounded-md border border-emerald-600/40">
+                              Account Provisioned & Ready
                             </span>
                           </div>
-
-                          {/* Member Avatar & Identity */}
-                          <div className="flex items-center gap-3 pt-1">
-                            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0 ring-2 ring-white`}>
-                              {initials}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-extrabold text-gray-900 text-base truncate group-hover:text-[#0A6B43] transition-colors" title={c.name}>
-                                {c.name}
-                              </h3>
-                              <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
-                                Barangay {designatedBarangay}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Contact Details Information */}
-                          <div className="bg-gray-50/80 p-2.5 sm:p-3 rounded-xl border border-gray-150 space-y-2 text-xs font-semibold text-gray-700">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 shrink-0">
-                                <Mail className="w-3 h-3 text-gray-400" /> Email:
-                              </span>
-                              <span
-                                onClick={() => {
-                                  navigator.clipboard?.writeText(c.email);
-                                  addToast("Email copied to clipboard!", "success");
-                                }}
-                                className="font-mono text-[11px] text-gray-800 hover:text-[#0A6B43] hover:underline cursor-pointer truncate max-w-[170px] sm:max-w-[200px]"
-                                title="Click to copy email"
-                              >
-                                {c.email}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 shrink-0">
-                                <Phone className="w-3 h-3 text-gray-400" /> Contact:
-                              </span>
-                              <span
-                                onClick={() => {
-                                  if (c.contactNumber && c.contactNumber !== "N/A") {
-                                    navigator.clipboard?.writeText(c.contactNumber);
-                                    addToast("Contact number copied to clipboard!", "success");
-                                  }
-                                }}
-                                className="font-semibold text-[11px] text-gray-800 hover:text-[#0A6B43] cursor-pointer"
-                                title="Click to copy contact"
-                              >
-                                {c.contactNumber || "N/A"}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/60 text-[10px] text-gray-400 font-medium">
-                              <span>Date Appointed:</span>
-                              <span className="font-bold text-gray-600">{c.dateCreated || "Active Term"}</span>
-                            </div>
+                          <h3 className="text-base font-extrabold text-white">
+                            {createdCouncilorAccount.role}: {createdCouncilorAccount.name}
+                          </h3>
+                          <p className="text-xs text-emerald-100/80 leading-relaxed">
+                            Official login credentials have been configured. Provide these details to the member to allow them to access the Barangay {designatedBarangay} official portal.
+                          </p>
+                          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 pt-1.5 text-xs">
+                            <span className="bg-black/35 px-3 py-1.5 rounded-lg border border-white/10 text-emerald-200 font-mono break-all">
+                              Email: <strong className="text-white">{createdCouncilorAccount.email}</strong>
+                            </span>
+                            <span className="bg-black/35 px-3 py-1.5 rounded-lg border border-white/10 text-emerald-200 font-mono break-all">
+                              Temp Password: <strong className="text-amber-300">{createdCouncilorAccount.password}</strong>
+                            </span>
                           </div>
                         </div>
-
-                        {/* Action Buttons Toolbar */}
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-2 shrink-0">
                           <button
-                            onClick={() => handleToggleCouncilorStatus(c.id)}
-                            className={`flex-1 h-8 py-1 text-[11px] font-bold rounded-xl border transition-all uppercase cursor-pointer active:scale-95 ${c.status === "Active"
-                              ? "border-amber-200 text-amber-700 bg-amber-50/60 hover:bg-amber-100/70"
-                              : "border-emerald-200 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/70"
+                            onClick={() => {
+                              const text = `Sangguniang Kabataan Portal Access Credentials\nBarangay: Barangay ${designatedBarangay}\nName: ${createdCouncilorAccount.name}\nRole: ${createdCouncilorAccount.role}\nLogin Email: ${createdCouncilorAccount.email}\nTemporary Password: ${createdCouncilorAccount.password}\nPortal Link: ${window.location.origin}`;
+                              navigator.clipboard?.writeText(text);
+                              addToast("Credentials copied to clipboard!", "success");
+                            }}
+                            className="w-full sm:w-auto px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[14px] font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Copy Full Credentials
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Executive Stat Cards Grid (Responsive 2x2 on Mobile, 4-col on Desktop) */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {/* Stat 1: Total Members */}
+                    <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Council Roster</span>
+                        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0">
+                          <Users2 className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1.5 sm:gap-2">
+                          <span className="text-xl sm:text-2xl font-black text-gray-900">{localCouncilors.length}</span>
+                          <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 11 Capacity</span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate" title="7 SK Councilors • 2 Secretaries • 2 Treasurers">
+                          7 Councilors • 2 Sec • 2 Treas
+                        </p>
+                      </div>
+                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[#0A6B43] h-full transition-all duration-300 rounded-full"
+                          style={{ width: `${Math.min((localCouncilors.length / 11) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Stat 2: Active Officials */}
+                    <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Active Officials</span>
+                        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100 shrink-0">
+                          <UserCheck className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1.5 sm:gap-2 flex-wrap">
+                          <span className="text-xl sm:text-2xl font-black text-gray-900">{activeCouncilorCount}</span>
+                          <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
+                            {localCouncilors.length > 0 ? Math.round((activeCouncilorCount / localCouncilors.length) * 100) : 0}%
+                          </span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 flex items-center gap-1.5 truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+                          Authorized Access
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stat 3: Appointees */}
+                    <div className="bg-white border border-gray-100/80 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">Appointees</span>
+                        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100 shrink-0">
+                          <Shield className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-baseline gap-1.5 sm:gap-2">
+                          <span className="text-xl sm:text-2xl font-black text-gray-900">
+                            {roleCounts.secretariesCount + roleCounts.treasurersCount}
+                          </span>
+                          <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 4 Appointees</span>
+                        </div>
+                        <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-0.5 truncate">
+                          {roleCounts.secretariesCount}/2 Sec • {roleCounts.treasurersCount}/2 Treas
+                        </p>
+                      </div>
+                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-amber-500 h-full transition-all duration-300 rounded-full"
+                          style={{ width: `${Math.min(((roleCounts.secretariesCount + roleCounts.treasurersCount) / 4) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Stat 4: Presiding Officer */}
+                    <div className="bg-linear-to-br from-emerald-950 to-[#1C2B20] text-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-2 sm:space-y-3 border border-emerald-800/40">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300 uppercase tracking-wider truncate">Presiding Officer</span>
+                        <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-800/60 text-amber-400 flex items-center justify-center border border-emerald-700/50 shrink-0">
+                          <Award className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-sm sm:text-base font-extrabold text-white truncate" title={settingsName}>
+                          {settingsName}
+                        </h4>
+                        <p className="text-[10px] sm:text-[11px] text-amber-400 font-bold uppercase tracking-wider mt-0.5">
+                          SK Chairperson
+                        </p>
+                        <p className="text-[9px] sm:text-[10px] text-emerald-300 font-medium mt-0.5 truncate">
+                          Barangay {designatedBarangay}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filters & Search Toolbar */}
+                  <div className="bg-gray-50/70 p-4 sm:p-5 rounded-2xl border border-gray-200/80 space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      {/* Search Bar */}
+                      <div className="relative flex-1 max-w-md">
+                        <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={councilorSearch}
+                          onChange={(e) => setCouncilorSearch(e.target.value)}
+                          placeholder="Search by name, email, or contact..."
+                          className="w-full h-[38px] pl-10 pr-8 bg-white border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 transition-colors"
+                        />
+                        {councilorSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCouncilorSearch("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                            title="Clear search"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Status Filter */}
+                      <div className="flex items-center gap-1.5 self-start md:self-auto flex-wrap">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase mr-1">Status:</span>
+                        {["All", "Active", "Inactive"].map((st) => (
+                          <button
+                            type="button"
+                            key={st}
+                            onClick={() => setCouncilorStatusFilter(st)}
+                            className={`h-[38px] px-3 rounded-xl text-[12px] font-bold transition-all cursor-pointer ${councilorStatusFilter === st
+                              ? "bg-[#0A6B43] text-white shadow-xs"
+                              : "bg-white text-gray-600 hover:bg-gray-100/80 border border-gray-200 shadow-2xs"
                               }`}
                           >
-                            {c.status === "Active" ? "Deactivate" : "Activate"}
+                            {st}
                           </button>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              onClick={() => {
-                                setEditingCouncilorId(c.id);
-                                setEditCouncilorName(c.name);
-                                setEditCouncilorEmail(c.email);
-                                setEditCouncilorContact(c.contactNumber || "+63 9");
-                                setEditCouncilorRole(c.role || "SK Councilor");
-                                setIsEditCouncilorOpen(true);
-                              }}
-                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 border border-gray-200 rounded-xl transition-colors cursor-pointer active:scale-95"
-                              title="Edit Member Details"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCouncilor(c.id)}
-                              className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-xl transition-colors cursor-pointer active:scale-95"
-                              title="Remove Official from Team"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* TABLE VIEW */
-                <div className="bg-white border border-gray-100/80 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                  {/* Mobile Swipe Hint */}
-                  <div className="sm:hidden px-3.5 py-1.5 bg-emerald-50/60 border-b border-emerald-100/70 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      Table view · Swipe horizontally to view all columns
-                    </span>
-                    <span className="text-[10px] text-emerald-700 font-bold tracking-wider">SWIPE ↔</span>
+                    </div>
+
+                    {/* Role Filter Pills */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-gray-200/80 overflow-x-auto pb-1 scrollbar-none">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase shrink-0">Role Filter:</span>
+                      {[
+                        { id: "All", label: `All (${localCouncilors.length}/11)` },
+                        { id: "SK Councilor", label: `Councilors (${roleCounts.councilorsCount}/7)` },
+                        { id: "Secretary", label: `Secretaries (${roleCounts.secretariesCount}/2)` },
+                        { id: "Treasurer", label: `Treasurers (${roleCounts.treasurersCount}/2)` }
+                      ].map((rf) => (
+                        <button
+                          type="button"
+                          key={rf.id}
+                          onClick={() => setCouncilorRoleFilter(rf.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${councilorRoleFilter === rf.id
+                            ? "bg-[#0A6B43] text-white shadow-xs font-bold"
+                            : "bg-white text-gray-600 hover:bg-gray-100/80 border border-gray-200 shadow-2xs"
+                            }`}
+                        >
+                          {rf.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full min-w-[760px] text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-150 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[170px]">Official Member</th>
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[130px]">Official Role</th>
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[170px]">Login Email</th>
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[130px]">Contact Number</th>
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[90px] text-center">Status</th>
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[110px] text-center">Appointed Date</th>
-                          <th className="px-3.5 py-3 sm:p-4 min-w-[140px] text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                        {filteredCouncilors.map((c) => {
-                          const initials = c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-                          const isSecretary = c.role.toLowerCase().includes("secretary");
-                          const isTreasurer = c.role.toLowerCase().includes("treasurer");
+                  {/* Councilors Roster View / Empty States */}
+                  {localCouncilors.length === 0 ? (
+                    /* Primary Empty State */
+                    <div className="py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto shadow-2xs">
+                        <Users2 className="w-7 h-7 sm:w-8 sm:h-8" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">Build Your Barangay SK Council</h3>
+                        <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                          No councilors, secretaries, or treasurers are registered for <strong>Barangay {designatedBarangay}</strong> yet. Provision accounts to empower your team with administrative portal access.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouncilorName("");
+                          setCouncilorEmail("");
+                          setCouncilorRole("SK Councilor");
+                          generateCouncilorPassword();
+                          setIsAddCouncilorOpen(true);
+                        }}
+                        className="inline-flex items-center gap-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-5 py-2.5 rounded-xl text-[14px] font-bold shadow-xs transition-all cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add First Council Member
+                      </button>
+                    </div>
+                  ) : filteredCouncilors.length === 0 ? (
+                    /* Filter Result Empty State */
+                    <div className="py-10 text-center max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 mx-auto">
+                        <Search className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Matching Council Members</h4>
+                        <p className="text-[14px] text-gray-500 leading-relaxed font-normal">
+                          No officials matched your search criteria or role filters.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouncilorSearch("");
+                          setCouncilorRoleFilter("All");
+                          setCouncilorStatusFilter("All");
+                        }}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-[14px] font-bold transition-all cursor-pointer"
+                      >
+                        Reset All Filters
+                      </button>
+                    </div>
+                  ) : councilorViewMode === "grid" ? (
+                    /* GRID CARDS VIEW */
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5">
+                      {filteredCouncilors.map((c) => {
+                        const initials = c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+                        const isSecretary = c.role.toLowerCase().includes("secretary");
+                        const isTreasurer = c.role.toLowerCase().includes("treasurer");
 
-                          const roleBadgeClass = isSecretary
-                            ? "bg-amber-50 text-amber-900 border-amber-200"
-                            : isTreasurer
-                              ? "bg-indigo-50 text-indigo-900 border-indigo-200"
-                              : "bg-emerald-50 text-emerald-900 border-emerald-200";
+                        const roleBadgeClass = isSecretary
+                          ? "bg-amber-50 text-amber-900 border-amber-200"
+                          : isTreasurer
+                            ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                            : "bg-emerald-50 text-emerald-900 border-emerald-200";
 
-                          const avatarGradient = isSecretary
-                            ? "from-amber-500 to-orange-600"
-                            : isTreasurer
-                              ? "from-indigo-500 to-blue-700"
-                              : "from-emerald-600 to-teal-800";
+                        const avatarGradient = isSecretary
+                          ? "from-amber-500 to-orange-600"
+                          : isTreasurer
+                            ? "from-indigo-500 to-blue-700"
+                            : "from-emerald-600 to-teal-800";
 
-                          return (
-                            <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
-                              <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                <div className="flex items-center gap-2.5 sm:gap-3">
-                                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-bold text-xs shrink-0`}>
-                                    {initials}
-                                  </div>
-                                  <div>
-                                    <span className="font-extrabold text-gray-900 block text-xs sm:text-sm">{c.name}</span>
-                                    <span className="text-[10px] text-gray-400">Barangay {designatedBarangay}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                <span className={`px-2.5 py-0.5 border rounded-md text-[10px] font-black uppercase ${roleBadgeClass}`}>
+                        return (
+                          <div
+                            key={c.id}
+                            className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between space-y-4 group"
+                          >
+                            <div className="space-y-3">
+                              {/* Card Header: Role Badge + Status Indicator */}
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${roleBadgeClass}`}>
                                   {c.role}
                                 </span>
-                              </td>
-                              <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                <span
-                                  onClick={() => {
-                                    navigator.clipboard?.writeText(c.email);
-                                    addToast("Email copied to clipboard!", "success");
-                                  }}
-                                  className="text-gray-800 font-mono text-[11px] font-bold hover:text-[#0A6B43] hover:underline cursor-pointer"
-                                  title="Click to copy email"
-                                >
-                                  {c.email}
-                                </span>
-                              </td>
-                              <td className="px-3.5 py-3 sm:p-4 text-gray-600 font-semibold text-[11px] whitespace-nowrap">
-                                {c.contactNumber || "N/A"}
-                              </td>
-                              <td className="px-3.5 py-3 sm:p-4 text-center whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${c.status === "Active"
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${c.status === "Active"
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-red-50 text-red-700 border-red-200"
                                   }`}>
                                   <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
                                   {c.status}
                                 </span>
-                              </td>
-                              <td className="px-3.5 py-3 sm:p-4 text-center text-gray-400 font-medium text-[11px] whitespace-nowrap">
-                                {c.dateCreated || "Active Term"}
-                              </td>
-                              <td className="px-3.5 py-3 sm:p-4 text-center whitespace-nowrap">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <button
-                                    onClick={() => handleToggleCouncilorStatus(c.id)}
-                                    className={`px-2 py-1 font-bold text-[10px] rounded border transition-colors uppercase cursor-pointer active:scale-95 ${c.status === "Active"
-                                      ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
-                                      : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                                      }`}
-                                  >
-                                    {c.status === "Active" ? "Deactivate" : "Activate"}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingCouncilorId(c.id);
-                                      setEditCouncilorName(c.name);
-                                      setEditCouncilorEmail(c.email);
-                                      setEditCouncilorContact(c.contactNumber || "+63 9");
-                                      setEditCouncilorRole(c.role || "SK Councilor");
-                                      setIsEditCouncilorOpen(true);
-                                    }}
-                                    className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-gray-400 hover:border-amber-200 rounded-lg border border-gray-150 transition-colors cursor-pointer active:scale-95"
-                                    title="Edit Official Details"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteCouncilor(c.id)}
-                                    className="p-1.5 hover:bg-red-50 hover:text-red-600 text-gray-400 hover:border-red-200 rounded-lg border border-gray-150 transition-colors cursor-pointer active:scale-95"
-                                    title="Remove from Team"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                              </div>
+
+                              {/* Member Avatar & Identity */}
+                              <div className="flex items-center gap-3 pt-1">
+                                <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0 ring-2 ring-white`}>
+                                  {initials}
                                 </div>
-                              </td>
+                                <div className="min-w-0 flex-1">
+                                  <h3 className="font-extrabold text-gray-900 text-base truncate group-hover:text-[#0A6B43] transition-colors" title={c.name}>
+                                    {c.name}
+                                  </h3>
+                                  <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                                    Barangay {designatedBarangay}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Contact Details Information */}
+                              <div className="bg-gray-50/80 p-2.5 sm:p-3 rounded-xl border border-gray-150 space-y-2 text-xs font-semibold text-gray-700">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 shrink-0">
+                                    <Mail className="w-3 h-3 text-gray-400" /> Email:
+                                  </span>
+                                  <span
+                                    onClick={() => {
+                                      navigator.clipboard?.writeText(c.email);
+                                      addToast("Email copied to clipboard!", "success");
+                                    }}
+                                    className="font-mono text-[11px] text-gray-800 hover:text-[#0A6B43] hover:underline cursor-pointer truncate max-w-[170px] sm:max-w-[200px]"
+                                    title="Click to copy email"
+                                  >
+                                    {c.email}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1 shrink-0">
+                                    <Phone className="w-3 h-3 text-gray-400" /> Contact:
+                                  </span>
+                                  <span
+                                    onClick={() => {
+                                      if (c.contactNumber && c.contactNumber !== "N/A") {
+                                        navigator.clipboard?.writeText(c.contactNumber);
+                                        addToast("Contact number copied to clipboard!", "success");
+                                      }
+                                    }}
+                                    className="font-semibold text-[11px] text-gray-800 hover:text-[#0A6B43] cursor-pointer"
+                                    title="Click to copy contact"
+                                  >
+                                    {c.contactNumber || "N/A"}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/60 text-[10px] text-gray-400 font-medium">
+                                  <span>Date Appointed:</span>
+                                  <span className="font-bold text-gray-600">{c.dateCreated || "Active Term"}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons Toolbar */}
+                            <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCouncilorStatus(c.id)}
+                                className={`flex-1 h-8 py-1 text-[11px] font-bold rounded-xl border transition-all uppercase cursor-pointer active:scale-95 ${c.status === "Active"
+                                  ? "border-amber-200 text-amber-700 bg-amber-50/60 hover:bg-amber-100/70"
+                                  : "border-emerald-200 text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/70"
+                                  }`}
+                              >
+                                {c.status === "Active" ? "Deactivate" : "Activate"}
+                              </button>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCouncilorId(c.id);
+                                    setEditCouncilorName(c.name);
+                                    setEditCouncilorEmail(c.email);
+                                    setEditCouncilorContact(c.contactNumber || "+63 9");
+                                    setEditCouncilorRole(c.role || "SK Councilor");
+                                    setIsEditCouncilorOpen(true);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 border border-gray-200 rounded-xl transition-colors cursor-pointer active:scale-95"
+                                  title="Edit Member Details"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCouncilor(c.id)}
+                                  className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-700 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-xl transition-colors cursor-pointer active:scale-95"
+                                  title="Remove Official from Team"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* TABLE VIEW */
+                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      {/* Mobile Swipe Hint */}
+                      <div className="sm:hidden px-3.5 py-1.5 bg-emerald-50/60 border-b border-emerald-100/70 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                          Table view · Swipe horizontally to view all columns
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-bold tracking-wider">SWIPE ↔</span>
+                      </div>
+
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full min-w-[760px] text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap">
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[170px]">Official Member</th>
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[130px]">Official Role</th>
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[170px]">Login Email</th>
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[130px]">Contact Number</th>
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[90px] text-center">Status</th>
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[110px] text-center">Appointed Date</th>
+                              <th className="px-3.5 py-3 sm:p-4 min-w-[140px] text-center">Actions</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                            {filteredCouncilors.map((c) => {
+                              const initials = c.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+                              const isSecretary = c.role.toLowerCase().includes("secretary");
+                              const isTreasurer = c.role.toLowerCase().includes("treasurer");
+
+                              const roleBadgeClass = isSecretary
+                                ? "bg-amber-50 text-amber-900 border-amber-200"
+                                : isTreasurer
+                                  ? "bg-indigo-50 text-indigo-900 border-indigo-200"
+                                  : "bg-emerald-50 text-emerald-900 border-emerald-200";
+
+                              const avatarGradient = isSecretary
+                                ? "from-amber-500 to-orange-600"
+                                : isTreasurer
+                                  ? "from-indigo-500 to-blue-700"
+                                  : "from-emerald-600 to-teal-800";
+
+                              return (
+                                <tr key={c.id} className="hover:bg-emerald-50/30 transition-colors">
+                                  <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-2.5 sm:gap-3">
+                                      <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarGradient} text-white flex items-center justify-center font-bold text-xs shrink-0`}>
+                                        {initials}
+                                      </div>
+                                      <div>
+                                        <span className="font-extrabold text-gray-900 block text-xs sm:text-sm">{c.name}</span>
+                                        <span className="text-[10px] text-gray-400">Barangay {designatedBarangay}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
+                                    <span className={`px-2.5 py-0.5 border rounded-md text-[10px] font-black uppercase ${roleBadgeClass}`}>
+                                      {c.role}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
+                                    <span
+                                      onClick={() => {
+                                        navigator.clipboard?.writeText(c.email);
+                                        addToast("Email copied to clipboard!", "success");
+                                      }}
+                                      className="text-gray-800 font-mono text-[11px] font-bold hover:text-[#0A6B43] hover:underline cursor-pointer"
+                                      title="Click to copy email"
+                                    >
+                                      {c.email}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-3 sm:p-4 text-gray-600 font-semibold text-[11px] whitespace-nowrap">
+                                    {c.contactNumber || "N/A"}
+                                  </td>
+                                  <td className="px-3.5 py-3 sm:p-4 text-center whitespace-nowrap">
+                                    <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${c.status === "Active"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : "bg-red-50 text-red-700 border-red-200"
+                                      }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${c.status === "Active" ? "bg-emerald-500" : "bg-red-500"}`} />
+                                      {c.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-3 sm:p-4 text-center text-gray-400 font-medium text-[11px] whitespace-nowrap">
+                                    {c.dateCreated || "Active Term"}
+                                  </td>
+                                  <td className="px-3.5 py-3 sm:p-4 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleCouncilorStatus(c.id)}
+                                        className={`px-2.5 py-1 font-bold text-[10px] rounded-lg border transition-colors uppercase cursor-pointer active:scale-95 ${c.status === "Active"
+                                          ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                                          : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                                          }`}
+                                      >
+                                        {c.status === "Active" ? "Deactivate" : "Activate"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingCouncilorId(c.id);
+                                          setEditCouncilorName(c.name);
+                                          setEditCouncilorEmail(c.email);
+                                          setEditCouncilorContact(c.contactNumber || "+63 9");
+                                          setEditCouncilorRole(c.role || "SK Councilor");
+                                          setIsEditCouncilorOpen(true);
+                                        }}
+                                        className="p-1.5 hover:bg-amber-50 hover:text-amber-700 text-gray-400 hover:border-amber-200 rounded-lg border border-gray-150 transition-colors cursor-pointer active:scale-95"
+                                        title="Edit Official Details"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteCouncilor(c.id)}
+                                        className="p-1.5 hover:bg-red-50 hover:text-red-600 text-gray-400 hover:border-red-200 rounded-lg border border-gray-150 transition-colors cursor-pointer active:scale-95"
+                                        title="Remove from Team"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+              </div>
             </div>
           )}
 
@@ -5769,274 +6928,375 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Status & Scope Toolbar */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h3 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">Verification Queue</h3>
-                  <span className="bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black px-2.5 py-0.5 rounded-full shadow-2xs">
-                    {pendingProfiles.length} Awaiting
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  <span className="text-xs text-gray-500 font-bold">Barangay Scope:</span>
-                  <span className="text-xs border border-emerald-200 bg-emerald-50 text-emerald-800 rounded-xl px-3 py-1.5 font-bold shadow-3xs">
-                    {designatedBarangay.startsWith("Barangay ") ? designatedBarangay : `Barangay ${designatedBarangay}`}
-                  </span>
-                </div>
-              </div>
-
               {/* Pending Approvals Table Card */}
-              <div className="bg-white border border-gray-100/80 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Card Header Toolbar */}
+                <div className="flex items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Verification Queue</h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 leading-none">
+                      {pendingProfiles.length}
+                    </span>
+                  </div>
+                </div>
                 {pendingProfiles.length > 0 ? (
                   <>
-                    {/* Search & Counter Toolbar */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 sm:p-4 bg-gray-50/70 border-b border-gray-150">
-                      <div className="relative flex-1 max-w-sm">
-                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    {/* Search & Filter Toolbar */}
+                    <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                         <input
                           type="text"
-                          placeholder="Search pending by name, purok, or ID..."
+                          placeholder="Search pending by name, purok, or ID…"
                           value={pendingSearchQuery}
-                          onChange={(e) => {
-                            setPendingSearchQuery(e.target.value);
-                            setPendingApprovalsPage(1);
-                          }}
-                          className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                          onChange={(e) => setPendingSearchQuery(e.target.value)}
+                          className="w-full h-[38px] pl-10 pr-8 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                         />
                         {pendingSearchQuery && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setPendingSearchQuery("");
-                              setPendingApprovalsPage(1);
-                            }}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                            onClick={() => setPendingSearchQuery("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                             title="Clear search"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 font-medium">
-                        Showing{" "}
-                        <span className="font-bold text-gray-800">
-                          {filteredPendingProfiles.length === 0
-                            ? 0
-                            : `${(currentPendingApprovalPage - 1) * PENDING_APPROVALS_PER_PAGE + 1}-${Math.min(
-                              currentPendingApprovalPage * PENDING_APPROVALS_PER_PAGE,
-                              filteredPendingProfiles.length
-                            )}`}
-                        </span>{" "}
-                        of <span className="font-bold text-gray-800">{filteredPendingProfiles.length}</span> records
-                        {pendingSearchQuery && ` (filtered from ${pendingProfiles.length})`}
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 sm:flex-initial">
+                          <CustomSelect
+                            value={pendingEduFilter}
+                            onChange={(val) => setPendingEduFilter(val)}
+                            options={[
+                              { value: "All", label: "All Education" },
+                              ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
+                            ]}
+                            size="sm"
+                            buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                            placeholder="All Education"
+                          />
+
+                          <CustomSelect
+                            value={pendingAgeFilter}
+                            onChange={(val) => setPendingAgeFilter(val)}
+                            options={[
+                              { value: "All", label: "All Ages" },
+                              { value: "15-20", label: "15–20 y/o" },
+                              { value: "21-25", label: "21–25 y/o" },
+                              { value: "26-30", label: "26–30 y/o" }
+                            ]}
+                            size="sm"
+                            buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                            placeholder="All Ages"
+                          />
+
+                          <CustomSelect
+                            value={pendingPurokFilter}
+                            onChange={(val) => setPendingPurokFilter(val)}
+                            options={[
+                              { value: "All", label: "All Puroks" },
+                              { value: "Purok 1", label: "Purok 1" },
+                              { value: "Purok 2", label: "Purok 2" },
+                              { value: "Purok 3", label: "Purok 3" },
+                              { value: "Purok 4", label: "Purok 4" },
+                              { value: "Purok 5", label: "Purok 5" },
+                              { value: "Purok 6", label: "Purok 6" },
+                              { value: "Purok 7", label: "Purok 7" }
+                            ]}
+                            size="sm"
+                            buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                            placeholder="All Puroks"
+                          />
+
+                          <CustomSelect
+                            value={pendingIdTypeFilter}
+                            onChange={(val) => setPendingIdTypeFilter(val)}
+                            options={[
+                              { value: "All", label: "All ID Types" },
+                              { value: "National ID", label: "National ID" },
+                              { value: "Student ID", label: "Student ID" },
+                              { value: "Postal ID", label: "Postal ID" },
+                              { value: "Driver's License", label: "Driver's License" },
+                              { value: "In-Person", label: "In-Person Profile" }
+                            ]}
+                            size="sm"
+                            buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                            placeholder="All ID Types"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Mobile Swipe Hint */}
-                    <div className="sm:hidden px-3.5 py-1.5 bg-emerald-50/60 border-b border-emerald-100/70 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                        Table view · Swipe horizontally to see all columns
-                      </span>
-                      <span className="text-[10px] text-emerald-700 font-bold tracking-wider">SWIPE ↔</span>
-                    </div>
+                    {sortedPendingProfiles.length > 0 ? (
+                      <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        {/* Mobile Swipe Hint */}
+                        <div className="sm:hidden px-3.5 py-1.5 bg-emerald-50/60 border-b border-emerald-100/70 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                            Table view · Swipe horizontally to see all columns
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-bold tracking-wider">SWIPE ↔</span>
+                        </div>
 
-                    {filteredPendingProfiles.length > 0 ? (
-                      <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full min-w-[760px] text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-gray-50 border-b border-gray-150 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-                              <th className="px-3.5 py-3 sm:p-4 min-w-[150px]">Name</th>
-                              <th className="px-3.5 py-3 sm:p-4 min-w-[125px]">Age / Purok</th>
-                              <th className="px-3.5 py-3 sm:p-4 min-w-[135px]">Educational Attainment</th>
-                              <th className="px-3.5 py-3 sm:p-4 min-w-[140px]">ID Verification</th>
-                              <th className="px-3.5 py-3 sm:p-4 min-w-[160px] max-w-[220px]">Livelihood Objective</th>
-                              <th className="px-3.5 py-3 sm:p-4 min-w-[210px] text-center">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                            {paginatedPendingApprovalProfiles.map((y) => (
-                              <tr key={y.id} className="hover:bg-gray-50/60 transition-colors">
-                                <td className="px-3.5 py-3 sm:p-4 font-bold text-gray-900 whitespace-nowrap">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center text-xs font-black shrink-0">
-                                      {y.name ? y.name.charAt(0).toUpperCase() : "Y"}
+                        <div className="overflow-x-auto custom-scrollbar">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                                <th className="py-3 px-4 text-left whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePendingTableSort("name")}
+                                    className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none border-0 ${
+                                      pendingSortColumn === "name" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                    title={`Sort by Youth Member (${pendingSortColumn === "name" ? (pendingSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                  >
+                                    <span>Youth Member</span>
+                                    {pendingSortColumn === "name" ? (
+                                      pendingSortDirection === "asc" ? (
+                                        <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      )
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                    )}
+                                  </button>
+                                </th>
+                                <th className="py-3 px-4 text-left whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePendingTableSort("age")}
+                                    className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none border-0 ${
+                                      pendingSortColumn === "age" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                    title={`Sort by Age (${pendingSortColumn === "age" ? (pendingSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                  >
+                                    <span>Age</span>
+                                    {pendingSortColumn === "age" ? (
+                                      pendingSortDirection === "asc" ? (
+                                        <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      )
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                    )}
+                                  </button>
+                                </th>
+                                <th className="py-3 px-4 text-left whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePendingTableSort("purok")}
+                                    className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none border-0 ${
+                                      pendingSortColumn === "purok" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                    title={`Sort by Purok (${pendingSortColumn === "purok" ? (pendingSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                  >
+                                    <span>Purok</span>
+                                    {pendingSortColumn === "purok" ? (
+                                      pendingSortDirection === "asc" ? (
+                                        <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      )
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                    )}
+                                  </button>
+                                </th>
+                                <th className="py-3 px-4 text-left whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePendingTableSort("education")}
+                                    className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none border-0 ${
+                                      pendingSortColumn === "education" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                    title={`Sort by Education (${pendingSortColumn === "education" ? (pendingSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                  >
+                                    <span>Education</span>
+                                    {pendingSortColumn === "education" ? (
+                                      pendingSortDirection === "asc" ? (
+                                        <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                      )
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                    )}
+                                  </button>
+                                </th>
+                                <th className="py-3 px-4 text-left uppercase tracking-wider text-[11px] font-bold whitespace-nowrap text-gray-500">
+                                  ID Type
+                                </th>
+                                <th className="py-3 px-4 text-left uppercase tracking-wider text-[11px] font-bold whitespace-nowrap text-gray-500">
+                                  ID Number
+                                </th>
+                                <th className="py-3 px-4 text-center uppercase tracking-wider text-[11px] font-bold whitespace-nowrap text-gray-500">
+                                  Review
+                                </th>
+                                <th className="py-3 px-4 text-center uppercase tracking-wider text-[11px] font-bold whitespace-nowrap text-gray-500">
+                                  Action
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                              {paginatedPendingApprovalProfiles.map((y) => (
+                                <tr key={y.id} className="hover:bg-emerald-50/30 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
+                                        {getPendingInitials(y.name)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-gray-900 truncate text-xs sm:text-sm">{y.name}</p>
+                                        <p className="text-[11px] text-gray-400 truncate font-normal">{y.email || "No email"}</p>
+                                      </div>
                                     </div>
-                                    <div className="min-w-0">
-                                      <div className="font-extrabold text-gray-900 text-xs sm:text-sm">{y.name}</div>
-                                      <div className="text-[10px] text-gray-400 font-normal">{y.email || "No email"}</div>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-3.5 py-3 sm:p-4 text-gray-500 font-medium whitespace-nowrap">
-                                  <div className="text-xs text-gray-700">
-                                    {y.age} y/o · <span className="font-bold text-[#1C2B20]">{y.purok}</span>
-                                  </div>
-                                  <div className="text-[10px] text-[#0A6B43] font-bold mt-0.5">{y.barangay}</div>
-                                </td>
-                                <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                  <span className="inline-block bg-emerald-50 text-[#0A6B43] border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] font-semibold">
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.age} y/o
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.purok}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
                                     {y.educationalAttainment}
-                                  </span>
-                                </td>
-                                <td className="px-3.5 py-3 sm:p-4 whitespace-nowrap">
-                                  {y.verificationIdType ? (
-                                    <div className="flex flex-col gap-0.5">
-                                      <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-800 border border-teal-150 px-2 py-0.5 rounded text-[10px] font-bold w-fit">
-                                        <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0" /> {y.verificationIdType}
-                                      </span>
-                                      <span className="text-[10px] text-gray-400 font-mono font-bold pl-0.5">
-                                        No: {y.verificationIdNumber || "N/A"}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-150 px-2 py-0.5 rounded text-[10px] font-bold w-fit">
-                                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" /> In-Person Profile
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-3.5 py-3 sm:p-4 min-w-[160px] max-w-[220px]">
-                                  {y.livelihoodGoal && y.livelihoodGoal.length > 20 ? (
-                                    <div>
-                                      <p className={expandedAspirations[`p-${y.id}`] ? "text-xs font-medium text-gray-800 leading-relaxed bg-emerald-50/70 p-2 rounded-xl border border-emerald-200/80 my-1 shadow-2xs" : "text-xs font-semibold text-gray-700"}>
-                                        {expandedAspirations[`p-${y.id}`] ? y.livelihoodGoal : `${y.livelihoodGoal.slice(0, 20)}...`}
-                                      </p>
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                    {y.verificationIdType || "In-Person"}
+                                  </td>
+                                  <td className="py-3 px-4 text-gray-600 whitespace-nowrap font-mono">
+                                    {y.verificationIdNumber || "N/A"}
+                                  </td>
+                                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
-                                        onClick={(e) => toggleAspirationExpand(`p-${y.id}`, e)}
-                                        className="text-[10px] font-extrabold text-[#0A6B43] hover:underline mt-0.5 inline-block cursor-pointer"
-                                      >
-                                        {expandedAspirations[`p-${y.id}`] ? "See Less ▲" : "See More ▼"}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-gray-600 font-medium">{y.livelihoodGoal || "N/A"}</span>
-                                  )}
-                                </td>
-                                <td className="px-3.5 py-3 sm:p-4 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-2 sm:gap-2.5">
-                                    {/* Stacked Group 1: View & Inspect */}
-                                    <div className="flex flex-col gap-1 sm:gap-1.5">
-                                      <button
                                         onClick={() => setViewingPendingYouthModal(y)}
-                                        className="w-24 sm:w-28 h-7 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold rounded-xl text-[9.5px] sm:text-[10px] shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer"
-                                        title="View full Katipunan ng Kabataan member profile details"
+                                        className="w-8 h-8 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                        title="View Profile"
                                       >
-                                        <Eye className="w-3 sm:w-3.5 h-3 sm:h-3.5" /> View Profile
+                                        <Eye className="w-4 h-4" />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => setVerifyingYouth(y)}
-                                        className="w-24 sm:w-28 h-7 bg-sky-50 text-sky-700 hover:bg-sky-100 active:scale-95 border border-sky-200/80 font-bold rounded-xl text-[9.5px] sm:text-[10px] transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                                        title="Inspect uploaded ID documents and attestations"
+                                        className="w-8 h-8 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                        title="Inspect ID"
                                       >
-                                        <ShieldCheck className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-sky-600" /> Inspect ID
+                                        <ShieldCheck className="w-4 h-4" />
                                       </button>
                                     </div>
-
-                                    {/* Subtle Vertical Divider Line */}
-                                    <div className="w-px h-11 sm:h-13 bg-gray-200 shrink-0" />
-
-                                    {/* Stacked Group 2: Approve & Reject */}
-                                    <div className="flex flex-col gap-1 sm:gap-1.5">
+                                  </td>
+                                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5">
                                       <button
+                                        type="button"
                                         onClick={() => handleApproveYouth(y.id)}
-                                        className="w-20 sm:w-24 h-7 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-[9.5px] sm:text-[10px] shadow-2xs transition-all uppercase tracking-wide flex items-center justify-center cursor-pointer"
-                                        title="Approve youth registration"
+                                        className="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                        title="Approve Member"
                                       >
-                                        Approve
+                                        <Check className="w-4 h-4" />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => handleRejectYouth(y.id)}
-                                        className="w-20 sm:w-24 h-7 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold rounded-xl text-[9.5px] sm:text-[10px] shadow-2xs transition-all uppercase tracking-wide flex items-center justify-center cursor-pointer"
-                                        title="Reject youth registration"
+                                        className="w-8 h-8 rounded-xl bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                        title="Reject Member"
                                       >
-                                        Reject
+                                        <X className="w-4 h-4" />
                                       </button>
                                     </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     ) : (
                       <div className="p-8 text-center space-y-2">
                         <Search className="w-8 h-8 text-gray-300 mx-auto" />
-                        <p className="text-xs font-bold text-gray-700">No matching pending approvals</p>
-                        <p className="text-[11px] text-gray-500">No records found matching &ldquo;{pendingSearchQuery}&rdquo;</p>
+                        <p className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No matching pending approvals</p>
+                        <p className="text-[14px] text-gray-500 leading-relaxed font-normal">
+                          No records found matching your active search and filter criteria.
+                        </p>
                         <button
                           type="button"
                           onClick={() => {
                             setPendingSearchQuery("");
+                            setPendingEduFilter("All");
+                            setPendingAgeFilter("All");
+                            setPendingPurokFilter("All");
+                            setPendingIdTypeFilter("All");
+                            setPendingSortColumn(null);
+                            setPendingSortDirection("asc");
                             setPendingApprovalsPage(1);
                           }}
-                          className="mt-1 px-3 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                          className="mt-1 px-3.5 py-2 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-[14px] font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
                         >
-                          Clear Search Filter
+                          Clear Filters
                         </button>
                       </div>
                     )}
 
-                    {/* Pagination Controls (Max 10 per page on both mobile and big screen) */}
-                    {totalPendingApprovalPages > 1 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 bg-gray-50/70 border-t border-gray-150">
-                        <span className="text-gray-500 text-xs font-medium text-center sm:text-left">
-                          Page <span className="font-bold text-gray-800">{currentPendingApprovalPage}</span> of{" "}
-                          <span className="font-bold text-gray-800">{totalPendingApprovalPages}</span> (
-                          <span className="font-bold text-gray-800">{filteredPendingProfiles.length}</span> total pending)
-                        </span>
+                    {/* Pagination Controls (appears ONLY when more than 15 records exist) */}
+                    {sortedPendingProfiles.length > 15 && (
+                      <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500 font-medium">
+                          Showing <span className="font-semibold text-gray-800">{(currentPendingApprovalPage - 1) * PENDING_APPROVALS_PER_PAGE + 1}</span> to{" "}
+                          <span className="font-semibold text-gray-800">{Math.min(sortedPendingProfiles.length, currentPendingApprovalPage * PENDING_APPROVALS_PER_PAGE)}</span> of{" "}
+                          <span className="font-semibold text-gray-800">{sortedPendingProfiles.length}</span> records
+                        </p>
 
                         <div className="flex items-center gap-1.5 flex-wrap justify-center">
                           <button
                             type="button"
                             disabled={currentPendingApprovalPage === 1}
                             onClick={() => setPendingApprovalsPage((p) => Math.max(1, p - 1))}
-                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === 1
-                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                              }`}
+                            className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
                           >
                             <ChevronLeft className="w-3.5 h-3.5" />
-                            <span>Prev</span>
+                            <span className="hidden sm:inline">Prev</span>
                           </button>
 
                           <div className="flex items-center gap-1">
-                            {Array.from({ length: totalPendingApprovalPages }, (_, idx) => idx + 1)
-                              .filter((page) => {
-                                if (totalPendingApprovalPages <= 7) return true;
-                                if (page === 1 || page === totalPendingApprovalPages) return true;
-                                return Math.abs(page - currentPendingApprovalPage) <= 1;
-                              })
-                              .map((page, idx, arr) => (
-                                <React.Fragment key={page}>
-                                  {idx > 0 && page - arr[idx - 1] > 1 && (
-                                    <span className="w-5 text-center text-xs text-gray-400 select-none">…</span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => setPendingApprovalsPage(page)}
-                                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${currentPendingApprovalPage === page
-                                      ? "bg-[#0A6B43] text-white shadow-xs"
-                                      : "text-gray-600 hover:bg-emerald-50 hover:text-[#0A6B43] border border-transparent hover:border-emerald-200"
-                                      }`}
-                                  >
-                                    {page}
-                                  </button>
-                                </React.Fragment>
-                              ))}
+                            {getPaginationItems(currentPendingApprovalPage, totalPendingApprovalPages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span key={`pending-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                    …
+                                  </span>
+                                );
+                              }
+                              const pageNum = Number(item);
+                              const isActive = pageNum === currentPendingApprovalPage;
+                              return (
+                                <button
+                                  key={`pending-page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => setPendingApprovalsPage(pageNum)}
+                                  className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs cursor-pointer transition-colors ${
+                                    isActive
+                                      ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 font-medium"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
                           </div>
 
                           <button
                             type="button"
                             disabled={currentPendingApprovalPage === totalPendingApprovalPages}
                             onClick={() => setPendingApprovalsPage((p) => Math.min(totalPendingApprovalPages, p + 1))}
-                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 ${currentPendingApprovalPage === totalPendingApprovalPages
-                              ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                              : "border-gray-200 text-gray-700 bg-white hover:bg-emerald-50 hover:text-[#0A6B43] hover:border-emerald-300 cursor-pointer shadow-2xs"
-                              }`}
+                            className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
                           >
-                            <span>Next</span>
+                            <span className="hidden sm:inline">Next</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -6046,10 +7306,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 ) : (
                   <div className="p-12 text-center max-w-md mx-auto space-y-3">
                     <CheckCircle className="w-12 h-12 text-[#0A6B43] mx-auto" />
-                    <h3 className="font-extrabold text-gray-800 text-base">Roster Completely Verified</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                      All self-registering Katipunan ng Kabataan members in Barangay {designatedBarangay} have been successfully approved and cleared.
-                    </p>
+                    <div className="space-y-1">
+                      <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">Roster Completely Verified</h3>
+                      <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                        All self-registering Katipunan ng Kabataan members in Barangay {designatedBarangay} have been successfully approved and cleared.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -6071,7 +7333,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         >
           <div className="bg-white rounded-2xl shadow-xl border border-emerald-100 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-150 shrink-0 bg-white">
-              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+              <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
                 <Megaphone className="w-5 h-5 text-[#0A6B43]" />
                 {editingAnnouncementId ? "Edit Announcement" : "Post New Announcement"}
               </h3>
@@ -6097,7 +7359,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   placeholder="e.g. Free Welding Kit Distribution Schedule"
                   value={annTitle}
                   onChange={(e) => setAnnTitle(e.target.value)}
-                  className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                 />
               </div>
 
@@ -6114,6 +7376,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       { value: "General", label: "General" }
                     ]}
                     size="sm"
+                    buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                     placeholder="Select Category"
                   />
                 </div>
@@ -6128,6 +7391,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       { value: "OSY only", label: "OSY only" }
                     ]}
                     size="sm"
+                    buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                     placeholder="Select Audience"
                   />
                 </div>
@@ -6176,7 +7440,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     placeholder="e.g. San Sebastian Covered Court"
                     value={annVenue}
                     onChange={(e) => setAnnVenue(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
                 <div className="space-y-1">
@@ -6186,7 +7450,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     placeholder="e.g. SK Chair Rhea Cruz (+63 915 777 8888)"
                     value={annContactPerson}
                     onChange={(e) => setAnnContactPerson(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
               </div>
@@ -6199,7 +7463,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   placeholder="Describe the announcement details, requirements, or agenda..."
                   value={annBody}
                   onChange={(e) => setAnnBody(e.target.value)}
-                  className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden leading-relaxed"
+                  className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors leading-relaxed"
                 />
               </div>
 
@@ -6210,13 +7474,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     setShowAnnouncementModal(false);
                     setEditingAnnouncementId(null);
                   }}
-                  className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold rounded-xl transition-colors cursor-pointer text-center"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-[14px] font-bold text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 transition-all cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-full sm:w-auto px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer text-center"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-[14px] font-bold rounded-xl shadow-xs transition-colors cursor-pointer text-center"
                 >
                   {editingAnnouncementId ? "Save Changes" : "Post Announcement"}
                 </button>
@@ -6237,11 +7501,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200/80 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out text-xs font-semibold">
             {/* Modal Header */}
             <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-150 shrink-0 bg-white">
-              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+              <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
                 <Users2 className="w-5 h-5 text-[#0A6B43]" />
                 Add New SK Councilor
               </h3>
               <button
+                type="button"
                 onClick={() => setIsAddCouncilorOpen(false)}
                 className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                 title="Close"
@@ -6269,7 +7534,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     placeholder="e.g. Maria Santos"
                     value={councilorName}
                     onChange={(e) => setCouncilorName(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -6282,7 +7547,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       placeholder="e.g. mariasantos.sk@sanluispampanga.gov.ph"
                       value={councilorEmail}
                       onChange={(e) => setCouncilorEmail(e.target.value)}
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden font-semibold"
+                      className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors font-semibold"
                     />
                   </div>
                   <div className="space-y-1">
@@ -6292,7 +7557,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       required
                       value={councilorContact}
                       onChange={(e) => setCouncilorContact(formatContactNumber(e.target.value))}
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                      className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     />
                   </div>
                 </div>
@@ -6309,6 +7574,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         { value: "Treasurer", label: `Treasurer (${roleCounts.treasurersCount}/2)` }
                       ]}
                       size="sm"
+                      buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                       placeholder="Select Role"
                     />
                   </div>
@@ -6318,7 +7584,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       type="text"
                       disabled
                       value={`Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}`}
-                      className="w-full p-2.5 border border-gray-200 bg-gray-50 text-emerald-900 font-bold rounded-lg text-xs"
+                      className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-100 text-gray-500 font-medium rounded-xl text-[13px]"
                     />
                   </div>
                 </div>
@@ -6341,7 +7607,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       value={councilorPassword}
                       onChange={(e) => setCouncilorPassword(e.target.value)}
                       placeholder="Set temporary password..."
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-800 font-mono font-bold focus:ring-1 focus:ring-emerald-500"
+                      className="w-full h-[40px] pl-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-mono font-bold focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     />
                     <button
                       type="button"
@@ -6359,13 +7625,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddCouncilorOpen(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-[13px] font-bold text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+                  className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-[13px] font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                 >
                   Create & Provision Account
                 </button>
@@ -6386,11 +7652,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200/80 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out text-xs font-semibold">
             {/* Modal Header */}
             <div className="flex justify-between items-center px-5 sm:px-6 py-4 border-b border-gray-150 shrink-0 bg-white">
-              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+              <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
                 <Edit className="w-4.5 h-4.5 text-amber-500" />
                 Edit SK Councilor Details
               </h3>
               <button
+                type="button"
                 onClick={() => setIsEditCouncilorOpen(false)}
                 className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                 title="Close"
@@ -6409,7 +7676,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     required
                     value={editCouncilorName}
                     onChange={(e) => setEditCouncilorName(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -6420,7 +7687,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     required
                     value={editCouncilorEmail}
                     onChange={(e) => setEditCouncilorEmail(e.target.value)}
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden font-semibold"
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors font-semibold"
                   />
                 </div>
 
@@ -6431,7 +7698,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     value={editCouncilorContact}
                     onChange={(e) => setEditCouncilorContact(formatContactNumber(e.target.value))}
                     placeholder="+63 9xx xxx xxxx"
-                    className="w-full p-2.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -6446,6 +7713,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       { value: "Treasurer", label: `Treasurer (${roleCounts.treasurersCount}/2)` }
                     ]}
                     size="sm"
+                    buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
                     placeholder="Select Role"
                   />
                 </div>
@@ -6457,14 +7725,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   type="button"
                   disabled={isUpdatingCouncilor}
                   onClick={() => setIsEditCouncilorOpen(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-[13px] font-bold text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdatingCouncilor}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 text-xs font-bold rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 text-[13px] font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isUpdatingCouncilor && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   {isUpdatingCouncilor ? "Saving..." : "Save Changes"}
@@ -6522,19 +7790,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Member Personal Information</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-x-4 sm:gap-y-1.5 text-gray-700">
                   <div>
-                    <span className="text-gray-400 font-medium block text-[9px] uppercase">Full Name</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Full Name</span>
                     <span className="text-gray-900 font-bold text-xs">{verifyingYouth.name}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 font-medium block text-[9px] uppercase">Barangay & Purok</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Barangay & Purok</span>
                     <span className="text-gray-900 font-bold text-xs">{verifyingYouth.barangay} · {verifyingYouth.purok}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 font-medium block text-[9px] uppercase">Age</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Age</span>
                     <span className="text-gray-900 font-bold text-xs">{verifyingYouth.age} years old</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 font-medium block text-[9px] uppercase">Contact Number</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Contact Number</span>
                     <span className="text-gray-900 font-bold text-xs">{verifyingYouth.contactNumber || "N/A"}</span>
                   </div>
                 </div>
@@ -6698,22 +7966,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Registration & Verification Details</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-x-4 sm:gap-y-2 text-xs text-gray-700">
                   <div>
-                    <span className="text-gray-400 font-medium block text-[10px]">Contact Number</span>
+                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Contact Number</span>
                     <span className="text-gray-900 font-bold">{viewingPendingYouthModal.contactNumber || "+63 917 123 4567"}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 font-medium block text-[10px]">Registration Date</span>
+                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Registration Date</span>
                     <span className="text-gray-900 font-bold">{viewingPendingYouthModal.registeredDate}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 font-medium block text-[10px]">ID Document Submitted</span>
+                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">ID Document Submitted</span>
                     <span className="text-teal-800 font-bold flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                       {viewingPendingYouthModal.verificationIdType || "In-Person Field Profiling"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-400 font-medium block text-[10px]">ID Reference Number</span>
+                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">ID Reference Number</span>
                     <span className="text-gray-900 font-mono font-bold break-all">{viewingPendingYouthModal.verificationIdNumber || "N/A"}</span>
                   </div>
                 </div>
@@ -7070,6 +8338,294 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: TESDA PROGRAM FULL DETAILS, ELIGIBILITY & REQUIREMENTS             */}
+      {/* ========================================================================= */}
+      {selectedProgramForModal && (() => {
+        const isModalProgEnded = isProgramEnded(selectedProgramForModal);
+        const isModalProgFull = (selectedProgramForModal.slotsRemaining || 0) <= 0;
+        return (
+          <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setSelectedProgramForModal(null);
+            }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+          >
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out">
+              {/* Modal Header: Same format as glimpse header, no X button */}
+              <div className="flex items-start justify-between gap-3 p-5 sm:p-6 border-b border-gray-100 pb-3.5 shrink-0 bg-white min-h-[56px]">
+                <div className="min-w-0 space-y-0.5">
+                  <h3 className="font-extrabold text-gray-900 text-base sm:text-lg leading-snug tracking-tight" title={selectedProgramForModal.title}>
+                    {selectedProgramForModal.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium truncate">
+                    {getProgramCategory(selectedProgramForModal)}
+                  </p>
+                </div>
+
+                <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
+                  isModalProgEnded
+                    ? "bg-gray-100 text-gray-600 border-gray-300"
+                    : isModalProgFull
+                      ? "bg-amber-50 text-amber-800 border-amber-250"
+                      : "bg-emerald-50 text-[#0A6B43] border-emerald-250"
+                }`}>
+                  {isModalProgEnded ? "Inactive" : "Active"}
+                </span>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+                {/* Card 1: Details */}
+                <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-3">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                    Program Details
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs">
+                    {/* Row 1, Col 1: Training Hours */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`${selectedProgramForModal.trainingHours} Hours`}
+                    >
+                      <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{selectedProgramForModal.trainingHours} Hours</span>
+                    </div>
+
+                    {/* Row 1, Col 2: Date Range */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={selectedProgramForModal.startDate ? formatProgramDateRange(selectedProgramForModal.startDate, selectedProgramForModal.endDate) : "Active Term"}
+                    >
+                      <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        {formatProgramDateRange(selectedProgramForModal.startDate, selectedProgramForModal.endDate) || "Active Term"}
+                      </span>
+                    </div>
+
+                    {/* Row 2, Col 1: Training Days */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`Training Days: ${formatTrainingDays(selectedProgramForModal.trainingDays)}`}
+                    >
+                      <CalendarDays className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{formatTrainingDays(selectedProgramForModal.trainingDays)}</span>
+                    </div>
+
+                    {/* Row 2, Col 2: Class Time */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`Class Hours: ${formatProgramTimeslot(selectedProgramForModal.startTime, selectedProgramForModal.endTime).formattedRange}`}
+                    >
+                      <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        {formatProgramTimeslot(selectedProgramForModal.startTime, selectedProgramForModal.endTime).formattedRange}
+                      </span>
+                    </div>
+
+                    {/* Row 3, Col 1: Program Cost / Scholarship */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`Tuition Cost: ${selectedProgramForModal.cost || "Free"} · Government Subsidized Scholarship`}
+                    >
+                      <Award className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate text-gray-700">
+                        {selectedProgramForModal.cost || "Free / TWSP"}
+                      </span>
+                    </div>
+
+                    {/* Row 3, Col 2: Trainer / Instructor */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={selectedProgramForModal.instructor ? `${selectedProgramForModal.instructor.replace(/\s*\(trainer\)$/i, "").trim()} (Trainer)` : "Certified Trainer"}
+                    >
+                      <GraduationCap className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        {selectedProgramForModal.instructor ? `${selectedProgramForModal.instructor.replace(/\s*\(trainer\)$/i, "").trim()} (Trainer)` : "Certified Trainer"}
+                      </span>
+                    </div>
+
+                    {/* Row 4, Col 1: Contact Person */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`Contact Person: ${selectedProgramForModal.contactPerson || "TESDA Coordinator"}`}
+                    >
+                      <User className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{selectedProgramForModal.contactPerson || "TESDA Coordinator"}</span>
+                    </div>
+
+                    {/* Row 4, Col 2: Contact Info / Number */}
+                    <div
+                      className="flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`Contact Hotline: ${selectedProgramForModal.contactNumber || "N/A"}`}
+                    >
+                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{selectedProgramForModal.contactNumber || "N/A"}</span>
+                    </div>
+
+                    {/* Row 5 (Both Columns): Location / Venue */}
+                    <div
+                      className="sm:col-span-2 flex items-center gap-2 text-gray-700 min-w-0"
+                      title={`${selectedProgramForModal.location || "San Luis Training Center"}${selectedProgramForModal.room ? ` · ${selectedProgramForModal.room}` : ""}`}
+                    >
+                      <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate sm:whitespace-normal leading-snug">
+                        {selectedProgramForModal.location || "San Luis Training Center"}
+                        {selectedProgramForModal.room ? ` · ${selectedProgramForModal.room}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Eligibility */}
+                <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
+                    Eligibility
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
+                    {(selectedProgramForModal.eligibility || "Open to all Katipunan ng Kabataan members.")
+                      .split(";")
+                      .map(item => item.trim())
+                      .filter(Boolean)
+                      .map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                          <span>{toTitleCase(item)}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+
+                {/* Card 3: Required Documents */}
+                <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
+                    Required Documents
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
+                    {(selectedProgramForModal.requiredDocuments && selectedProgramForModal.requiredDocuments.length > 0
+                      ? selectedProgramForModal.requiredDocuments
+                      : ["Valid ID", "Barangay Certificate", "2x2 ID Photos"]
+                    ).map((doc: string, idx: number) => (
+                      <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                        <span>{toTitleCase(doc)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Available Slots Progress Bar */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Available Slots</span>
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                      isModalProgEnded
+                        ? "text-gray-400"
+                        : isModalProgFull
+                          ? "text-red-600"
+                          : "text-gray-500"
+                    }`}>
+                      {isModalProgEnded
+                        ? "Concluded"
+                        : isModalProgFull
+                          ? "Slots Full"
+                          : `${selectedProgramForModal.slotsRemaining} of ${selectedProgramForModal.slotsTotal} open`}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        isModalProgEnded
+                          ? "bg-gray-400"
+                          : isModalProgFull
+                            ? "bg-red-400"
+                            : "bg-[#0A6B43]"
+                      }`}
+                      style={{
+                        width: isModalProgEnded
+                          ? "100%"
+                          : `${Math.min(100, Math.max(0, ((selectedProgramForModal.slotsTotal - selectedProgramForModal.slotsRemaining) / (selectedProgramForModal.slotsTotal || 1)) * 100))}%`
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Target Competencies */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                    Target Competencies
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    {selectedProgramForModal.requiredSkills && selectedProgramForModal.requiredSkills.length > 0 ? (
+                      selectedProgramForModal.requiredSkills.map((skill, sIdx) => (
+                        <span key={sIdx} className="text-xs bg-slate-100 text-slate-700 font-semibold px-2.5 py-1 rounded-lg">
+                          {toTitleCase(skill)}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">
+                        General Technical Skills
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Local Barangay Matched Youth & Applied Stats */}
+                {(() => {
+                  const modalMatchedCount = localYouthProfiles.filter(y => calculateContentBasedMatchScore(y, selectedProgramForModal) >= 60).length;
+                  const modalAppliedCount = referrals.filter(r => {
+                    const matchesProg = (r.programId && r.programId === selectedProgramForModal.id) ||
+                      (r.programTitle && r.programTitle.toLowerCase().trim() === selectedProgramForModal.title.toLowerCase().trim());
+                    if (!matchesProg) return false;
+                    const rBrgy = (r.barangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+                    const dBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
+                    return rBrgy === dBrgy || localYouthProfiles.some(y => (r.youthId && y.id === r.youthId) || y.name.toLowerCase().trim() === (r.youthName || "").toLowerCase().trim());
+                  }).length;
+
+                  return (
+                    <div className="border-t border-gray-100">
+                      {/* Row 1: Number of Youth Match */}
+                      <div className="py-2.5 flex justify-between items-center gap-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 leading-normal">
+                          Number of Youth Match in Brgy. {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                        </span>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 shrink-0 leading-normal">
+                          {modalMatchedCount} Matched
+                        </span>
+                      </div>
+
+                      {/* Thin gray line between them */}
+                      <div className="border-t border-gray-100" />
+
+                      {/* Row 2: Youth Applied */}
+                      <div className="py-2.5 flex justify-between items-center gap-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 leading-normal">
+                          Youth Applied in Brgy. {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                        </span>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 shrink-0 leading-normal">
+                          {modalAppliedCount} Applied
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-3.5 sm:p-4 bg-gray-50/40 border-t border-gray-100 flex justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedProgramForModal(null)}
+                  className="px-4.5 py-2 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

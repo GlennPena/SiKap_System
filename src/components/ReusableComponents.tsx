@@ -305,12 +305,12 @@ export const EmptyState: React.FC<{
       <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
         <Sparkles className="w-8 h-8" />
       </div>
-      <h3 className="text-lg font-bold text-gray-800 mb-1.5">{title}</h3>
-      <p className="text-sm text-gray-500 max-w-sm mb-6 leading-relaxed">{description}</p>
+      <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight mb-1.5">{title}</h3>
+      <p className="text-[14px] text-gray-500 max-w-sm mb-6 leading-relaxed font-normal">{description}</p>
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
+          className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-[14px] font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
         >
           {actionLabel}
         </button>
@@ -379,7 +379,7 @@ export const PathwayTimeline: React.FC<{
     {
       num: 3,
       title: "Complete Training",
-      desc: "Complete 3-month course & pass NC II exam",
+      desc: "Complete 3-month program & pass NC II exam",
       sub: "Est. 3 months",
       icon: Award
     },

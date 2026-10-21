@@ -1036,7 +1036,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {
         id: "notif-capt-tesda",
         title: "Municipal TESDA Programs",
-        desc: `${programs.length} active livelihood and technical training courses available across San Luis.`,
+        desc: `${programs.length} active livelihood and technical training programs available across San Luis.`,
         icon: <Briefcase className="w-4 h-4 text-teal-800" />,
         bg: "bg-teal-50 border border-teal-100",
         action: () => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)
@@ -1607,7 +1607,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Stat 4: Municipal TESDA Programs */}
                 <div className="bg-white border border-gray-150 rounded-2xl p-3 sm:p-5 shadow-xs hover:border-emerald-300 transition-all flex flex-col justify-between space-y-2 sm:space-y-3">
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">TESDA Courses Open</span>
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">TESDA Programs Open</span>
                     <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 shrink-0">
                       <Briefcase className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                     </div>
@@ -2960,7 +2960,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     TESDA Programs Directory
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Directory of certified technical-vocational courses and training allocations available for San Luis youths.
+                    Directory of certified technical-vocational programs and training allocations available for San Luis youths.
                   </p>
                 </div>
               </div>
@@ -2977,7 +2977,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
               </div>
 
-              {/* SEARCH & FILTERS PANEL (Aligned with TESDA Course Forms & Catalog) */}
+              {/* SEARCH & FILTERS PANEL (Aligned with TESDA Program Forms & Catalog) */}
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-150 shadow-xs space-y-3.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 text-xs font-semibold">
                   {/* Search Programs */}
@@ -2985,7 +2985,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Search courses, provider, venue, trainer..."
+                      placeholder="Search programs, provider, venue, trainer..."
                       value={tesdaSearch}
                       onChange={(e) => setTesdaSearch(e.target.value)}
                       className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 text-gray-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:bg-white focus:outline-hidden text-xs"
@@ -3009,9 +3009,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       onChange={(val) => setTesdaLevelFilter(val)}
                       options={[
                         { value: "All", label: "All Certifications" },
-                        { value: "NC I", label: "NC I Courses" },
-                        { value: "NC II", label: "NC II Courses" },
-                        { value: "NC III", label: "NC III Courses" }
+                        { value: "NC I", label: "NC I Programs" },
+                        { value: "NC II", label: "NC II Programs" },
+                        { value: "NC III", label: "NC III Programs" }
                       ]}
                       size="sm"
                       placeholder="All Certifications"
@@ -3065,7 +3065,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs">
                   <div className="flex items-center gap-2 text-gray-500">
                     <span className="font-medium text-[11px]">
-                      Showing <strong className="text-gray-900 font-bold">{filteredPrograms.length}</strong> of <strong className="text-gray-700 font-bold">{programs.length}</strong> municipal courses
+                      Showing <strong className="text-gray-900 font-bold">{filteredPrograms.length}</strong> of <strong className="text-gray-700 font-bold">{programs.length}</strong> municipal programs
                     </span>
                   </div>
 
@@ -3106,7 +3106,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                 ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
                                 : "bg-blue-50 text-blue-700 border-blue-200"
                             }`}>
-                              {certLevel ? `${certLevel} Certified` : "TESDA Course"}
+                              {certLevel ? `${certLevel} Certified` : "TESDA Program"}
                             </span>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {isEnded ? (
@@ -3172,7 +3172,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   })
                 ) : (
                   <div className="col-span-full py-12 text-center text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-2xl bg-white space-y-2">
-                    <p className="text-sm font-bold text-gray-600">No TESDA courses match your current search and filters</p>
+                    <p className="text-sm font-bold text-gray-600">No TESDA programs match your current search and filters</p>
                     <p className="text-xs text-gray-400">Try changing the certification level, vocational sector, cost, or search query.</p>
                     {isAnyTesdaFilterActive && (
                       <button
@@ -3806,7 +3806,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 <div>
                   <p className="font-bold uppercase tracking-wider text-[9px] text-amber-950">Barangay Captain Executive Audit</p>
                   <p className="text-amber-900 mt-0.5">
-                    Match score is evaluated via Content-Based Filtering (CBF) against TESDA course competencies.
+                    Match score is evaluated via Content-Based Filtering (CBF) against TESDA program competencies.
                   </p>
                 </div>
               </div>

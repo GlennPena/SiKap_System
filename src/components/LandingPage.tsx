@@ -156,7 +156,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const faqs = [
     {
       q: "What is SiKap and who is it for?",
-      a: "SiKap (Sikap at Kakayahan) is an automated youth skills mapping and livelihood matching platform created for the Katipunan ng Kabataan (KK) of San Luis, Pampanga. It is specifically designed to help out-of-school youth (OSY) and unemployed youth find free, subsidized TESDA vocational courses."
+      a: "SiKap (Sikap at Kakayahan) is an automated youth skills mapping and livelihood matching platform created for the Katipunan ng Kabataan (KK) of San Luis, Pampanga. It is specifically designed to help out-of-school youth (OSY) and unemployed youth find free, subsidized TESDA vocational programs."
     },
     {
       q: "Are the training programs free?",
@@ -305,7 +305,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="space-y-2.5 sm:space-y-4">
                     <div className="bg-emerald-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-emerald-100">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] sm:text-sm font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
+                        <span className="text-[10px] sm:text-sm font-black text-[#075332] uppercase tracking-wide">Recommended Program</span>
                         <span className="text-[9px] sm:text-sm font-black text-emerald-700 bg-white px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg shadow-2xs border border-emerald-100">94% Match</span>
                       </div>
                       <p className="text-xs sm:text-lg font-black text-gray-900 mt-1 sm:mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
@@ -627,7 +627,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       Match & Recommend
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
-                      SiKap's intelligent matching algorithm evaluates youth profiles against verified TESDA courses to highlight best-fit pathways with transparent, explainable rationales.
+                      SiKap's intelligent matching algorithm evaluates youth profiles against verified TESDA programs to highlight best-fit pathways with transparent, explainable rationales.
                     </p>
                   </div>
                 </div>
@@ -646,7 +646,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       Apply & Connect
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
-                      Youth explore recommended programs, compare course details and schedules, and apply directly to partner training centers with real-time slot tracking.
+                      Youth explore recommended programs, compare program details and schedules, and apply directly to partner training centers with real-time slot tracking.
                     </p>
                   </div>
                 </div>

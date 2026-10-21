@@ -394,44 +394,80 @@ export function formatProgramDateRange(startDate?: string | Date | null, endDate
  * Returns a clean, concise training days representation (e.g. "Mon – Fri", "Sat – Sun (Weekends)", "Mon, Wed, Fri")
  */
 export function formatTrainingDays(days?: string[] | string | null): string {
-  if (!days) return "Mon – Fri";
-  let dayList: string[] = [];
-  if (Array.isArray(days)) {
-    dayList = days;
-  } else if (typeof days === "string") {
-    dayList = days.split(",").map(s => s.trim()).filter(Boolean);
-  }
-  if (dayList.length === 0) return "Mon – Fri";
+  if (!days) return "Mon-Fri";
 
   const dayAbbrMap: Record<string, string> = {
-    monday: "Mon", mon: "Mon",
-    tuesday: "Tue", tue: "Tue",
-    wednesday: "Wed", wed: "Wed",
-    thursday: "Thu", thu: "Thu",
-    friday: "Fri", fri: "Fri",
-    saturday: "Sat", sat: "Sat",
-    sunday: "Sun", sun: "Sun"
+    monday: "Mon", mon: "Mon", m: "Mon",
+    tuesday: "Tue", tues: "Tue", tue: "Tue", tu: "Tue",
+    wednesday: "Wed", wed: "Wed", w: "Wed",
+    thursday: "Thu", thurs: "Thu", thur: "Thu", thu: "Thu", th: "Thu",
+    friday: "Fri", fri: "Fri", f: "Fri",
+    saturday: "Sat", sat: "Sat", sa: "Sat",
+    sunday: "Sun", sun: "Sun", su: "Sun"
   };
 
-  const normalized = dayList.map(d => dayAbbrMap[d.toLowerCase()] || d);
+  const weekOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-  const weekend = ["Sat", "Sun"];
-  const allDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let tokens: string[] = [];
+  if (Array.isArray(days)) {
+    tokens = days.flatMap(d => (typeof d === "string" ? d.split(/[,;]+/) : []));
+  } else if (typeof days === "string") {
+    tokens = days.split(/[,;]+/);
+  }
 
-  if (allDays.every(d => normalized.includes(d))) return "Daily (Mon – Sun)";
-  if (weekdays.length === normalized.length && weekdays.every(d => normalized.includes(d))) return "Mon – Fri";
-  if (weekend.length === normalized.length && weekend.every(d => normalized.includes(d))) return "Sat – Sun (Weekends)";
+  tokens = tokens.map(s => s.trim()).filter(Boolean);
+  if (tokens.length === 0) return "Mon-Fri";
 
-  if (normalized.length > 2) {
-    const startIdx = weekdays.indexOf(normalized[0]);
-    const endIdx = weekdays.indexOf(normalized[normalized.length - 1]);
-    if (startIdx !== -1 && endIdx !== -1 && endIdx - startIdx === normalized.length - 1) {
-      return `${normalized[0]} – ${normalized[normalized.length - 1]}`;
+  const expandedDays: string[] = [];
+  for (const token of tokens) {
+    const rangeMatch = token.match(/^([A-Za-z]+)\s*[-–—]\s*([A-Za-z]+)$/);
+    if (rangeMatch) {
+      const startAbbr = dayAbbrMap[rangeMatch[1].toLowerCase()];
+      const endAbbr = dayAbbrMap[rangeMatch[2].toLowerCase()];
+      if (startAbbr && endAbbr) {
+        const startIdx = weekOrder.indexOf(startAbbr);
+        const endIdx = weekOrder.indexOf(endAbbr);
+        if (startIdx !== -1 && endIdx !== -1 && startIdx <= endIdx) {
+          for (let i = startIdx; i <= endIdx; i++) {
+            expandedDays.push(weekOrder[i]);
+          }
+          continue;
+        }
+      }
+    }
+
+    const cleanToken = token.replace(/[^A-Za-z]/g, "").toLowerCase();
+    const abbr = dayAbbrMap[cleanToken];
+    if (abbr) {
+      expandedDays.push(abbr);
     }
   }
 
-  return normalized.join(", ");
+  const normalized = Array.from(new Set(expandedDays))
+    .sort((a, b) => weekOrder.indexOf(a) - weekOrder.indexOf(b));
+
+  if (normalized.length === 0) return Array.isArray(days) ? days.join(", ") : String(days);
+
+  // Group consecutive days into ranges (e.g. Mon-Sat, Mon-Wed, Fri-Sat)
+  const groups: string[][] = [];
+  let currentGroup: string[] = [normalized[0]];
+
+  for (let i = 1; i < normalized.length; i++) {
+    const prevIdx = weekOrder.indexOf(normalized[i - 1]);
+    const currIdx = weekOrder.indexOf(normalized[i]);
+    if (currIdx === prevIdx + 1) {
+      currentGroup.push(normalized[i]);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [normalized[i]];
+    }
+  }
+  groups.push(currentGroup);
+
+  return groups.map(g => {
+    if (g.length === 1) return g[0];
+    return `${g[0]}-${g[g.length - 1]}`;
+  }).join(", ");
 }
 
 /**

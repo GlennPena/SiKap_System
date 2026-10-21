@@ -270,19 +270,21 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
     <div className={className || "bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5 sm:space-y-6 animate-in fade-in duration-150"}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
         <div>
-          <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-            <Bell className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+          <h3 className={`${userRole === "SK_OFFICIAL" ? "text-[22px] font-extrabold text-gray-900 tracking-tight" : "font-bold text-gray-800 text-base"} flex items-center gap-2`}>
+            <Bell className="w-5 h-5 text-[#0A6B43] shrink-0" />
             <span>Alerts & Notifications</span>
           </h3>
-          <p className="text-sm text-gray-400 font-medium mt-0.5 leading-relaxed">
-            Manage how SiKap sends account and application updates.
-          </p>
+          {userRole !== "SK_OFFICIAL" && (
+            <p className="text-sm text-gray-400 font-medium mt-0.5 leading-relaxed">
+              Manage how SiKap sends account and application updates.
+            </p>
+          )}
         </div>
 
         <button
           onClick={() => handleSendTest("all")}
           disabled={testing || loading}
-          className="self-center sm:self-center px-4 py-2 h-9 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] text-sm font-bold rounded-lg border border-gray-200 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-2xs"
+          className="self-center sm:self-center px-4 py-2 h-9 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] text-[14px] font-bold rounded-lg border border-gray-200 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-2xs"
           title="Send a sample notification to verify settings"
         >
           {testing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-[#0A6B43]" />}
@@ -416,7 +418,7 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                 <div className="min-w-0 flex-1">
                   <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">TESDA Application & Enrollment Updates</p>
                   <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
-                    Notify me immediately when TESDA approves, accepts, or requests physical document submissions for my course applications.
+                    Notify me immediately when TESDA approves, accepts, or requests physical document submissions for my program applications.
                   </p>
                 </div>
                 <input
@@ -436,9 +438,9 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
               <>
                 <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">New Course Applications & Referrals</p>
+                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">New Program Applications & Referrals</p>
                     <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
-                      Receive instant pop-up alerts and emails when KK Youth submit applications or are referred by SK to your published training courses.
+                      Receive instant pop-up alerts and emails when KK Youth submit applications or are referred by SK to your published training programs.
                     </p>
                   </div>
                   <input
@@ -455,9 +457,9 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
 
                 <label className="flex items-start justify-between gap-3 p-3 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Course Slot Capacity & Quota Alerts</p>
+                    <p className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Program Slot Capacity & Quota Alerts</p>
                     <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed mt-1 break-words">
-                      Get notified when training slots for your courses are nearly full, reach maximum quota, or when waitlisted youth apply.
+                      Get notified when training slots for your programs are nearly full, reach maximum quota, or when waitlisted youth apply.
                     </p>
                   </div>
                   <input

@@ -419,7 +419,7 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="bg-emerald-50/70 rounded-2xl p-5 border border-emerald-100">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-[#075332] uppercase tracking-wide">Recommended Course</span>
+                          <span className="text-xs font-black text-[#075332] uppercase tracking-wide">Recommended Program</span>
                           <MatchBadge />
                         </div>
                         <p className="text-base font-black text-gray-900 mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>

@@ -824,7 +824,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       setIsLoadingFeaturedAI(false);
       return;
     }
-    // Target the actionable uncompleted program first so Gemini provides advice on the next upskilling course
+    // Target the actionable uncompleted program first so Gemini provides advice on the next upskilling program
     const targetProgramsForAdvice = uncompletedScoredPrograms.length > 0
       ? uncompletedScoredPrograms.map(sp => sp.program)
       : scoredPrograms.map(sp => sp.program);
@@ -948,7 +948,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           continue;
         }
 
-        return `You cannot enroll in this program because your enrolled program "${ep.ref.programTitle}" (${enrolledStartStr} to ${enrolledEndStr}) is still ongoing at the start of this course (${progStartStr}).`;
+        return `You cannot enroll in this program because your enrolled program "${ep.ref.programTitle}" (${enrolledStartStr} to ${enrolledEndStr}) is still ongoing at the start of this program (${progStartStr}).`;
       } else {
         return `You cannot enroll in this program due to a scheduling conflict with your enrolled program "${ep.ref.programTitle}".`;
       }
@@ -2137,7 +2137,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
                     <h4 className="font-extrabold text-gray-800 text-base">No Active TESDA Programs Published Yet</h4>
                     <p className="text-xs text-gray-500 max-w-md leading-relaxed font-medium">
-                      There are currently no active training courses published in the system database. As soon as TESDA partners publish new training programs, our Content-Based Filtering (CBF) engine will automatically evaluate your registered skills and display your top match here.
+                      There are currently no active training programs published in the system database. As soon as TESDA partners publish new training programs, our Content-Based Filtering (CBF) engine will automatically evaluate your registered skills and display your top match here.
                     </p>
                   </div>
                 ) : (
@@ -2161,7 +2161,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 All Matching Qualifications Certified!
                               </h4>
                               <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-xl mt-1">
-                                Outstanding work, {youthProfile.name.split(" ")[0]}! You have successfully completed and attained official certification for all training courses currently aligned with your competencies.
+                                Outstanding work, {youthProfile.name.split(" ")[0]}! You have successfully completed and attained official certification for all training programs currently aligned with your competencies.
                               </p>
                             </div>
                             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 shadow-inner self-start sm:self-auto">
@@ -2207,19 +2207,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               onClick={() => setActiveTab(YouthScreen.MATCHES)}
                               className="text-xs font-semibold px-4 py-2.5 rounded-xl text-emerald-200 hover:text-white transition-colors cursor-pointer text-center sm:text-left"
                             >
-                              Browse Full Course Directory →
+                              Browse Full Program Directory →
                             </button>
                           </div>
                         </div>
                       );
                     }
 
-                    // Otherwise, pick top uncompleted matching program as the featured upskilling course
+                    // Otherwise, pick top uncompleted matching program as the featured upskilling program
                     const topMatchItem = uncompletedScoredPrograms[0];
                     const featuredProg = topMatchItem?.program || programs[0];
                     const featuredScore = topMatchItem?.matchScore ?? calculateContentBasedMatchScore(youthProfile, featuredProg);
                     const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
-                    const isCompleted = false; // uncompletedScoredPrograms excludes completed courses
+                    const isCompleted = false; // uncompletedScoredPrograms excludes completed programs
                     const isEnded = isProgramEnded(featuredProg);
                     const isFull = !app && (featuredProg.slotsRemaining !== undefined && featuredProg.slotsRemaining <= 0);
 
@@ -2374,7 +2374,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   : (liveGeminiBullets && liveGeminiBullets.length === 3
                                     ? liveGeminiBullets
                                     : [
-                                      `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early course modules.`,
+                                      `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early program modules.`,
                                       `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
                                       `Utilize the support and referrals of the SK in Barangay ${youthProfile.barangay || "San Luis"} to enter employment and achieve your dream of "${youthProfile.livelihoodGoal || "sustainable livelihood"}".`
                                     ])
@@ -2652,7 +2652,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </div>
                   <h4 className="font-extrabold text-gray-800 text-base">No Matching TESDA Programs Available Yet</h4>
                   <p className="text-xs text-gray-500 max-w-md font-medium leading-relaxed">
-                    There are currently no active training programs published in the system. As soon as TESDA partners publish new courses, the Content-Based Filtering (CBF) system will automatically analyze your profile and display your personalized matches here.
+                    There are currently no active training programs published in the system. As soon as TESDA partners publish new programs, the Content-Based Filtering (CBF) system will automatically analyze your profile and display your personalized matches here.
                   </p>
                 </div>
               ) : (
@@ -2801,7 +2801,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             <button
                                               disabled
                                               className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
-                                              title="You have already completed this course and earned your certification"
+                                              title="You have already completed this program and earned your certification"
                                             >
                                               <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
                                               Completed ✓
@@ -3102,7 +3102,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       </p>
                                       <p className="text-gray-600 flex items-center gap-1.5">
                                         <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Course Duration:</strong> <span className="text-gray-900 font-semibold">{trainingHours}{dateRange}</span>
+                                        <strong>Program Duration:</strong> <span className="text-gray-900 font-semibold">{trainingHours}{dateRange}</span>
                                       </p>
                                       <p className="text-gray-600 flex items-center gap-1.5">
                                         <Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
@@ -5365,7 +5365,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
           &ldquo;{featuredLang === "tl" && featuredAdviceTl
             ? featuredAdviceTl
-            : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this course will officially certify their qualifications under TESDA.`)}&rdquo;
+            : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this program will officially certify their qualifications under TESDA.`)}&rdquo;
         </p>
       </div>
 
@@ -5382,13 +5382,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs">
-          {/* Course Duration */}
+          {/* Program Duration */}
           <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
               <Timer className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Course Duration</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Program Duration</span>
               <p className="font-bold text-gray-800 leading-snug break-words">
                 {viewingProgramModal.program.trainingHours} Hours
                 {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) && (

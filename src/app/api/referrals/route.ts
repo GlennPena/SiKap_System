@@ -201,7 +201,7 @@ export async function POST(request: Request) {
       referralId: newReferral.id,
       youthName: newReferral.youth?.name || "Youth Applicant",
       barangayName: newReferral.youth?.barangay?.name || "San Luis",
-      programTitle: newReferral.program?.title || "TESDA Course"
+      programTitle: newReferral.program?.title || "TESDA Program"
     }).catch((err) => console.error("[New Application Notification Error]:", err));
 
     return NextResponse.json({ success: true, data: mapToPipelineItem(newReferral) }, { status: 201 });

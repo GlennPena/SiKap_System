@@ -149,10 +149,20 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    const permanent = searchParams.get("permanent") === "true";
     if (!id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
     const prog = await db.tESDAProgram.findUnique({ where: { id } });
     if (!prog) return NextResponse.json({ success: false, error: "Program not found" }, { status: 404 });
+
+    if (permanent) {
+      await db.referral.deleteMany({ where: { programId: id } });
+      await db.tESDAProgram.delete({ where: { id } });
+      return NextResponse.json({
+        success: true,
+        message: `Program "${prog.title}" and related records permanently deleted.`
+      });
+    }
 
     // 1. Soft delete / archive program
     const updated = await db.tESDAProgram.update({

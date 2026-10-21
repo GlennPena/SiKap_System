@@ -764,7 +764,7 @@ Please sign in at ${window.location.origin} and change your password immediately
         id: `prog-${p.id}`,
         category: "Program Update",
         actor: "TESDA Partner Coordinator",
-        action: `Course cataloged (${p.activeStatus}): ${p.title}`,
+        action: `Program cataloged (${p.activeStatus}): ${p.title}`,
         target: `${p.provider} · ${p.trainingHours} Hours · ${p.slotsRemaining} Slots`,
         barangay: "Municipal Hub",
         timestamp: "Active Offering",
@@ -1150,13 +1150,13 @@ Please sign in at ${window.location.origin} and change your password immediately
           </tr>
           <tr>
             <td class="text-center">3</td>
-            <td colspan="3" class="font-bold">Active TVET Vocational Courses</td>
+            <td colspan="3" class="font-bold">Active TVET Vocational Programs</td>
             <td colspan="2" class="text-center font-bold" style="font-size: 11pt; color: #047857;">${reportStats.activeProgramsCount} of ${reportStats.totalProgramsCount} Modules</td>
             <td colspan="3">Published TESDA technical training modules with open enrollment slots</td>
           </tr>
           <tr>
             <td class="text-center">4</td>
-            <td colspan="3" class="font-bold">Total Course Enrollments</td>
+            <td colspan="3" class="font-bold">Total Program Enrollments</td>
             <td colspan="2" class="text-center font-bold text-num" style="font-size: 11pt; color: #1d4ed8;">${reportStats.totalEnrollments}</td>
             <td colspan="3">Youth trainees registered and enrolled in technical programs</td>
           </tr>
@@ -1238,11 +1238,11 @@ Please sign in at ${window.location.origin} and change your password immediately
           `).join("")}
           <tr><td colspan="9" style="height: 12px; border: none;"></td></tr>
 
-          <!-- TABLE 4: TVET COURSES -->
-          <tr><td colspan="9" class="sec-hdr">IV. TESDA TVET COURSE DIRECTORY & ENROLLMENT CAPACITY</td></tr>
+          <!-- TABLE 4: TVET PROGRAMS -->
+          <tr><td colspan="9" class="sec-hdr">IV. TESDA TVET PROGRAM DIRECTORY & ENROLLMENT CAPACITY</td></tr>
           <tr>
             <th class="text-center">#</th>
-            <th colspan="3">Course Program Title</th>
+            <th colspan="3">Training Program Title</th>
             <th colspan="2">Training Center / Provider</th>
             <th class="text-center">Total Capacity</th>
             <th class="text-center">Available Slots</th>
@@ -1298,8 +1298,8 @@ Please sign in at ${window.location.origin} and change your password immediately
     },
     {
       id: "alert-tesda",
-      title: "TESDA Vocational Courses",
-      desc: `${programs.length} published TVET course offerings available municipal-wide.`,
+      title: "TESDA Vocational Programs",
+      desc: `${programs.length} published TVET program offerings available municipal-wide.`,
       targetTab: "tesda_records" as const,
       icon: Briefcase,
       iconBg: "bg-blue-100 text-blue-800",
@@ -1817,7 +1817,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                 <MetricCard
                   title="Active TESDA Modules"
                   value={`${stats.activePrograms} / ${stats.totalPrograms}`}
-                  subtitle="active technical courses"
+                  subtitle="active technical programs"
                   icon={<Briefcase className="w-5 h-5" />}
                   accent="charcoal"
                 />
@@ -2918,7 +2918,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     TESDA Partner Directory
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Institutional TVET partner directory, certified course modules, and accredited training providers.
+                    Institutional TVET partner directory, certified program modules, and accredited training providers.
                   </p>
                 </div>
               </div>
@@ -4694,7 +4694,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                   {/* Metric 3: Active TESDA Programs */}
                   <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 flex flex-col justify-between">
                     <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">
-                      Active TVET Courses
+                      Active TVET Programs
                     </span>
                     <p className="text-2xl font-black text-emerald-950 mt-1">
                       {reportStats.activeProgramsCount}
@@ -4704,10 +4704,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                     </span>
                   </div>
 
-                  {/* Metric 4: Total Course Enrollments (strictly using "Enrollment", no "referrals") */}
+                  {/* Metric 4: Total Program Enrollments (strictly using "Enrollment", no "referrals") */}
                   <div className="p-3.5 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col justify-between">
                     <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">
-                      Course Enrollments
+                      Program Enrollments
                     </span>
                     <p className="text-2xl font-black text-blue-950 mt-1">
                       {reportStats.totalEnrollments}
@@ -4855,12 +4855,12 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               </div>
 
-              {/* SECTION IV: TESDA TVET COURSE DIRECTORY & ENROLLMENT UTILIZATION */}
+              {/* SECTION IV: TESDA TVET PROGRAM DIRECTORY & ENROLLMENT UTILIZATION */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#0A6B43]" />
-                    IV. Technical Vocational (TVET) Course Offerings & Capacity
+                    IV. Technical Vocational (TVET) Program Offerings & Capacity
                   </h4>
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                     Active TESDA Partnerships
@@ -4871,7 +4871,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                       <tr>
-                        <th className="py-2.5 px-3">Course Title</th>
+                        <th className="py-2.5 px-3">Program Title</th>
                         <th className="py-2.5 px-3">Training Center / Provider</th>
                         <th className="py-2.5 px-2 text-center">Total Slots</th>
                         <th className="py-2.5 px-2 text-center">Available</th>
