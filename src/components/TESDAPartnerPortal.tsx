@@ -1177,7 +1177,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         age: 20,
         purok: item.purok,
         barangay: item.barangay,
-        educationalAttainment: "High School Graduate",
+        educationalAttainment: "Junior High School Graduate",
         currentStatus: "Out-of-school",
         skills: ["Basic Technical Skills", "Hands-on Workshop"],
         interests: ["Vocational Training", "Employment"],
@@ -4664,7 +4664,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           ))
                         ) : (
                           <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                            Basic Literacy, High School Graduate
+                            Basic Literacy, Junior High School Graduate
                           </p>
                         )}
                       </div>

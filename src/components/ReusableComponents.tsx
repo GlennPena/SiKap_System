@@ -745,7 +745,8 @@ export interface SiKapDatePickerProps {
   buttonClassName?: string;
   disabled?: boolean;
   showAgeIndicator?: boolean;
-  align?: "left" | "right";
+  align?: "left" | "right" | "auto";
+  direction?: "down" | "up" | "auto";
 }
 
 export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
@@ -761,16 +762,56 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
   buttonClassName = "",
   disabled = false,
   showAgeIndicator = false,
-  align = "left",
+  align = "auto",
+  direction = "auto",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMonthOpen, setIsMonthOpen] = useState(false);
   const [isYearOpen, setIsYearOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+  const [effectiveAlign, setEffectiveAlign] = useState<"left" | "right">(align === "right" ? "right" : "left");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const monthSelectRef = useRef<HTMLDivElement>(null);
   const yearSelectRef = useRef<HTMLDivElement>(null);
   const selectedYearButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+
+      // Auto vertical direction
+      if (direction === "auto") {
+        const parentModal = containerRef.current.closest(".overflow-y-auto, [role='dialog'], form");
+        const bottomBoundary = parentModal ? parentModal.getBoundingClientRect().bottom : window.innerHeight;
+        const spaceBelow = bottomBoundary - rect.bottom;
+        if (spaceBelow < 300 && rect.top > spaceBelow) {
+          setOpenUpward(true);
+        } else {
+          setOpenUpward(false);
+        }
+      } else if (direction === "up") {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+
+      // Auto horizontal alignment
+      if (align === "right") {
+        setEffectiveAlign("right");
+      } else if (align === "left") {
+        setEffectiveAlign("left");
+      } else {
+        const parentModal = containerRef.current.closest(".overflow-y-auto, [role='dialog'], form");
+        const rightBoundary = parentModal ? parentModal.getBoundingClientRect().right : window.innerWidth;
+        if (rect.left + 310 > rightBoundary - 10 || rect.left + 310 > window.innerWidth - 10) {
+          setEffectiveAlign("right");
+        } else {
+          setEffectiveAlign("left");
+        }
+      }
+    }
+  }, [isOpen, direction, align]);
 
   const initialDate = value ? new Date(value) : (max ? new Date(max) : new Date());
   const [viewYear, setViewYear] = useState<number>(initialDate.getFullYear());
@@ -912,14 +953,16 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1.5 w-full sm:w-[320px] bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-3 sm:p-3.5 ring-1 ring-black/5`}
+            className={`absolute ${effectiveAlign === "right" ? "right-0" : "left-0"} ${
+              openUpward ? "bottom-full mb-2" : "top-full mt-2"
+            } w-[285px] sm:w-[305px] max-w-[calc(100vw-2.5rem)] bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-2.5 sm:p-3 ring-1 ring-black/5`}
           >
             {/* Top Branding Bar */}
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-gray-100">
               <span className="text-[10px] font-black text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
                 <Calendar className="w-3 h-3 text-[#0A6B43]" />
                 <span>{label}</span>
@@ -930,7 +973,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
             </div>
 
             {/* Header: Month & Year Selector + Prev/Next buttons */}
-            <div className="flex items-center justify-between gap-1 mb-2.5 relative">
+            <div className="flex items-center justify-between gap-1 mb-2 relative">
               <button
                 type="button"
                 onClick={prevMonth}
@@ -1072,7 +1115,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
             {/* Days Grid */}
             <div className="grid grid-cols-7 gap-1 text-center">
               {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`empty-${i}`} className="w-7 h-7 sm:w-8 sm:h-8" />
+                <div key={`empty-${i}`} className="w-7 h-7 sm:w-7.5 sm:h-7.5" />
               ))}
 
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -1091,7 +1134,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                     type="button"
                     disabled={isDisabled}
                     onClick={() => handleSelectDay(day)}
-                    className={`w-7 h-7 sm:w-8 sm:h-8 text-xs font-semibold rounded-lg flex items-center justify-center transition-all ${
+                    className={`w-7 h-7 sm:w-7.5 sm:h-7.5 text-xs font-semibold rounded-lg flex items-center justify-center transition-all ${
                       isSelected
                         ? "bg-[#0A6B43] text-white font-bold shadow-xs scale-105 cursor-pointer"
                         : isDisabled
@@ -1106,7 +1149,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
             </div>
 
             {/* Bottom Actions & Age Indicator */}
-            <div className="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+            <div className="mt-2 pt-1.5 border-t border-gray-100 flex items-center justify-between text-xs">
               {showAgeIndicator && value && calculateAge(value) !== "" ? (
                 <>
                   <div className="flex items-center gap-1.5">
@@ -1184,7 +1227,8 @@ export interface SiKapTimePickerProps {
   hasError?: boolean;
   className?: string;
   disabled?: boolean;
-  align?: "left" | "right";
+  align?: "left" | "right" | "auto";
+  direction?: "down" | "up" | "auto";
 }
 
 export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
@@ -1196,10 +1240,50 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
   hasError = false,
   className = "",
   disabled = false,
-  align = "left",
+  align = "auto",
+  direction = "auto",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+  const [effectiveAlign, setEffectiveAlign] = useState<"left" | "right">(align === "right" ? "right" : "left");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+
+      // Auto vertical direction
+      if (direction === "auto") {
+        const parentModal = containerRef.current.closest(".overflow-y-auto, [role='dialog'], form");
+        const bottomBoundary = parentModal ? parentModal.getBoundingClientRect().bottom : window.innerHeight;
+        const spaceBelow = bottomBoundary - rect.bottom;
+        if (spaceBelow < 300 && rect.top > spaceBelow) {
+          setOpenUpward(true);
+        } else {
+          setOpenUpward(false);
+        }
+      } else if (direction === "up") {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+
+      // Auto horizontal alignment
+      if (align === "right") {
+        setEffectiveAlign("right");
+      } else if (align === "left") {
+        setEffectiveAlign("left");
+      } else {
+        const parentModal = containerRef.current.closest(".overflow-y-auto, [role='dialog'], form");
+        const rightBoundary = parentModal ? parentModal.getBoundingClientRect().right : window.innerWidth;
+        if (rect.left + 310 > rightBoundary - 10 || rect.left + 310 > window.innerWidth - 10) {
+          setEffectiveAlign("right");
+        } else {
+          setEffectiveAlign("left");
+        }
+      }
+    }
+  }, [isOpen, direction, align]);
 
   // Parse 24-hour "HH:MM" into 12-hour components
   const parseTime = (timeStr: string) => {
@@ -1330,14 +1414,16 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1.5 w-full sm:w-[320px] bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-3 sm:p-3.5 ring-1 ring-black/5`}
+            className={`absolute ${effectiveAlign === "right" ? "right-0" : "left-0"} ${
+              openUpward ? "bottom-full mb-2" : "top-full mt-2"
+            } w-[285px] sm:w-[305px] max-w-[calc(100vw-2.5rem)] bg-white border border-gray-200 rounded-2xl shadow-xl z-50 p-2.5 sm:p-3 ring-1 ring-black/5`}
           >
             {/* Header Bar */}
-            <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-gray-100">
+            <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-gray-100">
               <span className="text-[10px] font-black text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-3 h-3 text-[#0A6B43]" />
                 <span>{label}</span>
@@ -1352,7 +1438,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
             </div>
 
             {/* Time Selection Display & AM/PM Toggle */}
-            <div className="flex items-center justify-between bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100/80 mb-3">
+            <div className="flex items-center justify-between bg-emerald-50/60 p-2 rounded-xl border border-emerald-100/80 mb-2">
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected Time</p>
                 <p className="text-base font-black text-[#0A6B43]">
@@ -1388,7 +1474,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
             </div>
 
             {/* Hour Selector Grid */}
-            <div className="mb-2.5">
+            <div className="mb-2">
               <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
                 <span>Hour</span>
                 <span className="text-[9px] text-[#0A6B43] font-semibold">{selectedHour} {selectedPeriod}</span>
@@ -1399,7 +1485,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
                     key={h}
                     type="button"
                     onClick={() => handleHourSelect(h)}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       selectedHour === h
                         ? "bg-[#0A6B43] text-white shadow-xs scale-105"
                         : "text-gray-700 bg-gray-50/70 hover:bg-emerald-50 hover:text-[#0A6B43]"
@@ -1412,7 +1498,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
             </div>
 
             {/* Minute Selector Grid */}
-            <div className="mb-3">
+            <div className="mb-2">
               <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
                 <span>Minute</span>
                 <span className="text-[9px] text-[#0A6B43] font-semibold">:{selectedMinute < 10 ? `0${selectedMinute}` : selectedMinute}</span>
@@ -1423,7 +1509,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
                     key={m}
                     type="button"
                     onClick={() => handleMinuteSelect(m)}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    className={`py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                       selectedMinute === m
                         ? "bg-[#0A6B43] text-white shadow-xs scale-105"
                         : "text-gray-700 bg-gray-50/70 hover:bg-emerald-50 hover:text-[#0A6B43]"
@@ -1436,7 +1522,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
             </div>
 
             {/* Quick Session Presets */}
-            <div className="pt-2 border-t border-gray-100 mb-2.5">
+            <div className="pt-1.5 border-t border-gray-100 mb-2">
               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Session Presets</p>
               <div className="grid grid-cols-3 gap-1.5">
                 <button
@@ -1470,7 +1556,7 @@ export const SiKapTimePicker: React.FC<SiKapTimePickerProps> = ({
             </div>
 
             {/* Bottom Actions */}
-            <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+            <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between text-xs">
               <button
                 type="button"
                 onClick={handleNow}

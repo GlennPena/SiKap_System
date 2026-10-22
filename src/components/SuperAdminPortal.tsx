@@ -954,12 +954,7 @@ Please sign in at ${window.location.origin} and change your password immediately
   const educationStats = useMemo(() => {
     const list = reportFilteredYouth;
     const total = list.length || 1;
-    const categories = [
-      "College Level",
-      "Senior High School Graduate",
-      "High School Graduate",
-      "Elementary Level"
-    ];
+    const categories = [...EDUCATIONAL_ATTAINMENT_OPTIONS];
 
     return categories.map(cat => {
       const count = list.filter(y => normalizeEducationalAttainment(y.educationalAttainment) === cat).length;

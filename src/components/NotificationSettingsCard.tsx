@@ -268,26 +268,26 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
 
   return (
     <div className={className || "bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5 sm:space-y-6 animate-in fade-in duration-150"}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-        <div>
-          <h3 className={`${userRole === "SK_OFFICIAL" ? "text-[22px] font-extrabold text-gray-900 tracking-tight" : "font-bold text-gray-800 text-base"} flex items-center gap-2`}>
-            <Bell className="w-5 h-5 text-[#0A6B43] shrink-0" />
-            <span>Alerts & Notifications</span>
-          </h3>
-          {userRole !== "SK_OFFICIAL" && (
-            <p className="text-sm text-gray-400 font-medium mt-0.5 leading-relaxed">
-              Manage how SiKap sends account and application updates.
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-3 sm:pb-3.5">
+        <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+          <Bell className="w-4.5 h-4.5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0 mt-0.5 sm:mt-0" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-[14px] sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
+              Alerts & Notifications
+            </h3>
+            <p className="text-[10px] sm:text-xs text-gray-500 font-normal sm:font-medium leading-normal mt-0.5 break-words">
+              Manage system broadcasts, registration alerts, and push notifications
             </p>
-          )}
+          </div>
         </div>
 
         <button
           onClick={() => handleSendTest("all")}
           disabled={testing || loading}
-          className="self-center sm:self-center px-4 py-2 h-9 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] text-[14px] font-bold rounded-lg border border-gray-200 transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-2xs"
+          className="w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 h-8 sm:h-9 bg-gray-100 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] text-xs sm:text-[13px] font-bold rounded-xl border border-gray-200 transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 shrink-0 shadow-2xs"
           title="Send a sample notification to verify settings"
         >
-          {testing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-[#0A6B43]" />}
+          {testing ? <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <Send className="w-3 h-3 sm:w-4 sm:h-4 text-[#0A6B43]" />}
           <span>Send Test Alert</span>
         </button>
       </div>
@@ -303,9 +303,7 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
           <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-3">
             <div className="flex items-start justify-between gap-3 sm:gap-4 min-w-0">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
-                <div className="p-2 sm:p-2.5 bg-emerald-100 text-[#0A6B43] rounded-xl shrink-0 mt-0.5">
-                  <Smartphone className="w-5 h-5" />
-                </div>
+                <Smartphone className="w-5 h-5 text-[#0A6B43] shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <h4 className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Web Push Notifications</h4>
@@ -358,9 +356,7 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
           <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 space-y-3">
             <div className="flex items-start justify-between gap-3 sm:gap-4 min-w-0">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
-                <div className="p-2 sm:p-2.5 bg-gray-200/80 rounded-xl text-gray-700 shrink-0 mt-0.5">
-                  <Mail className="w-5 h-5" />
-                </div>
+                <Mail className="w-5 h-5 text-gray-700 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <h4 className="text-sm sm:text-base font-bold text-gray-800 leading-tight">Email Notifications</h4>

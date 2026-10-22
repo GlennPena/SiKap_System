@@ -5,7 +5,7 @@ import {
   ArrowLeft, MapPin, Check, Sparkles, Clock, CheckCircle,
   User, Mail, Phone, Calendar, Award, GraduationCap, Plus, X,
   Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft, ChevronDown,
-  Eye, EyeOff, AlertCircle
+  Eye, EyeOff, AlertCircle, ZoomIn, ShieldCheck, RefreshCw
 } from "lucide-react";
 import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
 import { SiKapDatePicker } from "./ReusableComponents";
@@ -239,6 +239,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regIdNumber, setRegIdNumber] = useState("");
   const [regIdFileName, setRegIdFileName] = useState("");
   const [regIdImage, setRegIdImage] = useState<string>("");
+  const [showIdPreviewModal, setShowIdPreviewModal] = useState<boolean>(false);
   const [isDragging, setIsDragging] = useState(false);
   const [certifyAge, setCertifyAge] = useState(false);
   const [certifyResidency, setCertifyResidency] = useState(false);
@@ -251,6 +252,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       stepContentRef.current.scrollTop = 0;
     }
   }, [currentStep]);
+
+  useEffect(() => {
+    if (!showIdPreviewModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowIdPreviewModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showIdPreviewModal]);
 
   const STEPS = [
     { label: "Location", desc: "Barangay Select", icon: <MapPin className="w-4 h-4" /> },
@@ -1185,39 +1197,88 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               </label>
                             ) : (
                               <div className="space-y-3">
-                                <div className="flex items-center justify-between bg-white border border-gray-150 p-2.5 rounded-lg max-w-sm mx-auto">
-                                  <div className="flex items-center gap-2 text-left">
-                                    <div className="w-8 h-8 rounded bg-emerald-100 text-[#0A6B43] flex items-center justify-center">
-                                      <FileCheck className="w-4 h-4" />
+                                <div className="flex items-center justify-between bg-white border border-gray-200 p-2.5 rounded-xl max-w-md mx-auto shadow-2xs">
+                                  <div
+                                    onClick={() => setShowIdPreviewModal(true)}
+                                    className="flex items-center gap-2.5 text-left cursor-pointer flex-1 min-w-0 group"
+                                    title="Click to double-check uploaded image"
+                                  >
+                                    <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                                      <FileCheck className="w-5 h-5" />
                                     </div>
-                                    <div className="truncate max-w-[200px]">
-                                      <p className="text-xs font-bold text-gray-800 truncate">{regIdFileName}</p>
-                                      <p className="text-[9px] text-emerald-600 font-bold">Successfully attached</p>
+                                    <div className="truncate flex-1 min-w-0">
+                                      <p className="text-xs font-bold text-gray-800 truncate group-hover:text-[#0A6B43] transition-colors">{regIdFileName}</p>
+                                      <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1.5">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        <span>Attached</span>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="text-[#0A6B43] underline font-extrabold flex items-center gap-0.5">
+                                          <ZoomIn className="w-3 h-3" /> Double-check image
+                                        </span>
+                                      </p>
                                     </div>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRegIdFileName("");
-                                      setRegIdImage("");
-                                    }}
-                                    className="text-gray-400 hover:text-red-500 p-1"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
+                                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowIdPreviewModal(true)}
+                                      className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                      title="Double-check image"
+                                    >
+                                      <ZoomIn className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Double-Check</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRegIdFileName("");
+                                        setRegIdImage("");
+                                      }}
+                                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                                      title="Remove file"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </div>
 
-                                {/* Image preview */}
+                                {/* Clickable image preview thumbnail */}
                                 {regIdImage && (
-                                  <div className="max-w-xs mx-auto border border-gray-100 rounded-lg overflow-hidden shadow-xs relative group bg-gray-50 p-1">
-                                    <img
-                                      src={regIdImage}
-                                      alt="ID Verification Document"
-                                      className="max-h-28 w-auto mx-auto rounded object-contain"
-                                      referrerPolicy="no-referrer"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                      <p className="text-[9px] text-white font-bold uppercase tracking-wider">Preview Document</p>
+                                  <div
+                                    onClick={() => setShowIdPreviewModal(true)}
+                                    className="max-w-xs mx-auto border-2 border-emerald-100 hover:border-[#0A6B43] rounded-xl overflow-hidden shadow-xs relative group bg-slate-900/5 hover:bg-emerald-50/20 p-2 cursor-pointer transition-all hover:shadow-md"
+                                    title="Click to double-check and expand ID image"
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        setShowIdPreviewModal(true);
+                                      }
+                                    }}
+                                  >
+                                    {regIdImage.startsWith("data:application/pdf") || regIdFileName.toLowerCase().endsWith(".pdf") ? (
+                                      <div className="h-28 flex flex-col items-center justify-center gap-1 bg-white rounded-lg border border-slate-200">
+                                        <FileDigit className="w-8 h-8 text-emerald-600" />
+                                        <p className="text-[11px] font-bold text-slate-800">PDF Document Attached</p>
+                                        <p className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-1">
+                                          <ZoomIn className="w-3 h-3" /> Click to double-check preview
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <img
+                                        src={regIdImage}
+                                        alt="ID Verification Document"
+                                        className="max-h-28 w-auto mx-auto rounded-lg object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    )}
+                                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white p-2 rounded-xl">
+                                      <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                                        <ZoomIn className="w-4 h-4 text-white" />
+                                      </div>
+                                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-200">Click to Double-Check</p>
+                                      <p className="text-[9px] text-slate-200 font-medium text-center">Inspect clarity before submitting</p>
                                     </div>
                                   </div>
                                 )}
@@ -1340,6 +1401,102 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
           </div>
         )}
       </div>
+
+      {/* Expanded Document Double-Check Modal */}
+      {showIdPreviewModal && regIdImage && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowIdPreviewModal(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="id-preview-modal-title"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ease-out">
+            {/* Modal Header */}
+            <div className="px-4 sm:px-6 py-3.5 border-b border-gray-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 id="id-preview-modal-title" className="text-sm sm:text-base font-black text-gray-900 leading-tight">
+                    Double-Check Uploaded Document
+                  </h3>
+                  <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium">
+                    {regIdType || "Identification Document"} • {regIdFileName || "Uploaded File"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowIdPreviewModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors cursor-pointer"
+                title="Close preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Document Viewer Area */}
+            <div className="flex-1 bg-slate-950 p-2 sm:p-4 flex items-center justify-center overflow-auto min-h-[280px] max-h-[60vh] sm:max-h-[64vh]">
+              {regIdImage.startsWith("data:application/pdf") || regIdFileName.toLowerCase().endsWith(".pdf") ? (
+                <iframe
+                  src={regIdImage}
+                  title="PDF Document Preview"
+                  className="w-full h-[55vh] rounded-lg bg-white border-0"
+                />
+              ) : (
+                <img
+                  src={regIdImage}
+                  alt="Expanded ID Document Preview"
+                  className="max-h-[58vh] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-all"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+            </div>
+
+            {/* Verification Metadata & Clarifications */}
+            <div className="p-3.5 sm:p-4 bg-white border-t border-gray-100 space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Selected ID Type</span>
+                  <span className="font-extrabold text-gray-800 text-xs truncate block">{regIdType || "Not specified"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Entered Reference / ID No.</span>
+                  <span className="font-mono font-bold text-gray-800 text-xs truncate block">{regIdNumber || "Not entered yet"}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <p className="text-[11px] text-gray-500 font-medium hidden sm:block">
+                  Ensure name and photo are clearly visible to avoid verification delays.
+                </p>
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <label
+                    htmlFor="id-file-upload-input"
+                    onClick={() => setShowIdPreviewModal(false)}
+                    className="px-3.5 py-2 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Change File</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowIdPreviewModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-white bg-[#0A6B43] hover:bg-[#075332] rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Looks Good</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
