@@ -8,7 +8,7 @@ import {
   ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
   LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight, ChevronLeft,
   Printer, Download, Menu, Clock, Loader2, GraduationCap, BookOpen, Flame, ArrowUpRight,
-  ChevronDown, ChevronUp, Compass, SearchX, FileX
+  ChevronDown, ChevronUp, Compass, SearchX, FileX, Maximize2, ZoomIn, ZoomOut, RotateCw
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
@@ -237,7 +237,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [regSex, setRegSex] = useState("Male");
   const [regPurok, setRegPurok] = useState("Purok 2");
   const [regContact, setRegContact] = useState("+63 9");
-  const [regEdu, setRegEdu] = useState<string>("College Level");
+  const [regEdu, setRegEdu] = useState<string>("Junior High School Graduate");
   const [regStatus, setRegStatus] = useState("Out-of-school");
   const [regSchool, setRegSchool] = useState("");
   const [regSkills, setRegSkills] = useState<string[]>([]);
@@ -371,6 +371,28 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   // ID Verification state
   const [verifyingYouth, setVerifyingYouth] = useState<YouthProfile | null>(null);
+
+  // Expanded ID inspection modal state
+  const [expandedIdPreview, setExpandedIdPreview] = useState<{
+    imageUrl: string;
+    idType?: string;
+    idNumber?: string;
+    memberName?: string;
+    barangay?: string;
+  } | null>(null);
+  const [expandedIdZoom, setExpandedIdZoom] = useState<number>(1);
+  const [expandedIdRotation, setExpandedIdRotation] = useState<number>(0);
+
+  // Handle ESC key to close expanded ID preview
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && expandedIdPreview) {
+        setExpandedIdPreview(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [expandedIdPreview]);
 
   // Pending Youth Pop-Up Modal state
   const [viewingPendingYouthModal, setViewingPendingYouthModal] = useState<YouthProfile | null>(null);
@@ -651,7 +673,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
       // IT & Digital Literacy:
       const hasItSkill = skillsLower.some(s => s.includes("design") || s.includes("office") || s.includes("word") || s.includes("excel") || s.includes("program") || s.includes("network") || s.includes("data") || s.includes("computer") || s.includes("tech"));
-      if (!hasItSkill && (pref.includes("it") || pref.includes("technology") || pref.includes("business") || goal.includes("it") || goal.includes("computer") || y.educationalAttainment === "High school level" || y.currentStatus === "Out-of-school")) {
+      if (!hasItSkill && (pref.includes("it") || pref.includes("technology") || pref.includes("business") || goal.includes("it") || goal.includes("computer") || y.educationalAttainment?.toLowerCase().includes("school level") || y.educationalAttainment?.toLowerCase().includes("high school") || y.currentStatus === "Out-of-school")) {
         computerCount++;
       }
 
@@ -1256,7 +1278,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     setRegSex("Male");
     setRegPurok("Purok 2");
     setRegContact("+63 9");
-    setRegEdu("College Level");
+    setRegEdu("Junior High School Graduate");
     setRegStatus("Out-of-school");
     setRegSchool("");
     setRegSkills([]);
@@ -1790,7 +1812,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       // Education Filter
       let matchesEdu = true;
       if (pendingEduFilter !== "All") {
-        matchesEdu = y.educationalAttainment === pendingEduFilter;
+        matchesEdu = normalizeEducationalAttainment(y.educationalAttainment) === pendingEduFilter;
       }
 
       // Age Filter
@@ -2708,20 +2730,39 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           </div>
 
                           {/* Aspirations / Goals */}
-                          <div className="text-xs bg-white/90 p-2.5 rounded-lg border border-gray-150">
+                          <div className="text-xs bg-white/90 p-2.5 rounded-xl border border-gray-150/80 transition-all">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Aspirations & Goals</span>
                             {y.livelihoodGoal ? (
                               <div>
-                                <p className={expandedAspirations[y.id] ? "font-medium text-gray-800 leading-relaxed" : "font-medium text-gray-700 line-clamp-2"}>
-                                  {y.livelihoodGoal}
-                                </p>
+                                <motion.div
+                                  layout
+                                  initial={false}
+                                  transition={{ duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] }}
+                                  className="overflow-hidden"
+                                >
+                                  <motion.p
+                                    layout="position"
+                                    className={`font-medium transition-all duration-200 ${
+                                      expandedAspirations[y.id]
+                                        ? "text-gray-900 leading-relaxed bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/60 shadow-2xs"
+                                        : "text-gray-700 line-clamp-2"
+                                    }`}
+                                  >
+                                    {y.livelihoodGoal}
+                                  </motion.p>
+                                </motion.div>
                                 {y.livelihoodGoal.length > 50 && (
                                   <button
                                     type="button"
                                     onClick={(e) => toggleAspirationExpand(y.id, e)}
-                                    className="text-[10px] font-extrabold text-[#0A6B43] hover:underline mt-1 inline-block cursor-pointer"
+                                    className="text-[11px] font-extrabold text-[#0A6B43] hover:text-[#075332] hover:underline mt-1.5 inline-flex items-center gap-1 cursor-pointer select-none transition-colors"
                                   >
-                                    {expandedAspirations[y.id] ? "See Less ▲" : "See More ▼"}
+                                    <span>{expandedAspirations[y.id] ? "See Less" : "See More"}</span>
+                                    <ChevronDown
+                                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                        expandedAspirations[y.id] ? "rotate-180" : ""
+                                      }`}
+                                    />
                                   </button>
                                 )}
                               </div>
@@ -2769,18 +2810,37 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     {y.educationalAttainment}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 max-w-[180px]">
+                                <td className="py-3 px-4 max-w-[200px]">
                                   {y.livelihoodGoal && y.livelihoodGoal.length > 15 ? (
                                     <div>
-                                      <p className={expandedAspirations[y.id] ? "text-xs font-medium text-gray-800 leading-relaxed bg-amber-50/80 p-2 rounded-lg border border-amber-200/80 my-1 shadow-2xs" : "text-xs font-semibold text-gray-700"}>
-                                        {expandedAspirations[y.id] ? y.livelihoodGoal : `${y.livelihoodGoal.slice(0, 15)}...`}
-                                      </p>
+                                      <motion.div
+                                        layout
+                                        initial={false}
+                                        transition={{ duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] }}
+                                        className="overflow-hidden"
+                                      >
+                                        <motion.p
+                                          layout="position"
+                                          className={`transition-all duration-200 ${
+                                            expandedAspirations[y.id]
+                                              ? "text-xs font-medium text-gray-900 leading-relaxed bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/80 my-1 shadow-2xs"
+                                              : "text-xs font-semibold text-gray-700 truncate"
+                                          }`}
+                                        >
+                                          {expandedAspirations[y.id] ? y.livelihoodGoal : `${y.livelihoodGoal.slice(0, 15)}...`}
+                                        </motion.p>
+                                      </motion.div>
                                       <button
                                         type="button"
                                         onClick={(e) => toggleAspirationExpand(y.id, e)}
-                                        className="text-[10px] font-extrabold text-[#0A6B43] hover:underline mt-0.5 inline-block cursor-pointer"
+                                        className="text-[10px] font-extrabold text-[#0A6B43] hover:text-[#075332] hover:underline mt-0.5 inline-flex items-center gap-0.5 cursor-pointer select-none transition-colors"
                                       >
-                                        {expandedAspirations[y.id] ? "See Less ▲" : "See More ▼"}
+                                        <span>{expandedAspirations[y.id] ? "See Less" : "See More"}</span>
+                                        <ChevronDown
+                                          className={`w-3 h-3 transition-transform duration-200 ${
+                                            expandedAspirations[y.id] ? "rotate-180" : ""
+                                          }`}
+                                        />
                                       </button>
                                     </div>
                                   ) : (
@@ -2876,21 +2936,26 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* Two Column Section */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 {/* Recent Youth Registrations (60%) */}
-                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 lg:col-span-3 space-y-4">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-gray-900 text-[26px] tracking-tight">Recent Youth Registrations</h3>
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 sm:p-6 lg:col-span-3 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 pb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight truncate">
+                        Recent Youth Registrations
+                      </h3>
+                      <span className="text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none shrink-0">
                         {localYouthProfiles.length}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] text-gray-400 font-medium sm:hidden">Swipe ↔</span>
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
+                      <span className="text-[10px] text-gray-400 font-bold bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md sm:hidden">
+                        Swipe ↔
+                      </span>
                       <button
                         onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                        className="text-[14px] font-bold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap"
+                        className="text-xs sm:text-sm font-bold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap flex items-center gap-1 group ml-auto sm:ml-0"
                       >
-                        View all youth →
+                        <span>View all youth</span>
+                        <span className="transition-transform group-hover:translate-x-0.5">→</span>
                       </button>
                     </div>
                   </div>
@@ -2975,10 +3040,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                 {/* Top Skills Gaps & Quick actions (40%) */}
                 <div className="space-y-6 lg:col-span-2">
-                  <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
+                  <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 sm:p-6">
                     <div className="flex items-center gap-2 mb-3.5">
-                      <h3 className="font-extrabold text-gray-900 text-[22px] tracking-tight">Top Skills Gaps Identified</h3>
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">Top Skills Gaps Identified</h3>
+                      <span className="text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none shrink-0">
                         {localSkillsGaps.length}
                       </span>
                     </div>
@@ -5762,7 +5827,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 <div
                   className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
                 >
@@ -5803,7 +5868,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              <AnimatePresence mode="wait">
+              <div className="max-w-4xl lg:max-w-5xl mx-auto w-full">
+                <AnimatePresence mode="wait">
                 {/* Sub-Tab 1: Official Details Form */}
                 {activeSettingsTab === "profile" && (
                   <motion.div
@@ -5812,14 +5878,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="bg-white rounded-2xl p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] max-w-3xl"
+                    className="bg-white rounded-2xl p-5 sm:p-7 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full mx-auto"
                   >
                     <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                      <div className="border-b border-gray-100 pb-3">
-                        <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-                          <User className="w-5 h-5 text-[#0A6B43]" />
-                          Personal Demographics
-                        </h3>
+                      <div className="border-b border-gray-100 pb-3 sm:pb-3.5">
+                        <div className="flex items-center gap-2 sm:gap-2.5">
+                          <User className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0" />
+                          <div className="min-w-0">
+                            <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
+                              Personal Demographics
+                            </h3>
+                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                              Official government identity and contact information
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Section 1: Basic Information */}
@@ -5989,14 +6062,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] max-w-xl"
+                    className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full max-w-2xl sm:max-w-3xl mx-auto"
                   >
                     <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
-                      <div className="border-b border-gray-100 pb-3">
-                        <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-                          <Lock className="w-5 h-5 text-[#0A6B43]" />
-                          Account Security & Password
-                        </h3>
+                      <div className="border-b border-gray-100 pb-3 sm:pb-3.5">
+                        <div className="flex items-center gap-2 sm:gap-2.5">
+                          <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0" />
+                          <div className="min-w-0">
+                            <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
+                              Account Security & Password
+                            </h3>
+                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                              Manage authentication and account access
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="space-y-1">
@@ -6086,13 +6166,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="w-full max-w-[740px]"
+                    className="w-full mx-auto"
                   >
                     <NotificationSettingsCard
                       userRole="SK_OFFICIAL"
                       userEmail={settingsEmail || currentUser?.email}
                       addToast={addToast}
-                      className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
+                      className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
                     />
                   </motion.div>
                 )}
@@ -6105,14 +6185,21 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="space-y-6 max-w-2xl"
+                    className="space-y-6 w-full max-w-3xl mx-auto"
                   >
-                    <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                      <div className="border-b border-gray-100 pb-3">
-                        <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-                          <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
-                          Official SK Digital ID Card
-                        </h3>
+                    <div className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                      <div className="border-b border-gray-100 pb-3 sm:pb-3.5">
+                        <div className="flex items-center gap-2 sm:gap-2.5">
+                          <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0" />
+                          <div className="min-w-0">
+                            <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
+                              Official SK Digital ID Card
+                            </h3>
+                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                              Administrative credential and verified authority badge
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Official Digital ID Card */}
@@ -6266,6 +6353,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   </motion.div>
                 )}
               </AnimatePresence>
+              </div>
             </div>
           )}
 
@@ -7331,7 +7419,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           }}
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
         >
-          <div className="bg-white rounded-2xl shadow-xl border border-emerald-100 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-white rounded-2xl shadow-xl border border-emerald-100 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-150 shrink-0 bg-white">
               <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
                 <Megaphone className="w-5 h-5 text-[#0A6B43]" />
@@ -7350,124 +7438,131 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handlePostAnnouncement} className="p-4 sm:p-6 overflow-y-auto space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase block">Announcement Title</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Free Welding Kit Distribution Schedule"
-                  value={annTitle}
-                  onChange={(e) => setAnnTitle(e.target.value)}
-                  className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={handlePostAnnouncement} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar pb-12 sm:pb-16">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase block">Category</label>
-                  <CustomSelect
-                    value={annCategory}
-                    onChange={(val) => setAnnCategory(val as any)}
-                    options={[
-                      { value: "Program Update", label: "Program Update" },
-                      { value: "Event", label: "Event" },
-                      { value: "Reminder", label: "Reminder" },
-                      { value: "General", label: "General" }
-                    ]}
-                    size="sm"
-                    buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
-                    placeholder="Select Category"
+                  <label className="text-[10px] font-bold text-gray-400 uppercase block">Announcement Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Free Welding Kit Distribution Schedule"
+                    value={annTitle}
+                    onChange={(e) => setAnnTitle(e.target.value)}
+                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase block">Target Audience</label>
-                  <CustomSelect
-                    value={annAudience}
-                    onChange={(val) => setAnnAudience(val as any)}
-                    options={[
-                      { value: "All KK members", label: "All KK members" },
-                      { value: "OSY only", label: "OSY only" }
-                    ]}
-                    size="sm"
-                    buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
-                    placeholder="Select Audience"
-                  />
-                </div>
-              </div>
-
-              {/* Date & Time Picker Controls */}
-              <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100/70 space-y-2">
-                <label className="text-[10px] font-extrabold text-[#0A6B43] uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-[#0A6B43]" />
-                  Event Date & Time Schedule (Picker)
-                </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <SiKapDatePicker
-                    label="Select Date"
-                    badgeText="SK Event"
-                    value={annEventDatePicker}
-                    onChange={(val) => setAnnEventDatePicker(val)}
-                    min={new Date().toISOString().split("T")[0]}
-                    placeholder="Choose event date"
-                  />
-                  <SiKapTimePicker
-                    label="Select Time"
-                    badgeText="SK Schedule"
-                    value={annEventTimePicker}
-                    onChange={(val) => setAnnEventTimePicker(val)}
-                    placeholder="Choose event time"
-                  />
-                </div>
-
-                {annEventDatePicker && (
-                  <div className="pt-1 flex items-center gap-1.5 text-[11px] font-bold text-[#0A6B43] flex-wrap">
-                    <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-[#0A6B43]" /> Scheduled:</span>
-                    <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
-                      {new Date(annEventDatePicker + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                      {annEventTimePicker ? ` • ${formatTime12Hour(annEventTimePicker)}` : ""}
-                    </span>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block">Category</label>
+                    <CustomSelect
+                      value={annCategory}
+                      onChange={(val) => setAnnCategory(val as any)}
+                      options={[
+                        { value: "Program Update", label: "Program Update" },
+                        { value: "Event", label: "Event" },
+                        { value: "Reminder", label: "Reminder" },
+                        { value: "General", label: "General" }
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
+                      placeholder="Select Category"
+                    />
                   </div>
-                )}
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block">Target Audience</label>
+                    <CustomSelect
+                      value={annAudience}
+                      onChange={(val) => setAnnAudience(val as any)}
+                      options={[
+                        { value: "All KK members", label: "All KK members" },
+                        { value: "OSY only", label: "OSY only" }
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
+                      placeholder="Select Audience"
+                    />
+                  </div>
+                </div>
+
+                {/* Date & Time Picker Controls */}
+                <div className="bg-emerald-50/50 p-3.5 sm:p-4 rounded-xl border border-emerald-100/70 space-y-2.5">
+                  <label className="text-[10px] font-extrabold text-[#0A6B43] uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#0A6B43]" />
+                    Event Date & Time Schedule (Picker)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
+                    <SiKapDatePicker
+                      label="Select Date"
+                      badgeText="SK Event"
+                      value={annEventDatePicker}
+                      onChange={(val) => setAnnEventDatePicker(val)}
+                      min={new Date().toISOString().split("T")[0]}
+                      placeholder="Choose event date"
+                      align="left"
+                      direction="auto"
+                    />
+                    <SiKapTimePicker
+                      label="Select Time"
+                      badgeText="SK Schedule"
+                      value={annEventTimePicker}
+                      onChange={(val) => setAnnEventTimePicker(val)}
+                      placeholder="Choose event time"
+                      align="right"
+                      direction="auto"
+                    />
+                  </div>
+
+                  {annEventDatePicker && (
+                    <div className="pt-1 flex items-center gap-1.5 text-[11px] font-bold text-[#0A6B43] flex-wrap">
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-[#0A6B43]" /> Scheduled:</span>
+                      <span className="bg-white px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
+                        {new Date(annEventDatePicker + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                        {annEventTimePicker ? ` • ${formatTime12Hour(annEventTimePicker)}` : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block">Venue / Location</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. San Sebastian Covered Court"
+                      value={annVenue}
+                      onChange={(e) => setAnnVenue(e.target.value)}
+                      className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Person & Hotline</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. SK Chair Rhea Cruz (+63 915 777 8888)"
+                      value={annContactPerson}
+                      onChange={(e) => setAnnContactPerson(e.target.value)}
+                      className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase block">Venue / Location</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. San Sebastian Covered Court"
-                    value={annVenue}
-                    onChange={(e) => setAnnVenue(e.target.value)}
-                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                  <label className="text-[10px] font-bold text-gray-400 uppercase block">Body Content *</label>
+                  <textarea
+                    required
+                    rows={4}
+                    placeholder="Describe the announcement details, requirements, or agenda..."
+                    value={annBody}
+                    onChange={(e) => setAnnBody(e.target.value)}
+                    className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors leading-relaxed"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase block">Contact Person & Hotline</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. SK Chair Rhea Cruz (+63 915 777 8888)"
-                    value={annContactPerson}
-                    onChange={(e) => setAnnContactPerson(e.target.value)}
-                    className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                  />
-                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase block">Body Content *</label>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="Describe the announcement details, requirements, or agenda..."
-                  value={annBody}
-                  onChange={(e) => setAnnBody(e.target.value)}
-                  className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors leading-relaxed"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-gray-150 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5">
+              {/* Fixed Bottom Footer Action Bar */}
+              <div className="p-4 sm:p-5 border-t border-gray-150 bg-gray-50/80 shrink-0 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -7810,7 +7905,30 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* ID Document Details */}
               <div className="space-y-2">
-                <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Submitted Document Proof</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Submitted Document Proof</p>
+                  {verifyingYouth.verificationIdImage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedIdPreview({
+                          imageUrl: verifyingYouth.verificationIdImage || "",
+                          idType: verifyingYouth.verificationIdType,
+                          idNumber: verifyingYouth.verificationIdNumber,
+                          memberName: verifyingYouth.name,
+                          barangay: verifyingYouth.barangay,
+                        });
+                        setExpandedIdZoom(1);
+                        setExpandedIdRotation(0);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95"
+                      title="Expand ID View for clearer inspection"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Expand View</span>
+                    </button>
+                  )}
+                </div>
                 {verifyingYouth.verificationIdType ? (
                   <div className="border border-gray-150 rounded-xl overflow-hidden bg-white">
                     <div className="bg-gray-50 p-2.5 border-b border-gray-150 flex flex-wrap justify-between items-center gap-1.5">
@@ -7823,16 +7941,38 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </span>
                     </div>
 
-                    <div className="p-3 bg-gray-50/80 flex justify-center items-center">
+                    <div
+                      onClick={() => {
+                        if (verifyingYouth.verificationIdImage) {
+                          setExpandedIdPreview({
+                            imageUrl: verifyingYouth.verificationIdImage,
+                            idType: verifyingYouth.verificationIdType,
+                            idNumber: verifyingYouth.verificationIdNumber,
+                            memberName: verifyingYouth.name,
+                            barangay: verifyingYouth.barangay,
+                          });
+                          setExpandedIdZoom(1);
+                          setExpandedIdRotation(0);
+                        }
+                      }}
+                      className="group relative p-3 bg-gray-50/80 flex justify-center items-center cursor-zoom-in overflow-hidden transition-colors hover:bg-gray-100/80"
+                      title="Click to expand and inspect ID details"
+                    >
                       <img
                         src={verifyingYouth.verificationIdImage}
                         alt="KK Verification Document proof"
-                        className="max-h-44 sm:max-h-56 rounded-xl shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white"
+                        className="max-h-44 sm:max-h-56 rounded-xl shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white transition-all duration-200 group-hover:scale-[1.02] group-hover:shadow-md"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
                         }}
                       />
+                      <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <span className="bg-white/95 backdrop-blur-xs text-gray-900 px-3 py-1.5 rounded-xl font-extrabold text-xs shadow-lg border border-gray-200 flex items-center gap-1.5 transform translate-y-1 group-hover:translate-y-0 transition-transform">
+                          <ZoomIn className="w-4 h-4 text-[#0A6B43]" />
+                          Click to Expand & Inspect
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -7911,6 +8051,149 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         </div>
       )}
 
+      {/* Expanded ID Document Inspection Lightbox Modal */}
+      {expandedIdPreview && (
+        <div
+          className="fixed inset-0 bg-black/85 backdrop-blur-xs z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200 overflow-hidden"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setExpandedIdPreview(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="expanded-id-title"
+        >
+          <div className="bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700/80 w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ease-out">
+            {/* Header with Title and Inspect Controls */}
+            <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-slate-800/95 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 id="expanded-id-title" className="font-extrabold text-sm sm:text-base text-white truncate">
+                      ID Document Inspection — {expandedIdPreview.memberName || "Katipunan ng Kabataan"}
+                    </h3>
+                    {expandedIdPreview.barangay && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full border border-slate-600">
+                        {expandedIdPreview.barangay}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-medium truncate flex items-center gap-1.5 mt-0.5">
+                    <span>{expandedIdPreview.idType || "Identity Document"}</span>
+                    {expandedIdPreview.idNumber && (
+                      <>
+                        <span>•</span>
+                        <span className="font-mono text-emerald-300 font-bold">No: {expandedIdPreview.idNumber}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* View Control Toolbar */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="flex items-center bg-slate-700/80 rounded-xl p-0.5 border border-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedIdZoom((prev) => Math.max(0.5, Number((prev - 0.25).toFixed(2))))}
+                    disabled={expandedIdZoom <= 0.5}
+                    className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpandedIdZoom(1);
+                      setExpandedIdRotation(0);
+                    }}
+                    className="px-2 py-1 text-[11px] font-bold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Reset Zoom & Rotation"
+                  >
+                    {Math.round(expandedIdZoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedIdZoom((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))))}
+                    disabled={expandedIdZoom >= 3}
+                    className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setExpandedIdRotation((prev) => (prev + 90) % 360)}
+                  className="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer"
+                  title="Rotate 90°"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExpandedIdPreview(null)}
+                  className="p-2 rounded-xl bg-slate-700/80 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border border-slate-600 hover:border-red-500/30 transition-colors cursor-pointer ml-1"
+                  title="Close expanded view"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Document Image Viewing Canvas */}
+            <div className="flex-1 bg-slate-950 p-3 sm:p-6 flex items-center justify-center overflow-auto min-h-[300px] max-h-[68vh] sm:max-h-[72vh] relative select-none">
+              {expandedIdPreview.imageUrl.startsWith("data:application/pdf") || expandedIdPreview.imageUrl.toLowerCase().endsWith(".pdf") ? (
+                <iframe
+                  src={expandedIdPreview.imageUrl}
+                  title="PDF ID Document"
+                  className="w-full h-[65vh] rounded-xl bg-white border-0"
+                />
+              ) : (
+                <div className="flex items-center justify-center w-full h-full p-2">
+                  <img
+                    src={expandedIdPreview.imageUrl}
+                    alt="Expanded ID Document"
+                    style={{
+                      transform: `scale(${expandedIdZoom}) rotate(${expandedIdRotation}deg)`,
+                      transformOrigin: "center center",
+                      transition: "transform 0.15s ease-out",
+                    }}
+                    className="max-h-[64vh] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-transform"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Footer / Inspection Guide */}
+            <div className="px-4 py-2.5 sm:px-5 sm:py-3 bg-slate-800/95 border-t border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+              <div className="text-slate-400 text-[11px] flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Inspect names, birthdate, photo clarity, and official seals before approving registration.</span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setExpandedIdPreview(null)}
+                  className="w-full sm:w-auto px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Done Inspecting
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pending Youth Member Profile Preview Modal */}
       {viewingPendingYouthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in overflow-hidden">
@@ -7975,10 +8258,33 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   </div>
                   <div>
                     <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">ID Document Submitted</span>
-                    <span className="text-teal-800 font-bold flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                      {viewingPendingYouthModal.verificationIdType || "In-Person Field Profiling"}
-                    </span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-teal-800 font-bold flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                        {viewingPendingYouthModal.verificationIdType || "In-Person Field Profiling"}
+                      </span>
+                      {viewingPendingYouthModal.verificationIdImage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedIdPreview({
+                              imageUrl: viewingPendingYouthModal.verificationIdImage || "",
+                              idType: viewingPendingYouthModal.verificationIdType,
+                              idNumber: viewingPendingYouthModal.verificationIdNumber,
+                              memberName: viewingPendingYouthModal.name,
+                              barangay: viewingPendingYouthModal.barangay,
+                            });
+                            setExpandedIdZoom(1);
+                            setExpandedIdRotation(0);
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded-md transition-colors cursor-pointer"
+                          title="Expand ID View"
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                          <span>Expand</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">ID Reference Number</span>

@@ -3577,7 +3577,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     <div className="space-y-6">
       {/* Profile Hero & Identity Card */}
       <div
-        className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+        className="w-full text-white p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
         style={{
           background: "radial-gradient(circle at 80% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
         }}
@@ -3586,11 +3586,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         <GrowthPlantAnimation />
 
         {/* Identity Header Content */}
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="flex flex-row items-start sm:items-center gap-3.5 sm:gap-5 min-w-0 flex-1">
             {/* Avatar Initials Badge with Verification Indicator & Profile Picture Upload */}
             <div className="relative shrink-0 group">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl sm:text-3xl shadow-lg border-2 border-emerald-300/40 relative overflow-hidden">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-[#0A6B43] flex items-center justify-center text-white font-black text-xl sm:text-3xl shadow-lg border-2 border-emerald-300/40 relative overflow-hidden">
                 {profilePictureUrl ? (
                   <img
                     src={profilePictureUrl}
@@ -3615,11 +3615,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   title="Change Profile Picture"
                 >
                   {isUploadingPic ? (
-                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-spin" />
                   ) : (
                     <>
-                      <Camera className="w-5 h-5 text-emerald-300" />
-                      <span className="text-[9px] font-black tracking-wider uppercase mt-0.5 text-white">Change</span>
+                      <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />
+                      <span className="text-[8px] sm:text-[9px] font-black tracking-wider uppercase mt-0.5 text-white">Change</span>
                     </>
                   )}
                 </label>
@@ -3635,25 +3635,25 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
               {/* Verification Badge */}
               <div
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-md z-10"
+                className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white flex items-center justify-center shadow-md z-10"
                 title={youthProfile.approvalStatus === "Approved" ? "Verified KK Member" : "Verification Pending"}
               >
                 {youthProfile.approvalStatus === "Approved" ? (
-                  <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                  <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43]" />
                 ) : (
-                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                  <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
                 )}
               </div>
             </div>
 
             {/* Member Details */}
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-black text-xl sm:text-2xl lg:text-3xl text-white tracking-tight leading-tight">
+            <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h2 className="font-black text-base sm:text-2xl lg:text-3xl text-white tracking-tight leading-tight">
                   {youthProfile.name}
                 </h2>
                 <span
-                  className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border shadow-2xs ${youthProfile.approvalStatus === "Approved"
+                  className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-extrabold px-2 sm:px-2.5 py-0.5 rounded-full border shadow-2xs shrink-0 ${youthProfile.approvalStatus === "Approved"
                     ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
                     : youthProfile.approvalStatus === "Rejected"
                       ? "bg-red-500/20 text-red-300 border-red-400/40"
@@ -3672,26 +3672,26 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
 
               {/* Location & Status Badges */}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-100/90 font-medium">
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-0.5 rounded-md backdrop-blur-xs">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-emerald-100/90 font-medium">
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2 sm:px-2.5 py-0.5 rounded-md backdrop-blur-xs">
                   <MapPin className="w-3 h-3 text-emerald-300 shrink-0" />
                   <span>Barangay {youthProfile.barangay || "San Luis"} • {youthProfile.purok || "Purok 1"}</span>
                 </span>
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2.5 py-0.5 rounded-md backdrop-blur-xs">
+                <span className="inline-flex items-center gap-1 bg-white/10 px-2 sm:px-2.5 py-0.5 rounded-md backdrop-blur-xs">
                   <GraduationCap className="w-3 h-3 text-emerald-300 shrink-0" />
                   <span>{youthProfile.currentStatus || "Youth Resident"}</span>
                 </span>
               </div>
 
               {/* Quick Contact & Demographics Strip */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-100/80 pt-1">
+              <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-[11px] sm:text-xs text-emerald-100/80 pt-0.5 sm:pt-1">
                 <span className="flex items-center gap-1">
                   <Phone className="w-3 h-3 text-emerald-300 shrink-0" />
                   <span>{youthProfile.contactNumber || "No phone"}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <Mail className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span className="truncate max-w-[200px] sm:max-w-none">{currentUser?.email || youthProfile.email || "No email"}</span>
+                  <span className="truncate max-w-[180px] sm:max-w-none">{currentUser?.email || youthProfile.email || "No email"}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3 h-3 text-emerald-300 shrink-0" />
@@ -3702,13 +3702,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           </div>
 
           {/* Quick Digital ID Action */}
-          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-3 sm:pt-0 border-t border-white/10 sm:border-0">
+          <div className="flex sm:flex-col items-stretch sm:items-end justify-between sm:justify-center gap-1.5 sm:gap-2 shrink-0 pt-2.5 sm:pt-0 border-t border-white/10 sm:border-0 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setProfileActiveTab("badge")}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#0A6B43] hover:bg-emerald-50 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#0A6B43] hover:bg-emerald-50 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
             >
-              <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+              <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
               <span>View Official Digital ID</span>
             </button>
             <span className="text-[10px] text-emerald-200/70 font-semibold hidden sm:inline">
@@ -3719,7 +3719,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       </div>
 
       {/* Sub-Tab Navigation Bar */}
-      <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+      <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
         <div
           className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
         >
@@ -3761,7 +3761,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
+      <div className="max-w-6xl xl:max-w-7xl mx-auto w-full px-2 sm:px-4">
+        <AnimatePresence mode="wait">
         {/* Sub-Tab 1: Personal Details Dossier */}
         {profileActiveTab === "profile" && (
           <motion.div
@@ -3770,7 +3771,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start pb-24"
+            className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start pb-24 w-full"
           >
             {/* Left Column: Personal Dossier Info or Active Edit Form */}
             <div className="lg:col-span-3 bg-white rounded-2xl p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
@@ -3876,7 +3877,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Educational Attainment</span>
-                        <p className="text-sm font-bold text-slate-800">{normalizeEducationalAttainment(youthProfile.educationalAttainment) || "High School"}</p>
+                        <p className="text-sm font-bold text-slate-800">{normalizeEducationalAttainment(youthProfile.educationalAttainment) || "Junior High School Graduate"}</p>
                       </div>
                       <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Current Status</span>
@@ -4378,19 +4379,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             className="space-y-6 pb-24"
           >
             {/* Top: Livelihood & Career Goal Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                      <Target className="w-4.5 h-4.5 text-[#0A6B43]" />
-                      Livelihood & Career Goal
+            <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-3.5 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <h3 className="font-bold text-gray-800 text-[14px] sm:text-base flex items-center gap-1.5 sm:gap-2">
+                      <Target className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#0A6B43] shrink-0" />
+                      <span>Livelihood & Career Goal</span>
                     </h3>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
                       15% Match Weight
                     </span>
                   </div>
-                  <p className="text-sm text-gray-400 font-medium mt-0.5">
+                  <p className="text-xs sm:text-sm text-gray-400 font-medium mt-0.5 leading-snug">
                     Your overarching career aspiration or livelihood ambition
                   </p>
                 </div>
@@ -4405,10 +4406,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       setIsEditingGoal(true);
                     }}
                     disabled={isUnverified}
-                    className={`px-4 py-2 h-9 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
+                    className={`w-full sm:w-auto px-3.5 sm:px-4 py-1.5 sm:py-2 h-8 sm:h-9 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg text-xs sm:text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    <Edit className="w-4 h-4" />
-                    Edit Goal
+                    <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Edit Goal</span>
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -4620,15 +4621,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
             </div>
 
-            {/* Bottom: 3. Prior Work & Practical Experiences Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+            {/* Bottom: 3. Prior Work & Practical Experiences Card - Inverted Pyramid Center */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 w-full max-w-xl sm:max-w-2xl mx-auto">
               <div className="border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between">
                   <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                    <Briefcase className="w-4.5 h-4.5 text-blue-600" />
-                    Prior Work & Practical Experiences
+                    <Briefcase className="w-4.5 h-4.5 text-blue-600 shrink-0" />
+                    <span>Prior Work & Practical Experiences</span>
                   </h3>
-                  <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                  <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 shrink-0">
                     15% Match Weight
                   </span>
                 </div>
@@ -4636,7 +4637,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
 
               {/* Add Experience Inline Input */}
-              <div className="flex items-center gap-2 w-full max-w-xl">
+              <div className="flex items-center gap-2 w-full">
                 <input
                   type="text"
                   disabled={isUnverified}
@@ -4704,7 +4705,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-4xl pb-24"
+            className="grid grid-cols-1 lg:grid-cols-5 gap-6 w-full max-w-5xl mx-auto pb-24"
           >
             <div className="lg:col-span-3 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
               <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
@@ -4836,7 +4837,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-5 gap-6 max-w-4xl pb-24"
+            className="grid grid-cols-1 lg:grid-cols-5 gap-6 w-full max-w-5xl mx-auto pb-24"
           >
             <div className="lg:col-span-3">
               <NotificationSettingsCard
@@ -4899,7 +4900,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="space-y-6 max-w-2xl"
+              className="space-y-6 w-full max-w-3xl mx-auto pb-24"
             >
               <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
                 <div className="border-b border-gray-100 pb-3">
@@ -5169,6 +5170,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           );
         })()}
       </AnimatePresence>
+      </div>
     </div>
   )
 }

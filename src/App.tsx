@@ -271,7 +271,7 @@ export default function App() {
     age: 18,
     purok: "Purok 1",
     barangay: (session?.user as any)?.barangay || "",
-    educationalAttainment: "High School Graduate",
+    educationalAttainment: "Junior High School Graduate",
     currentStatus: "Out-of-school",
     skills: [],
     interests: [],

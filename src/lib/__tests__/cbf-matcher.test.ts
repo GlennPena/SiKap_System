@@ -41,7 +41,7 @@ function runTests() {
     age: 20,
     purok: "Purok 1",
     barangay: "San Sebastian",
-    educationalAttainment: "High School Graduate",
+    educationalAttainment: "Junior High School Graduate",
     currentStatus: "Out-of-school",
     skills: ["Computer", "Programming", "Welding", "Cooking", "Baking"],
     interests: ["Technology"],

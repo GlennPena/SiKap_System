@@ -158,10 +158,13 @@ export const getSkillGapCriticality = (percentage: number, count: number): Skill
 };
 
 export const EDUCATIONAL_ATTAINMENT_OPTIONS = [
-  "College Level",
+  "Elementary Level",
+  "Elementary Graduate",
+  "Junior High School Level",
+  "Junior High School Graduate",
+  "Senior High School Level",
   "Senior High School Graduate",
-  "High School Graduate",
-  "Elementary Level"
+  "College Level (Undergraduate)"
 ] as const;
 
 export type EducationalAttainment = typeof EDUCATIONAL_ATTAINMENT_OPTIONS[number];
@@ -190,24 +193,81 @@ export const VOCATIONAL_SECTOR_OPTIONS = [
 ] as const;
 
 export function normalizeEducationalAttainment(val?: string | null): EducationalAttainment {
-  if (!val) return "College Level";
-  const v = val.trim().toLowerCase();
-  if (v.includes("college") || v.includes("undergraduate") || v.includes("tertiary") || v.includes("higher ed")) {
-    return "College Level";
+  if (!val) return "Junior High School Graduate";
+  const trimmed = val.trim();
+
+  // Direct match (case-insensitive) against defined options
+  const exact = EDUCATIONAL_ATTAINMENT_OPTIONS.find(
+    opt => opt.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (exact) return exact;
+
+  const v = trimmed.toLowerCase();
+
+  // 1. College / Tertiary / Undergraduate / Bachelor
+  if (
+    v.includes("college") ||
+    v.includes("undergrad") ||
+    v.includes("tertiary") ||
+    v.includes("bachelor") ||
+    v.includes("higher ed") ||
+    v.includes("university")
+  ) {
+    return "College Level (Undergraduate)";
   }
-  if (v.includes("senior") || v.includes("shs") || v.includes("grade 11") || v.includes("grade 12")) {
+
+  // 2. Senior High School (SHS, Grade 11, Grade 12)
+  if (
+    v.includes("senior high") ||
+    v.includes("senior") ||
+    v.includes("shs") ||
+    v.includes("grade 11") ||
+    v.includes("grade 12")
+  ) {
+    if (v.includes("level") || v.includes("undergrad") || v.includes("student") || v.includes("attending")) {
+      return "Senior High School Level";
+    }
     return "Senior High School Graduate";
   }
-  if (v.includes("high school") || v.includes("hs") || v.includes("junior") || v.includes("jhs") || v.includes("secondary")) {
-    return "High School Graduate";
+
+  // 3. Junior High School (JHS, Grade 7 to 10)
+  if (
+    v.includes("junior high") ||
+    v.includes("junior") ||
+    v.includes("jhs") ||
+    v.includes("grade 7") ||
+    v.includes("grade 8") ||
+    v.includes("grade 9") ||
+    v.includes("grade 10")
+  ) {
+    if (v.includes("level") || v.includes("undergrad") || v.includes("student") || v.includes("attending")) {
+      return "Junior High School Level";
+    }
+    return "Junior High School Graduate";
   }
-  if (v.includes("elementary") || v.includes("primary") || v.includes("grade school")) {
+
+  // 4. Generic High School / Secondary (legacy "High School Graduate", "High School Level", etc.)
+  if (v.includes("high school") || v.includes("hs") || v.includes("secondary")) {
+    if (v.includes("level") || v.includes("undergrad") || v.includes("student") || v.includes("attending")) {
+      return "Junior High School Level";
+    }
+    return "Junior High School Graduate";
+  }
+
+  // 5. Elementary / Primary / Grade School
+  if (v.includes("elem") || v.includes("primary") || v.includes("grade school")) {
+    if (v.includes("grad")) {
+      return "Elementary Graduate";
+    }
     return "Elementary Level";
   }
+
+  // 6. Vocational / Tech-Voc / TVET
   if (v.includes("vocational") || v.includes("tvet") || v.includes("tech-voc")) {
     return "Senior High School Graduate";
   }
-  return "College Level";
+
+  return "Junior High School Graduate";
 }
 
 export interface YouthProfile {
