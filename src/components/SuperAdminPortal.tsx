@@ -2438,7 +2438,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     return (
                       <div 
                         key={item.name}
-                        className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                        className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-md hover:-translate-y-1.5 transition-all duration-200 flex flex-col justify-between space-y-4 group"
                       >
                         {/* Card Header: Zone Name + Status Badge + Rename */}
                         <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
@@ -2447,7 +2447,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                               <MapPin className="w-4.5 h-4.5" />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="text-sm font-extrabold text-slate-900 truncate">
+                              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-[#0A6B43] transition-colors truncate">
                                 Barangay {item.name}
                               </h3>
                               <span className="text-[10px] text-slate-500 font-medium">San Luis, Pampanga</span>

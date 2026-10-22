@@ -2465,18 +2465,16 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
                   <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
                     {/* Post New Program Button */}
-                    {!viewingArchivedPrograms && (
-                      <button
-                        type="button"
-                        onClick={handleNewProgramClick}
-                        className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Post New Program</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleNewProgramClick}
+                      className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Post New Program</span>
+                    </button>
 
-                    {/* Archived Programs Button (Gray Color) */}
+                    {/* Archive / Active Programs Toggle Button */}
                     <button
                       type="button"
                       onClick={() => {
@@ -2486,20 +2484,25 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       }}
                       className={`px-4 py-2 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0 ${
                         viewingArchivedPrograms
-                          ? "bg-emerald-700 hover:bg-emerald-800"
+                          ? "bg-[#0A6B43] hover:bg-[#075332]"
                           : "bg-gray-600 hover:bg-gray-700"
                       }`}
                       title={viewingArchivedPrograms ? "Switch back to active programs" : "View archived program catalog"}
                     >
                       {viewingArchivedPrograms ? (
                         <>
-                          <Building2 className="w-4 h-4" />
-                          <span>View Active Programs</span>
+                          <BookOpen className="w-4 h-4" />
+                          <span>Active Programs</span>
+                          {activePrograms.length > 0 && (
+                            <span className="ml-0.5 px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[10px] font-bold">
+                              {activePrograms.length}
+                            </span>
+                          )}
                         </>
                       ) : (
                         <>
                           <Archive className="w-4 h-4" />
-                          <span>Archived Programs</span>
+                          <span>Archive Programs</span>
                           {archivedProgramsList.length > 0 && (
                             <span className="ml-0.5 px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[10px] font-bold">
                               {archivedProgramsList.length}
@@ -2659,13 +2662,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       return (
                         <div
                           key={prog.id}
-                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full"
+                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
                         >
                           <div className="flex-1 flex flex-col">
                             {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
                             <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
                               <div className="min-w-0 space-y-0.5">
-                                <h3 className="font-extrabold text-gray-900 text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 font-medium truncate">
@@ -2687,8 +2690,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             </div>
 
                             {/* Duration & Training Term: 2-column key-value block (moved above Available Slots) */}
-                            <div className="pt-2.5 pb-1">
-                              <div className="grid grid-cols-2 gap-3">
+                            <div className="py-2.5 flex flex-col justify-center">
+                              <div className="grid grid-cols-2 gap-3 items-center">
                                 <div className="min-w-0">
                                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                                     Duration
@@ -2728,7 +2731,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             </div>
 
                             {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pb-3">
+                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pt-2 pb-3">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
                                 Target Competencies
                               </span>
@@ -2806,12 +2809,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     </p>
                                   </div>
                                 </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
+                                <td className="py-3 px-4 whitespace-nowrap align-middle">
                                   <span className="font-medium text-gray-700 text-xs">
                                     {prog.trainingHours ? `${prog.trainingHours} Hours` : "Flexible"}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
+                                <td className="py-3 px-4 whitespace-nowrap align-middle">
                                   <span className="font-medium text-gray-700 text-xs" title={(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}>
                                     {(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}
                                   </span>

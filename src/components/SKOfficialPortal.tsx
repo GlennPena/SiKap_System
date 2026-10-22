@@ -3234,7 +3234,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           return (
                             <div
                               key={y.id}
-                              className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between"
+                              className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between group"
                               id={`youth-card-${y.id}`}
                             >
                               <div>
@@ -3244,7 +3244,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <h4 className="font-bold text-gray-900 text-base truncate leading-snug tracking-tight">{y.name}</h4>
+                                    <h4 className="font-bold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base truncate leading-snug tracking-tight">{y.name}</h4>
                                     <p className="text-xs text-gray-500 mt-0.5 truncate">
                                       {y.age} years old · {y.gender || "Youth"}
                                     </p>
@@ -5059,13 +5059,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       return (
                         <div
                           key={prog.id}
-                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full"
+                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
                         >
                           <div className="flex-1 flex flex-col">
                             {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
                             <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
                               <div className="min-w-0 space-y-0.5">
-                                <h3 className="font-extrabold text-gray-900 text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 font-medium truncate">
@@ -5101,7 +5101,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             </div>
 
                             {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pb-3">
+                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pt-2 pb-3">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
                                 Target Competencies
                               </span>
@@ -5622,7 +5622,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         return (
                           <div
                             key={ann.id}
-                            className={`bg-white border rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between space-y-4 ${isCancelled
+                            className={`bg-white border rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between space-y-4 group ${isCancelled
                               ? "border-red-200 bg-red-50/20"
                               : "border-gray-200/90 hover:border-emerald-200"
                               }`}
@@ -5663,7 +5663,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                               {/* Title & Body */}
                               <div>
-                                <h4 className={`font-extrabold text-base sm:text-lg leading-snug ${isCancelled ? "text-gray-600 line-through" : "text-gray-900"}`}>
+                                <h4 className={`font-extrabold text-base sm:text-lg leading-snug transition-colors ${isCancelled ? "text-gray-600 line-through" : "text-gray-900 group-hover:text-[#0A6B43]"}`}>
                                   {ann.title}
                                 </h4>
                                 <p className="text-xs text-gray-600 leading-relaxed mt-1.5 whitespace-pre-line font-normal">
@@ -8552,7 +8552,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
 
                 {/* Target Competencies */}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 pt-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                     Target Competencies
                   </span>

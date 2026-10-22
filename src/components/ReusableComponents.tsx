@@ -572,7 +572,7 @@ export const OpportunityCard: React.FC<{
   const isFull = program.slotsRemaining === 0;
 
   return (
-    <div className={`bg-white border ${isFull ? 'border-gray-200' : 'border-[#D1FAE5]'} p-4 rounded-xl shadow-xs transition-all hover:shadow-md hover:border-emerald-300 flex flex-col justify-between`} id={`opp-card-${program.id}`}>
+    <div className={`bg-white border ${isFull ? 'border-gray-200' : 'border-[#D1FAE5]'} p-4 rounded-xl shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-1.5 flex flex-col justify-between group`} id={`opp-card-${program.id}`}>
       <div>
         <div className="flex justify-between items-start gap-2 mb-2">
           <div className="flex items-center gap-2">
@@ -586,7 +586,7 @@ export const OpportunityCard: React.FC<{
           <FlameMatchScore score={matchScore} />
         </div>
 
-        <h4 className="font-bold text-gray-800 text-sm leading-snug mb-1.5">{program.title}</h4>
+        <h4 className="font-bold text-gray-800 group-hover:text-[#0A6B43] transition-colors text-sm leading-snug mb-1.5">{program.title}</h4>
 
         <div className="flex flex-wrap gap-2 mb-3.5">
           <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full uppercase tracking-wider ${program.type === "Training"
