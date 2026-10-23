@@ -721,6 +721,7 @@ export default function App() {
               setYouthProfiles={setYouthProfiles}
               programs={programs}
               councilors={councilors}
+              setCouncilors={setCouncilors}
               referrals={referrals}
               announcements={announcements}
               onLogout={handleLogout}

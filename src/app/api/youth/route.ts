@@ -453,8 +453,21 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
-    await db.youthProfile.delete({ where: { id } });
-    return NextResponse.json({ success: true, message: "Profile deleted" });
+    const profile = await db.youthProfile.findUnique({ where: { id } });
+    if (profile) {
+      // Clean up referrals first to avoid foreign key constraints
+      await db.referral.deleteMany({ where: { youthId: id } }).catch(() => {});
+
+      // Delete the youth profile
+      await db.youthProfile.delete({ where: { id } });
+
+      // If tied to a login User account, delete user record as well
+      if (profile.userId) {
+        await db.user.delete({ where: { id: profile.userId } }).catch(() => {});
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "Youth profile and account deleted successfully" });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }

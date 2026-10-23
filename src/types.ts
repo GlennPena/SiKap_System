@@ -272,6 +272,7 @@ export function normalizeEducationalAttainment(val?: string | null): Educational
 
 export interface YouthProfile {
   id: string;
+  userId?: string;
   name: string;
   email?: string;
   birthdate?: string;

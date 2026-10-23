@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Building2, Users, Briefcase, Activity, Shield, Copy, Check, RefreshCw, 
   UserCheck, LogOut, ArrowRight, Eye, Edit, Trash2, PlusCircle, CheckCircle2,
@@ -26,6 +27,7 @@ interface SuperAdminPortalProps {
   officialAccounts: OfficialAccount[];
   setOfficialAccounts: React.Dispatch<React.SetStateAction<OfficialAccount[]>>;
   councilors: Councilor[];
+  setCouncilors?: React.Dispatch<React.SetStateAction<Councilor[]>> | React.Dispatch<React.SetStateAction<any[]>>;
   referrals?: ReferralPipelineItem[];
   announcements?: SKAnnouncement[];
   onLogout: () => void;
@@ -35,12 +37,14 @@ interface SuperAdminPortalProps {
 
 export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   youthProfiles,
+  setYouthProfiles,
   programs,
   barangays,
   setBarangays,
   officialAccounts,
   setOfficialAccounts,
   councilors,
+  setCouncilors,
   referrals = [],
   announcements = [],
   onLogout,
@@ -63,11 +67,25 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
     }
   };
 
+  const { update: updateSession } = useSession();
+
   // Profile Tab State
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [adminName, setAdminName] = useState(currentUser?.name || "System Super Administrator");
-  const [adminEmail, setAdminEmail] = useState(currentUser?.email || "admin@sanluis.gov.ph");
+  const [adminName, setAdminName] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("sikap_superadmin_name");
+      if (cached) return cached;
+    }
+    return currentUser?.name || "System Super Administrator";
+  });
+  const [adminEmail, setAdminEmail] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("sikap_superadmin_email");
+      if (cached) return cached;
+    }
+    return currentUser?.email || "admin@sanluis.gov.ph";
+  });
   const [adminPhone, setAdminPhone] = useState("+63 917 123 4567");
   const [adminOffice, setAdminOffice] = useState("Municipal Youth Development Office (MYDO)");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -85,9 +103,19 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
-    if (currentUser?.name) setAdminName(currentUser.name);
-    if (currentUser?.email) setAdminEmail(currentUser.email);
-  }, [currentUser]);
+    if (currentUser?.name) {
+      setAdminName(currentUser.name);
+      try {
+        localStorage.setItem("sikap_superadmin_name", currentUser.name);
+      } catch {}
+    }
+    if (currentUser?.email) {
+      setAdminEmail(currentUser.email);
+      try {
+        localStorage.setItem("sikap_superadmin_email", currentUser.email);
+      } catch {}
+    }
+  }, [currentUser?.name, currentUser?.email]);
 
   const handleSaveProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +142,23 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
       if (!res.ok) {
         throw new Error(data.error || "Failed to update administrator profile.");
       }
+
+      // Persist locally for instant retention across refreshes
+      try {
+        localStorage.setItem("sikap_superadmin_name", adminName.trim());
+        localStorage.setItem("sikap_superadmin_email", adminEmail.trim().toLowerCase());
+      } catch {}
+
+      // Update NextAuth active session cookie
+      if (updateSession) {
+        try {
+          await updateSession({
+            name: adminName.trim(),
+            email: adminEmail.trim().toLowerCase()
+          });
+        } catch {}
+      }
+
       setIsEditingProfile(false);
       addToast("Super Administrator profile updated successfully!", "success");
     } catch (err: any) {
@@ -317,7 +362,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   const [originalBrgyName, setOriginalBrgyName] = useState("");
 
   // Delete account verification state
-  const [deleteAccountTarget, setDeleteAccountTarget] = useState<{ id: string; name: string; role: string } | null>(null);
+  const [deleteAccountTarget, setDeleteAccountTarget] = useState<{ id: string; name: string; role: string; isCouncilor?: boolean; isYouth?: boolean } | null>(null);
 
   // Status toggle loading state
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
@@ -490,6 +535,45 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
           isReset: true
         });
         addToast(`Password reset generated for ${official.name}!`, "success");
+      } else {
+        addToast(data.message || "Failed to reset password", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Network error resetting password", "error");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  // Reset Password specifically for KK Youth Member accounts
+  const handleResetYouthPassword = async (youth: YouthProfile) => {
+    const newPass = generatePassword();
+    setUpdatingUserId(youth.id);
+
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: youth.userId,
+          targetEmail: youth.email,
+          youthProfileId: youth.id,
+          newTempPassword: newPass
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setCreatedCredentials({
+          name: youth.name,
+          email: youth.email || data.data?.email || "Registered KK Account",
+          pass: newPass,
+          role: "KK Youth Member",
+          barangay: youth.barangay ? youth.barangay.replace(/^Barangay\s+/i, "") : "San Luis",
+          isReset: true
+        });
+        addToast(`Password reset generated for ${youth.name}!`, "success");
       } else {
         addToast(data.message || "Failed to reset password", "error");
       }
@@ -850,20 +934,61 @@ Please sign in at ${window.location.origin} and change your password immediately
 
   const confirmDeleteAccount = async () => {
     if (!deleteAccountTarget) return;
-    const { id, name, role } = deleteAccountTarget;
+    const { id, name, role, isCouncilor, isYouth } = deleteAccountTarget;
+
+    const isCouncilorAccount = Boolean(
+      isCouncilor ||
+      role === "SK Councilor" ||
+      role.toLowerCase().includes("councilor") ||
+      role.toLowerCase().includes("secretary") ||
+      role.toLowerCase().includes("treasurer")
+    );
+
+    const isYouthAccount = Boolean(
+      isYouth ||
+      role === "KK Youth Member" ||
+      role.toLowerCase().includes("youth")
+    );
 
     try {
-      const res = await fetch(`/api/users?id=${id}`, { method: "DELETE" });
+      let endpoint = `/api/users?id=${id}`;
+      if (isYouthAccount) {
+        endpoint = `/api/youth?id=${id}`;
+      } else if (isCouncilorAccount) {
+        endpoint = `/api/councilors?id=${id}`;
+      }
+
+      const res = await fetch(endpoint, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
-        setOfficialAccounts(prev => prev.filter(o => o.id !== id));
+        if (isYouthAccount) {
+          if (setYouthProfiles) {
+            setYouthProfiles(prev => prev.filter(y => y.id !== id));
+          }
+        } else if (isCouncilorAccount) {
+          if (setCouncilors) {
+            setCouncilors(prev => prev.filter(c => c.id !== id));
+          }
+        } else {
+          setOfficialAccounts(prev => prev.filter(o => o.id !== id));
+        }
         addToast(`Successfully deleted ${role} account for ${name}!`, "success");
       } else {
-        addToast(data.message || "Failed to delete account", "error");
+        addToast(data.message || data.error || "Failed to delete account", "error");
       }
     } catch (err) {
       console.error(err);
-      setOfficialAccounts(prev => prev.filter(o => o.id !== id));
+      if (isYouthAccount) {
+        if (setYouthProfiles) {
+          setYouthProfiles(prev => prev.filter(y => y.id !== id));
+        }
+      } else if (isCouncilorAccount) {
+        if (setCouncilors) {
+          setCouncilors(prev => prev.filter(c => c.id !== id));
+        }
+      } else {
+        setOfficialAccounts(prev => prev.filter(o => o.id !== id));
+      }
       addToast(`Account for ${name} removed.`, "info");
     } finally {
       setDeleteAccountTarget(null);
@@ -966,16 +1091,14 @@ Please sign in at ${window.location.origin} and change your password immediately
     });
   }, [reportFilteredYouth]);
 
-  // Age group distribution
+  // Age group distribution (excluding 15-17 yrs old as requested)
   const ageGroupStats = useMemo(() => {
     const list = reportFilteredYouth;
     const total = list.length || 1;
-    const g1 = list.filter(y => y.age >= 15 && y.age <= 17).length;
     const g2 = list.filter(y => y.age >= 18 && y.age <= 24).length;
     const g3 = list.filter(y => y.age >= 25 && y.age <= 30).length;
 
     return [
-      { label: "15–17 years (Minor Youth)", count: g1, percentage: ((g1 / total) * 100).toFixed(1) },
       { label: "18–24 years (Core Youth)", count: g2, percentage: ((g2 / total) * 100).toFixed(1) },
       { label: "25–30 years (Young Adult)", count: g3, percentage: ((g3 / total) * 100).toFixed(1) },
     ];
@@ -4092,7 +4215,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">{selectedYouthDetail.name}</h3>
-                  <p className="text-xs text-slate-500 font-medium">Barangay {selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")} · {selectedYouthDetail.purok}</p>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Barangay {selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")} · {selectedYouthDetail.purok}
+                    {selectedYouthDetail.email ? ` · ${selectedYouthDetail.email}` : ""}
+                  </p>
                 </div>
               </div>
               <button
@@ -4173,10 +4299,42 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
             </div>
 
-            <div className="p-4 px-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="p-4 px-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleResetYouthPassword(selectedYouthDetail)}
+                  disabled={updatingUserId === selectedYouthDetail.id}
+                  className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Generate temporary password for this youth account"
+                >
+                  <Key className="w-3.5 h-3.5 text-amber-700" />
+                  <span>{updatingUserId === selectedYouthDetail.id ? "Generating..." : "Reset Password"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteAccountTarget({
+                      id: selectedYouthDetail.id,
+                      name: selectedYouthDetail.name,
+                      role: "KK Youth Member",
+                      isYouth: true
+                    });
+                    setSelectedYouthDetail(null);
+                  }}
+                  className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Permanently delete this youth profile and account"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                  <span>Delete Account</span>
+                </button>
+              </div>
+
               <button
+                type="button"
                 onClick={() => setSelectedYouthDetail(null)}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer"
+                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer text-center"
               >
                 Close Profile
               </button>
@@ -4278,44 +4436,66 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </h4>
                 {selectedBrgyDetails.councilors.length > 0 ? (
                   <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
-                          <th className="p-3 pl-4">Councilor Name</th>
-                          <th className="p-3">Official Role</th>
-                          <th className="p-3">Email Address</th>
-                          <th className="p-3 text-center">Status</th>
-                          <th className="p-3 text-right pr-4">Registered Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {selectedBrgyDetails.councilors.map((c, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
-                            <td className="p-3 pl-4 font-bold text-slate-900">{c.name}</td>
-                            <td className="p-3">
-                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                                c.role?.toLowerCase().includes("secretary")
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : c.role?.toLowerCase().includes("treasurer")
-                                  ? "bg-teal-50 text-teal-800 border-teal-200"
-                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              }`}>
-                                {c.role || "SK Councilor"}
-                              </span>
-                            </td>
-                            <td className="p-3 text-slate-500">{c.email}</td>
-                            <td className="p-3 text-center">
-                              <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.2 rounded-full ${
-                                c.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-500"
-                              }`}>
-                                {c.status}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right pr-4 text-slate-400 font-medium">{c.dateCreated}</td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[620px] text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold whitespace-nowrap">
+                            <th className="p-3 pl-4">Councilor Name</th>
+                            <th className="p-3">Official Role</th>
+                            <th className="p-3">Email Address</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-right">Registered Date</th>
+                            <th className="p-3 text-center pr-4">Action</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700 whitespace-nowrap">
+                          {selectedBrgyDetails.councilors.map((c, i) => (
+                            <tr key={c.id || i} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-3 pl-4 font-bold text-slate-900">{c.name}</td>
+                              <td className="p-3">
+                                <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                  c.role?.toLowerCase().includes("secretary")
+                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                    : c.role?.toLowerCase().includes("treasurer")
+                                    ? "bg-teal-50 text-teal-800 border-teal-200"
+                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                }`}>
+                                  {c.role || "SK Councilor"}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-500">{c.email}</td>
+                              <td className="p-3 text-center">
+                                <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                  c.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-500"
+                                }`}>
+                                  {c.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-right text-slate-400 font-medium">{c.dateCreated}</td>
+                              <td className="p-3 text-center pr-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteAccountTarget({
+                                      id: c.id,
+                                      name: c.name,
+                                      role: c.role || "SK Councilor",
+                                      isCouncilor: true,
+                                    });
+                                    setIsViewModalOpen(false);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100/80 border border-red-200/80 rounded-lg transition-colors cursor-pointer"
+                                  title={`Delete ${c.name}'s account`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-slate-50 border border-slate-200 p-6 text-center rounded-xl text-slate-400">
@@ -4332,26 +4512,28 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </h4>
                 {selectedBrgyDetails.youth.length > 0 ? (
                   <div className="bg-white border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-2xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold sticky top-0">
-                          <th className="p-3 pl-4">Member Name</th>
-                          <th className="p-3">Age</th>
-                          <th className="p-3">Purok</th>
-                          <th className="p-3 pr-4">Attainment / Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {selectedBrgyDetails.youth.map((y, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
-                            <td className="p-3 pl-4 font-bold text-slate-900">{y.name}</td>
-                            <td className="p-3 text-slate-500">{y.age} y/o</td>
-                            <td className="p-3 text-slate-500">{y.purok}</td>
-                            <td className="p-3 pr-4 text-slate-600 font-medium">{y.educationalAttainment}</td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[500px] text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold sticky top-0 whitespace-nowrap">
+                            <th className="p-3 pl-4">Member Name</th>
+                            <th className="p-3">Age</th>
+                            <th className="p-3">Purok</th>
+                            <th className="p-3 pr-4">Attainment / Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700 whitespace-nowrap">
+                          {selectedBrgyDetails.youth.map((y, i) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                              <td className="p-3 pl-4 font-bold text-slate-900">{y.name}</td>
+                              <td className="p-3 text-slate-500">{y.age} y/o</td>
+                              <td className="p-3 text-slate-500">{y.purok}</td>
+                              <td className="p-3 pr-4 text-slate-600 font-medium">{y.educationalAttainment}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-slate-50 border border-slate-200 p-6 text-center rounded-xl text-slate-400">

@@ -115,10 +115,28 @@ export async function PUT(req: Request) {
     const body = await req.json();
 
     // 1. Super Admin Administrative Actions on another user account
-    if (body.targetUserId && isSuperAdmin) {
-      const targetUser = await db.user.findUnique({ where: { id: body.targetUserId } });
+    if ((body.targetUserId || body.targetEmail || body.youthProfileId) && isSuperAdmin) {
+      let targetUser = null;
+      if (body.targetUserId) {
+        targetUser = await db.user.findUnique({ where: { id: body.targetUserId } });
+      }
+      if (!targetUser && body.targetEmail) {
+        targetUser = await db.user.findUnique({ where: { email: body.targetEmail.toLowerCase().trim() } });
+      }
+      if (!targetUser && body.youthProfileId) {
+        const yp = await db.youthProfile.findUnique({
+          where: { id: body.youthProfileId },
+          include: { user: true }
+        });
+        if (yp?.user) {
+          targetUser = yp.user;
+        } else if (yp?.userId) {
+          targetUser = await db.user.findUnique({ where: { id: yp.userId } });
+        }
+      }
+
       if (!targetUser) {
-        return NextResponse.json({ success: false, message: "Target user not found" }, { status: 404 });
+        return NextResponse.json({ success: false, message: "Target user account not found" }, { status: 404 });
       }
 
       let adminUpdateData: any = {};
@@ -134,7 +152,7 @@ export async function PUT(req: Request) {
       }
 
       const updated = await db.user.update({
-        where: { id: body.targetUserId },
+        where: { id: targetUser.id },
         data: adminUpdateData,
         include: { barangay: true }
       });
@@ -142,7 +160,7 @@ export async function PUT(req: Request) {
       // Also update officialAccount status if exists
       if (body.status !== undefined) {
         await db.officialAccount.updateMany({
-          where: { userId: body.targetUserId },
+          where: { userId: targetUser.id },
           data: { status: body.status }
         }).catch(() => {});
       }

@@ -808,6 +808,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return scoredPrograms.filter(sp => sp.isCompleted);
   }, [scoredPrograms]);
 
+  // Active uncompleted programs matching the youth's competencies (score > 0 and term not ended)
+  const activeMatchingPrograms = useMemo(() => {
+    return uncompletedScoredPrograms.filter(sp => !isProgramEnded(sp.program) && sp.matchScore > 0);
+  }, [uncompletedScoredPrograms]);
+
   // Programs ordered for Matches tab: Actionable uncompleted first, completed qualifications below
   const matchesTabPrograms = useMemo(() => {
     return [...scoredPrograms].sort((a, b) => {
@@ -824,10 +829,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       setIsLoadingFeaturedAI(false);
       return;
     }
-    // Target the actionable uncompleted program first so Gemini provides advice on the next upskilling program
-    const targetProgramsForAdvice = uncompletedScoredPrograms.length > 0
-      ? uncompletedScoredPrograms.map(sp => sp.program)
-      : scoredPrograms.map(sp => sp.program);
+    // Target the actionable active matching program first so Gemini provides advice on the next open upskilling program
+    const targetProgramsForAdvice = activeMatchingPrograms.length > 0
+      ? activeMatchingPrograms.map(sp => sp.program)
+      : [];
 
     if (targetProgramsForAdvice.length > 0) {
       const targetProg = targetProgramsForAdvice[0];
@@ -913,7 +918,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     } else {
       setIsLoadingFeaturedAI(false);
     }
-  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, youthProfile?.savedMatchAdvice, uncompletedScoredPrograms, scoredPrograms]);
+  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, youthProfile?.savedMatchAdvice, activeMatchingPrograms, uncompletedScoredPrograms, scoredPrograms]);
 
   const skChairpersonName = useMemo(() => {
     return "Your SK Chairperson";
@@ -2214,13 +2219,130 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       );
                     }
 
-                    // Otherwise, pick top uncompleted matching program as the featured upskilling program
-                    const topMatchItem = uncompletedScoredPrograms[0];
-                    const featuredProg = topMatchItem?.program || programs[0];
-                    const featuredScore = topMatchItem?.matchScore ?? calculateContentBasedMatchScore(youthProfile, featuredProg);
+                    // If all matching programs have concluded (term ended) or remaining active programs have 0% match
+                    if (activeMatchingPrograms.length === 0) {
+                      return (
+                        <div className="bg-white rounded-2xl p-4 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] lg:col-span-3 border border-slate-100/80 flex flex-col justify-between h-full">
+                          <div className="space-y-3.5 sm:space-y-5">
+                            <div className="flex justify-between items-start gap-3 sm:gap-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
+                                  <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200 flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    {featuredLang === "tl" ? "Nagtapos Na ang Pagsasanay" : "Training Cohorts Concluded"}
+                                  </span>
+
+                                  {/* Language Toggle for OSY */}
+                                  <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-250 text-[10px] font-bold">
+                                    <button
+                                      type="button"
+                                      onClick={() => setFeaturedLang("en")}
+                                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en"
+                                        ? "bg-white text-gray-900 shadow-2xs font-extrabold"
+                                        : "text-gray-500 hover:text-gray-800"
+                                        }`}
+                                      title="Basahin sa Ingles (English)"
+                                    >
+                                      English
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFeaturedLang("tl")}
+                                      className={`px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer ${featuredLang === "tl"
+                                        ? "bg-[#0A6B43] text-white shadow-2xs font-extrabold"
+                                        : "text-gray-600 hover:text-gray-900"
+                                        }`}
+                                      title="Isalin sa Tagalog"
+                                    >
+                                      <span>🇵🇭</span>
+                                      <span>Tagalog</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <h4 className="font-extrabold text-gray-900 text-sm sm:text-lg leading-snug">
+                                  {featuredLang === "tl"
+                                    ? "Nagtapos Na ang Kasalukuyang Pagsasanay para sa Iyong Kasanayan"
+                                    : "Current Cohorts for Your Registered Skills Have Concluded"}
+                                </h4>
+                              </div>
+
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0 shadow-2xs">
+                                <Calendar className="w-4 h-4 sm:w-6 sm:h-6" />
+                              </div>
+                            </div>
+
+                            <div className="bg-linear-to-br from-amber-50/70 to-orange-50/50 p-4 sm:p-5 rounded-xl border border-amber-200/80 space-y-3.5">
+                              <p className="text-xs text-amber-950 leading-relaxed font-medium">
+                                {featuredLang === "tl"
+                                  ? `Sa kasalukuyan ay walang aktibong kurso na tumutugma sa iyong profile sa ${youthProfile.sectorPreference || "iyong napiling larangan"}. Ang mga bagong iskedyul ng pagsasanay ay inilalathala bawat tatlong buwan ng TESDA.`
+                                  : `There are currently no open programs actively enrolling that match your profile in ${youthProfile.sectorPreference || "your chosen sector"}. New training schedules are published quarterly by TESDA.`}
+                              </p>
+
+                              {/* Profile Context Pill - cleanly separated with proper spacing */}
+                              <div className="pt-3.5 pb-1 border-t border-amber-200/80 space-y-2.5">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-[11px] text-amber-900">
+                                  <span className="font-bold flex items-center gap-1 shrink-0 text-amber-950">
+                                    <Compass className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                    {featuredLang === "tl" ? "Iyong Sektor:" : "Your Target Sector:"}
+                                  </span>
+                                  <span className="bg-white/90 px-2.5 py-1 rounded-md font-semibold border border-amber-200 text-amber-950 inline-block self-start sm:self-auto shadow-2xs">
+                                    {youthProfile.sectorPreference || "General Vocational Trades"}
+                                  </span>
+                                </div>
+                                {youthProfile.skills && youthProfile.skills.length > 0 && (
+                                  <div className="flex items-start gap-1.5 text-[11px] text-amber-900/90 pl-0.5 pt-0.5">
+                                    <Tag className="w-3.5 h-3.5 text-amber-700/80 shrink-0 mt-0.5" />
+                                    <span className="font-medium leading-relaxed">
+                                      <strong className="font-bold text-amber-950">{featuredLang === "tl" ? "Mga Kasanayan:" : "Skills:"}</strong>{" "}
+                                      {youthProfile.skills.slice(0, 4).join(", ")}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-7 sm:mt-8 lg:mt-auto pt-6 border-t border-slate-200/80 space-y-3">
+                            <p className="text-[11px] text-gray-500 font-medium text-center leading-normal">
+                              {featuredLang === "tl"
+                                ? "Maaari mong tingnan ang iba pang mga kurso o i-update ang iyong mga kasanayan."
+                                : "Explore other available programs or update your registered competencies."}
+                            </p>
+
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full">
+                              <button
+                                onClick={() => {
+                                  setActiveTab(YouthScreen.PROFILE);
+                                  setProfileActiveTab("skills");
+                                }}
+                                className="flex-1 w-full text-xs font-bold px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-800 border border-gray-250 transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer text-center"
+                              >
+                                <Edit className="w-3.5 h-3.5 text-gray-600 shrink-0" />
+                                <span>{featuredLang === "tl" ? "I-update ang Kasanayan" : "Update Skills & Preferences"}</span>
+                              </button>
+
+                              <button
+                                onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                                className="flex-1 w-full text-xs font-bold px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer text-center"
+                              >
+                                <Compass className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                                <span>{featuredLang === "tl" ? "Tingnan ang Lahat ng Kurso" : "Browse All Available Programs"}</span>
+                                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Otherwise, pick the top active uncompleted matching program as the featured upskilling program
+                    const topMatchItem = activeMatchingPrograms[0];
+                    const featuredProg = topMatchItem.program;
+                    const featuredScore = topMatchItem.matchScore;
                     const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
-                    const isCompleted = false; // uncompletedScoredPrograms excludes completed programs
-                    const isEnded = isProgramEnded(featuredProg);
+                    const isCompleted = false; // activeMatchingPrograms excludes completed programs
+                    const isEnded = false; // activeMatchingPrograms excludes ended programs
                     const isFull = !app && (featuredProg.slotsRemaining !== undefined && featuredProg.slotsRemaining <= 0);
 
                     const overlapWarning = getOverlapWarning(featuredProg);
@@ -2459,12 +2581,28 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </span>
                         <p className="text-xs sm:text-sm font-bold text-[#D97706] leading-snug">
                           {(() => {
-                            const app = referrals?.find(r => r.youthName === youthProfile.name);
-                            if (app?.status === "Enrolled") return `Enrolled in ${app.programTitle}`;
-                            if (app?.status === "Pending") return `Application Pending: ${app.programTitle}`;
-                            if (app?.status === "Declined") return "Revise Profile & Explore Opportunities";
-                            if (programs && programs.length > 0) return `Apply Directly for ${programs[0].title}`;
-                            return "Explore & Apply for Training Programs";
+                            const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                            const enrolledApp = userApps.find(r => r.status === "Enrolled");
+                            if (enrolledApp) return `Enrolled in ${enrolledApp.programTitle}`;
+
+                            const pendingApp = userApps.find(r => r.status === "Pending");
+                            if (pendingApp) return `Application Pending: ${pendingApp.programTitle}`;
+
+                            const declinedApp = userApps.find(r => r.status === "Declined");
+                            if (declinedApp && userApps.length === 1) return "Revise Profile & Explore Opportunities";
+
+                            // If all matching qualifications are certified/completed
+                            if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
+                              return "Step 4: Livelihood Placement & Career Launch";
+                            }
+
+                            // If there is an active matching program
+                            if (activeMatchingPrograms.length > 0) {
+                              return `Apply Directly for ${activeMatchingPrograms[0].program.title}`;
+                            }
+
+                            // If all matching cohorts have concluded / off-cycle
+                            return "Awaiting Upcoming TESDA Training Schedules";
                           })()}
                         </p>
                       </div>
@@ -2472,10 +2610,27 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                     <div className="pt-4 mt-4 border-t border-gray-100">
                       <button
-                        onClick={() => setActiveTab(YouthScreen.PATHWAY)}
+                        onClick={() => {
+                          if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
+                            setActiveTab(YouthScreen.PATHWAY);
+                          } else if (activeMatchingPrograms.length === 0 && (!referrals || !referrals.some(r => isSameYouth(r.youthName, youthProfile.name) && (r.status === "Pending" || r.status === "Enrolled")))) {
+                            setActiveTab(YouthScreen.MATCHES);
+                          } else {
+                            setActiveTab(YouthScreen.PATHWAY);
+                          }
+                        }}
                         className="w-full bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white text-xs font-bold py-2.5 px-4 rounded-xl text-center transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                       >
-                        <span>Track Pathway Progress</span>
+                        <span>
+                          {(() => {
+                            const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                            if (userApps.some(r => r.status === "Enrolled")) return "Track Class Schedule & Details";
+                            if (userApps.some(r => r.status === "Pending")) return "Track Application Status";
+                            if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) return "View Step 4 Career Plan";
+                            if (activeMatchingPrograms.length === 0) return "Browse Available Programs";
+                            return "Track Pathway Progress";
+                          })()}
+                        </span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
