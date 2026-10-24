@@ -17,6 +17,8 @@ import { SuperAdminPortal } from "./components/SuperAdminPortal";
 import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
+import { TermsPage } from "./components/TermsPage";
+import { PrivacyPolicyPage } from "./components/PrivacyPolicyPage";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
 import { onRealtimeSync, broadcastDataChange } from "./lib/realtime-sync";
 import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Loader2, ShieldAlert, Clock, AlertTriangle } from "lucide-react";
@@ -87,6 +89,7 @@ export default function App() {
   const { data: session, status } = useSession();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [viewingLanding, setViewingLanding] = useState(true);
+  const [viewingLegal, setViewingLegal] = useState<{ tab: "terms" | "privacy"; returnTo: "landing" | "register" | "login" } | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
@@ -470,21 +473,27 @@ export default function App() {
       </aside>
 
       {activeUserRole === null ? (
-        viewingLanding ? (
-          <LandingPage
-            programs={programs}
-            onEnterLogin={() => {
-              setIsSelfRegistering(false);
-              setViewingLanding(false);
-            }}
-            onEnterSignUp={() => {
-              setIsSelfRegistering(true);
-              setViewingLanding(false);
-            }}
-            addToast={addToast}
-          />
-        ) : (
-          <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto md:overflow-hidden">
+        <>
+          {viewingLanding && !viewingLegal && (
+            <LandingPage
+              programs={programs}
+              onEnterLogin={() => {
+                setIsSelfRegistering(false);
+                setViewingLanding(false);
+              }}
+              onEnterSignUp={() => {
+                setIsSelfRegistering(true);
+                setViewingLanding(false);
+              }}
+              onOpenLegal={(tab) => {
+                setViewingLegal({ tab, returnTo: "landing" });
+              }}
+              addToast={addToast}
+            />
+          )}
+
+          {!viewingLanding && (
+            <div className={`min-h-screen md:h-screen flex flex-col md:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto md:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
 
             {/* Left panel as a card (Hidden on small mobile screens to maximize form focus and prevent vertical cutoff) */}
             <div className="hidden md:flex md:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 md:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
@@ -616,6 +625,9 @@ export default function App() {
                         addToast(`Welcome ${newProfile.name}! Registered successfully. Your account is view-only pending SK Chairperson verification.`, "success");
                       }}
                       onBackToHome={() => setIsSelfRegistering(false)}
+                      onOpenLegal={(tab) => {
+                        setViewingLegal({ tab, returnTo: "register" });
+                      }}
                     />
                     <div className="text-center pt-4 sm:pt-5 pb-1 shrink-0">
                       <p className="text-[14px] font-semibold text-gray-700">
@@ -826,7 +838,63 @@ export default function App() {
             </div>
 
           </div>
-        )
+        )}
+
+          {/* Dedicated Legal Pages (Terms & Conditions, Privacy Policy) */}
+          {viewingLegal && (
+            viewingLegal.tab === "terms" ? (
+              <TermsPage
+                onBack={() => {
+                  const ret = viewingLegal.returnTo;
+                  setViewingLegal(null);
+                  if (ret === "landing") {
+                    setViewingLanding(true);
+                  }
+                }}
+                onNavigate={(tab) => {
+                  if (tab === "privacy") {
+                    setViewingLegal({ tab: "privacy", returnTo: viewingLegal.returnTo });
+                  } else if (tab === "terms") {
+                    setViewingLegal({ tab: "terms", returnTo: viewingLegal.returnTo });
+                  } else if (tab === "register") {
+                    setViewingLegal(null);
+                    setIsSelfRegistering(true);
+                    setViewingLanding(false);
+                  } else if (tab === "login") {
+                    setViewingLegal(null);
+                    setIsSelfRegistering(false);
+                    setViewingLanding(false);
+                  }
+                }}
+              />
+            ) : (
+              <PrivacyPolicyPage
+                onBack={() => {
+                  const ret = viewingLegal.returnTo;
+                  setViewingLegal(null);
+                  if (ret === "landing") {
+                    setViewingLanding(true);
+                  }
+                }}
+                onNavigate={(tab) => {
+                  if (tab === "terms") {
+                    setViewingLegal({ tab: "terms", returnTo: viewingLegal.returnTo });
+                  } else if (tab === "privacy") {
+                    setViewingLegal({ tab: "privacy", returnTo: viewingLegal.returnTo });
+                  } else if (tab === "register") {
+                    setViewingLegal(null);
+                    setIsSelfRegistering(true);
+                    setViewingLanding(false);
+                  } else if (tab === "login") {
+                    setViewingLegal(null);
+                    setIsSelfRegistering(false);
+                    setViewingLanding(false);
+                  }
+                }}
+              />
+            )
+          )}
+        </>
       ) : (
         // Authenticated portals
         <div>

@@ -18,6 +18,7 @@ import { broadcastDataChange } from "../lib/realtime-sync";
 interface KKYouthRegisterProps {
   onRegisterComplete: (newProfile: YouthProfile) => void;
   onBackToHome: () => void;
+  onOpenLegal?: (tab: "terms" | "privacy") => void;
 }
 
 const BARANGAYS = SAN_LUIS_BARANGAYS;
@@ -142,7 +143,8 @@ const VERIFICATION_ID_TYPE_OPTIONS: CustomSelectOption[] = [
 
 export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   onRegisterComplete,
-  onBackToHome
+  onBackToHome,
+  onOpenLegal
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(0);
   // 0: Barangay Select, 1: Personal Info, 2: Education & Demographics, 3: Skills & Goals, 4: Verification, 5: Pending approval
@@ -1647,8 +1649,12 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  setTermsModalTab("terms");
-                                  setShowTermsModal(true);
+                                  if (onOpenLegal) {
+                                    onOpenLegal("terms");
+                                  } else {
+                                    setTermsModalTab("terms");
+                                    setShowTermsModal(true);
+                                  }
                                 }}
                                 className="text-[#0A6B43] font-bold underline hover:text-emerald-800 transition-colors inline cursor-pointer"
                               >
@@ -1660,8 +1666,12 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  setTermsModalTab("privacy");
-                                  setShowTermsModal(true);
+                                  if (onOpenLegal) {
+                                    onOpenLegal("privacy");
+                                  } else {
+                                    setTermsModalTab("privacy");
+                                    setShowTermsModal(true);
+                                  }
                                 }}
                                 className="text-[#0A6B43] font-bold underline hover:text-emerald-800 transition-colors inline cursor-pointer"
                               >

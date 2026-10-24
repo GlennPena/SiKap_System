@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
-import { TermsAndPrivacyModal } from "./TermsAndPrivacyModal";
 import { motion, AnimatePresence, useInView, animate, useAnimation } from "motion/react";
 import { onRealtimeSync } from "../lib/realtime-sync";
 
@@ -192,6 +191,7 @@ interface LandingPageProps {
   programs: TESDAProgram[];
   onEnterLogin: () => void;
   onEnterSignUp?: () => void;
+  onOpenLegal?: (tab: "terms" | "privacy") => void;
   addToast: (message: string, type: "success" | "error" | "info") => void;
 }
 
@@ -199,18 +199,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   programs,
   onEnterLogin,
   onEnterSignUp,
+  onOpenLegal,
   addToast
 }) => {
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
   const workflowScroll = useScrollSpeedSection(0.2);
   const faqScroll = useScrollSpeedSection(0.2);
   const ctaScroll = useScrollSpeedSection(0.25);
-  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
-  const [policyModalTab, setPolicyModalTab] = useState<"terms" | "privacy">("privacy");
+
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleOpenPolicy = (tab: "terms" | "privacy") => {
-    setPolicyModalTab(tab);
-    setIsPolicyModalOpen(true);
+    if (onOpenLegal) {
+      onOpenLegal(tab);
+    } else if (typeof window !== "undefined") {
+      window.location.href = tab === "terms" ? "/terms" : "/privacy";
+    }
   };
 
   const [liveStats, setLiveStats] = useState({
@@ -1126,13 +1142,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </FadeIn>
       </footer>
 
-      {/* Terms & Conditions / Privacy Policy Modal */}
-      <TermsAndPrivacyModal
-        isOpen={isPolicyModalOpen}
-        initialTab={policyModalTab}
-        onClose={() => setIsPolicyModalOpen(false)}
-      />
-
+      {/* Floating Scroll to Top Button (> arrow pointing up) */}
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          aria-label="Scroll to top"
+          className="fixed bottom-6 right-6 z-50 bg-[#0A6B43] hover:bg-[#075332] text-white p-3 sm:p-3.5 rounded-full shadow-lg hover:shadow-2xl hover:-translate-y-1 active:scale-90 transition-all duration-200 cursor-pointer flex items-center justify-center border border-emerald-400/30 group"
+          title="Go to top"
+        >
+          <ChevronUp className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-200 group-hover:-translate-y-0.5" />
+        </button>
+      )}
     </div>
   );
 };
