@@ -8,6 +8,7 @@ import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeG
 import { notifyNewYouthRegistered } from "@/lib/notifications";
 import { normalizeEducationalAttainment } from "@/types";
 import { calculateAge } from "@/lib/utils";
+import { isEmailVerifiedForRegistration, clearRegisterOtp } from "@/lib/register-otp-store";
 
 export async function POST(req: Request) {
   try {
@@ -50,6 +51,14 @@ export async function POST(req: Request) {
     const existingUser = await db.user.findUnique({ where: { email } });
     if (existingUser) {
       return NextResponse.json({ success: false, message: "Email is already registered" }, { status: 400 });
+    }
+
+    // Verify email was verified via registration OTP (unless test override)
+    if (!isEmailVerifiedForRegistration(email)) {
+      return NextResponse.json(
+        { success: false, message: "Please verify your email address with the 6-digit security code before completing registration." },
+        { status: 400 }
+      );
     }
 
     // Ensure barangay exists cleanly
@@ -224,7 +233,7 @@ export async function POST(req: Request) {
       currentStatus: result.newProfile.currentStatus
     }).catch((err) => console.error("[Registration Notification Error]:", err));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Registration successful",
       data: {
@@ -263,6 +272,11 @@ export async function POST(req: Request) {
         verificationIdImage: verificationIdImage || undefined
       }
     });
+
+    // Clean up OTP token
+    clearRegisterOtp(email);
+
+    return response;
 
   } catch (error: any) {
     console.error("Error in youth registration:", error);

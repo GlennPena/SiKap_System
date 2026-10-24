@@ -7,7 +7,7 @@ import {
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
   Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2,
   Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck,
-  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck
+  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
@@ -18,6 +18,7 @@ import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
 import { toTitleCase, isProgramEnded } from "../lib/utils";
+import { broadcastDataChange } from "../lib/realtime-sync";
 
 const getProgramCategory = (prog?: any): string => {
   if (!prog) return "Information and Communication Technology";
@@ -198,7 +199,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Notifications state
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Helper to get all relevant storage keys for TESDA partner
   const getStorageKeys = () => {
@@ -212,6 +212,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     keys.push("sikap_cleared_notifs_tesda");
     return Array.from(new Set(keys));
   };
+
+  const getReadStorageKey = () => {
+    const email = currentUser?.email?.toLowerCase().trim();
+    if (email) return `sikap_read_notifs_${email}`;
+    return "sikap_read_notifs_tesda";
+  };
+
+  // Track read notification IDs with localStorage persistence
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = currentUser?.email ? `sikap_read_notifs_${currentUser.email.toLowerCase().trim()}` : "sikap_read_notifs_tesda";
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
 
   // Track dismissed/cleared notifications with localStorage persistence
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
@@ -240,28 +261,70 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     return [];
   });
 
-  // Re-synchronize cleared notifications whenever TESDA user updates
+  // Re-synchronize cleared notifications whenever TESDA user or storage updates
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const keys = getStorageKeys();
-      let loaded: string[] = [];
-      for (const k of keys) {
-        const saved = localStorage.getItem(k);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch { }
+
+    const syncNotificationsFromStorage = () => {
+      try {
+        const keys = getStorageKeys();
+        let loaded: string[] = [];
+        for (const k of keys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch { }
+          }
         }
+        if (loaded.length > 0) {
+          setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+        }
+
+        const readKey = getReadStorageKey();
+        const readSaved = localStorage.getItem(readKey);
+        if (readSaved) {
+          const parsed = JSON.parse(readSaved);
+          if (Array.isArray(parsed)) {
+            setReadNotificationIds(prev => Array.from(new Set([...prev, ...parsed])));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to sync cleared notifications in TESDA portal:", e);
       }
-      if (loaded.length > 0) {
-        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
-      }
-    } catch (e) {
-      console.error("Failed to sync cleared notifications in TESDA portal:", e);
-    }
+    };
+
+    syncNotificationsFromStorage();
+    window.addEventListener("storage", syncNotificationsFromStorage);
+    return () => window.removeEventListener("storage", syncNotificationsFromStorage);
   }, [currentUser?.email, currentUser?.id]);
+
+  const markAsRead = (id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const markAllAsRead = (allIds: string[]) => {
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notifications:", e);
+      }
+      return updated;
+    });
+    addToast("All notifications marked as read", "success");
+  };
 
   const dismissNotification = (id: string) => {
     setClearedNotificationIds(prev => {
@@ -287,15 +350,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         keys.forEach(k => {
           localStorage.setItem(k, JSON.stringify(updated));
         });
-        if (currentUser?.email) {
-          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
-        }
       } catch (e) {
         console.error("Failed to save cleared notifications:", e);
       }
       return updated;
     });
-    setNotificationsRead(true);
+    // Also mark them as read
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    addToast("All notifications cleared", "info");
   };
 
   // Selected applicant for detail view modal
@@ -312,6 +380,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Program archive confirmation modal state
   const [programToArchive, setProgramToArchive] = useState<TESDAProgram | null>(null);
+
+  // Program restore confirmation modal state
+  const [programToRestore, setProgramToRestore] = useState<TESDAProgram | null>(null);
+
+  // Action loading states for restore, archive, delete
+  const [isRestoringProgram, setIsRestoringProgram] = useState(false);
+  const [restoringProgramId, setRestoringProgramId] = useState<string | null>(null);
+  const [isArchivingProgram, setIsArchivingProgram] = useState(false);
+  const [archivingProgramId, setArchivingProgramId] = useState<string | null>(null);
+  const [isDeletingProgram, setIsDeletingProgram] = useState(false);
+  const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null);
 
   // Archived records state for the Archived History tab & Catalog Archive View
   const [archivedProgramsList, setArchivedProgramsList] = useState<TESDAProgram[]>([]);
@@ -613,6 +692,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       setPrograms(prev => [data.data, ...prev]);
       addToast("New TESDA training program posted successfully!", "success");
+      broadcastDataChange("programs", "created");
       setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
     } catch (err: any) {
       addToast(err.message || "An error occurred", "error");
@@ -687,6 +767,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       setPrograms(prev => prev.map(p => p.id === editingProgramModal.id ? data.data : p));
       addToast("TESDA training program updated successfully!", "success");
+      broadcastDataChange("programs", "updated");
       setEditingProgramModal(null);
       setEditingProgramId(null);
     } catch (err: any) {
@@ -753,6 +834,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             : `Declined application for "${targetReferral.youthName}".`,
           newStatus === "Enrolled" ? "success" : "info"
         );
+        broadcastDataChange("referrals", "status_updated");
+        broadcastDataChange("programs", "slots_updated");
       } else {
         addToast(data.error || "Failed to update application status", "error");
       }
@@ -763,6 +846,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   };
 
   const handleDeleteProgram = async (progId: string, title: string) => {
+    setIsDeletingProgram(true);
+    setDeletingProgramId(progId);
     try {
       const res = await fetch(`/api/programs?id=${progId}&permanent=true`, { method: "DELETE" });
       const data = await res.json();
@@ -771,6 +856,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         setArchivedProgramsList(prev => prev.filter(p => p.id !== progId));
         setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
         addToast(data.message || `Program "${title}" permanently deleted.`, "success");
+        broadcastDataChange("programs", "deleted");
         if (viewingProgram && viewingProgram.id === progId) {
           setViewingProgram(null);
         }
@@ -783,10 +869,16 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       setArchivedProgramsList(prev => prev.filter(p => p.id !== progId));
       setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
       addToast(`Program "${title}" has been deleted.`, "success");
+      broadcastDataChange("programs", "deleted");
+    } finally {
+      setIsDeletingProgram(false);
+      setDeletingProgramId(null);
     }
   };
 
   const handleArchiveProgram = async (progId: string, title: string) => {
+    setIsArchivingProgram(true);
+    setArchivingProgramId(progId);
     try {
       const res = await fetch(`/api/programs?id=${progId}`, { method: "DELETE" });
       const data = await res.json();
@@ -798,6 +890,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         setPrograms(prev => prev.filter(p => p.id !== progId));
         setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
         addToast(data.message || `Program "${title}" and enrolled students have been concluded & archived.`, "success");
+        broadcastDataChange("programs", "archived");
         if (viewingProgram && viewingProgram.id === progId) {
           setViewingProgram(null);
         }
@@ -807,10 +900,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     } catch (err) {
       console.error("Error archiving program:", err);
       addToast(`Network error: Could not archive "${title}".`, "error");
+    } finally {
+      setIsArchivingProgram(false);
+      setArchivingProgramId(null);
     }
   };
 
   const handleUnarchiveProgram = async (progId: string, title: string) => {
+    setIsRestoringProgram(true);
+    setRestoringProgramId(progId);
     try {
       const res = await fetch("/api/programs", {
         method: "PUT",
@@ -827,6 +925,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           return [data.data, ...prev];
         });
         addToast(`Program "${title}" has been restored to Active Programs!`, "success");
+        broadcastDataChange("programs", "restored");
         if (viewingProgram && viewingProgram.id === progId) {
           setViewingProgram(data.data);
         }
@@ -836,6 +935,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     } catch (err: any) {
       console.error("Error restoring program:", err);
       addToast(err.message || "Failed to restore program", "error");
+    } finally {
+      setIsRestoringProgram(false);
+      setRestoringProgramId(null);
     }
   };
 
@@ -979,6 +1081,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       setViewingProgram(data.data);
       setIsEditingInModal(false);
       addToast("Program details updated successfully!", "success");
+      broadcastDataChange("programs", "updated");
     } catch (err: any) {
       addToast(err.message || "An error occurred", "error");
     } finally {
@@ -1438,7 +1541,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <NotificationBellButton
                 isOpen={showNotifications}
                 onClick={() => setShowNotifications(!showNotifications)}
-                unreadCount={!notificationsRead ? activeNotifs.length : 0}
+                unreadCount={activeNotifs.filter(n => !readNotificationIds.includes(n.id)).length}
                 title="TESDA Notifications"
                 size="lg"
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
@@ -1452,34 +1555,32 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-[#0A6B43]" />
                         <span className="font-extrabold text-slate-900 text-xs">TESDA Action Center</span>
-                        {activeNotifs.length > 0 && (
+                        {activeNotifs.filter(n => !readNotificationIds.includes(n.id)).length > 0 && (
                           <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                            {activeNotifs.length}
+                            {activeNotifs.filter(n => !readNotificationIds.includes(n.id)).length}
                           </span>
                         )}
                       </div>
                       {activeNotifs.length > 0 && (
                         <div className="flex items-center gap-2">
+                          {activeNotifs.some(n => !readNotificationIds.includes(n.id)) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => markAllAsRead(tesdaNotifications.map(n => n.id))}
+                                className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                title="Mark all notifications as read"
+                              >
+                                Mark read
+                              </button>
+                              <span className="text-gray-300">·</span>
+                            </>
+                          )}
                           <button
                             type="button"
-                            onClick={() => {
-                              clearAllNotifications(tesdaNotifications.map(n => n.id));
-                              addToast("All notifications marked as read & cleared", "info");
-                            }}
-                            className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                            title="Mark all as read & clear"
-                          >
-                            Mark read
-                          </button>
-                          <span className="text-gray-300">·</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              clearAllNotifications(tesdaNotifications.map(n => n.id));
-                              addToast("All notifications cleared", "info");
-                            }}
+                            onClick={() => clearAllNotifications(tesdaNotifications.map(n => n.id))}
                             className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
-                            title="Clear all alerts"
+                            title="Clear all alerts from list"
                           >
                             Clear all
                           </button>
@@ -1497,36 +1598,63 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <p className="text-[10px] text-gray-400">No active alerts or pending youth action items right now.</p>
                         </div>
                       ) : (
-                        activeNotifs.map((n) => (
-                          <div
-                            key={n.id}
-                            onClick={() => {
-                              dismissNotification(n.id);
-                              n.action();
-                              setShowNotifications(false);
-                            }}
-                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                          >
-                            <div className={`p-2 rounded-xl ${n.bg} shrink-0 mt-0.5`}>
-                              {n.icon}
-                            </div>
-                            <div className="flex-1 min-w-0 pr-2">
-                              <p className="font-bold text-slate-900 text-xs">{n.title}</p>
-                              <p className="text-[11px] text-slate-600 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                dismissNotification(n.id);
+                        activeNotifs.map((n) => {
+                          const isRead = readNotificationIds.includes(n.id);
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                markAsRead(n.id);
+                                n.action();
+                                setShowNotifications(false);
                               }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                              title="Dismiss alert"
+                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${
+                                isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
+                              }`}
                             >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))
+                              <div className={`p-2 rounded-xl ${n.bg} shrink-0 mt-0.5 relative`}>
+                                {n.icon}
+                                {!isRead && (
+                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#0A6B43] rounded-full ring-2 ring-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 pr-2">
+                                <p className={`text-xs ${isRead ? "font-semibold text-gray-700" : "font-extrabold text-slate-900"}`}>
+                                  {n.title}
+                                </p>
+                                <p className={`text-[11px] mt-0.5 leading-relaxed ${isRead ? "text-gray-400 font-normal" : "text-slate-600 font-medium"}`}>
+                                  {n.desc}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 -mr-1">
+                                {!isRead && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markAsRead(n.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                    title="Mark as read"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    dismissNotification(n.id);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all"
+                                  title="Clear alert"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
 
@@ -1568,23 +1696,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </p>
                 </div>
               </div>
-
-              {/* Alert Banner if Programs have reached end date */}
+              {/* Alert Banner if Programs have reached end date */}
               {completedPrograms.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-500/10 via-purple-50 to-indigo-50 border border-purple-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
-                      <Clock className="w-5 h-5" />
+                <div className="bg-gradient-to-r from-purple-500/10 via-purple-50 to-indigo-50 border border-purple-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                  <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black shadow-xs shrink-0 mt-0.5 sm:mt-0">
+                      <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-black text-purple-950 uppercase tracking-wider">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h4 className="text-[11px] sm:text-xs font-black text-purple-950 uppercase tracking-wider">
                           Training Term Concluded ({completedPrograms.length})
                         </h4>
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-200 text-purple-800">
+                        <span className="text-[9.5px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-200/90 text-purple-800 border border-purple-300/40">
                           Ready to Archive
                         </span>
-                      </div>                        <p className="text-xs text-slate-700 font-medium mt-0.5">
+                      </div>
+                      <p className="text-[11.5px] sm:text-xs text-slate-700 font-medium mt-1 leading-relaxed">
                         {completedPrograms.length === 1 ? (
                           <>
                             <strong>"{completedPrograms[0].title}"</strong> training schedule has ended. Click below to archive the program and graduate its enrollees.
@@ -1597,17 +1725,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+
+                  {/* Action Buttons: Clean Responsive Layout on Mobile & Desktop */}
+                  <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2 shrink-0 pt-2 md:pt-0 border-t border-purple-200/60 md:border-t-0">
                     {completedPrograms.map(prog => (
                       <button
                         key={prog.id}
                         type="button"
                         onClick={() => setProgramToArchive(prog)}
-                        className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                        title="Archive program and record enrollees as completed/graduated"
+                        className="w-full md:w-auto h-[38px] sm:h-auto px-3.5 py-2 bg-purple-700 hover:bg-purple-800 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center md:justify-start gap-1.5 cursor-pointer"
+                        title={`Archive "${prog.title}" and record enrollees as completed/graduated`}
                       >
-                        <Archive className="w-3.5 h-3.5" />
-                        <span>Archive {completedPrograms.length > 1 ? prog.title.slice(0, 15) + '...' : 'Term & Enrollees'}</span>
+                        <Archive className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate max-w-[260px] sm:max-w-[200px] md:max-w-none">
+                          Archive {completedPrograms.length > 1 ? prog.title : 'Term & Enrollees'}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1616,21 +1748,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* Alert Banner if Pending Applicants */}
               {pendingReferralsCount > 0 && (
-                <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-emerald-50 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
-                      <Sparkles className="w-5 h-5" />
+                <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-emerald-50 border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0 mt-0.5 sm:mt-0">
+                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">Action Required: New Applicants</h4>
-                      <p className="text-xs text-slate-700 font-medium mt-0.5">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11px] sm:text-xs font-black text-amber-950 uppercase tracking-wider">Action Required: New Applicants</h4>
+                      <p className="text-[11.5px] sm:text-xs text-slate-700 font-medium mt-1 leading-relaxed">
                         You have <span className="font-bold text-amber-800">{pendingReferralsCount} Katipunan ng Kabataan</span> candidate(s) awaiting enrollment review.
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setDashboardTab("pending")}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+                    className="w-full md:w-auto h-[38px] sm:h-auto px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl transition-all shadow-xs shrink-0 cursor-pointer flex items-center justify-center"
                   >
                     Review Pending ({pendingReferralsCount})
                   </button>
@@ -2233,19 +2365,30 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             <button
                               type="button"
                               onClick={() => setProgramToArchive(prog)}
-                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                              disabled={isArchivingProgram}
+                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-50"
                               title="Conclude Term & Archive Students"
                             >
-                              <Archive className="w-3 h-3" /> Archive Term
+                              {archivingProgramId === prog.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Archive className="w-3 h-3" />
+                              )}
+                              <span>Archive Term</span>
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => setProgramToArchive(prog)}
-                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                              disabled={isArchivingProgram}
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                               title="Archive Program"
                             >
-                              <Archive className="w-3.5 h-3.5" />
+                              {archivingProgramId === prog.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                              ) : (
+                                <Archive className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           )}
                           <button
@@ -2259,10 +2402,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => setProgramToDelete(prog)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            disabled={isDeletingProgram}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                             title="Delete Program"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            {deletingProgramId === prog.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
                           </button>
                         </div>
                       </div>
@@ -2353,6 +2501,39 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     <span className="font-bold text-gray-900 bg-emerald-50 text-[#0A6B43] px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
                                       {programArchivedEnrollees.length} Trainees
                                     </span>
+                                  </div>
+
+                                  {/* Card Action Buttons */}
+                                  <div className="pt-3 mt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setViewingProgram(prog);
+                                        setIsEditingInModal(false);
+                                      }}
+                                      className="py-1.5 px-3 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" /> Details
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setProgramToRestore(prog)}
+                                      disabled={isRestoringProgram || restoringProgramId === prog.id}
+                                      className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98] disabled:opacity-50"
+                                      title="Restore program to active catalog"
+                                    >
+                                      {restoringProgramId === prog.id ? (
+                                        <>
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          <span>Restoring...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <RotateCcw className="w-3.5 h-3.5" />
+                                          <span>Restore</span>
+                                        </>
+                                      )}
+                                    </button>
                                   </div>
                                 </div>
                               );
@@ -2448,11 +2629,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               </div>
 
               {/* Programs Catalog Card Container */}
-              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3.5 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Top Row: Title, Counter Badge, and Action Buttons (Archived & Post New Program) */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">
+                    <h3 className="text-xl sm:text-[26px] font-extrabold text-gray-900 tracking-tight">
                       {viewingArchivedPrograms ? "Archived Training Programs" : "Active Training Programs"}
                     </h3>
                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border leading-none ${
@@ -2537,8 +2718,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 sm:flex-initial">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-2">
+                    {/* 4 Filter Dropdowns (Symmetrical 2x2 Grid on Mobile, 4-in-a-row on Desktop) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                       <CustomSelect
                         value={programCategoryFilter}
                         onChange={(val) => setProgramCategoryFilter(val)}
@@ -2547,7 +2729,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           ...tesdaCategoryOptions
                         ]}
                         size="sm"
-                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[145px]"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 w-full min-w-0 sm:min-w-[145px]"
                         placeholder="All Categories"
                       />
 
@@ -2560,7 +2742,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "Concluded", label: "Concluded" }
                         ]}
                         size="sm"
-                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[110px]"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 w-full min-w-0 sm:min-w-[110px]"
                         placeholder="All Status"
                       />
 
@@ -2574,7 +2756,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "With Fee", label: "With Fee" }
                         ]}
                         size="sm"
-                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[110px]"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 w-full min-w-0 sm:min-w-[110px]"
                         placeholder="All Costs"
                       />
 
@@ -2589,37 +2771,62 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "NC IV", label: "NC IV Programs" }
                         ]}
                         size="sm"
-                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 min-w-[135px]"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 w-full min-w-0 sm:min-w-[135px]"
                         placeholder="All Certifications"
                       />
                     </div>
 
-                    {/* View Mode Switcher */}
-                    <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setProgramViewMode("grid")}
-                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${programViewMode === "grid"
-                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
-                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
-                          }`}
-                        title="Grid Cards View"
-                      >
-                        <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-                        <span className="hidden sm:inline">Grid</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setProgramViewMode("table")}
-                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${programViewMode === "table"
-                          ? "bg-white text-[#0A6B43] shadow-xs font-bold"
-                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
-                          }`}
-                        title="Table View"
-                      >
-                        <Table className="w-3.5 h-3.5 shrink-0" />
-                        <span className="hidden sm:inline">Table</span>
-                      </button>
+                    {/* View Mode Switcher & Mobile Counter/Reset */}
+                    <div className="flex items-center justify-between sm:justify-start gap-2 pt-0.5 sm:pt-0">
+                      {/* Mobile Indicator / Clear Filters Button */}
+                      {(programSearchQuery || programLevelFilter !== "All" || programCategoryFilter !== "All" || programStatusFilter !== "All" || programCostFilter !== "All") ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProgramSearchQuery("");
+                            setProgramLevelFilter("All");
+                            setProgramCategoryFilter("All");
+                            setProgramStatusFilter("All");
+                            setProgramCostFilter("All");
+                          }}
+                          className="sm:hidden text-[11px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset Filters</span>
+                        </button>
+                      ) : (
+                        <div className="sm:hidden text-[11px] font-medium text-gray-500">
+                          <span className="font-bold text-gray-800">{filteredProgramsList.length}</span> {filteredProgramsList.length === 1 ? "Program" : "Programs"}
+                        </div>
+                      )}
+
+                      {/* Grid / Table Segmented Control */}
+                      <div className="h-[38px] p-0.5 bg-gray-100/90 border border-gray-200/90 rounded-xl flex items-center gap-0.5 shrink-0 ml-auto sm:ml-0">
+                        <button
+                          type="button"
+                          onClick={() => setProgramViewMode("grid")}
+                          className={`h-full px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${programViewMode === "grid"
+                            ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                            : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-200/50"
+                            }`}
+                          title="Grid Cards View"
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                          <span className="text-[11.5px] sm:text-[12px] font-semibold">Grid</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProgramViewMode("table")}
+                          className={`h-full px-2.5 sm:px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${programViewMode === "table"
+                            ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                            : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-200/50"
+                            }`}
+                          title="Table View"
+                        >
+                          <Table className="w-3.5 h-3.5 shrink-0" />
+                          <span className="text-[11.5px] sm:text-[12px] font-semibold">Table</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2654,7 +2861,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
                 ) : programViewMode === "grid" ? (
                   /* Grid Cards View */
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5 items-stretch">
                     {filteredProgramsList.map((prog) => {
                       const isEnded = isProgramEnded(prog) || isProgramDurationDone(prog);
                       const isFull = (prog.slotsRemaining || 0) <= 0;
@@ -2662,13 +2869,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       return (
                         <div
                           key={prog.id}
-                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
+                          className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
                         >
                           <div className="flex-1 flex flex-col">
                             {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
-                            <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
+                            <div className="flex items-start justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-2">
                               <div className="min-w-0 space-y-0.5">
-                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-[15px] sm:text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 font-medium truncate">
@@ -2676,7 +2883,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 </p>
                               </div>
 
-                              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
+                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${
                                 prog.activeStatus === "Closed"
                                   ? "bg-gray-100 text-gray-700 border-gray-300"
                                   : isEnded
@@ -2689,22 +2896,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               </span>
                             </div>
 
-                            {/* Duration & Training Term: 2-column key-value block (moved above Available Slots) */}
+                            {/* Duration & Training Term: 2-column key-value block with micro-icons and flexible mobile sizing */}
                             <div className="py-2.5 flex flex-col justify-center">
-                              <div className="grid grid-cols-2 gap-3 items-center">
-                                <div className="min-w-0">
-                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                                    Duration
+                              <div className="grid grid-cols-[auto_1fr] sm:grid-cols-2 gap-2.5 sm:gap-3 items-center">
+                                <div className="min-w-0 pr-2 border-r border-gray-100 sm:border-r-0 sm:pr-0">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-emerald-600/80 shrink-0" />
+                                    <span>Duration</span>
                                   </span>
-                                  <p className="text-xs sm:text-sm font-medium text-gray-700 mt-0.5 truncate">
+                                  <p className="text-xs sm:text-sm font-semibold sm:font-medium text-gray-800 sm:text-gray-700 mt-0.5 truncate">
                                     {prog.trainingHours ? `${prog.trainingHours} Hours` : "Flexible"}
                                   </p>
                                 </div>
-                                <div className="min-w-0">
-                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                                    Training Term
+                                <div className="min-w-0 pl-1 sm:pl-0">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                                    <Calendar className="w-3 h-3 text-emerald-600/80 shrink-0" />
+                                    <span>Training Term</span>
                                   </span>
-                                  <p className="text-xs sm:text-sm font-medium text-gray-700 mt-0.5 truncate" title={(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}>
+                                  <p className="text-xs sm:text-sm font-semibold sm:font-medium text-gray-800 sm:text-gray-700 mt-0.5 truncate" title={(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}>
                                     {(prog.startDate || prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}
                                   </p>
                                 </div>
@@ -2716,9 +2925,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                             {/* Available Slots Progress Bar */}
                             <div className="space-y-1.5 pt-2 pb-2">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Available Slots</span>
-                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${prog.activeStatus === "Closed" || isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">Available Slots</span>
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider truncate text-right ${prog.activeStatus === "Closed" || isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
                                   {prog.activeStatus === "Closed" ? "Archived Term" : isEnded ? "Concluded" : isFull ? "Slots Full" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
                                 </span>
                               </div>
@@ -2731,20 +2940,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             </div>
 
                             {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pt-2 pb-3">
+                            <div className="flex-1 flex flex-col justify-start min-h-[42px] sm:min-h-[46px] pt-2 pb-3">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
                                 Target Competencies
                               </span>
-                              <div className="flex flex-wrap gap-1 items-center">
+                              <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
                                 {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
                                   <>
                                     {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
-                                      <span key={sIdx} className="text-[11px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
+                                      <span key={sIdx} className="text-[10px] sm:text-[11px] bg-slate-100 text-slate-700 font-semibold px-1.5 sm:px-2 py-0.5 rounded-md max-w-full truncate">
                                         {toTitleCase(skill)}
                                       </span>
                                     ))}
                                     {prog.requiredSkills.length > 3 && (
-                                      <span className="text-[10px] text-gray-400 font-bold self-center">
+                                      <span className="text-[9.5px] sm:text-[10px] text-gray-400 font-bold self-center shrink-0">
                                         +{prog.requiredSkills.length - 3} more
                                       </span>
                                     )}
@@ -2759,17 +2968,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           </div>
 
                           {/* Card Footer: View Program Details on bottom right */}
-                          <div className="pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
+                          <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
                             <button
                               type="button"
                               onClick={() => {
                                 setViewingProgram(prog);
                                 setIsEditingInModal(false);
                               }}
-                              className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
+                              className="inline-flex items-center gap-1.5 py-1.5 px-3 sm:py-0 sm:px-0 rounded-lg sm:rounded-none bg-emerald-50/70 sm:bg-transparent text-xs sm:text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto active:scale-95"
                             >
                               <span>View Program Details</span>
-                              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                             </button>
                           </div>
                         </div>
@@ -3384,9 +3593,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               </div>
 
-              {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-200/90">
+              {/* Sub-Tab Navigation Bar (Centered) */}
+              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1 w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-200/90 mx-auto">
                   <button
                     type="button"
                     onClick={() => setProfileActiveTab("profile")}
@@ -3434,9 +3643,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               </div>
 
-              {/* TAB 1: INSTITUTION PROFILE */}
-              {profileActiveTab === "profile" && (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Centered Tab Contents Container */}
+              <div className="max-w-5xl mx-auto w-full">
+                {/* TAB 1: INSTITUTION PROFILE */}
+                {profileActiveTab === "profile" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   {/* Left Column (3 cols) */}
                   <div className="lg:col-span-3 space-y-6">
                     <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
@@ -3676,7 +3887,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* TAB 2: ACCOUNT SECURITY */}
               {profileActiveTab === "security" && (
-                <div className="max-w-2xl bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                <div className="max-w-2xl mx-auto bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
                   <div className="border-b border-gray-100 pb-4">
                     <div className="flex items-start sm:items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
@@ -3788,7 +3999,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
               {/* TAB 3: NOTIFICATIONS */}
               {profileActiveTab === "notifications" && (
-                <div className="max-w-3xl">
+                <div className="max-w-3xl mx-auto">
                   <NotificationSettingsCard
                     userRole="TESDA_PARTNER"
                     userEmail={currentUser?.email}
@@ -3866,6 +4077,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
                 </div>
               )}
+              </div>
             </div>
           )}
 
@@ -4100,64 +4312,204 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           }}
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
         >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl sm:max-w-4xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-3xl sm:max-w-4xl relative z-10 flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-200 ease-out">
 
-            {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-gray-100 bg-gray-50/70 flex items-start justify-between shrink-0">
-              <div className="min-w-0 pr-3">
-                <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 leading-tight truncate">
-                  {viewingProgram.title}
-                </h3>
-                <p className="text-xs text-gray-500 font-medium mt-1 truncate">
-                  {getProgramCategory(viewingProgram)}
-                </p>
-              </div>
-
-              {/* Status Badge: Active / Inactive / Archived, or Edit Mode when in edit mode */}
-              {(() => {
-                const isEnded = isProgramEnded(viewingProgram) || isProgramDurationDone(viewingProgram);
-                const isFull = (viewingProgram.slotsRemaining || 0) <= 0;
-
-                if (isEditingInModal) {
-                  return (
-                    <span className="text-[10px] font-extrabold uppercase px-3 py-1 rounded-full border shrink-0 tracking-wider bg-amber-50 text-amber-800 border-amber-300 shadow-2xs">
-                      Edit Mode
-                    </span>
-                  );
-                }
-
-                return (
-                  <span className={`text-[10px] font-extrabold uppercase px-3 py-1 rounded-full border shrink-0 tracking-wider ${
-                    viewingProgram.activeStatus === "Closed"
-                      ? "bg-gray-100 text-gray-700 border-gray-300"
-                      : isEnded
-                        ? "bg-gray-100 text-gray-600 border-gray-300"
-                        : isFull
-                          ? "bg-amber-50 text-amber-800 border-amber-200"
-                          : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                  }`}>
-                    {viewingProgram.activeStatus === "Closed" ? "Archived" : isEnded ? "Inactive" : "Active"}
+            {/* Header (Optimized for Mobile & Desktop) */}
+            <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/70 shrink-0 space-y-2">
+              {/* Top Row: Category & Status Badges (Left) + Close Button (Right) */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md bg-emerald-100/70 text-[#0A6B43] border border-emerald-200 truncate">
+                    {getProgramCategory(viewingProgram)}
                   </span>
-                );
-              })()}
-            </div>
+                  {viewingProgram.activeStatus === "Closed" && (
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-100/80 text-amber-800 border border-amber-200">
+                      Archived Catalog
+                    </span>
+                  )}
+                  {(() => {
+                    const isEnded = isProgramEnded(viewingProgram) || isProgramDurationDone(viewingProgram);
+                    const isFull = (viewingProgram.slotsRemaining || 0) <= 0;
 
-            {/* Modal Body: Scrollable Information Grid */}
-            <div className="p-5 sm:p-7 overflow-y-auto space-y-7 text-xs">
+                    if (isEditingInModal) {
+                      return (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide bg-amber-50 text-amber-800 border-amber-300 shadow-2xs">
+                          <Pencil className="w-2.5 h-2.5 text-amber-600" />
+                          <span>Edit Mode</span>
+                        </span>
+                      );
+                    }
 
-              {/* Section 1: Basic Program Identity */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-0.5">
-                  <BookOpen className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
-                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">
-                    Basic Program Identity
-                  </h4>
+                    if (viewingProgram.activeStatus === "Closed") {
+                      return (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide bg-amber-50 text-amber-900 border-amber-300 shadow-2xs">
+                          <Archive className="w-2.5 h-2.5 text-amber-700" />
+                          <span>Archived Term</span>
+                        </span>
+                      );
+                    }
+
+                    if (isEnded) {
+                      return (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide bg-gray-100 text-gray-700 border-gray-300">
+                          <Clock className="w-2.5 h-2.5 text-gray-500" />
+                          <span>Inactive Term</span>
+                        </span>
+                      );
+                    }
+
+                    if (isFull) {
+                      return (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide bg-amber-50 text-amber-800 border-amber-200">
+                          <Users className="w-2.5 h-2.5 text-amber-600" />
+                          <span>Slots Full</span>
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide bg-emerald-50 text-[#0A6B43] border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] animate-pulse" />
+                        <span>Active Program</span>
+                      </span>
+                    );
+                  })()}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingProgram(null);
+                    setIsEditingInModal(false);
+                  }}
+                  className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                  title="Close modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Title: Full width on both mobile and desktop */}
+              <h3 className="text-base sm:text-xl font-black text-gray-950 leading-snug tracking-tight">
+                {viewingProgram.title}
+              </h3>
+            </div>
+
+            {/* Archived Program Informational Banner (Mobile Responsive) */}
+            {viewingProgram.activeStatus === "Closed" && !isEditingInModal && (
+              <div className="bg-gradient-to-r from-amber-500/10 via-amber-50/80 to-emerald-50/50 border-b border-amber-200/80 p-3.5 sm:px-6 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-xs shrink-0">
+                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200 shadow-2xs mt-0.5 sm:mt-0">
+                    <Archive className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-extrabold text-amber-950 text-xs">Archived Training Program Record</p>
+                    <p className="text-[11px] text-amber-800/80 font-medium leading-relaxed">
+                      This program term has concluded and is preserved in historical archive. You can restore this program to the active catalog at any time.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProgramToRestore(viewingProgram)}
+                  disabled={isRestoringProgram || restoringProgramId === viewingProgram.id}
+                  className="w-full sm:w-auto px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Restore program to active training catalog"
+                >
+                  {restoringProgramId === viewingProgram.id ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Restoring...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Restore Program</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Modal Body: Scrollable Information Grid */}
+            <div className="p-3.5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 text-xs">
+
+              {/* Key Overview Stat Cards (View Mode - 2 cols on mobile, 4 on desktop) */}
+              {!isEditingInModal && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                  <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-center gap-2 sm:gap-3">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
+                      <Award className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-emerald-800/70 block leading-tight">Certification</span>
+                      <p className="text-xs sm:text-sm font-extrabold text-gray-900 truncate mt-0.5">
+                        {(() => {
+                          const match = viewingProgram.title?.match(/(NC\s+I|NC\s+II|NC\s+III)$/i);
+                          return match ? match[1].toUpperCase() : (viewingProgram.type || "NC II");
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50/70 border border-blue-100 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-center gap-2 sm:gap-3">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 border border-blue-200">
+                      <Clock className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-blue-800/70 block leading-tight">Duration</span>
+                      <p className="text-xs sm:text-sm font-extrabold text-gray-900 truncate mt-0.5">
+                        {viewingProgram.trainingHours ? `${viewingProgram.trainingHours} Hours` : "Flexible"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50/70 border border-purple-100 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-center gap-2 sm:gap-3">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200">
+                      <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-purple-800/70 block leading-tight">Slot Capacity</span>
+                      <p className="text-xs sm:text-sm font-extrabold text-gray-900 truncate mt-0.5">
+                        {viewingProgram.slotsRemaining} of {viewingProgram.slotsTotal} open
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50/70 border border-amber-100 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-center gap-2 sm:gap-3">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                      <ShieldCheck className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-amber-800/70 block leading-tight">Tuition Model</span>
+                      <p className="text-xs sm:text-sm font-extrabold text-gray-900 truncate mt-0.5">
+                        {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free (Subsidized)" : viewingProgram.cost}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Section 1: Basic Program Identity & Curriculum */}
+              <div className="bg-gray-50/60 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
+                    <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs sm:text-[14px] font-extrabold text-gray-900 tracking-tight">
+                      Curriculum & Program Identity
+                    </h4>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate sm:whitespace-normal">
+                      Core TVET qualification specifications and instructional allotment.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                   {/* Program Title */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Program Title
                     </span>
                     {isEditingInModal ? (
@@ -4166,20 +4518,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         value={modalEditTitle}
                         onChange={(e) => setModalEditTitle(e.target.value)}
                         placeholder="e.g. Shielded Metal Arc Welding"
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.title || "—"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                        {viewingProgram.title || "—"}
+                      </p>
                     )}
                   </div>
 
                   {/* Certification Level */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Certification Level
                     </span>
                     {isEditingInModal ? (
@@ -4192,25 +4542,26 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "NC III", label: "NC III" }
                         ]}
                         size="sm"
-                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        buttonClassName="h-[36px] sm:h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                         placeholder="Select Level"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-extrabold uppercase bg-emerald-50 text-[#0A6B43] border border-emerald-200">
                           {(() => {
                             const match = viewingProgram.title?.match(/(NC\s+I|NC\s+II|NC\s+III)$/i);
                             return match ? match[1].toUpperCase() : (viewingProgram.type || "NC II");
                           })()}
-                        </p>
+                        </span>
+                        <span className="text-[11px] sm:text-xs text-gray-500 font-medium">National Certificate</span>
                       </div>
                     )}
                   </div>
 
                   {/* Vocational Category */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Vocational Category
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Vocational Sector
                     </span>
                     {isEditingInModal ? (
                       <CustomSelect
@@ -4218,22 +4569,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         onChange={(val) => setModalEditCategoryId(val)}
                         options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
                         size="sm"
-                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        buttonClassName="h-[36px] sm:h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                         placeholder="Select Category"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {getProgramCategory(viewingProgram)}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                        {getProgramCategory(viewingProgram)}
+                      </p>
                     )}
                   </div>
 
                   {/* Training Duration (Hours) */}
-                  <div className="space-y-1">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                         Training Duration
                       </span>
                       {isEditingInModal && computedModalTrainingHours && (
@@ -4255,21 +4604,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. 160"
                         value={modalEditTrainingHours}
                         onChange={(e) => setModalEditTrainingHours(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.trainingHours} Hours
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                        {viewingProgram.trainingHours ? `${viewingProgram.trainingHours} Hours Total Curriculum` : "Flexible Duration"}
+                      </p>
                     )}
                   </div>
 
                   {/* Capacity / Slots */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Slot Allocation
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Slot Allocation & Availability
                     </span>
                     {isEditingInModal ? (
                       <input
@@ -4278,21 +4625,37 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. 25"
                         value={modalEditSlotsTotal}
                         onChange={(e) => setModalEditSlotsTotal(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.slotsRemaining} available / {viewingProgram.slotsTotal} total capacity
+                      <div className="space-y-1">
+                        <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                          {viewingProgram.slotsRemaining} available / {viewingProgram.slotsTotal} capacity
                         </p>
+                        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              viewingProgram.activeStatus === "Closed"
+                                ? "bg-gray-400"
+                                : (viewingProgram.slotsRemaining || 0) <= 0
+                                  ? "bg-red-400"
+                                  : "bg-[#0A6B43]"
+                            }`}
+                            style={{
+                              width: viewingProgram.activeStatus === "Closed"
+                                ? "100%"
+                                : `${Math.min(100, Math.max(0, ((viewingProgram.slotsTotal - viewingProgram.slotsRemaining) / (viewingProgram.slotsTotal || 1)) * 100))}%`
+                            }}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
 
                   {/* Cost Model */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Cost Model
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Tuition & Funding Model
                     </span>
                     {isEditingInModal ? (
                       <CustomSelect
@@ -4304,33 +4667,38 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           { value: "With Fee", label: "Fee-based" }
                         ]}
                         size="sm"
-                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        buttonClassName="h-[36px] sm:h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                         placeholder="Select Cost"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free (TESDA Subsidized)" : viewingProgram.cost}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                        {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free (TESDA Subsidized / TWSP)" : viewingProgram.cost}
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Section 2: Facility, Schedule & Trainer */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-0.5">
-                  <Calendar className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
-                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">
-                    Schedule, Facility & Trainer
-                  </h4>
+              <div className="bg-gray-50/60 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs sm:text-[14px] font-extrabold text-gray-900 tracking-tight">
+                      Schedule, Facility & Trainer
+                    </h4>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate sm:whitespace-normal">
+                      Training premises, instructional calendar, and assigned instructors.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                   {/* Venue / Location */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Training Venue / Location
                     </span>
                     {isEditingInModal ? (
@@ -4339,20 +4707,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. San Luis Training Center / GPSAT Guagua"
                         value={modalEditLocation}
                         onChange={(e) => setModalEditLocation(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.location || "San Luis Training Center"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate">{viewingProgram.location || "San Luis Training Center"}</span>
+                      </p>
                     )}
                   </div>
 
                   {/* Room / Facility */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Assigned Room / Facility
                     </span>
                     {isEditingInModal ? (
@@ -4361,20 +4728,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. Workshop Room B-102"
                         value={modalEditRoom}
                         onChange={(e) => setModalEditRoom(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.room || "Main Workshop Area"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate">{viewingProgram.room || "Main Workshop Area"}</span>
+                      </p>
                     )}
                   </div>
 
                   {/* Trainer / Instructor */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Assigned Trainer / Instructor
                     </span>
                     {isEditingInModal ? (
@@ -4383,28 +4749,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. Engr. Danilo Santos, TVET Trainer"
                         value={modalEditInstructor}
                         onChange={(e) => setModalEditInstructor(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.instructor || "Assigned TESDA Trainer"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate">{viewingProgram.instructor || "Assigned TESDA Trainer"}</span>
+                      </p>
                     )}
                   </div>
 
                   {/* Training Days */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Training Days
                     </span>
                     {isEditingInModal ? (
-                      <div className="flex flex-wrap gap-1.5 pt-0.5 min-h-[38px] items-center">
+                      <div className="flex flex-wrap gap-1 pt-0.5 min-h-[36px] items-center">
                         {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
                           <label
                             key={day}
-                            className={`flex items-center gap-1 px-2.5 py-1 border rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                            className={`flex items-center gap-1 px-2 py-0.5 border rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
                               modalEditTrainingDays.includes(day)
                                 ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
                                 : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
@@ -4424,17 +4789,31 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         ))}
                       </div>
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {formatTrainingDays(viewingProgram.trainingDays)}
-                        </p>
+                      <div className="flex flex-wrap gap-1 pt-0.5 items-center">
+                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((shortDay, dIdx) => {
+                          const isProgramDay = (viewingProgram.trainingDays || []).some(
+                            (d: string) => d.toLowerCase().startsWith(shortDay.toLowerCase())
+                          );
+                          return (
+                            <span
+                              key={dIdx}
+                              className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md ${
+                                isProgramDay
+                                  ? "bg-[#0A6B43] text-white"
+                                  : "bg-gray-100 text-gray-400"
+                              }`}
+                            >
+                              {shortDay}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
 
                   {/* Program Term Start Date */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Program Term Start Date
                     </span>
                     {isEditingInModal ? (
@@ -4446,17 +4825,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="Select start date"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {formatProgramDate(viewingProgram.startDate) || "TBD"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                        {formatProgramDate(viewingProgram.startDate) || "TBD"}
+                      </p>
                     )}
                   </div>
 
                   {/* Program Term End Date */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Program Term End Date
                     </span>
                     {isEditingInModal ? (
@@ -4469,76 +4846,74 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="Select end date"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {formatProgramDate(viewingProgram.endDate) || "TBD"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                        {formatProgramDate(viewingProgram.endDate) || "TBD"}
+                      </p>
                     )}
                   </div>
 
                   {/* Timeslot & Session */}
-                  <div className="space-y-1 sm:col-span-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 sm:col-span-2 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Training Timeslot & Session
                     </span>
                     {isEditingInModal ? (
-                      <div className="space-y-3 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80 mt-1">
+                      <div className="space-y-2.5 bg-gray-50/70 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-gray-200/80 mt-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Timeslot Presets</span>
-                          <span className="text-[10px] text-gray-400 font-medium">Click to apply common shifts</span>
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider">Timeslot Presets</span>
+                          <span className="text-[9px] text-gray-400 font-medium">Click to apply</span>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1 sm:gap-1.5">
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("morning")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
                               modalEditStartTime === "08:00" && modalEditEndTime === "12:00"
                                 ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                             }`}
                           >
                             <Sun className="w-3 h-3 text-amber-600 shrink-0" />
-                            <span>Morning (8 AM – 12 PM)</span>
+                            <span>Morning (8–12)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("afternoon")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
                               modalEditStartTime === "13:00" && modalEditEndTime === "17:00"
                                 ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                             }`}
                           >
                             <Sun className="w-3 h-3 text-blue-600 shrink-0" />
-                            <span>Afternoon (1 PM – 5 PM)</span>
+                            <span>Afternoon (1–5)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("fullday")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
                               modalEditStartTime === "08:00" && modalEditEndTime === "17:00"
                                 ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                             }`}
                           >
                             <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                            <span>Full Day (8 AM – 5 PM)</span>
+                            <span>Full Day (8–5)</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("evening")}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
                               modalEditStartTime === "17:30" && modalEditEndTime === "20:30"
                                 ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                             }`}
                           >
                             <Moon className="w-3 h-3 text-purple-600 shrink-0" />
-                            <span>Evening (5:30 PM – 8:30 PM)</span>
+                            <span>Evening (5:30–8:30)</span>
                           </button>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                           <SiKapTimePicker
                             label="Start Time"
                             badgeText="Training Start"
@@ -4559,10 +4934,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       (() => {
                         const ts = formatProgramTimeslot(viewingProgram.startTime, viewingProgram.endTime);
                         return (
-                          <div className="min-h-[38px] flex items-center gap-2 flex-wrap">
-                            <p className="text-[14px] font-semibold text-gray-900 leading-snug">{ts.formattedRange}</p>
+                          <div className="min-h-[30px] sm:min-h-[34px] flex items-center gap-2 flex-wrap">
+                            <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">{ts.formattedRange}</p>
                             {ts.sessionType !== "Custom" && (
-                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                              <span className={`text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
                                 ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
                                 ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
                                 ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
@@ -4579,19 +4954,26 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               </div>
 
-              {/* Section 3: Admissions & Contacts */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-0.5">
-                  <UserCheck className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
-                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">
-                    Admissions, Prerequisites & Contacts
-                  </h4>
+              {/* Section 3: Admissions, Prerequisites & Contacts */}
+              <div className="bg-gray-50/60 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
+                    <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs sm:text-[14px] font-extrabold text-gray-900 tracking-tight">
+                      Admissions, Prerequisites & Contacts
+                    </h4>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate sm:whitespace-normal">
+                      Candidate entry criteria, paperwork verification, and focal officer contacts.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                   {/* Eligibility Criteria */}
-                  <div className="space-y-1 sm:col-span-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 sm:col-span-2 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Eligibility Criteria
                     </span>
                     {isEditingInModal ? (
@@ -4603,8 +4985,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-relaxed">
+                      <div className="bg-emerald-50/40 border border-emerald-100/80 rounded-lg sm:rounded-xl p-2.5 sm:p-3 flex items-start gap-2 sm:gap-2.5">
+                        <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0 mt-0.5" />
+                        <p className="text-[11px] sm:text-xs text-gray-800 leading-relaxed font-medium">
                           {viewingProgram.eligibility || "Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."}
                         </p>
                       </div>
@@ -4612,8 +4995,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
 
                   {/* Required Documents */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-0.5">
                       Required Submission Documents
                     </span>
                     {isEditingInModal ? (
@@ -4622,28 +5005,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Valid ID"
                         value={modalEditRequiredDocuments}
                         onChange={(e) => setModalEditRequiredDocuments(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1 sm:gap-1.5 pt-0.5">
                         {viewingProgram.requiredDocuments && viewingProgram.requiredDocuments.length > 0 ? (
                           viewingProgram.requiredDocuments.map((doc, idx) => (
-                            <span key={idx} className="bg-gray-100 text-gray-800 font-semibold px-2.5 py-1 rounded-md text-[11px] border border-gray-200">
-                              {doc}
+                            <span key={idx} className="bg-gray-100 text-gray-800 font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] border border-gray-200 flex items-center gap-1">
+                              <FileText className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500 shrink-0" />
+                              <span>{doc}</span>
                             </span>
                           ))
                         ) : (
-                          <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                            Barangay Certificate, Valid ID, 2x2 Photo
-                          </p>
+                          <span className="text-[11px] sm:text-xs text-gray-500 font-medium">Barangay Certificate, Valid ID, 2x2 Photo</span>
                         )}
                       </div>
                     )}
                   </div>
 
                   {/* Prerequisite Skills */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-0.5">
                       Target Prerequisite Skills
                     </span>
                     {isEditingInModal ? (
@@ -4652,28 +5034,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. Basic Math, English comprehension"
                         value={modalEditRequiredSkills}
                         onChange={(e) => setModalEditRequiredSkills(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1 sm:gap-1.5 pt-0.5">
                         {viewingProgram.requiredSkills && viewingProgram.requiredSkills.length > 0 ? (
                           viewingProgram.requiredSkills.map((sk, idx) => (
-                            <span key={idx} className="bg-emerald-50 text-emerald-800 font-semibold px-2.5 py-1 rounded-md text-[11px] border border-emerald-200">
-                              {sk}
+                            <span key={idx} className="bg-emerald-50 text-emerald-800 font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] border border-emerald-200 flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-600 shrink-0" />
+                              <span>{toTitleCase(sk)}</span>
                             </span>
                           ))
                         ) : (
-                          <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                            Basic Literacy, Junior High School Graduate
-                          </p>
+                          <span className="text-[11px] sm:text-xs text-gray-500 font-medium">Basic Literacy, Junior High School Graduate</span>
                         )}
                       </div>
                     )}
                   </div>
 
                   {/* Focal Officer / Contact Person */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Officer Contact Person
                     </span>
                     {isEditingInModal ? (
@@ -4682,20 +5063,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
                         value={modalEditContactName}
                         onChange={(e) => setModalEditContactName(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.contactPerson || "TESDA Focal Person"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate">{viewingProgram.contactPerson || "TESDA Focal Person"}</span>
+                      </p>
                     )}
                   </div>
 
                   {/* Official Phone Number */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Official Phone Number
                     </span>
                     {isEditingInModal ? (
@@ -4704,14 +5084,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         placeholder="e.g. +63 917 123 4567"
                         value={modalEditContactPhone}
                         onChange={(e) => setModalEditContactPhone(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                       />
                     ) : (
-                      <div className="min-h-[38px] flex items-center">
-                        <p className="text-[14px] font-semibold text-gray-900 leading-snug">
-                          {viewingProgram.contactNumber || "+63 917 123 4567"}
-                        </p>
-                      </div>
+                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate">{viewingProgram.contactNumber || "+63 917 123 4567"}</span>
+                      </p>
                     )}
                   </div>
                 </div>
@@ -4719,21 +5098,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
             </div>
 
-            {/* Modal Footer with Archive, Delete, Edit and Close */}
-            <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+            {/* Modal Footer with Archive, Restore, Delete, Edit and Close (Mobile & Desktop Optimized) */}
+            <div className="p-3.5 sm:p-5 border-t border-gray-100 bg-gray-50/80 shrink-0">
               {isEditingInModal ? (
-                <>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
                     <span className="text-xs font-bold text-gray-600">Editing Program Details</span>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="grid grid-cols-2 sm:flex sm:items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setIsEditingInModal(false)}
                       disabled={isSavingModal}
-                      className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                      className="w-full sm:w-auto h-[38px] sm:h-auto px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 text-center"
                     >
                       Cancel
                     </button>
@@ -4741,79 +5120,203 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       type="button"
                       onClick={handleSaveModalEdits}
                       disabled={isSavingModal}
-                      className="px-5 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="w-full sm:w-auto h-[38px] sm:h-auto px-5 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 text-center"
                     >
                       {isSavingModal ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Saving Changes...</span>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                          <span>Saving...</span>
                         </>
                       ) : (
                         <>
-                          <Check className="w-3.5 h-3.5" />
+                          <Check className="w-3.5 h-3.5 shrink-0" />
                           <span>Save Changes</span>
                         </>
                       )}
                     </button>
                   </div>
-                </>
+                </div>
               ) : (
                 <>
-                  {/* Left: Destructive & Archival actions */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {viewingProgram.activeStatus === "Closed" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleUnarchiveProgram(viewingProgram.id, viewingProgram.title)}
-                        className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                        title="Restore this archived program to active catalog"
-                      >
-                        <Building2 className="w-3.5 h-3.5" />
-                        <span>Restore Program</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setProgramToArchive(viewingProgram)}
-                        className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                        title="Conclude term and move to Archived Programs"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                        <span>Archive Program</span>
-                      </button>
-                    )}
+                  {/* MOBILE ACTION BUTTONS (Clean 2-Row Grid for Phones) */}
+                  <div className="sm:hidden space-y-2">
+                    {/* Row 1: Primary Action (Restore or Archive) + Edit Program */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {viewingProgram.activeStatus === "Closed" ? (
+                        <button
+                          type="button"
+                          onClick={() => setProgramToRestore(viewingProgram)}
+                          disabled={isRestoringProgram || restoringProgramId === viewingProgram.id}
+                          className="h-[40px] px-3 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 shadow-2xs"
+                          title="Restore this archived program to active catalog"
+                        >
+                          {restoringProgramId === viewingProgram.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                              <span>Restoring...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                              <span>Restore Program</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setProgramToArchive(viewingProgram)}
+                          disabled={isArchivingProgram || archivingProgramId === viewingProgram.id}
+                          className="h-[40px] px-3 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 shadow-2xs"
+                          title="Conclude term and move to Archived Programs"
+                        >
+                          {archivingProgramId === viewingProgram.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                              <span>Archiving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Archive className="w-3.5 h-3.5 shrink-0" />
+                              <span>Archive Term</span>
+                            </>
+                          )}
+                        </button>
+                      )}
 
-                    <button
-                      type="button"
-                      onClick={() => setProgramToDelete(viewingProgram)}
-                      className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                      title="Permanently remove program from system"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete Program</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditingInModal(viewingProgram)}
+                        className="h-[40px] px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 border border-gray-200"
+                      >
+                        <Pencil className="w-3.5 h-3.5 shrink-0 text-gray-600" />
+                        <span>Edit Program</span>
+                      </button>
+                    </div>
+
+                    {/* Row 2: Delete Program + Close Modal */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setProgramToDelete(viewingProgram)}
+                        disabled={isDeletingProgram || deletingProgramId === viewingProgram.id}
+                        className="h-[38px] px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        title="Permanently remove program from system"
+                      >
+                        {deletingProgramId === viewingProgram.id ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            <span>Deleting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5 shrink-0 text-red-600" />
+                            <span>Delete</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewingProgram(null);
+                          setIsEditingInModal(false);
+                        }}
+                        className="h-[38px] px-3 border border-gray-200 text-gray-700 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer text-center flex items-center justify-center"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Right: Close and Edit */}
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewingProgram(null);
-                        setIsEditingInModal(false);
-                      }}
-                      className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                    >
-                      Close
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startEditingInModal(viewingProgram)}
-                      className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span>Edit Program</span>
-                    </button>
+                  {/* DESKTOP ACTION BUTTONS (Tablets & Desktops >= sm) */}
+                  <div className="hidden sm:flex sm:items-center sm:justify-between gap-3">
+                    {/* Left: Destructive & Archival / Restore actions */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {viewingProgram.activeStatus === "Closed" ? (
+                        <button
+                          type="button"
+                          onClick={() => setProgramToRestore(viewingProgram)}
+                          disabled={isRestoringProgram || restoringProgramId === viewingProgram.id}
+                          className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                          title="Restore this archived program to active catalog"
+                        >
+                          {restoringProgramId === viewingProgram.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Restoring Program...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Restore Program</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setProgramToArchive(viewingProgram)}
+                          disabled={isArchivingProgram || archivingProgramId === viewingProgram.id}
+                          className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                          title="Conclude term and move to Archived Programs"
+                        >
+                          {archivingProgramId === viewingProgram.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Archiving Program...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Archive className="w-3.5 h-3.5" />
+                              <span>Archive Program</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setProgramToDelete(viewingProgram)}
+                        disabled={isDeletingProgram || deletingProgramId === viewingProgram.id}
+                        className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        title="Permanently remove program from system"
+                      >
+                        {deletingProgramId === viewingProgram.id ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Deleting Program...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete Program</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Right: Close and Edit */}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewingProgram(null);
+                          setIsEditingInModal(false);
+                        }}
+                        className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      >
+                        Close
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditingInModal(viewingProgram)}
+                        className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Edit Program</span>
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -5288,6 +5791,28 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       )}
 
       {/* ============================================================ */}
+      {/* RESTORE PROGRAM CONFIRMATION MODAL */}
+      {/* ============================================================ */}
+      <ConfirmationModal
+        isOpen={!!programToRestore}
+        title={`Restore Training Program "${programToRestore?.title}"?`}
+        description={`This will reactivate "${programToRestore?.title}" and return it to the active training catalog. Katipunan ng Kabataan youth learners in San Luis will immediately be able to view details and apply.`}
+        confirmText="Restore Program"
+        confirmVariant="green"
+        isLoading={isRestoringProgram}
+        loadingText="Restoring Program..."
+        onConfirm={async () => {
+          if (programToRestore) {
+            await handleUnarchiveProgram(programToRestore.id, programToRestore.title);
+            setProgramToRestore(null);
+          }
+        }}
+        onCancel={() => {
+          if (!isRestoringProgram) setProgramToRestore(null);
+        }}
+      />
+
+      {/* ============================================================ */}
       {/* ARCHIVE PROGRAM / CONCLUDE TERM CONFIRMATION MODAL */}
       {/* ============================================================ */}
       <ConfirmationModal
@@ -5296,13 +5821,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         description={`Archiving will remove "${programToArchive?.title}" and its enrollees from this active dashboard to make way for future terms, and safely preserve all student records in the database. You can review them anytime under Archived History.`}
         confirmText="Conclude & Archive Term"
         confirmVariant="green"
-        onConfirm={() => {
+        isLoading={isArchivingProgram}
+        loadingText="Archiving Term..."
+        onConfirm={async () => {
           if (programToArchive) {
-            handleArchiveProgram(programToArchive.id, programToArchive.title);
+            await handleArchiveProgram(programToArchive.id, programToArchive.title);
             setProgramToArchive(null);
           }
         }}
-        onCancel={() => setProgramToArchive(null)}
+        onCancel={() => {
+          if (!isArchivingProgram) setProgramToArchive(null);
+        }}
       />
 
       {/* ============================================================ */}
@@ -5314,13 +5843,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         description={`Are you sure you want to delete "${programToDelete?.title}"? This will close the program and remove it together with its applicant records from the active dashboard.`}
         confirmText="Delete Program"
         confirmVariant="red"
-        onConfirm={() => {
+        isLoading={isDeletingProgram}
+        loadingText="Deleting Program..."
+        onConfirm={async () => {
           if (programToDelete) {
-            handleDeleteProgram(programToDelete.id, programToDelete.title);
+            await handleDeleteProgram(programToDelete.id, programToDelete.title);
             setProgramToDelete(null);
           }
         }}
-        onCancel={() => setProgramToDelete(null)}
+        onCancel={() => {
+          if (!isDeletingProgram) setProgramToDelete(null);
+        }}
       />
 
     </div>

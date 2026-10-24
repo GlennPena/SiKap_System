@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 function mapToCouncilor(c: any) {
   return {
     id: c.id,

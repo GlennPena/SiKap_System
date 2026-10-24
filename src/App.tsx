@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { UserRole } from "./types";
 import {
@@ -18,7 +18,8 @@ import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
-import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Loader2 } from "lucide-react";
+import { onRealtimeSync, broadcastDataChange } from "./lib/realtime-sync";
+import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Loader2, ShieldAlert, Clock, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 const MatchBadge: React.FC = () => {
@@ -154,42 +155,107 @@ export default function App() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [referrals, setReferrals] = useState<any[]>([]);
 
-  // Sync state from Next.js API Routes
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetch("/api/youth")
-        .then(res => res.json())
-        .then(res => { if (res.success && res.data) setYouthProfiles(res.data); })
-        .catch(err => console.log("Error fetching youth profiles", err));
+  // Real-time synchronization lock to prevent overlapping fetch requests
+  const isSyncingRef = useRef(false);
 
-      fetch("/api/programs")
-        .then(res => res.json())
-        .then(res => { if (res.success && res.data) setPrograms(res.data); })
-        .catch(err => console.log("Error fetching programs", err));
+  // Centralized real-time sync function across all system data
+  const syncAllData = useCallback(async () => {
+    if (status !== "authenticated" || isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    try {
+      const isSuperAdminOrCaptain = (session?.user as any)?.role === "SUPER_ADMIN" || (session?.user as any)?.role === "BARANGAY_CAPTAIN";
 
-      fetch("/api/announcements")
-        .then(res => res.json())
-        .then(res => { if (res.success && res.data) setAnnouncements(res.data); })
-        .catch(err => console.log("Error fetching announcements", err));
+      const [youthRes, progRes, annRes, refRes, counRes, usersRes] = await Promise.all([
+        fetch("/api/youth").then(r => r.json()).catch(() => null),
+        fetch("/api/programs").then(r => r.json()).catch(() => null),
+        fetch("/api/announcements").then(r => r.json()).catch(() => null),
+        fetch("/api/referrals").then(r => r.json()).catch(() => null),
+        fetch("/api/councilors").then(r => r.json()).catch(() => null),
+        isSuperAdminOrCaptain ? fetch("/api/users").then(r => r.json()).catch(() => null) : Promise.resolve(null),
+      ]);
 
-      fetch("/api/referrals")
-        .then(res => res.json())
-        .then(res => { if (res.success && res.data) setReferrals(res.data); })
-        .catch(err => console.log("Error fetching referrals", err));
-
-      fetch("/api/councilors")
-        .then(res => res.json())
-        .then(res => { if (res.success && res.data) setCouncilors(res.data); })
-        .catch(err => console.log("Error fetching councilors", err));
-
-      if ((session?.user as any)?.role === "SUPER_ADMIN" || (session?.user as any)?.role === "BARANGAY_CAPTAIN") {
-        fetch("/api/users")
-          .then(res => res.json())
-          .then(res => { if (res.success && res.data) setOfficialAccounts(res.data); })
-          .catch(err => console.log("Error fetching users", err));
+      // Only update state if data actually changed to eliminate unnecessary re-renders
+      if (youthRes?.success && Array.isArray(youthRes.data)) {
+        setYouthProfiles(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(youthRes.data)) return prev;
+          return youthRes.data;
+        });
       }
+      if (progRes?.success && Array.isArray(progRes.data)) {
+        setPrograms(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(progRes.data)) return prev;
+          return progRes.data;
+        });
+      }
+      if (annRes?.success && Array.isArray(annRes.data)) {
+        setAnnouncements(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(annRes.data)) return prev;
+          return annRes.data;
+        });
+      }
+      if (refRes?.success && Array.isArray(refRes.data)) {
+        setReferrals(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(refRes.data)) return prev;
+          return refRes.data;
+        });
+      }
+      if (counRes?.success && Array.isArray(counRes.data)) {
+        setCouncilors(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(counRes.data)) return prev;
+          return counRes.data;
+        });
+      }
+      if (usersRes?.success && Array.isArray(usersRes.data)) {
+        setOfficialAccounts(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(usersRes.data)) return prev;
+          return usersRes.data;
+        });
+      }
+    } catch (err) {
+      console.log("Real-time sync error:", err);
+    } finally {
+      isSyncingRef.current = false;
     }
   }, [status, session]);
+
+  // 1. Listen for instant cross-tab and in-window broadcast mutations (<10ms)
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const unsubscribe = onRealtimeSync(() => {
+      syncAllData();
+    });
+    return unsubscribe;
+  }, [status, syncAllData]);
+
+  // 2. Real-time background sync loop (polls every 3.5s while active) & instant focus revalidation
+  useEffect(() => {
+    if (status !== "authenticated") return;
+
+    // Immediate initial sync
+    syncAllData();
+
+    // Continuous real-time polling every 3.5 seconds
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        syncAllData();
+      }
+    }, 3500);
+
+    // Instant revalidation when user switches back to tab
+    const handleRevalidate = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        syncAllData();
+      }
+    };
+    window.addEventListener("focus", handleRevalidate);
+    document.addEventListener("visibilitychange", handleRevalidate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleRevalidate);
+      document.removeEventListener("visibilitychange", handleRevalidate);
+    };
+  }, [status, syncAllData]);
 
 
   // Simple toast system
@@ -211,10 +277,66 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Rate limiting / lockout states
+  const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
+  const [lockoutMessage, setLockoutMessage] = useState<string | null>(null);
+  const [attemptWarning, setAttemptWarning] = useState<string | null>(null);
+
+  // 1-second countdown interval for 5-minute cooldown
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutSeconds(prev => {
+        if (prev <= 1) {
+          setLockoutMessage(null);
+          setAttemptWarning(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSeconds]);
+
+  // Query rate-limit / lockout status from the server
+  const checkLockoutStatus = async (userEmail: string) => {
+    if (!userEmail.trim()) {
+      setLockoutSeconds(0);
+      setLockoutMessage(null);
+      setAttemptWarning(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/auth/login-status?email=${encodeURIComponent(userEmail.trim().toLowerCase())}`);
+      const data = await res.json();
+      if (data.isLocked) {
+        setLockoutSeconds(data.remainingSeconds || 300);
+        setLockoutMessage(data.message || "Account locked due to 5 wrong password attempts. Please wait 5 minutes.");
+        setAttemptWarning(null);
+      } else {
+        setLockoutSeconds(0);
+        setLockoutMessage(null);
+        if (data.failedAttempts > 0) {
+          setAttemptWarning(`Warning: ${data.remainingAttempts} attempt${data.remainingAttempts > 1 ? "s" : ""} remaining before a 5-minute lockout.`);
+        } else {
+          setAttemptWarning(null);
+        }
+      }
+    } catch {
+      // silent fallback
+    }
+  };
+
+  const formatCooldown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
   // Standard login trigger
   const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoggingIn) return;
+    if (isLoggingIn || lockoutSeconds > 0) return;
     if (!email.trim() || !password.trim()) {
       addToast("Please input valid credentials", "error");
       return;
@@ -223,16 +345,22 @@ export default function App() {
     setIsLoggingIn(true);
     try {
       const res = await signIn("credentials", {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         rememberMe: rememberMe ? "true" : "false",
         redirect: false,
       });
 
       if (res?.error) {
-        addToast("Invalid credentials", "error");
+        const errorText = res.error === "CredentialsSignin" ? "Invalid email or password" : res.error;
+        addToast(errorText, "error");
         setIsLoggingIn(false);
+        // Refresh rate-limit & lockout status from server
+        await checkLockoutStatus(email);
       } else {
+        setLockoutSeconds(0);
+        setLockoutMessage(null);
+        setAttemptWarning(null);
         if (typeof window !== "undefined") {
           if (rememberMe) {
             localStorage.setItem("sikap_remember_me", "true");
@@ -533,7 +661,15 @@ export default function App() {
                             placeholder="juan.delacruz@gmail.com"
                             value={email}
                             disabled={isLoggingIn}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => {
+                              setEmail(e.target.value);
+                              if (attemptWarning || lockoutSeconds > 0) {
+                                checkLockoutStatus(e.target.value);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (email.trim()) checkLockoutStatus(email);
+                            }}
                             className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
                           />
                         </div>
@@ -555,13 +691,13 @@ export default function App() {
                               type={showPassword ? "text" : "password"}
                               placeholder="••••••••"
                               value={password}
-                              disabled={isLoggingIn}
+                              disabled={isLoggingIn || lockoutSeconds > 0}
                               onChange={(e) => setPassword(e.target.value)}
                               className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
                             />
                             <button
                               type="button"
-                              disabled={isLoggingIn}
+                              disabled={isLoggingIn || lockoutSeconds > 0}
                               onClick={() => setShowPassword(!showPassword)}
                               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center disabled:opacity-50"
                             >
@@ -569,13 +705,13 @@ export default function App() {
                             </button>
                           </div>
 
-                          {/* Remember Me Checkbox (nested closer to password) */}
+                          {/* Remember Me Checkbox */}
                           <div className="flex items-center gap-2.5 pt-2">
                             <input
                               id="remember-me-checkbox"
                               type="checkbox"
                               checked={rememberMe}
-                              disabled={isLoggingIn}
+                              disabled={isLoggingIn || lockoutSeconds > 0}
                               onChange={(e) => setRememberMe(e.target.checked)}
                               className="h-4 w-4 sm:h-4.5 sm:w-4.5 rounded border-gray-300 text-[#0A6B43] focus:ring-emerald-500 cursor-pointer accent-[#0A6B43] disabled:opacity-50 disabled:cursor-not-allowed"
                             />
@@ -585,20 +721,56 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Cooldown Lockout Alert Box */}
+                        {lockoutSeconds > 0 ? (
+                          <div className="p-3.5 sm:p-4 bg-rose-50/90 border border-rose-200 rounded-xl lg:rounded-2xl text-left space-y-2 animate-in fade-in duration-200 shadow-2xs">
+                            <div className="flex items-center gap-2 text-rose-800 font-black text-xs sm:text-sm uppercase tracking-wide">
+                              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>Account Temporarily Locked</span>
+                            </div>
+                            <p className="text-xs sm:text-sm text-rose-700 font-medium leading-relaxed">
+                              You entered the wrong password 5 times. For your security, this account is locked for 5 minutes.
+                            </p>
+                            <div className="pt-1 flex items-center justify-between border-t border-rose-200/70 text-xs text-rose-900 font-bold">
+                              <span className="flex items-center gap-1.5 text-rose-800">
+                                <Clock className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Cooldown remaining:</span>
+                              </span>
+                              <span className="font-mono text-xs sm:text-sm bg-white px-2.5 py-0.5 rounded-lg border border-rose-300 text-rose-700 font-black shadow-2xs">
+                                {formatCooldown(lockoutSeconds)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : attemptWarning ? (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl lg:rounded-2xl text-left flex items-center gap-2.5 animate-in fade-in duration-200">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="text-xs sm:text-sm font-semibold text-amber-800">{attemptWarning}</span>
+                          </div>
+                        ) : null}
+
                         <div className="pt-2 lg:pt-3">
                           <motion.button
-                            whileHover={isLoggingIn ? {} : { scale: 1.015 }}
-                            whileTap={isLoggingIn ? {} : { scale: 0.985 }}
+                            whileHover={isLoggingIn || lockoutSeconds > 0 ? {} : { scale: 1.015 }}
+                            whileTap={isLoggingIn || lockoutSeconds > 0 ? {} : { scale: 0.985 }}
                             type="submit"
-                            disabled={isLoggingIn}
-                            className={`w-full py-3.5 sm:py-4 lg:py-4.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-base lg:text-lg font-bold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2.5 ${
-                              isLoggingIn ? "opacity-80 cursor-not-allowed" : "cursor-pointer"
+                            disabled={isLoggingIn || lockoutSeconds > 0}
+                            className={`w-full py-3.5 sm:py-4 lg:py-4.5 text-white text-base lg:text-lg font-bold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2.5 ${
+                              lockoutSeconds > 0
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                                : isLoggingIn
+                                ? "bg-[#0A6B43] opacity-80 cursor-not-allowed"
+                                : "bg-[#0A6B43] hover:bg-[#075332] cursor-pointer"
                             }`}
                           >
                             {isLoggingIn ? (
                               <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
                                 <span>Logging in...</span>
+                              </>
+                            ) : lockoutSeconds > 0 ? (
+                              <>
+                                <Clock className="w-5 h-5 text-gray-500 animate-pulse" />
+                                <span>Locked ({formatCooldown(lockoutSeconds)})</span>
                               </>
                             ) : (
                               <span>Login</span>

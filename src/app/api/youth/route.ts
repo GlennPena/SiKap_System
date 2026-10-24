@@ -4,6 +4,8 @@ import { decryptAES256 } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 import { normalizeEducationalAttainment } from "@/types";
 import { calculateAge } from "@/lib/utils";

@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notifyNewAnnouncement } from "@/lib/notifications";
 
+export const dynamic = "force-dynamic";
+
 function mapToAnnouncement(a: any) {
   return {
     id: a.id,

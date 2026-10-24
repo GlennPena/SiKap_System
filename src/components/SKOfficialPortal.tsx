@@ -26,8 +26,10 @@ import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
+import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
+import { broadcastDataChange } from "../lib/realtime-sync";
 
 const getProgramCategory = (prog?: any): string => {
   if (!prog) return "Information and Communication Technology";
@@ -431,7 +433,6 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   // Top Navbar Notification state
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Helper to get all relevant storage keys for the active SK official
   const getStorageKeys = () => {
@@ -450,6 +451,28 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     keys.push("sikap_cleared_notifs_sk_general");
     return Array.from(new Set(keys));
   };
+
+  const getReadStorageKey = () => {
+    const email = currentUser?.email?.toLowerCase().trim();
+    if (email) return `sikap_read_notifs_${email}`;
+    const cleanBrgy = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    return `sikap_read_notifs_sk_${cleanBrgy || "general"}`;
+  };
+
+  // Track read notification IDs with localStorage persistence
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = currentUser?.email ? `sikap_read_notifs_${currentUser.email.toLowerCase().trim()}` : "sikap_read_notifs_sk_general";
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
 
   // Track dismissed/cleared notifications with localStorage persistence
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
@@ -481,28 +504,70 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     return [];
   });
 
-  // Re-synchronize cleared notifications whenever SK user or designated barangay updates
+  // Re-synchronize cleared & read notifications whenever SK user or designated barangay updates or storage changes
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const keys = getStorageKeys();
-      let loaded: string[] = [];
-      for (const k of keys) {
-        const saved = localStorage.getItem(k);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch { }
+
+    const syncNotificationsFromStorage = () => {
+      try {
+        const keys = getStorageKeys();
+        let loaded: string[] = [];
+        for (const k of keys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch { }
+          }
         }
+        if (loaded.length > 0) {
+          setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+        }
+
+        const readKey = getReadStorageKey();
+        const readSaved = localStorage.getItem(readKey);
+        if (readSaved) {
+          const parsed = JSON.parse(readSaved);
+          if (Array.isArray(parsed)) {
+            setReadNotificationIds(prev => Array.from(new Set([...prev, ...parsed])));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to sync cleared notifications in SK portal:", e);
       }
-      if (loaded.length > 0) {
-        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
-      }
-    } catch (e) {
-      console.error("Failed to sync cleared notifications in SK portal:", e);
-    }
+    };
+
+    syncNotificationsFromStorage();
+    window.addEventListener("storage", syncNotificationsFromStorage);
+    return () => window.removeEventListener("storage", syncNotificationsFromStorage);
   }, [currentUser?.email, currentUser?.id, designatedBarangay]);
+
+  const markAsRead = (id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const markAllAsRead = (allIds: string[]) => {
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notifications:", e);
+      }
+      return updated;
+    });
+    addToast("All notifications marked as read", "success");
+  };
 
   const dismissNotification = (id: string) => {
     setClearedNotificationIds(prev => {
@@ -528,15 +593,20 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         keys.forEach(k => {
           localStorage.setItem(k, JSON.stringify(updated));
         });
-        if (currentUser?.email) {
-          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
-        }
       } catch (e) {
         console.error("Failed to save cleared notifications:", e);
       }
       return updated;
     });
-    setNotificationsRead(true);
+    // Also mark them as read
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    addToast("All notifications cleared", "info");
   };
 
   const toggleAspirationExpand = (id: string, e: React.MouseEvent) => {
@@ -1233,6 +1303,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         setYouthProfiles(prev => [createdProfile, ...prev]);
         setNewlyCreatedId(createdProfile.id);
         addToast(`Registered ${createdProfile.name} and provisioned login account!`, "success");
+        broadcastDataChange("youth", "registered");
       } else {
         const newId = `y-${Date.now()}`;
         const fallbackProfile: YouthProfile = {
@@ -1334,6 +1405,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           setAnnouncements(prev => [data.data, ...prev]);
           addToast("Announcement posted and published to youth portal!", "success");
         }
+        broadcastDataChange("announcements", isEditing ? "updated" : "created");
       } else {
         if (isEditing) {
           setAnnouncements(prev => prev.map(a => a.id === editingAnnouncementId ? { ...a, ...payload } : a));
@@ -1355,6 +1427,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           setAnnouncements(prev => [fallback, ...prev]);
           addToast("Announcement posted successfully!", "success");
         }
+        broadcastDataChange("announcements", isEditing ? "updated" : "created");
       }
     } catch (err) {
       console.error("Failed to persist announcement:", err);
@@ -1378,6 +1451,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         setAnnouncements(prev => [fallback, ...prev]);
         addToast("Announcement posted successfully!", "success");
       }
+      broadcastDataChange("announcements", isEditing ? "updated" : "created");
     } finally {
       setShowAnnouncementModal(false);
       setEditingAnnouncementId(null);
@@ -1408,6 +1482,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
     setAnnouncements(prev => prev.map(a => a.id === ann.id ? { ...a, status: newStatus } : a));
     addToast(newStatus === "Cancelled" ? "Announcement marked as Cancelled" : "Announcement reactivated", newStatus === "Cancelled" ? "info" : "success");
+    broadcastDataChange("announcements", "status_changed");
 
     try {
       await fetch("/api/announcements", {
@@ -1415,6 +1490,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ann.id, status: newStatus })
       });
+      broadcastDataChange("announcements", "status_changed");
     } catch (err) {
       console.error("Failed to update announcement status in database:", err);
     }
@@ -1423,11 +1499,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const handleDeleteAnnouncement = async (id: string) => {
     setAnnouncements(prev => prev.filter(a => a.id !== id));
     addToast("Announcement deleted", "info");
+    broadcastDataChange("announcements", "deleted");
 
     try {
       await fetch(`/api/announcements?id=${id}`, {
         method: "DELETE"
       });
+      broadcastDataChange("announcements", "deleted");
     } catch (err) {
       console.error("Failed to delete announcement from database:", err);
     }
@@ -1436,6 +1514,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const handleApproveYouth = async (id: string) => {
     setYouthProfiles(prev => prev.map(y => y.id === id ? { ...y, approvalStatus: "Approved" } : y));
     addToast("Youth profile has been successfully approved!", "success");
+    broadcastDataChange("youth", "approved");
 
     try {
       await fetch("/api/youth", {
@@ -1443,6 +1522,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, approvalStatus: "Approved" })
       });
+      broadcastDataChange("youth", "approved");
     } catch (err) {
       console.error("Failed to persist youth approval to database:", err);
     }
@@ -1451,6 +1531,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const handleRejectYouth = async (id: string) => {
     setYouthProfiles(prev => prev.map(y => y.id === id ? { ...y, approvalStatus: "Rejected" } : y));
     addToast("Youth profile has been rejected.", "info");
+    broadcastDataChange("youth", "rejected");
 
     try {
       await fetch("/api/youth", {
@@ -1458,6 +1539,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, approvalStatus: "Rejected" })
       });
+      broadcastDataChange("youth", "rejected");
     } catch (err) {
       console.error("Failed to persist youth rejection to database:", err);
     }
@@ -1520,6 +1602,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           contactNumber: councilorContact
         });
         addToast(`Account provisioned for ${councilorRole} ${councilorName}!`, "success");
+        broadcastDataChange("councilors", "created");
         setIsAddCouncilorOpen(false);
         setCouncilorName("");
         setCouncilorEmail("");
@@ -1647,6 +1730,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
       setCouncilors(prev => prev.map(c => c.id === id ? { ...c, status: nextStatus } : c));
       addToast(`Councilor is now ${nextStatus}`, "info");
+      broadcastDataChange("councilors", "updated");
     } catch (err: any) {
       console.error("Error toggling status:", err);
       addToast("Failed to update status: " + (err.message || "Network error"), "error");
@@ -1671,6 +1755,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       }
       setCouncilors(prev => prev.filter(c => c.id !== target.id));
       addToast(`${target.name} removed from team successfully`, "info");
+      broadcastDataChange("councilors", "deleted");
     } catch (err: any) {
       console.error("Error deleting councilor:", err);
       addToast("Failed to remove official: " + (err.message || "Network error"), "error");
@@ -1824,7 +1909,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       // Purok Filter
       let matchesPurok = true;
       if (pendingPurokFilter !== "All") {
-        matchesPurok = y.purok.toLowerCase().trim() === pendingPurokFilter.toLowerCase().trim();
+        matchesPurok = y.purok.toLowerCase().trim() === pendingPurokFilter.toLowerCase().trim() ||
+                       y.purok.toLowerCase().startsWith(pendingPurokFilter.toLowerCase() + " -");
       }
 
       // ID Type Filter
@@ -1908,7 +1994,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         (y.skills && y.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())));
 
       const matchesEdu = eduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === eduFilter;
-      const matchesPurok = purokFilter === "All" || y.purok === purokFilter;
+      const matchesPurok = purokFilter === "All" || y.purok === purokFilter || (y.purok && y.purok.toLowerCase().startsWith(purokFilter.toLowerCase() + " -"));
 
       let matchesAge = true;
       if (ageFilter === "15-20") matchesAge = y.age >= 15 && y.age <= 20;
@@ -2522,7 +2608,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <NotificationBellButton
                 isOpen={showNotificationsDropdown}
                 onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
-                unreadCount={!notificationsRead ? activeSystemNotifications.length : 0}
+                unreadCount={activeSystemNotifications.filter(n => !readNotificationIds.includes(n.id)).length}
                 title="System Notifications"
                 size="lg"
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
@@ -2537,34 +2623,32 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-[#0A6B43]" />
                         <h3 className="font-extrabold text-gray-900 text-sm">Notifications</h3>
-                        {activeSystemNotifications.length > 0 && (
+                        {activeSystemNotifications.filter(n => !readNotificationIds.includes(n.id)).length > 0 && (
                           <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                            {activeSystemNotifications.length}
+                            {activeSystemNotifications.filter(n => !readNotificationIds.includes(n.id)).length}
                           </span>
                         )}
                       </div>
                       {activeSystemNotifications.length > 0 && (
                         <div className="flex items-center gap-2">
+                          {activeSystemNotifications.some(n => !readNotificationIds.includes(n.id)) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => markAllAsRead(activeSystemNotifications.map(n => n.id))}
+                                className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                title="Mark all notifications as read"
+                              >
+                                Mark all read
+                              </button>
+                              <span className="text-gray-300">·</span>
+                            </>
+                          )}
                           <button
                             type="button"
-                            onClick={() => {
-                              clearAllNotifications(systemNotifications.map(n => n.id));
-                              addToast("All notifications marked as read & cleared", "info");
-                            }}
-                            className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                            title="Mark all notifications as read and clear them"
-                          >
-                            Mark all read
-                          </button>
-                          <span className="text-gray-300">·</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              clearAllNotifications(systemNotifications.map(n => n.id));
-                              addToast("All notifications cleared", "info");
-                            }}
+                            onClick={() => clearAllNotifications(activeSystemNotifications.map(n => n.id))}
                             className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
-                            title="Clear all alerts"
+                            title="Clear all alerts from list"
                           >
                             Clear all
                           </button>
@@ -2580,41 +2664,68 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <p className="text-[10px] text-gray-400">No new alerts or pending tasks for Barangay {designatedBarangay}.</p>
                         </div>
                       ) : (
-                        activeSystemNotifications.map((n) => (
-                          <div
-                            key={n.id}
-                            onClick={() => {
-                              dismissNotification(n.id);
-                              setCurrentScreen(n.targetScreen);
-                              setShowNotificationsDropdown(false);
-                            }}
-                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                          >
-                            <div className="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0 mt-0.5">
-                              {n.icon}
-                            </div>
-                            <div className="flex-1 min-w-0 pr-2">
-                              <div className="flex justify-between items-center mb-0.5">
-                                <h4 className="font-extrabold text-gray-900 text-xs truncate">{n.title}</h4>
-                                <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
-                                  {n.time}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-gray-500 font-medium leading-relaxed">{n.desc}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                dismissNotification(n.id);
+                        activeSystemNotifications.map((n) => {
+                          const isRead = readNotificationIds.includes(n.id);
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                markAsRead(n.id);
+                                setCurrentScreen(n.targetScreen);
+                                setShowNotificationsDropdown(false);
                               }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                              title="Dismiss alert"
+                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${
+                                isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
+                              }`}
                             >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))
+                              <div className="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0 mt-0.5 relative">
+                                {n.icon}
+                                {!isRead && (
+                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#0A6B43] rounded-full ring-2 ring-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 pr-2">
+                                <div className="flex justify-between items-center mb-0.5">
+                                  <h4 className={`text-xs truncate ${isRead ? "font-semibold text-gray-700" : "font-extrabold text-gray-900"}`}>
+                                    {n.title}
+                                  </h4>
+                                  <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded uppercase ml-2 shrink-0">
+                                    {n.time}
+                                  </span>
+                                </div>
+                                <p className={`text-[11px] leading-relaxed ${isRead ? "text-gray-400 font-normal" : "text-gray-600 font-medium"}`}>
+                                  {n.desc}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 -mr-1">
+                                {!isRead && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markAsRead(n.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                    title="Mark as read"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    dismissNotification(n.id);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all"
+                                  title="Clear alert"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
 
@@ -3215,15 +3326,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                         value={purokFilter}
                         onChange={(val) => setPurokFilter(val)}
                         options={[
-                          { value: "All", label: "All Puroks" },
-                          { value: "Purok 1", label: "Purok 1" },
-                          { value: "Purok 2", label: "Purok 2" },
-                          { value: "Purok 3", label: "Purok 3" },
-                          { value: "Purok 4", label: "Purok 4" }
+                          { value: "All", label: `All ${getBarangayZoneTypeLabel(designatedBarangay)}s` },
+                          ...getBarangayZoneOptions(designatedBarangay)
                         ]}
                         size="sm"
                         buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                        placeholder="All Puroks"
+                        placeholder={`All ${getBarangayZoneTypeLabel(designatedBarangay)}s`}
                       />
 
                       <CustomSelect
@@ -4700,19 +4808,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-gray-500 uppercase">Purok *</label>
+                          <label className="text-[11px] font-bold text-gray-500 uppercase">
+                            {getBarangayZoneTypeLabel(designatedBarangay)} *
+                          </label>
                           <CustomSelect
                             value={regPurok}
                             onChange={(val) => setRegPurok(val)}
-                            options={[
-                              { value: "Purok 1", label: "Purok 1" },
-                              { value: "Purok 2", label: "Purok 2" },
-                              { value: "Purok 3", label: "Purok 3" },
-                              { value: "Purok 4", label: "Purok 4" }
-                            ]}
+                            options={getBarangayZoneOptions(designatedBarangay)}
                             size="sm"
                             buttonClassName="h-[40px] !text-[13px] !rounded-xl font-medium bg-gray-50/70"
-                            placeholder="Select Purok"
+                            placeholder={`Select ${getBarangayZoneTypeLabel(designatedBarangay)}`}
                           />
                         </div>
                       </div>
@@ -4732,6 +4837,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           label="Date of Birth"
                           badgeText="KK Youth"
                           showAgeIndicator={true}
+                          defaultYear={new Date().getFullYear() - 20}
+                          direction="down"
                           placeholder="Select date of birth"
                           onChange={(val) => {
                             setRegDOB(val);
@@ -5124,13 +5231,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       return (
                         <div
                           key={prog.id}
-                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
+                          className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
                         >
                           <div className="flex-1 flex flex-col">
                             {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
-                            <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
+                            <div className="flex items-start justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-2">
                               <div className="min-w-0 space-y-0.5">
-                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-[15px] sm:text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 font-medium truncate">
@@ -5138,7 +5245,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 </p>
                               </div>
 
-                              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
+                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${
                                 isEnded
                                   ? "bg-gray-100 text-gray-600 border-gray-300"
                                   : isFull
@@ -5151,9 +5258,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                             {/* Available Slots Progress Bar */}
                             <div className="space-y-1.5 pt-2.5 pb-2.5">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Available Slots</span>
-                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">Available Slots</span>
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider truncate text-right ${isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
                                   {isEnded ? "Concluded" : isFull ? "Slots Full" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
                                 </span>
                               </div>
@@ -5166,20 +5273,20 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             </div>
 
                             {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pt-2 pb-3">
+                            <div className="flex-1 flex flex-col justify-start min-h-[42px] sm:min-h-[46px] pt-2 pb-3">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
                                 Target Competencies
                               </span>
-                              <div className="flex flex-wrap gap-1 items-center">
+                              <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
                                 {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
                                   <>
                                     {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
-                                      <span key={sIdx} className="text-[11px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
+                                      <span key={sIdx} className="text-[10px] sm:text-[11px] bg-slate-100 text-slate-700 font-semibold px-1.5 sm:px-2 py-0.5 rounded-md max-w-full truncate">
                                         {toTitleCase(skill)}
                                       </span>
                                     ))}
                                     {prog.requiredSkills.length > 3 && (
-                                      <span className="text-[10px] text-gray-400 font-bold self-center">
+                                      <span className="text-[9.5px] sm:text-[10px] text-gray-400 font-bold self-center shrink-0">
                                         +{prog.requiredSkills.length - 3} more
                                       </span>
                                     )}
@@ -5220,14 +5327,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           </div>
 
                           {/* Card Footer: View Program Details with up-right arrow */}
-                          <div className="pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
+                          <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
                             <button
                               type="button"
                               onClick={() => setSelectedProgramForModal(prog)}
-                              className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
+                              className="inline-flex items-center gap-1.5 py-1.5 px-3 sm:py-0 sm:px-0 rounded-lg sm:rounded-none bg-emerald-50/70 sm:bg-transparent text-xs sm:text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto active:scale-95"
                             >
                               <span>View Program Details</span>
-                              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                             </button>
                           </div>
                         </div>
@@ -7083,18 +7190,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             value={pendingPurokFilter}
                             onChange={(val) => setPendingPurokFilter(val)}
                             options={[
-                              { value: "All", label: "All Puroks" },
-                              { value: "Purok 1", label: "Purok 1" },
-                              { value: "Purok 2", label: "Purok 2" },
-                              { value: "Purok 3", label: "Purok 3" },
-                              { value: "Purok 4", label: "Purok 4" },
-                              { value: "Purok 5", label: "Purok 5" },
-                              { value: "Purok 6", label: "Purok 6" },
-                              { value: "Purok 7", label: "Purok 7" }
+                              { value: "All", label: `All ${getBarangayZoneTypeLabel(designatedBarangay)}s` },
+                              ...getBarangayZoneOptions(designatedBarangay)
                             ]}
                             size="sm"
                             buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                            placeholder="All Puroks"
+                            placeholder={`All ${getBarangayZoneTypeLabel(designatedBarangay)}s`}
                           />
 
                           <CustomSelect
