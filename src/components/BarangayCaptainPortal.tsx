@@ -66,6 +66,7 @@ import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { isProgramEnded, toTitleCase } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
+import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 
 const getProgramCategory = (prog?: any): string => {
   if (!prog) return "Information and Communication Technology";
@@ -237,7 +238,6 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
   // Notifications State
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Helper to get all relevant storage keys for the active Barangay Captain
   const getStorageKeys = () => {
@@ -255,6 +255,28 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     keys.push("sikap_cleared_notifs_captain");
     return Array.from(new Set(keys));
   };
+
+  const getReadStorageKey = () => {
+    const email = currentUser?.email?.toLowerCase().trim();
+    if (email) return `sikap_read_notifs_${email}`;
+    const cleanBrgy = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    return `sikap_read_notifs_captain_${cleanBrgy || "general"}`;
+  };
+
+  // Track read notification IDs with localStorage persistence
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = currentUser?.email ? `sikap_read_notifs_${currentUser.email.toLowerCase().trim()}` : "sikap_read_notifs_captain_general";
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
 
   // Track dismissed/cleared notifications with localStorage persistence
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
@@ -285,28 +307,70 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     return [];
   });
 
-  // Re-synchronize cleared notifications whenever captain user or designated barangay updates
+  // Re-synchronize cleared notifications whenever captain user, designated barangay, or storage updates
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const keys = getStorageKeys();
-      let loaded: string[] = [];
-      for (const k of keys) {
-        const saved = localStorage.getItem(k);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch {}
+
+    const syncNotificationsFromStorage = () => {
+      try {
+        const keys = getStorageKeys();
+        let loaded: string[] = [];
+        for (const k of keys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
         }
+        if (loaded.length > 0) {
+          setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+        }
+
+        const readKey = getReadStorageKey();
+        const readSaved = localStorage.getItem(readKey);
+        if (readSaved) {
+          const parsed = JSON.parse(readSaved);
+          if (Array.isArray(parsed)) {
+            setReadNotificationIds(prev => Array.from(new Set([...prev, ...parsed])));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to sync cleared notifications in Captain portal:", e);
       }
-      if (loaded.length > 0) {
-        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
-      }
-    } catch (e) {
-      console.error("Failed to sync cleared notifications in Captain portal:", e);
-    }
+    };
+
+    syncNotificationsFromStorage();
+    window.addEventListener("storage", syncNotificationsFromStorage);
+    return () => window.removeEventListener("storage", syncNotificationsFromStorage);
   }, [currentUser?.email, currentUser?.id, designatedBarangay]);
+
+  const markAsRead = (id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const markAllAsRead = (allIds: string[]) => {
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notifications:", e);
+      }
+      return updated;
+    });
+    showToast("All notifications marked as read", "success");
+  };
 
   const dismissNotification = (id: string) => {
     setClearedNotificationIds(prev => {
@@ -332,15 +396,20 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         keys.forEach(k => {
           localStorage.setItem(k, JSON.stringify(updated));
         });
-        if (currentUser?.email) {
-          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
-        }
       } catch (e) {
         console.error("Failed to save cleared notifications:", e);
       }
       return updated;
     });
-    setNotificationsRead(true);
+    // Also mark them as read
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    showToast("All notifications cleared", "info");
   };
 
   // Print Report Modal State
@@ -739,7 +808,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         (y.skills && y.skills.some(s => s.toLowerCase().includes(q)));
       
       const matchesEdu = eduFilter === "All" || normalizeEducationalAttainment(y.educationalAttainment) === eduFilter;
-      const matchesPurok = purokFilter === "All" || y.purok === purokFilter;
+      const matchesPurok = purokFilter === "All" || y.purok === purokFilter || (y.purok && y.purok.toLowerCase().startsWith(purokFilter.toLowerCase() + " -"));
       
       let matchesAge = true;
       if (ageFilter === "15-20") matchesAge = y.age >= 15 && y.age <= 20;
@@ -1625,7 +1694,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               <NotificationBellButton
                 isOpen={showNotifications}
                 onClick={() => setShowNotifications(!showNotifications)}
-                unreadCount={!notificationsRead ? activeNotifs.length : 0}
+                unreadCount={activeNotifs.filter(n => !readNotificationIds.includes(n.id)).length}
                 title="Barangay Governance Notifications"
                 size="lg"
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
@@ -1639,34 +1708,32 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-[#0A6B43]" />
                         <span className="font-extrabold text-gray-900 text-sm">Barangay Executive Alerts</span>
-                        {activeNotifs.length > 0 && (
+                        {activeNotifs.filter(n => !readNotificationIds.includes(n.id)).length > 0 && (
                           <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                            {activeNotifs.length}
+                            {activeNotifs.filter(n => !readNotificationIds.includes(n.id)).length}
                           </span>
                         )}
                       </div>
                       {activeNotifs.length > 0 && (
                         <div className="flex items-center gap-2">
+                          {activeNotifs.some(n => !readNotificationIds.includes(n.id)) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => markAllAsRead(captainNotifications.map(n => n.id))}
+                                className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                title="Mark all notifications as read"
+                              >
+                                Mark read
+                              </button>
+                              <span className="text-gray-300">·</span>
+                            </>
+                          )}
                           <button
                             type="button"
-                            onClick={() => {
-                              clearAllNotifications(captainNotifications.map(n => n.id));
-                              showToast("All notifications marked as read & cleared", "info");
-                            }}
-                            className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                            title="Mark all as read & clear"
-                          >
-                            Mark read
-                          </button>
-                          <span className="text-gray-300">·</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              clearAllNotifications(captainNotifications.map(n => n.id));
-                              showToast("All notifications cleared", "info");
-                            }}
+                            onClick={() => clearAllNotifications(captainNotifications.map(n => n.id))}
                             className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
-                            title="Clear all alerts"
+                            title="Clear all alerts from list"
                           >
                             Clear all
                           </button>
@@ -1681,39 +1748,66 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                         <div className="p-8 text-center text-gray-400 font-medium space-y-1">
                           <CheckCircle className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
                           <p className="text-xs font-bold text-gray-700">All caught up!</p>
-                          <p className="text-[10px] text-gray-400">No active governance alerts for Barangay {formattedBrgyName}.</p>
+                          <p className="text-[10px] text-gray-400">No active governance alerts for {formattedBrgyName}.</p>
                         </div>
                       ) : (
-                        activeNotifs.map((n) => (
-                          <div
-                            key={n.id}
-                            onClick={() => {
-                              dismissNotification(n.id);
-                              n.action();
-                              setShowNotifications(false);
-                            }}
-                            className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                          >
-                            <div className={`p-2 rounded-lg ${n.bg} shrink-0 mt-0.5`}>
-                              {n.icon}
-                            </div>
-                            <div className="flex-1 min-w-0 pr-2">
-                              <p className="font-bold text-gray-900 text-xs">{n.title}</p>
-                              <p className="text-[11px] text-gray-500 font-medium mt-0.5 leading-relaxed">{n.desc}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                dismissNotification(n.id);
+                        activeNotifs.map((n) => {
+                          const isRead = readNotificationIds.includes(n.id);
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                markAsRead(n.id);
+                                n.action();
+                                setShowNotifications(false);
                               }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                              title="Dismiss alert"
+                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${
+                                isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
+                              }`}
                             >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))
+                              <div className={`p-2 rounded-lg ${n.bg} shrink-0 mt-0.5 relative`}>
+                                {n.icon}
+                                {!isRead && (
+                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#0A6B43] rounded-full ring-2 ring-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 pr-2">
+                                <p className={`text-xs ${isRead ? "font-semibold text-gray-700" : "font-extrabold text-gray-900"}`}>
+                                  {n.title}
+                                </p>
+                                <p className={`text-[11px] mt-0.5 leading-relaxed ${isRead ? "text-gray-400 font-normal" : "text-gray-600 font-medium"}`}>
+                                  {n.desc}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 -mr-1">
+                                {!isRead && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markAsRead(n.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                    title="Mark as read"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    dismissNotification(n.id);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all"
+                                  title="Clear alert"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
 
@@ -1752,35 +1846,46 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     Mabuhay, Kapitan {captainInfo.name}!
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Barangay {formattedBrgyName} Executive Governance & Oversight Portal · San Luis, Pampanga. Monitor Katipunan ng Kabataan demographics, council operations, and vocational pathways.
+                    {formattedBrgyName} Executive Governance & Oversight Portal · San Luis, Pampanga. Monitor Katipunan ng Kabataan demographics, council operations, and vocational pathways.
                   </p>
                 </div>
               </div>
 
               {/* Jurisdiction Action Toolbar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                    Official Executive Jurisdiction
-                  </span>
-                  <span className="text-xs font-bold text-gray-500">
-                    Barangay {formattedBrgyName} · Term 2023–2026
-                  </span>
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider w-fit shrink-0">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                    <span>Official Executive Jurisdiction</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{formattedBrgyName}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2 sm:gap-2.5 w-full md:w-auto pt-2.5 md:pt-0 border-t border-gray-100 md:border-t-0">
                   <button
                     onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
-                    className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
+                    className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-center gap-2.5 px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer group"
                   >
-                    <Users className="w-4 h-4 shrink-0" />
-                    <span>Inspect KK Directory ({localYouthProfiles.length})</span>
+                    <span className="inline-flex items-center gap-2">
+                      <Users className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+                      <span>Inspect KK Directory</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-white/20 text-white font-black text-[11px] tabular-nums">
+                      {localYouthProfiles.length}
+                    </span>
                   </button>
                   <button
                     onClick={() => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)}
-                    className="px-4 py-2 bg-white hover:bg-emerald-50/50 active:scale-95 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-300 text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer shrink-0"
+                    className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-center gap-2 px-4 py-2.5 bg-white hover:bg-emerald-50/60 active:scale-[0.98] text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-300 text-xs font-bold rounded-xl transition-all shadow-2xs cursor-pointer group"
                   >
-                    <Users2 className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                    <span>SK Council Team</span>
+                    <span className="inline-flex items-center gap-2">
+                      <Users2 className="w-4 h-4 text-[#0A6B43] shrink-0 transition-transform group-hover:scale-110" />
+                      <span>SK Council Team</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all" />
                   </button>
                 </div>
               </div>
@@ -2416,19 +2521,14 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                         value={purokFilter}
                         onChange={(val) => setPurokFilter(val)}
                         options={[
-                          { value: "All", label: "All Puroks" },
+                          { value: "All", label: `All ${getBarangayZoneTypeLabel(designatedBarangay)}s` },
                           ...(uniquePuroks.length > 0
                             ? uniquePuroks.map(p => ({ value: p, label: p }))
-                            : [
-                                { value: "Purok 1", label: "Purok 1" },
-                                { value: "Purok 2", label: "Purok 2" },
-                                { value: "Purok 3", label: "Purok 3" },
-                                { value: "Purok 4", label: "Purok 4" }
-                              ])
+                            : getBarangayZoneOptions(designatedBarangay))
                         ]}
                         size="sm"
                         buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                        placeholder="All Puroks"
+                        placeholder={`All ${getBarangayZoneTypeLabel(designatedBarangay)}s`}
                       />
 
                       <CustomSelect
@@ -3099,7 +3199,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">Sangguniang Barangay Oversight</h3>
-                  <p className="text-xs text-gray-500 font-medium mt-0.5">Barangay {formattedBrgyName} · Leadership & Term Audit</p>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">{formattedBrgyName} · Leadership & Term Audit</p>
                 </div>
 
                 {/* Quick Council Summary Badge */}
@@ -3920,13 +4020,13 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       return (
                         <div
                           key={prog.id}
-                          className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
+                          className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
                         >
                           <div className="flex-1 flex flex-col">
                             {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
-                            <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2">
+                            <div className="flex items-start justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-2">
                               <div className="min-w-0 space-y-0.5">
-                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-[15px] sm:text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 font-medium truncate">
@@ -3934,7 +4034,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                 </p>
                               </div>
 
-                              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
+                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${
                                 isEnded
                                   ? "bg-gray-100 text-gray-600 border-gray-300"
                                   : isFull
@@ -3947,9 +4047,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
                             {/* Available Slots Progress Bar */}
                             <div className="space-y-1.5 pt-2.5 pb-2.5">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Available Slots</span>
-                                <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">Available Slots</span>
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider truncate text-right ${isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
                                   {isEnded ? "Concluded" : isFull ? "Slots Full" : `${prog.slotsRemaining} of ${prog.slotsTotal} open`}
                                 </span>
                               </div>
@@ -3962,20 +4062,20 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                             </div>
 
                             {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[46px] pt-2 pb-3">
+                            <div className="flex-1 flex flex-col justify-start min-h-[42px] sm:min-h-[46px] pt-2 pb-3">
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
                                 Target Competencies
                               </span>
-                              <div className="flex flex-wrap gap-1 items-center">
+                              <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
                                 {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
                                   <>
                                     {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
-                                      <span key={sIdx} className="text-[11px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md">
+                                      <span key={sIdx} className="text-[10px] sm:text-[11px] bg-slate-100 text-slate-700 font-semibold px-1.5 sm:px-2 py-0.5 rounded-md max-w-full truncate">
                                         {toTitleCase(skill)}
                                       </span>
                                     ))}
                                     {prog.requiredSkills.length > 3 && (
-                                      <span className="text-[10px] text-gray-400 font-bold self-center">
+                                      <span className="text-[9.5px] sm:text-[10px] text-gray-400 font-bold self-center shrink-0">
                                         +{prog.requiredSkills.length - 3} more
                                       </span>
                                     )}
@@ -4016,14 +4116,14 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                           </div>
 
                           {/* Card Footer: View Program Details with up-right arrow */}
-                          <div className="pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
+                          <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
                             <button
                               type="button"
                               onClick={() => setSelectedProgram(prog)}
-                              className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
+                              className="inline-flex items-center gap-1.5 py-1.5 px-3 sm:py-0 sm:px-0 rounded-lg sm:rounded-none bg-emerald-50/70 sm:bg-transparent text-xs sm:text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto active:scale-95"
                             >
                               <span>View Program Details</span>
-                              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                             </button>
                           </div>
                         </div>
@@ -4062,8 +4162,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               </div>
 
               {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-150">
+              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5 w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-150 mx-auto">
                   {[
                     { id: "profile", label: "Executive Profile", icon: <Shield className="w-3.5 h-3.5 shrink-0" /> },
                     { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
@@ -4085,6 +4185,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Centered Tab Contents Container */}
+              <div className="max-w-5xl mx-auto w-full">
 
               {/* Sub-Tab 1: Executive Profile Information */}
               {profileActiveTab === "profile" && (
@@ -4308,7 +4411,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* Sub-Tab 2: Security & Password */}
               {profileActiveTab === "security" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-6 max-w-xl animate-in fade-in duration-150">
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-6 max-w-xl mx-auto animate-in fade-in duration-150">
                   <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
                     <div>
                       <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
@@ -4398,7 +4501,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* Sub-Tab 3: Notification Preferences */}
               {profileActiveTab === "notifications" && (
-                <div className="max-w-2xl animate-in fade-in duration-150">
+                <div className="max-w-2xl mx-auto animate-in fade-in duration-150">
                   <NotificationSettingsCard
                     userRole="BARANGAY_CAPTAIN"
                     userEmail={captainEmail}
@@ -4409,7 +4512,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
               {/* Sub-Tab 4: Punong Barangay Executive Credential Badge */}
               {profileActiveTab === "badge" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-5 max-w-lg animate-in fade-in duration-150">
+                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-5 max-w-lg mx-auto animate-in fade-in duration-150">
                   <div>
                     <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
@@ -4469,6 +4572,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   </div>
                 </div>
               )}
+              </div>
 
             </div>
           )}

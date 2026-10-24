@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell, UserCheck, Briefcase, Award, TrendingUp, MapPin, Timer, Coins, Users, Sun, Moon } from "lucide-react";
+import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell, UserCheck, Briefcase, Award, TrendingUp, MapPin, Timer, Coins, Users, Sun, Moon, Loader2 } from "lucide-react";
 import { TESDAProgram } from "../types";
 import { getProgramFullSchedule, formatProgramDateRange } from "../lib/cbf-matcher";
 import { motion, AnimatePresence } from "motion/react";
@@ -243,6 +243,8 @@ export const ConfirmationModal: React.FC<{
   confirmText?: string;
   cancelText?: string;
   confirmVariant?: "green" | "red" | "teal";
+  isLoading?: boolean;
+  loadingText?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }> = ({
@@ -252,6 +254,8 @@ export const ConfirmationModal: React.FC<{
   confirmText = "Confirm",
   cancelText = "Cancel",
   confirmVariant = "green",
+  isLoading = false,
+  loadingText,
   onConfirm,
   onCancel
 }) => {
@@ -265,10 +269,10 @@ export const ConfirmationModal: React.FC<{
 
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
         id="confirmation-modal"
         onClick={(e) => {
-          if (e.target === e.currentTarget) onCancel?.();
+          if (e.target === e.currentTarget && !isLoading) onCancel?.();
         }}
       >
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200 ease-out border border-emerald-50">
@@ -277,15 +281,18 @@ export const ConfirmationModal: React.FC<{
           <div className="flex justify-end gap-3">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all"
+              disabled={isLoading}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cancelText}
             </button>
             <button
               onClick={onConfirm}
-              className={`px-4 py-2 text-sm font-medium rounded-lg shadow-xs transition-all focus:outline-hidden focus:ring-2 focus:ring-offset-2 ${buttonColors[confirmVariant]}`}
+              disabled={isLoading}
+              className={`px-4 py-2 text-sm font-medium rounded-lg shadow-xs transition-all focus:outline-hidden focus:ring-2 focus:ring-offset-2 flex items-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed ${buttonColors[confirmVariant]}`}
             >
-              {confirmText}
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+              <span>{isLoading ? (loadingText || confirmText) : confirmText}</span>
             </button>
           </div>
         </div>
@@ -737,6 +744,7 @@ export interface SiKapDatePickerProps {
   onChange: (val: string) => void;
   min?: string;
   max?: string;
+  defaultYear?: number;
   placeholder?: string;
   label?: string;
   badgeText?: string;
@@ -754,6 +762,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
   onChange,
   min,
   max,
+  defaultYear,
   placeholder = "Select date",
   label = "Select Date",
   badgeText = "Calendar",
@@ -776,19 +785,84 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
   const yearSelectRef = useRef<HTMLDivElement>(null);
   const selectedYearButtonRef = useRef<HTMLButtonElement>(null);
 
+  const currentYear = new Date().getFullYear();
+
+  // Smart initial year & month calculation
+  const getInitialYear = useCallback(() => {
+    if (value) {
+      const parts = value.split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        if (!isNaN(y)) return y;
+      }
+    }
+    if (defaultYear) return defaultYear;
+    if (showAgeIndicator) return currentYear - 20; // Default to ~20 years old (center of KK Youth 18-30)
+    if (max) {
+      const parts = max.split("-");
+      const maxY = parseInt(parts[0], 10);
+      if (!isNaN(maxY)) return maxY;
+    }
+    return currentYear;
+  }, [value, defaultYear, showAgeIndicator, currentYear, max]);
+
+  const getInitialMonth = useCallback(() => {
+    if (value) {
+      const parts = value.split("-");
+      if (parts.length === 3) {
+        const m = parseInt(parts[1], 10) - 1;
+        if (!isNaN(m) && m >= 0 && m <= 11) return m;
+      }
+    }
+    if (defaultYear || showAgeIndicator) return 0; // January
+    if (max) {
+      const parts = max.split("-");
+      if (parts.length >= 2) {
+        const m = parseInt(parts[1], 10) - 1;
+        if (!isNaN(m) && m >= 0 && m <= 11) return m;
+      }
+    }
+    return new Date().getMonth();
+  }, [value, defaultYear, showAgeIndicator, max]);
+
+  const [viewYear, setViewYear] = useState<number>(getInitialYear);
+  const [viewMonth, setViewMonth] = useState<number>(getInitialMonth);
+
   useEffect(() => {
     if (isOpen && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
+      const PICKER_APPROX_HEIGHT = 330;
 
       // Auto vertical direction
       if (direction === "auto") {
-        const parentModal = containerRef.current.closest(".overflow-y-auto, [role='dialog'], form");
-        const bottomBoundary = parentModal ? parentModal.getBoundingClientRect().bottom : window.innerHeight;
-        const spaceBelow = bottomBoundary - rect.bottom;
-        if (spaceBelow < 300 && rect.top > spaceBelow) {
-          setOpenUpward(true);
+        const scrollParent = containerRef.current.closest(".overflow-y-auto, .overflow-y-scroll, .overflow-auto, .overflow-scroll");
+        const spaceAboveInsideScroll = scrollParent
+          ? rect.top - scrollParent.getBoundingClientRect().top
+          : rect.top;
+        const spaceBelowInsideScroll = scrollParent
+          ? scrollParent.getBoundingClientRect().bottom - rect.bottom
+          : window.innerHeight - rect.bottom;
+
+        const spaceAboveViewport = rect.top;
+        const spaceBelowViewport = window.innerHeight - rect.bottom;
+
+        // Can only safely open upward if there is genuinely enough room above both in viewport AND within any scroll parent
+        const canOpenUpward = spaceAboveViewport >= PICKER_APPROX_HEIGHT && spaceAboveInsideScroll >= PICKER_APPROX_HEIGHT;
+
+        if (!scrollParent) {
+          if (spaceBelowViewport < PICKER_APPROX_HEIGHT && canOpenUpward) {
+            setOpenUpward(true);
+          } else {
+            setOpenUpward(false);
+          }
         } else {
-          setOpenUpward(false);
+          // Inside a scrollable container, downward is preferred because scrolling down is supported.
+          // Opening upward inside a scroll container will permanently clip the top of the picker if spaceAboveInsideScroll < 330px!
+          if (spaceBelowInsideScroll < 260 && canOpenUpward && spaceAboveInsideScroll > spaceBelowInsideScroll) {
+            setOpenUpward(true);
+          } else {
+            setOpenUpward(false);
+          }
         }
       } else if (direction === "up") {
         setOpenUpward(true);
@@ -802,9 +876,9 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
       } else if (align === "left") {
         setEffectiveAlign("left");
       } else {
-        const parentModal = containerRef.current.closest(".overflow-y-auto, [role='dialog'], form");
-        const rightBoundary = parentModal ? parentModal.getBoundingClientRect().right : window.innerWidth;
-        if (rect.left + 310 > rightBoundary - 10 || rect.left + 310 > window.innerWidth - 10) {
+        const scrollParent = containerRef.current.closest(".overflow-x-auto, .overflow-y-auto, [role='dialog'], form");
+        const rightBoundary = scrollParent ? scrollParent.getBoundingClientRect().right : window.innerWidth;
+        if (rect.left + 305 > rightBoundary - 10 || rect.left + 305 > window.innerWidth - 10) {
           setEffectiveAlign("right");
         } else {
           setEffectiveAlign("left");
@@ -813,10 +887,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
     }
   }, [isOpen, direction, align]);
 
-  const initialDate = value ? new Date(value) : (max ? new Date(max) : new Date());
-  const [viewYear, setViewYear] = useState<number>(initialDate.getFullYear());
-  const [viewMonth, setViewMonth] = useState<number>(initialDate.getMonth());
-
+  // Synchronize view when value changes
   useEffect(() => {
     if (value) {
       const parts = value.split("-");
@@ -828,8 +899,11 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
           setViewMonth(m);
         }
       }
+    } else if (isOpen) {
+      setViewYear(getInitialYear());
+      setViewMonth(getInitialMonth());
     }
-  }, [value]);
+  }, [value, isOpen, getInitialYear, getInitialMonth]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -850,7 +924,6 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const currentYear = new Date().getFullYear();
   const maxYear = max ? new Date(max).getFullYear() : currentYear + 15;
   const minYear = min ? Math.min(new Date(min).getFullYear(), currentYear - 50) : 1920;
   const years = Array.from({ length: Math.max(1, maxYear - minYear + 1) }, (_, i) => maxYear - i);
@@ -1062,6 +1135,8 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                       >
                         {years.map(y => {
                           const isSelected = viewYear === y;
+                          const ageAtYear = currentYear - y;
+                          const isEligibleYouth = showAgeIndicator && ageAtYear >= 18 && ageAtYear <= 30;
                           return (
                             <button
                               key={y}
@@ -1074,10 +1149,19 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                               className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
                                 isSelected
                                   ? "bg-emerald-50 text-[#0A6B43] font-bold"
-                                  : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                                  : isEligibleYouth
+                                    ? "text-gray-900 hover:bg-emerald-50/50"
+                                    : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
                               }`}
                             >
-                              <span>{y}</span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span>{y}</span>
+                                {showAgeIndicator && ageAtYear >= 18 && ageAtYear <= 30 && (
+                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                    {ageAtYear}yo
+                                  </span>
+                                )}
+                              </div>
                               {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
                             </button>
                           );
@@ -1150,30 +1234,73 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
 
             {/* Bottom Actions & Age Indicator */}
             <div className="mt-2 pt-1.5 border-t border-gray-100 flex items-center justify-between text-xs">
-              {showAgeIndicator && value && calculateAge(value) !== "" ? (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-gray-500 font-medium">
-                      Age: <strong className="text-gray-800">{calculateAge(value)} yrs</strong>
-                    </span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                      Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
-                        ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                        : "text-rose-700 bg-rose-50 border-rose-200"
-                    }`}>
-                      {Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
-                        ? "KK Eligible"
-                        : "Ineligible (18-30)"}
-                    </span>
+              {showAgeIndicator ? (
+                value && calculateAge(value) !== "" ? (
+                  <>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] text-gray-500 font-medium shrink-0">
+                        Age: <strong className="text-gray-800">{calculateAge(value)} yrs</strong>
+                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border truncate ${
+                        Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                          : "text-rose-700 bg-rose-50 border-rose-200"
+                      }`}>
+                        {Number(calculateAge(value)) >= 18 && Number(calculateAge(value)) <= 30
+                          ? "Eligible (18-30)"
+                          : "Ineligible (18-30)"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleClear}
+                        className="text-[10px] text-gray-400 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsOpen(false)}
+                        className="text-[10px] text-[#0A6B43] hover:text-emerald-700 font-bold cursor-pointer"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full flex items-center justify-between text-[10px]">
+                    <div className="flex items-center gap-1 text-gray-500 font-medium">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                      <span>KK Youth: 18–30 yrs</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] text-gray-400 mr-0.5">Quick:</span>
+                      {[18, 21, 25].map(presetAge => {
+                        const targetY = currentYear - presetAge;
+                        const isCurrentYear = viewYear === targetY;
+                        return (
+                          <button
+                            key={presetAge}
+                            type="button"
+                            onClick={() => {
+                              setViewYear(targetY);
+                              setIsYearOpen(false);
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                              isCurrentYear
+                                ? "bg-[#0A6B43] text-white"
+                                : "bg-gray-100 hover:bg-emerald-50 text-gray-600 hover:text-[#0A6B43]"
+                            }`}
+                            title={`Jump to year ${targetY} (Age ${presetAge})`}
+                          >
+                            {presetAge}yo
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="text-[10px] text-gray-400 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                </>
+                )
               ) : (
                 <div className="w-full flex items-center justify-between text-[10px] text-gray-400">
                   <button

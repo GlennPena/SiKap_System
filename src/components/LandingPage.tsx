@@ -22,6 +22,7 @@ import {
 import { SikapLogo } from "./ReusableComponents";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
 import { motion, AnimatePresence, useInView, animate, useAnimation } from "motion/react";
+import { onRealtimeSync } from "../lib/realtime-sync";
 
 // --- GLOBAL SCROLL VELOCITY TRACKER ---
 let globalScrollVelocity = 0;
@@ -139,14 +140,55 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   });
 
   useEffect(() => {
-    fetch("/api/stats")
-      .then(res => res.json())
-      .then(res => {
-        if (res.success && res.data) {
-          setLiveStats(res.data);
+    let isMounted = true;
+
+    const refreshStats = async () => {
+      try {
+        const res = await fetch("/api/stats");
+        const json = await res.json();
+        if (isMounted && json.success && json.data) {
+          setLiveStats(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(json.data)) return prev;
+            return json.data;
+          });
         }
-      })
-      .catch(err => console.error("Error fetching landing stats:", err));
+      } catch (err) {
+        // Silently ignore network hiccup during background poll
+      }
+    };
+
+    // Initial load
+    refreshStats();
+
+    // Listen to real-time events across tabs & within window
+    const unsubscribe = onRealtimeSync(() => {
+      refreshStats();
+    });
+
+    // Window focus & tab visibility handlers for instant revalidation
+    const handleFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        refreshStats();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+
+    // Background interval every 6 seconds while tab is active
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        refreshStats();
+      }
+    }, 6000);
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+      clearInterval(interval);
+    };
   }, []);
 
   const toggleFaq = (index: number) => {

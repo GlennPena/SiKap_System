@@ -17,6 +17,7 @@ import { motion } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { isProgramEnded } from "../lib/utils";
+import { broadcastDataChange } from "../lib/realtime-sync";
 
 interface SuperAdminPortalProps {
   youthProfiles: YouthProfile[];
@@ -244,7 +245,6 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
 
   // Notifications state
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
 
   // Helper to get all relevant storage keys for Super Admin
   const getStorageKeys = () => {
@@ -258,6 +258,27 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
     keys.push("sikap_cleared_notifs_admin");
     return Array.from(new Set(keys));
   };
+
+  const getReadStorageKey = () => {
+    const email = currentUser?.email?.toLowerCase().trim();
+    if (email) return `sikap_read_notifs_${email}`;
+    return "sikap_read_notifs_admin";
+  };
+
+  // Track read notification IDs with localStorage persistence
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = currentUser?.email ? `sikap_read_notifs_${currentUser.email.toLowerCase().trim()}` : "sikap_read_notifs_admin";
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
 
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -285,28 +306,70 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
     return [];
   });
 
-  // Re-synchronize cleared notifications whenever Admin user updates
+  // Re-synchronize cleared notifications whenever Admin user or storage updates
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const keys = getStorageKeys();
-      let loaded: string[] = [];
-      for (const k of keys) {
-        const saved = localStorage.getItem(k);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch {}
+
+    const syncNotificationsFromStorage = () => {
+      try {
+        const keys = getStorageKeys();
+        let loaded: string[] = [];
+        for (const k of keys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch {}
+          }
         }
+        if (loaded.length > 0) {
+          setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+        }
+
+        const readKey = getReadStorageKey();
+        const readSaved = localStorage.getItem(readKey);
+        if (readSaved) {
+          const parsed = JSON.parse(readSaved);
+          if (Array.isArray(parsed)) {
+            setReadNotificationIds(prev => Array.from(new Set([...prev, ...parsed])));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to sync cleared notifications in Admin portal:", e);
       }
-      if (loaded.length > 0) {
-        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
-      }
-    } catch (e) {
-      console.error("Failed to sync cleared notifications in Admin portal:", e);
-    }
+    };
+
+    syncNotificationsFromStorage();
+    window.addEventListener("storage", syncNotificationsFromStorage);
+    return () => window.removeEventListener("storage", syncNotificationsFromStorage);
   }, [currentUser?.email, currentUser?.id]);
+
+  const markAsRead = (id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const markAllAsRead = (allIds: string[]) => {
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    addToast("All alerts marked as read", "success");
+  };
 
   const dismissNotification = (id: string) => {
     setClearedNotificationIds(prev => {
@@ -332,15 +395,20 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
         keys.forEach(k => {
           localStorage.setItem(k, JSON.stringify(updated));
         });
-        if (currentUser?.email) {
-          localStorage.setItem(`sikap_notifs_read_${currentUser.email.toLowerCase().trim()}`, "true");
-        }
       } catch (e) {
         console.error(e);
       }
       return updated;
     });
-    setNotificationsRead(true);
+    // Also mark them as read
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    addToast("All alerts cleared", "info");
   };
 
   // State for newly created or reset credentials modal
@@ -439,6 +507,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
         });
 
         addToast(`Successfully created ${role} account for ${fullName}!`, "success");
+        broadcastDataChange("users", "created");
 
         // Reset fields
         setFullName("");
@@ -493,6 +562,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
         });
 
         addToast(`Successfully created TESDA Representative account for ${fullName}!`, "success");
+        broadcastDataChange("users", "created");
 
         // Reset fields
         setFullName("");
@@ -604,6 +674,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
       if (data.success) {
         setOfficialAccounts(prev => prev.map(o => o.id === official.id ? { ...o, status: nextStatus } : o));
         addToast(`Account for ${official.name} is now ${nextStatus}.`, "success");
+        broadcastDataChange("users", "status_updated");
       } else {
         addToast(data.message || "Failed to update status", "error");
       }
@@ -973,6 +1044,13 @@ Please sign in at ${window.location.origin} and change your password immediately
           setOfficialAccounts(prev => prev.filter(o => o.id !== id));
         }
         addToast(`Successfully deleted ${role} account for ${name}!`, "success");
+        if (isYouthAccount) {
+          broadcastDataChange("youth", "deleted");
+        } else if (isCouncilorAccount) {
+          broadcastDataChange("councilors", "deleted");
+        } else {
+          broadcastDataChange("users", "deleted");
+        }
       } else {
         addToast(data.message || data.error || "Failed to delete account", "error");
       }
@@ -1780,7 +1858,7 @@ Please sign in at ${window.location.origin} and change your password immediately
               <NotificationBellButton
                 isOpen={showNotifications}
                 onClick={() => setShowNotifications(!showNotifications)}
-                unreadCount={!notificationsRead ? systemAlerts.length : 0}
+                unreadCount={systemAlerts.filter(a => !readNotificationIds.includes(a.id)).length}
                 title="System Central Alerts"
                 size="lg"
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
@@ -1794,26 +1872,33 @@ Please sign in at ${window.location.origin} and change your password immediately
                       <div className="flex items-center gap-2">
                         <Bell className="w-4 h-4 text-[#0A6B43]" />
                         <span className="font-extrabold text-slate-900 text-sm">System Central Alerts</span>
+                        {systemAlerts.filter(a => !readNotificationIds.includes(a.id)).length > 0 && (
+                          <span className="bg-[#0A6B43] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                            {systemAlerts.filter(a => !readNotificationIds.includes(a.id)).length}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2">
                         {systemAlerts.length > 0 && (
                           <>
+                            {systemAlerts.some(a => !readNotificationIds.includes(a.id)) && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => markAllAsRead(allCentralAlerts.map((a) => a.id))}
+                                  className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                  title="Mark all notifications as read"
+                                >
+                                  Mark read
+                                </button>
+                                <span className="text-slate-300">·</span>
+                              </>
+                            )}
                             <button
-                              onClick={() => {
-                                clearAllNotifications(allCentralAlerts.map((a) => a.id));
-                                addToast("Central alerts marked as read and cleared", "info");
-                              }}
-                              className="text-[11px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                            >
-                              Mark read
-                            </button>
-                            <span className="text-slate-300">|</span>
-                            <button
-                              onClick={() => {
-                                clearAllNotifications(allCentralAlerts.map((a) => a.id));
-                                addToast("All alerts cleared", "info");
-                              }}
-                              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                              type="button"
+                              onClick={() => clearAllNotifications(allCentralAlerts.map((a) => a.id))}
+                              className="text-[11px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
+                              title="Clear all alerts from list"
                             >
                               Clear all
                             </button>
@@ -1832,33 +1917,59 @@ Please sign in at ${window.location.origin} and change your password immediately
                       ) : (
                         systemAlerts.map((item) => {
                           const Icon = item.icon;
+                          const isRead = readNotificationIds.includes(item.id);
                           return (
                             <div
                               key={item.id}
                               onClick={() => {
-                                dismissNotification(item.id);
+                                markAsRead(item.id);
                                 setActiveTab(item.targetTab);
                                 setShowNotifications(false);
                               }}
-                              className="group relative p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3"
+                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${
+                                isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
+                              }`}
                             >
-                              <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${item.iconBg}`}>
+                              <div className={`p-2 rounded-xl shrink-0 mt-0.5 relative ${item.iconBg}`}>
                                 <Icon className="w-4 h-4" />
+                                {!isRead && (
+                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#0A6B43] rounded-full ring-2 ring-white" />
+                                )}
                               </div>
-                              <div className="pr-6 flex-1">
-                                <p className="font-bold text-slate-900 text-xs">{item.title}</p>
-                                <p className="text-[11px] text-slate-500 font-medium">{item.desc}</p>
+                              <div className="flex-1 min-w-0 pr-2">
+                                <p className={`text-xs ${isRead ? "font-semibold text-slate-700" : "font-extrabold text-slate-900"}`}>
+                                  {item.title}
+                                </p>
+                                <p className={`text-[11px] leading-relaxed ${isRead ? "text-slate-400 font-normal" : "text-slate-600 font-medium"}`}>
+                                  {item.desc}
+                                </p>
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  dismissNotification(item.id);
-                                }}
-                                className="absolute right-2 top-2 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                title="Dismiss notification"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0 -mr-1">
+                                {!isRead && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markAsRead(item.id);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                    title="Mark as read"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    dismissNotification(item.id);
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all"
+                                  title="Clear alert"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           );
                         })
@@ -2247,17 +2358,77 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* Masterlist Table Card */}
               <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+                {/* Table Context Header Bar */}
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/70">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100/90 text-[#0A6B43] border border-emerald-200/80 flex items-center justify-center font-black shrink-0 shadow-2xs">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Katipunan ng Kabataan Registry</h3>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100/80 text-[#0A6B43] border border-emerald-200">
+                          Census Roster
+                        </span>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        Central demographic and vocational profiles across all 17 barangays of San Luis
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                    <span className="text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
+                      Showing <strong className="text-emerald-700">{paginatedYouthList.length}</strong> of <strong className="text-slate-900">{filteredYouthMasterlist.length}</strong> records
+                    </span>
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200/80 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
-                        <th className="p-4 pl-6">KK Member Name</th>
-                        <th className="p-4">Barangay Zone</th>
-                        <th className="p-4">Age / Education</th>
-                        <th className="p-4">Current Status</th>
-                        <th className="p-4">Special Sectors</th>
-                        <th className="p-4">Key Competencies</th>
-                        <th className="p-4 text-center">Actions</th>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-b from-slate-100 to-slate-50 border-b border-slate-200/90 shadow-2xs">
+                      <tr className="text-[11px] text-slate-700 uppercase tracking-wider font-extrabold">
+                        <th className="py-3.5 px-4 pl-6 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                            <span>KK Member & Purok</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Barangay Zone</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Age & Education</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Activity className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Livelihood Status</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Special Demographics</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 text-teal-600" />
+                            <span>Key Competencies</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 pr-6 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Eye className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Record Action</span>
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -3067,31 +3238,68 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
 
               <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
-                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/70">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100/90 text-amber-900 border border-amber-200/80 flex items-center justify-center font-black shrink-0 shadow-2xs">
                       <Briefcase className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">TESDA Municipal Representatives</h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Authorized technical and vocational training coordinators assigned to the municipality</p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">TESDA Municipal Representatives</h3>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                          TVET Directory
+                        </span>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        Authorized technical and vocational training coordinators assigned to the municipality of San Luis
+                      </p>
                     </div>
                   </div>
-                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shadow-2xs shrink-0">
-                    {filteredTesdaReps.length} Representative(s)
+                  <span className="self-start sm:self-auto text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs shrink-0">
+                    <strong className="text-amber-900">{filteredTesdaReps.length}</strong> Representative Account(s)
                   </span>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200/80 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
-                        <th className="p-4 pl-6">Representative Name</th>
-                        <th className="p-4">Official Email</th>
-                        <th className="p-4">Assigned Role</th>
-                        <th className="p-4 text-center">Status</th>
-                        <th className="p-4 text-center">Date Created</th>
-                        <th className="p-4 text-center">Actions</th>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-b from-slate-100 to-slate-50 border-b border-slate-200/90 shadow-2xs">
+                      <tr className="text-[11px] text-slate-700 uppercase tracking-wider font-extrabold">
+                        <th className="py-3.5 px-4 pl-6 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Representative Name</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Official Contact Email</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Assigned Scope</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Account Status</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Provisioned Date</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 pr-6 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Access Controls</span>
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -3223,67 +3431,122 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* Logs Stream Card */}
               <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
+                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/70">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100/90 text-[#0A6B43] border border-emerald-200/80 flex items-center justify-center font-black shrink-0 shadow-2xs">
                       <History className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
-                        Municipal Activity Stream & Audit Trail
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                          Municipal Activity Stream & Audit Trail
+                        </h3>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Security Telemetry
+                        </span>
+                      </div>
                       <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
-                        Chronological record of account provisions, youth registrations, and program applications
+                        Immutable chronological event records of provisioning, registrations, and application status changes
                       </p>
                     </div>
                   </div>
-                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shadow-2xs shrink-0">
-                    {auditLogs.length} Log Entries
+                  <span className="self-start sm:self-auto text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs shrink-0">
+                    <strong className="text-emerald-800">{auditLogs.length}</strong> Audit Events
                   </span>
                 </div>
 
-                <div className="divide-y divide-slate-100">
-                  {paginatedAuditLogs.length > 0 ? (
-                    paginatedAuditLogs.map((log) => (
-                      <div key={log.id} className="p-4 px-6 hover:bg-slate-50/80 transition-colors flex items-start gap-3.5">
-                        <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                          log.category === "User Provisioning" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                          log.category === "Youth Registration" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                          log.category === "Application & Enrollment" ? "bg-blue-50 text-blue-700 border border-blue-200" :
-                          "bg-purple-50 text-purple-700 border border-purple-200"
-                        }`}>
-                          {log.category === "User Provisioning" && <Key className="w-4 h-4" />}
-                          {log.category === "Youth Registration" && <Users className="w-4 h-4" />}
-                          {log.category === "Application & Enrollment" && <FileText className="w-4 h-4" />}
-                          {log.category === "Program Update" && <Briefcase className="w-4 h-4" />}
-                          {log.category === "Announcement" && <Bell className="w-4 h-4" />}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                            <p className="text-xs font-extrabold text-slate-900">{log.action}</p>
-                            <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {log.timestamp}
-                            </span>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="sticky top-0 z-10 bg-gradient-to-b from-slate-100 to-slate-50 border-b border-slate-200/90 shadow-2xs">
+                      <tr className="text-[11px] text-slate-700 uppercase tracking-wider font-extrabold">
+                        <th className="py-3.5 px-4 pl-6 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <Tag className="w-3.5 h-3.5 text-[#0A6B43]" />
+                            <span>Event Category</span>
                           </div>
-                          
-                          <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-600">
-                            <span className="font-medium">{log.target}</span>
-                            {log.barangay && (
-                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-md">
-                                {log.barangay}
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Security Action & Target Details</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <UserCheck className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Triggered By (Actor)</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Barangay Jurisdiction</span>
+                          </div>
+                        </th>
+                        <th className="py-3.5 px-4 pr-6 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Recorded Timestamp</span>
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                      {paginatedAuditLogs.length > 0 ? (
+                        paginatedAuditLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="py-3.5 px-4 pl-6 align-middle">
+                              <span className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border ${
+                                log.category === "User Provisioning" ? "bg-amber-50 text-amber-800 border-amber-200" :
+                                log.category === "Youth Registration" ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                                log.category === "Application & Enrollment" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                                "bg-purple-50 text-purple-800 border-purple-200"
+                              }`}>
+                                {log.category === "User Provisioning" && <Key className="w-3 h-3" />}
+                                {log.category === "Youth Registration" && <Users className="w-3 h-3" />}
+                                {log.category === "Application & Enrollment" && <FileText className="w-3 h-3" />}
+                                {log.category === "Program Update" && <Briefcase className="w-3 h-3" />}
+                                {log.category === "Announcement" && <Bell className="w-3 h-3" />}
+                                <span>{log.category}</span>
                               </span>
-                            )}
-                            <span className="text-[10px] text-slate-400">by {log.actor}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center text-slate-400 font-medium">
-                      No audit events recorded for current filters.
-                    </div>
-                  )}
+                            </td>
+                            <td className="py-3.5 px-4 align-middle">
+                              <p className="text-xs font-extrabold text-slate-900 leading-tight">{log.action}</p>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">{log.target}</p>
+                            </td>
+                            <td className="py-3.5 px-4 align-middle">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold">
+                                <UserCheck className="w-3 h-3 text-slate-400" />
+                                <span>{log.actor}</span>
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 align-middle">
+                              {log.barangay ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md">
+                                  <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>{log.barangay.replace(/^Barangay\s+/i, "")}</span>
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-semibold text-slate-400 italic">Municipal-wide</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 pr-6 text-right align-middle whitespace-nowrap">
+                              <span className="text-[11px] font-mono font-medium text-slate-500 inline-flex items-center justify-end gap-1">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{log.timestamp}</span>
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-slate-400 font-medium">
+                            No audit events recorded for current filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
 
                 {/* Pagination Controls for Audit Logs (Limit 10 per page) */}
@@ -3702,9 +3965,9 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
               </div>
 
-              {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-slate-200">
+              {/* Sub-Tab Navigation Bar (Centered) */}
+              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1 w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-slate-200 mx-auto">
                   <button
                     type="button"
                     onClick={() => setProfileActiveTab("profile")}
@@ -3756,9 +4019,11 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
               </div>
 
-              {/* TAB 1: ADMINISTRATOR PROFILE */}
-              {profileActiveTab === "profile" && (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Centered Tab Contents Container */}
+              <div className="max-w-5xl mx-auto w-full">
+                {/* TAB 1: ADMINISTRATOR PROFILE */}
+                {profileActiveTab === "profile" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   {/* Left Column (3 cols) */}
                   <div className="lg:col-span-3 space-y-6">
                     <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
@@ -4000,7 +4265,7 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* TAB 2: ACCOUNT SECURITY */}
               {profileActiveTab === "security" && (
-                <div className="max-w-2xl bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                <div className="max-w-2xl mx-auto bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
                   <div className="border-b border-slate-100 pb-4">
                     <div className="flex items-start sm:items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
@@ -4112,7 +4377,7 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* TAB 3: NOTIFICATIONS */}
               {profileActiveTab === "notifications" && (
-                <div className="max-w-3xl">
+                <div className="max-w-3xl mx-auto">
                   <NotificationSettingsCard
                     userRole="SUPER_ADMIN"
                     userEmail={currentUser?.email}
@@ -4190,6 +4455,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                   </div>
                 </div>
               )}
+              </div>
             </div>
           )}
 

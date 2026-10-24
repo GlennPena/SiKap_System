@@ -329,3 +329,44 @@ export function buildPasswordResetEmail(params: {
     text: `Your SiKap Password Recovery Verification Code is: ${params.resetCode}. This code is valid for ${params.expiresInMinutes} minutes.`
   };
 }
+
+/**
+ * Template for KK Youth Registration Email Verification OTP Code
+ */
+export function buildRegistrationOtpEmail(params: {
+  otpCode: string;
+  name?: string;
+  expiresInMinutes: number;
+}): { subject: string; html: string; text: string } {
+  const appUrl = getAppUrl();
+  const subject = `SiKap Registration Verification Code: ${params.otpCode}`;
+  const greeting = params.name ? `Hello <strong>${params.name}</strong>,` : `Hello,`;
+
+  const html = wrapEmailTemplate(
+    "Verify Your Registration Email",
+    `
+      <p>${greeting}</p>
+      <p>Thank you for registering with the <strong>SiKap System</strong> (Katipunan ng Kabataan · Municipality of San Luis, Pampanga). To complete your youth registration, please verify your email address using the security code below:</p>
+      
+      <div style="margin: 24px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; text-align: center;">
+        <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; color: #166534; text-transform: uppercase; letter-spacing: 1.5px;">Your 6-Digit Verification Code</p>
+        <div style="font-family: monospace, Consolas, Monaco, monospace; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #0A6B43; margin: 8px 0;">
+          ${params.otpCode}
+        </div>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: #15803D; font-weight: 500;">This security code expires in ${params.expiresInMinutes} minutes.</p>
+      </div>
+
+      <p style="font-size: 13px; color: #4B5563; line-height: 1.6;">
+        Enter this code in your registration form to verify your identity. If you did not initiate this registration with SiKap, you can safely disregard this message.
+      </p>
+    `,
+    { label: "Return to Registration", url: `${appUrl}/` }
+  );
+
+  return {
+    subject,
+    html,
+    text: `Your SiKap Registration Verification Code is: ${params.otpCode}. Valid for ${params.expiresInMinutes} minutes. Enter this code to verify your email address.`
+  };
+}
+

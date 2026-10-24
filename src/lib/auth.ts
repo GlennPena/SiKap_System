@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
+import { checkLoginRateLimit, recordFailedLoginAttempt, clearFailedLoginAttempts } from "@/lib/login-rate-limiter";
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -16,16 +17,33 @@ export const authOptions: AuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
+        const email = credentials.email.trim().toLowerCase();
+
+        // 1. Check if the account is currently in a 5-minute lockout cooldown
+        const rateLimit = checkLoginRateLimit(email);
+        if (rateLimit.isLocked) {
+          throw new Error(rateLimit.message || "Account temporarily locked due to 5 failed attempts. Please wait 5 minutes.");
+        }
+
         const user = await db.user.findUnique({
-          where: { email: credentials.email },
+          where: { email },
           include: { barangay: true, councilor: true, officialAcc: true }
         });
 
-        if (!user || user.status !== "Active") return null;
+        if (!user || user.status !== "Active") {
+          throw new Error("Invalid credentials");
+        }
 
         const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
 
-        if (!isValid) return null;
+        if (!isValid) {
+          // Record wrong password attempt and apply 5-minute cooldown if 5 attempts reached
+          const failResult = recordFailedLoginAttempt(email);
+          throw new Error(failResult.message || "Invalid password.");
+        }
+
+        // 2. Successful password match: immediately clear failed attempts counter
+        clearFailedLoginAttempts(email);
 
         const rememberMe = credentials?.rememberMe === "true" || credentials?.rememberMe === "1";
 

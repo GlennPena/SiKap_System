@@ -20,6 +20,8 @@ import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan } from "../lib/gemini";
+import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
+import { broadcastDataChange } from "../lib/realtime-sync";
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -245,6 +247,28 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return Array.from(new Set(keys));
   };
 
+  const getReadStorageKey = () => {
+    const email = currentUser?.email || youthProfile?.email;
+    if (email) return `sikap_read_notifs_${email.toLowerCase().trim()}`;
+    if (youthProfile?.id && youthProfile.id !== "empty-youth-profile") return `sikap_read_notifs_${youthProfile.id}`;
+    return "sikap_read_notifs_youth";
+  };
+
+  // Track read notification IDs with localStorage persistence
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const key = (currentUser?.email || youthProfile?.email) ? `sikap_read_notifs_${(currentUser?.email || youthProfile?.email).toLowerCase().trim()}` : "sikap_read_notifs_youth";
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
   // Track dismissed/cleared notifications with localStorage persistence
   const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -274,28 +298,70 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return [];
   });
 
-  // Re-synchronize cleared notifications whenever youth profile or auth loads
+  // Re-synchronize cleared notifications whenever youth profile, auth, or storage updates
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const keys = getStorageKeys();
-      let loaded: string[] = [];
-      for (const k of keys) {
-        const saved = localStorage.getItem(k);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) loaded.push(...parsed);
-          } catch { }
+
+    const syncNotificationsFromStorage = () => {
+      try {
+        const keys = getStorageKeys();
+        let loaded: string[] = [];
+        for (const k of keys) {
+          const saved = localStorage.getItem(k);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) loaded.push(...parsed);
+            } catch { }
+          }
         }
+        if (loaded.length > 0) {
+          setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
+        }
+
+        const readKey = getReadStorageKey();
+        const readSaved = localStorage.getItem(readKey);
+        if (readSaved) {
+          const parsed = JSON.parse(readSaved);
+          if (Array.isArray(parsed)) {
+            setReadNotificationIds(prev => Array.from(new Set([...prev, ...parsed])));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load cleared notifications on profile sync:", e);
       }
-      if (loaded.length > 0) {
-        setClearedNotificationIds(prev => Array.from(new Set([...prev, ...loaded])));
-      }
-    } catch (e) {
-      console.error("Failed to load cleared notifications on profile sync:", e);
-    }
+    };
+
+    syncNotificationsFromStorage();
+    window.addEventListener("storage", syncNotificationsFromStorage);
+    return () => window.removeEventListener("storage", syncNotificationsFromStorage);
   }, [currentUser?.email, currentUser?.id, youthProfile?.id, youthProfile?.email]);
+
+  const markAsRead = (id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notification:", e);
+      }
+      return updated;
+    });
+  };
+
+  const markAllAsRead = (allIds: string[]) => {
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save read notifications:", e);
+      }
+      return updated;
+    });
+    addToast("All notifications marked as read", "success");
+  };
 
   const dismissNotification = (id: string) => {
     setClearedNotificationIds(prev => {
@@ -321,16 +387,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         keys.forEach(k => {
           localStorage.setItem(k, JSON.stringify(updated));
         });
-        const email = currentUser?.email || youthProfile?.email;
-        if (email) {
-          localStorage.setItem(`sikap_notifs_read_${email.toLowerCase().trim()}`, "true");
-        }
       } catch (e) {
         console.error("Failed to save cleared notifications:", e);
       }
       return updated;
     });
-    setNotificationsRead(true);
+    // Also mark them as read
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    addToast("All notifications cleared", "info");
   };
 
   // Profile sub-tabs & editable states
@@ -991,6 +1061,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         return filtered;
       });
       addToast("Declined livelihood pathway removed successfully.", "success");
+      broadcastDataChange("referrals", "deleted");
+      broadcastDataChange("programs", "slots_updated");
     }
   };
 
@@ -1033,6 +1105,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         return filtered;
       });
       addToast("Application cancelled successfully.", "success");
+      broadcastDataChange("referrals", "cancelled");
+      broadcastDataChange("programs", "slots_updated");
     }
   };
 
@@ -1536,6 +1610,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           return y;
         }));
         addToast(`Application for "${selectedProgramToApply.title}" submitted directly to TESDA successfully!`, "success");
+        broadcastDataChange("referrals", "created");
+        broadcastDataChange("programs", "slots_updated");
       } else {
         addToast(data.error || "Failed to submit application", "error");
       }
@@ -1864,13 +1940,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 });
 
                 const notificationsList = rawNotifications.filter(item => !clearedNotificationIds.includes(item.id));
+                const unreadCount = notificationsList.filter(item => !readNotificationIds.includes(item.id)).length;
 
                 return (
                   <>
                     <NotificationBellButton
                       isOpen={showNotifications}
                       onClick={() => setShowNotifications(!showNotifications)}
-                      unreadCount={!notificationsRead ? notificationsList.length : 0}
+                      unreadCount={unreadCount}
                       title="Notifications"
                       size="lg"
                       className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl shadow-xs"
@@ -1884,30 +1961,30 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             <div className="flex items-center gap-2">
                               <Bell className="w-4 h-4 text-[#0A6B43]" />
                               <span className="font-extrabold text-gray-900 text-sm">Notifications & Alerts</span>
-                              {notificationsList.length > 0 && (
+                              {unreadCount > 0 && (
                                 <span className="bg-[#0A6B43] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                                  {notificationsList.length}
+                                  {unreadCount}
                                 </span>
                               )}
                             </div>
                             {notificationsList.length > 0 && (
                               <div className="flex items-center gap-2">
+                                {unreadCount > 0 && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => markAllAsRead(notificationsList.map(n => n.id))}
+                                      className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
+                                      title="Mark all notifications as read"
+                                    >
+                                      Mark all read
+                                    </button>
+                                    <span className="text-gray-300">·</span>
+                                  </>
+                                )}
                                 <button
-                                  onClick={() => {
-                                    clearAllNotifications(rawNotifications.map(n => n.id));
-                                    addToast("All notifications marked as read & cleared", "info");
-                                  }}
-                                  className="text-[10px] font-bold text-[#0A6B43] hover:underline cursor-pointer"
-                                  title="Mark all notifications as read and clear them"
-                                >
-                                  Mark all read
-                                </button>
-                                <span className="text-gray-300">·</span>
-                                <button
-                                  onClick={() => {
-                                    clearAllNotifications(rawNotifications.map(n => n.id));
-                                    addToast("All notifications cleared", "info");
-                                  }}
+                                  type="button"
+                                  onClick={() => clearAllNotifications(notificationsList.map(n => n.id))}
                                   className="text-[10px] font-bold text-gray-500 hover:text-rose-600 cursor-pointer transition-colors"
                                   title="Clear all alerts"
                                 >
@@ -1927,44 +2004,71 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 <p className="text-[10px] text-gray-400">You are all caught up with your training applications!</p>
                               </div>
                             ) : (
-                              notificationsList.map((item) => (
-                                <div
-                                  key={item.id}
-                                  onClick={() => {
-                                    dismissNotification(item.id);
-                                    if (!isUnverified) {
-                                      setActiveTab(item.targetTab);
-                                    } else {
-                                      addToast("Locked in View-Only Mode while awaiting verification", "info");
-                                    }
-                                    setShowNotifications(false);
-                                  }}
-                                  className="p-3.5 hover:bg-emerald-50/50 transition-colors cursor-pointer flex items-start gap-3 group relative"
-                                >
-                                  <span className="mt-0.5 shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-gray-50 border border-gray-150">
-                                    {item.type === "enrolled" && <Award className="w-3.5 h-3.5 text-emerald-600" />}
-                                    {item.type === "pending" && <ClipboardList className="w-3.5 h-3.5 text-blue-600" />}
-                                    {item.type === "declined" && <XCircle className="w-3.5 h-3.5 text-red-500" />}
-                                    {item.type === "general" && <Megaphone className="w-3.5 h-3.5 text-amber-500" />}
-                                  </span>
-                                  <div className="space-y-0.5 flex-1 min-w-0 pr-2">
-                                    <p className="font-bold text-gray-900 leading-tight text-xs">{item.text}</p>
-                                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">{item.subtext}</p>
-                                    <p className="text-[9px] text-emerald-700 mt-1 font-semibold">{item.date}</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      dismissNotification(item.id);
+                              notificationsList.map((item) => {
+                                const isRead = readNotificationIds.includes(item.id);
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => {
+                                      markAsRead(item.id);
+                                      if (!isUnverified) {
+                                        setActiveTab(item.targetTab);
+                                      } else {
+                                        addToast("Locked in View-Only Mode while awaiting verification", "info");
+                                      }
+                                      setShowNotifications(false);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0 -mr-1"
-                                    title="Dismiss alert"
+                                    className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${
+                                      isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
+                                    }`}
                                   >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))
+                                    <span className="mt-0.5 shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-gray-50 border border-gray-150 relative">
+                                      {item.type === "enrolled" && <Award className="w-3.5 h-3.5 text-emerald-600" />}
+                                      {item.type === "pending" && <ClipboardList className="w-3.5 h-3.5 text-blue-600" />}
+                                      {item.type === "declined" && <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                                      {item.type === "general" && <Megaphone className="w-3.5 h-3.5 text-amber-500" />}
+                                      {!isRead && (
+                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#0A6B43] rounded-full ring-2 ring-white" />
+                                      )}
+                                    </span>
+                                    <div className="space-y-0.5 flex-1 min-w-0 pr-2">
+                                      <p className={`leading-tight text-xs ${isRead ? "font-semibold text-gray-700" : "font-extrabold text-gray-900"}`}>
+                                        {item.text}
+                                      </p>
+                                      <p className={`text-[11px] leading-relaxed ${isRead ? "text-gray-400 font-normal" : "text-gray-600 font-medium"}`}>
+                                        {item.subtext}
+                                      </p>
+                                      <p className="text-[9px] text-emerald-700 mt-1 font-semibold">{item.date}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0 -mr-1">
+                                      {!isRead && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            markAsRead(item.id);
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                          title="Mark as read"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          dismissNotification(item.id);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0"
+                                        title="Clear alert"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
 
@@ -4018,8 +4122,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         <p className="text-sm font-bold text-slate-800">Barangay {youthProfile.barangay || "San Luis"}</p>
                       </div>
                       <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Purok / Zone</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.purok || "Purok 1"}</p>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{getBarangayZoneTypeLabel(youthProfile.barangay)} / Zone</span>
+                        <p className="text-sm font-bold text-slate-800">{youthProfile.purok || (getBarangayZoneTypeLabel(youthProfile.barangay) === "Street" ? "Street 1" : "Purok 1")}</p>
                       </div>
                     </div>
                   </div>
@@ -4112,6 +4216,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           disabled={!isEditingProfile || isUnverified}
                           max={new Date().toISOString().split("T")[0]}
                           placeholder="Select date of birth"
+                          showAgeIndicator={true}
+                          defaultYear={new Date().getFullYear() - 20}
+                          direction="down"
                           buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
                         />
                       </div>
@@ -4170,14 +4277,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         <input type="text" disabled value={`Barangay ${youthProfile.barangay || "San Luis"}`} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Purok / Zone *</label>
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">
+                          {getBarangayZoneTypeLabel(youthProfile.barangay)} / Zone *
+                        </label>
                         <CustomSelect
                           disabled={!isEditingProfile || isUnverified}
                           value={editPurok}
                           onChange={(val) => setEditPurok(val)}
-                          options={["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5", "Purok 6", "Purok 7"]}
+                          options={getBarangayZoneOptions(youthProfile.barangay)}
                           size="md"
-                          placeholder="Select Purok"
+                          placeholder={`Select ${getBarangayZoneTypeLabel(youthProfile.barangay)}`}
                           buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
                         />
                       </div>

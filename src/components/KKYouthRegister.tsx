@@ -5,37 +5,22 @@ import {
   ArrowLeft, MapPin, Check, Sparkles, Clock, CheckCircle,
   User, Mail, Phone, Calendar, Award, GraduationCap, Plus, X,
   Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft, ChevronDown,
-  Eye, EyeOff, AlertCircle, ZoomIn, ShieldCheck, RefreshCw
+  Eye, EyeOff, AlertCircle, ZoomIn, ShieldCheck, RefreshCw, FileText, Lock
 } from "lucide-react";
 import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
+import { SAN_LUIS_BARANGAYS, getBarangayJurisdiction, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { SiKapDatePicker } from "./ReusableComponents";
 import { formatContactNumber, isValidContactNumber, calculateAge } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { createPortal } from "react-dom";
+import { broadcastDataChange } from "../lib/realtime-sync";
 
 interface KKYouthRegisterProps {
   onRegisterComplete: (newProfile: YouthProfile) => void;
   onBackToHome: () => void;
 }
 
-const BARANGAYS = [
-  "San Sebastian",
-  "Sta. Cruz Pambilog",
-  "San Nicolas",
-  "Sto. Rosario",
-  "San Jose",
-  "San Juan",
-  "Sta. Rita",
-  "Sto. Niño",
-  "San Agustin",
-  "San Carlos",
-  "San Isidro",
-  "San Roque",
-  "Sta. Cruz Población",
-  "Sta. Lucia",
-  "Sta. Monica",
-  "Sta. Catalina",
-  "Sto. Tomas"
-];
+const BARANGAYS = SAN_LUIS_BARANGAYS;
 
 interface CustomSelectOption {
   value: string;
@@ -175,6 +160,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regGender, setRegGender] = useState("");
   const [regContact, setRegContact] = useState("");
   const [regPurok, setRegPurok] = useState("");
+  const [selectedPurokBase, setSelectedPurokBase] = useState("");
 
   const [emailExists, setEmailExists] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
@@ -201,6 +187,87 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
     return () => clearTimeout(timer);
   }, [regEmail]);
+
+  // Email verification OTP states
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [devCode, setDevCode] = useState<string | null>(null);
+
+  // OTP resend countdown timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (otpCountdown > 0) {
+      interval = setInterval(() => {
+        setOtpCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [otpCountdown]);
+
+  const handleSendOtp = async () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regEmail || !emailRegex.test(regEmail) || emailExists) return;
+
+    setIsSendingOtp(true);
+    setOtpError(null);
+
+    try {
+      const res = await fetch("/api/auth/register-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: regEmail.trim(), name: regName.trim() })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setOtpSent(true);
+        setOtpCountdown(data.waitSeconds || 60);
+        if (data.devCode) {
+          setDevCode(data.devCode);
+        }
+      } else {
+        setOtpError(data.message || "Failed to send verification code. Please try again.");
+      }
+    } catch {
+      setOtpError("Network error sending verification code. Please check your connection.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.trim().length !== 6) return;
+
+    setIsVerifyingOtp(true);
+    setOtpError(null);
+
+    try {
+      const res = await fetch("/api/auth/register-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: regEmail.trim(), code: otpCode.trim() })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setIsEmailVerified(true);
+        setOtpError(null);
+      } else {
+        setOtpError(data.message || "Invalid verification code.");
+      }
+    } catch {
+      setOtpError("Network error verifying code. Please try again.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   const handleDOBChange = (dob: string) => {
     setRegDOB(dob);
@@ -240,10 +307,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [regIdFileName, setRegIdFileName] = useState("");
   const [regIdImage, setRegIdImage] = useState<string>("");
   const [showIdPreviewModal, setShowIdPreviewModal] = useState<boolean>(false);
+  const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
+  const [termsModalTab, setTermsModalTab] = useState<"terms" | "privacy">("terms");
   const [isDragging, setIsDragging] = useState(false);
   const [certifyAge, setCertifyAge] = useState(false);
   const [certifyResidency, setCertifyResidency] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const stepContentRef = useRef<HTMLDivElement>(null);
 
@@ -252,6 +326,16 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       stepContentRef.current.scrollTop = 0;
     }
   }, [currentStep]);
+
+  useEffect(() => {
+    if (showTermsModal || showIdPreviewModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [showTermsModal, showIdPreviewModal]);
 
   useEffect(() => {
     if (!showIdPreviewModal) return;
@@ -263,6 +347,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showIdPreviewModal]);
+
+  useEffect(() => {
+    if (!showTermsModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowTermsModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showTermsModal]);
 
   const STEPS = [
     { label: "Location", desc: "Barangay Select", icon: <MapPin className="w-4 h-4" /> },
@@ -358,6 +453,11 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       return;
     }
 
+    if (!isEmailVerified) {
+      alert("Please verify your email address with the 6-digit security code before submitting your registration.");
+      return;
+    }
+
     if (!certifyAge || !certifyResidency) {
       return;
     }
@@ -405,6 +505,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       const data = await res.json();
 
       if (data.success) {
+        broadcastDataChange("youth", "registered");
         onRegisterComplete(data.data);
         setCurrentStep(5); // Go to "Pending Approval" screen
       } else {
@@ -427,7 +528,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         const computedAge = regDOB ? calculateAge(regDOB) : "";
         const isAgeValid = computedAge !== "" && Number(computedAge) >= 18 && Number(computedAge) <= 30;
         const isPasswordValid = regPassword.length >= 6 && regPassword === regConfirmPassword;
-        return !!regName.trim() && !!regGender && isValidContactNumber(regContact) && isAgeValid && emailRegex.test(regEmail) && !emailExists && isPasswordValid;
+        return !!regName.trim() && !!regGender && isValidContactNumber(regContact) && isAgeValid && emailRegex.test(regEmail) && !emailExists && isPasswordValid && isEmailVerified;
       }
       case 2:
         return !!regEdu && (regSolo || regPwd || regIndigenous || regNone);
@@ -533,122 +634,206 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               transition={{ duration: 0.28, ease: "easeOut" }}
               className="flex-1 min-h-0 flex flex-col w-full"
             >
-              {/* Step 0: Barangay & Purok Selection */}
-              {currentStep === 0 && (
-                <div className="flex-1 flex flex-col min-h-0 w-full" id="step-location-select">
-                  {/* Non-scrollable Step Header */}
-                  <div className="text-center mb-2.5 sm:mb-3 shrink-0">
-                    <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
-                      LOCATION & PUROK SELECTION
-                    </span>
-                    <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">Select Your Barangay & Purok</h2>
-                    <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
-                      Please select your official residential area in San Luis, Pampanga
-                    </p>
-                  </div>
+              {/* Step 0: Barangay & Purok / Street Selection */}
+              {currentStep === 0 && (() => {
+                const currentJurisdiction = getBarangayJurisdiction(selectedBarangay);
+                const zoneTypeLabel = getBarangayZoneTypeLabel(selectedBarangay);
+                const activeZoneWithSitios = currentJurisdiction?.zones.find(
+                  (z) => z.name === selectedPurokBase || (regPurok && (regPurok === z.name || regPurok.startsWith(z.name + " -")))
+                );
 
-                  {/* Selection 2-Row Container */}
-                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 space-y-3.5 sm:space-y-4 max-w-xl mx-auto w-full">
-                    {/* Row 1: Barangay Selection (2 Columns of Choices) */}
-                    <div className="space-y-1.5 flex flex-col">
-                      <div className="flex items-center justify-between px-0.5 shrink-0">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          <span>Select Barangay *</span>
-                        </label>
-                        {selectedBarangay && (
-                          <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 truncate">
-                            {selectedBarangay}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="max-h-[160px] sm:max-h-[160px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg sm:rounded-xl p-1.5 sm:p-2 bg-gray-50/50">
-                        <div className="grid grid-cols-2 gap-2">
-                          {BARANGAYS.map((brgy) => {
-                            const isSelected = selectedBarangay === brgy;
-                            return (
-                              <button
-                                key={brgy}
-                                type="button"
-                                onClick={() => setSelectedBarangay(brgy)}
-                                className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
-                                  ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
-                                  : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
-                                  }`}
-                              >
-                                <div className="flex items-center gap-2 min-w-0 pr-1">
-                                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
-                                    }`}>
-                                    <MapPin className="w-3 h-3" />
-                                  </div>
-                                  <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
-                                    {brgy}
-                                  </span>
-                                </div>
-                                {isSelected && (
-                                  <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
-                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                return (
+                  <div className="flex-1 flex flex-col min-h-0 w-full" id="step-location-select">
+                    {/* Non-scrollable Step Header */}
+                    <div className="text-center mb-2.5 sm:mb-3 shrink-0">
+                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full uppercase tracking-widest inline-block mb-1 sm:mb-1.5">
+                        LOCATION & {zoneTypeLabel.toUpperCase()} SELECTION
+                      </span>
+                      <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-tight">
+                        Select Your Barangay & {zoneTypeLabel}
+                      </h2>
+                      <p className="text-[11px] sm:text-xs text-gray-500 max-w-md mx-auto mt-0.5 sm:mt-1">
+                        Please select your official residential area in San Luis, Pampanga
+                      </p>
                     </div>
 
-                    {/* Row 2: Purok Selection (2 Columns of Choices) */}
-                    <div className="space-y-1.5 flex flex-col">
-                      <div className="flex items-center justify-between px-0.5 shrink-0">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          <span>Select Purok Sector *</span>
-                        </label>
-                        {regPurok && (
-                          <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                            {regPurok}
-                          </span>
-                        )}
+                    {/* Selection 2-Row Container */}
+                    <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 space-y-3.5 sm:space-y-4 max-w-xl mx-auto w-full">
+                      {/* Row 1: Barangay Selection (2 Columns of Choices) */}
+                      <div className="space-y-1.5 flex flex-col">
+                        <div className="flex items-center justify-between px-0.5 shrink-0">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                            <span>Select Barangay *</span>
+                          </label>
+                          {selectedBarangay && (
+                            <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 truncate">
+                              {selectedBarangay}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="max-h-[160px] sm:max-h-[160px] overflow-y-auto custom-scrollbar border border-gray-200 rounded-lg sm:rounded-xl p-1.5 sm:p-2 bg-gray-50/50">
+                          <div className="grid grid-cols-2 gap-2">
+                            {BARANGAYS.map((brgy) => {
+                              const isSelected = selectedBarangay === brgy;
+                              return (
+                                <button
+                                  key={brgy}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedBarangay(brgy);
+                                    setRegPurok("");
+                                    setSelectedPurokBase("");
+                                  }}
+                                  className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
+                                    ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                                    : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                                    }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 pr-1">
+                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                      }`}>
+                                      <MapPin className="w-3 h-3" />
+                                    </div>
+                                    <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                      {brgy}
+                                    </span>
+                                  </div>
+                                  {isSelected && (
+                                    <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50">
-                        <div className="grid grid-cols-2 gap-2">
-                          {["Purok 1", "Purok 2", "Purok 3", "Purok 4"].map((purok) => {
-                            const isSelected = regPurok === purok;
-                            return (
-                              <button
-                                key={purok}
-                                type="button"
-                                onClick={() => setRegPurok(purok)}
-                                className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${isSelected
-                                  ? "border-gray-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
-                                  : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
-                                  }`}
-                              >
-                                <div className="flex items-center gap-2 min-w-0 pr-1">
-                                  <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-[#0A6B43] text-white" : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
-                                    }`}>
-                                    <MapPin className="w-3 h-3" />
-                                  </div>
-                                  <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
-                                    {purok}
-                                  </span>
-                                </div>
-                                {isSelected && (
-                                  <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
-                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
+                      {/* Row 2: Purok / Street / Sitio Selection */}
+                      <div className="space-y-1.5 flex flex-col">
+                        <div className="flex items-center justify-between px-0.5 shrink-0">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                            <span>Select {zoneTypeLabel} Sector *</span>
+                          </label>
+                          {regPurok && (
+                            <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 truncate max-w-[240px] sm:max-w-none">
+                              {regPurok}
+                            </span>
+                          )}
                         </div>
+
+                        {!selectedBarangay ? (
+                          <div className="border border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50/50">
+                            <MapPin className="w-5 h-5 text-gray-300 mx-auto mb-1.5" />
+                            <p className="text-xs font-semibold text-gray-500">Please choose a Barangay first</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">Available Puroks, Streets, and Sitios will appear here</p>
+                          </div>
+                        ) : (
+                          <div className="border border-gray-200 rounded-xl p-2 bg-gray-50/50 space-y-2">
+                            <div className="max-h-[160px] overflow-y-auto custom-scrollbar">
+                              <div className="grid grid-cols-2 gap-2">
+                                {currentJurisdiction?.zones.map((zone) => {
+                                  const isSelected = selectedPurokBase === zone.name || regPurok === zone.name || (regPurok && regPurok.startsWith(zone.name + " -"));
+                                  return (
+                                    <button
+                                      key={zone.name}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPurokBase(zone.name);
+                                        if (!zone.sitios || zone.sitios.length === 0) {
+                                          setRegPurok(zone.name);
+                                        } else {
+                                          if (!regPurok || !regPurok.startsWith(zone.name)) {
+                                            setRegPurok(zone.name);
+                                          }
+                                        }
+                                      }}
+                                      className={`p-2 sm:p-2.5 rounded-lg border text-left transition-all relative overflow-hidden group flex items-center justify-between ${
+                                        isSelected
+                                          ? "border-emerald-300 bg-emerald-50/80 ring-1 ring-emerald-600/30 shadow-2xs"
+                                          : "border-gray-200 hover:border-gray-300 bg-white hover:bg-emerald-50/10"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 pr-1">
+                                        <div
+                                          className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+                                            isSelected
+                                              ? "bg-[#0A6B43] text-white"
+                                              : "bg-gray-100 text-gray-400 group-hover:bg-emerald-100/40 group-hover:text-emerald-700"
+                                          }`}
+                                        >
+                                          <MapPin className="w-3 h-3" />
+                                        </div>
+                                        <span className={`text-[11px] font-bold truncate ${isSelected ? "text-[#0A6B43]" : "text-gray-700"}`}>
+                                          {zone.name}
+                                        </span>
+                                      </div>
+                                      {isSelected && (
+                                        <span className="w-3.5 h-3.5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Sitio Sub-selection for Puroks with Sitios (San Jose & San Carlos) */}
+                            {activeZoneWithSitios && activeZoneWithSitios.sitios && activeZoneWithSitios.sitios.length > 0 && (
+                              <div className="pt-2 border-t border-gray-200/90 animate-in fade-in duration-200">
+                                <div className="flex items-center justify-between mb-1.5 px-0.5">
+                                  <label className="text-[10px] font-extrabold uppercase text-emerald-800 tracking-wider flex items-center gap-1">
+                                    <span>Sitios in {activeZoneWithSitios.name}</span>
+                                    <span className="text-gray-400 font-normal lowercase">(specify sitio or center)</span>
+                                  </label>
+                                </div>
+                                <div className="max-h-[140px] overflow-y-auto custom-scrollbar p-1.5 bg-white rounded-lg border border-gray-200 space-y-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setRegPurok(activeZoneWithSitios.name)}
+                                    className={`w-full p-2 rounded-md text-left text-[11px] font-medium flex items-center justify-between transition-colors ${
+                                      regPurok === activeZoneWithSitios.name
+                                        ? "bg-emerald-50 text-[#0A6B43] font-bold border border-emerald-200"
+                                        : "hover:bg-gray-50 text-gray-700 border border-transparent"
+                                    }`}
+                                  >
+                                    <span>{activeZoneWithSitios.name} (General / Center)</span>
+                                    {regPurok === activeZoneWithSitios.name && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                                  </button>
+                                  {activeZoneWithSitios.sitios.map((sitio) => {
+                                    const fullValue = `${activeZoneWithSitios.name} - ${sitio}`;
+                                    const isSelected = regPurok === fullValue;
+                                    return (
+                                      <button
+                                        key={sitio}
+                                        type="button"
+                                        onClick={() => setRegPurok(fullValue)}
+                                        className={`w-full p-2 rounded-md text-left text-[11px] font-medium flex items-center justify-between transition-colors ${
+                                          isSelected
+                                            ? "bg-emerald-50 text-[#0A6B43] font-bold border border-emerald-200"
+                                            : "hover:bg-gray-50 text-gray-700 border border-transparent"
+                                        }`}
+                                      >
+                                        <span>• {sitio}</span>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Step 1: Personal Info Form */}
               {currentStep === 1 && (
@@ -665,7 +850,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   </div>
 
                   {/* Scrollable Form Fields ONLY */}
-                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 pb-24">
                     <div className="w-full max-w-xl mx-auto space-y-3.5 p-0.5">
 
                       {/* Row 1: Full Name */}
@@ -682,7 +867,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                       </div>
 
                       {/* Row 2: Date of Birth & Gender (2 Columns) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold relative z-20">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between h-4">
                             <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide inline-flex items-center h-full">Date of Birth *</label>
@@ -705,7 +890,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                             label="Date of Birth"
                             badgeText="KK Youth"
                             showAgeIndicator={true}
-                            placeholder="Select date"
+                            defaultYear={new Date().getFullYear() - 20}
+                            direction="down"
+                            placeholder="Select date of birth"
                           />
                           {regDOB && calculateAge(regDOB) !== "" && (Number(calculateAge(regDOB)) < 18 || Number(calculateAge(regDOB)) > 30) && (
                             <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
@@ -743,20 +930,38 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         )}
                       </div>
 
-                      {/* Row 4: Email Address */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
+                      {/* Row 4: Email Address with Inline Verification */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
+                          {isEmailVerified && (
+                            <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                              <Check className="w-3 h-3 stroke-[3]" /> Verified
+                            </span>
+                          )}
+                        </div>
                         <div className="relative">
                           <input
                             type="email"
                             required
+                            disabled={isEmailVerified}
                             value={regEmail}
-                            onChange={(e) => setRegEmail(e.target.value)}
+                            onChange={(e) => {
+                              setRegEmail(e.target.value);
+                              setIsEmailVerified(false);
+                              setOtpSent(false);
+                              setOtpCode("");
+                              setOtpError(null);
+                              setDevCode(null);
+                            }}
                             placeholder="juan.delacruz@gmail.com"
-                            className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${(regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
-                              ? "border-rose-300 bg-rose-50/30"
-                              : "border-gray-200"
-                              }`}
+                            className={`w-full px-3.5 sm:px-4 py-2 sm:py-2.5 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${
+                              isEmailVerified
+                                ? "bg-emerald-50/40 border-emerald-300 text-gray-800"
+                                : (regEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) || emailExists
+                                  ? "bg-rose-50/30 border-rose-300"
+                                  : "bg-gray-50/80 border-gray-200"
+                            }`}
                           />
                           {isCheckingEmail && (
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium animate-pulse">
@@ -775,6 +980,173 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                             <span>Email already registered: This email address is already associated with an account.</span>
                           </p>
                         ) : null}
+
+                        {/* Interactive Verification Section in the current placement */}
+                        {regEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail) && !emailExists && !isCheckingEmail && (
+                          <div className="pt-1">
+                            {isEmailVerified ? (
+                              <div className="flex items-center justify-between p-2.5 sm:p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-xl text-xs">
+                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                  <div className="w-6 h-6 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-extrabold text-[#0A6B43] text-xs">Email Verified Successfully</p>
+                                    <p className="text-[11px] text-emerald-800/80 font-medium truncate">
+                                      Your identity and email ownership have been secured.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEmailVerified(false);
+                                    setOtpSent(false);
+                                    setOtpCode("");
+                                    setOtpError(null);
+                                    setDevCode(null);
+                                  }}
+                                  className="text-[11px] font-bold text-gray-500 hover:text-gray-800 underline shrink-0 cursor-pointer"
+                                >
+                                  Change Email
+                                </button>
+                              </div>
+                            ) : !otpSent ? (
+                              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                                <div className="flex items-center gap-2 text-xs text-gray-600">
+                                  <Mail className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                                  <span className="font-medium text-[11px] sm:text-xs">
+                                    Verify email ownership to continue registration.
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isSendingOtp}
+                                  onClick={handleSendOtp}
+                                  className="w-full sm:w-auto px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-xs rounded-lg transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                                >
+                                  {isSendingOtp ? (
+                                    <>
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Sending Code...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Mail className="w-3.5 h-3.5" />
+                                      <span>Send Verification Code</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="p-3.5 sm:p-4 bg-emerald-50/30 border border-emerald-200/90 rounded-2xl space-y-3 animate-in fade-in duration-200">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
+                                      <Lock className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                      <span className="text-xs font-black text-gray-900 block leading-tight">Enter Verification Code</span>
+                                      <span className="text-[11px] text-gray-500 font-medium">
+                                        We sent a 6-digit code to <strong className="text-gray-800">{regEmail}</strong>
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOtpSent(false);
+                                      setOtpCode("");
+                                      setOtpError(null);
+                                      setDevCode(null);
+                                    }}
+                                    className="text-[11px] font-bold text-gray-400 hover:text-gray-600 underline cursor-pointer shrink-0"
+                                  >
+                                    Edit email
+                                  </button>
+                                </div>
+
+                                {/* Single clean 6-digit monospace input box with a "Verify" button */}
+                                <div className="flex items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      autoComplete="one-time-code"
+                                      maxLength={6}
+                                      value={otpCode}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "");
+                                        setOtpCode(val);
+                                        setOtpError(null);
+                                      }}
+                                      placeholder="000000"
+                                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl font-mono text-center text-lg sm:text-xl font-black tracking-[0.3em] text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all shadow-xs"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={otpCode.length !== 6 || isVerifyingOtp}
+                                    onClick={handleVerifyOtp}
+                                    className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                                  >
+                                    {isVerifyingOtp ? (
+                                      <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        <span>Verifying...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check className="w-4 h-4 stroke-[2.5]" />
+                                        <span>Verify</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Resend & Feedback alerts */}
+                                <div className="flex items-center justify-between text-[11px] pt-0.5">
+                                  <span className="text-gray-500 font-medium">Didn't receive code?</span>
+                                  {otpCountdown > 0 ? (
+                                    <span className="text-gray-400 font-semibold flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      Resend in {otpCountdown}s
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled={isSendingOtp}
+                                      onClick={handleSendOtp}
+                                      className="font-bold text-[#0A6B43] hover:text-[#075332] underline cursor-pointer disabled:opacity-50"
+                                    >
+                                      Resend code
+                                    </button>
+                                  )}
+                                </div>
+
+                                {otpError && (
+                                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                    <span>{otpError}</span>
+                                  </div>
+                                )}
+
+                                {devCode && (
+                                  <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-mono flex items-center justify-between">
+                                    <span>[Dev Preview Code]: <strong>{devCode}</strong></span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setOtpCode(devCode)}
+                                      className="text-amber-900 underline font-sans text-[10px] font-bold cursor-pointer"
+                                    >
+                                      Auto-fill
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Row 5: Password & Confirm Password (2 Columns) */}
@@ -1308,10 +1680,36 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               required
                               checked={certifyResidency}
                               onChange={(e) => setCertifyResidency(e.target.checked)}
-                              className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer"
+                              className="w-4 h-4 rounded-xs accent-[#0A6B43] accent-emerald-600 text-[#0A6B43] focus:ring-emerald-500 mt-0.5 cursor-pointer shrink-0"
                             />
                             <span className="text-xs font-medium text-gray-700 leading-relaxed">
-                              I agree to SiKap's Terms of Service and Privacy Policy, and consent to the collection and processing of my information for verification, youth profiling, and matching with relevant training opportunities.
+                              I agree to SiKap's{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setTermsModalTab("terms");
+                                  setShowTermsModal(true);
+                                }}
+                                className="text-[#0A6B43] font-bold underline hover:text-emerald-800 transition-colors inline cursor-pointer"
+                              >
+                                Terms of Service
+                              </button>{" "}
+                              and{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setTermsModalTab("privacy");
+                                  setShowTermsModal(true);
+                                }}
+                                className="text-[#0A6B43] font-bold underline hover:text-emerald-800 transition-colors inline cursor-pointer"
+                              >
+                                Privacy Policy
+                              </button>
+                              , and consent to the collection and processing of my information for verification, youth profiling, and matching with relevant training opportunities.
                             </span>
                           </label>
                         </div>
@@ -1403,9 +1801,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       </div>
 
       {/* Expanded Document Double-Check Modal */}
-      {showIdPreviewModal && regIdImage && (
+      {mounted && showIdPreviewModal && regIdImage && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 animate-in fade-in duration-200"
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-[9999] animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowIdPreviewModal(false);
           }}
@@ -1495,7 +1893,332 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Terms of Service & Privacy Policy Modal */}
+      {mounted && showTermsModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+          onClick={() => setShowTermsModal(false)}
+        >
+          <div
+            className="bg-white w-full max-w-3xl rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-900 via-[#0A6B43] to-emerald-800 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-6 h-6 text-emerald-200" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Official Policy</span>
+                    <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full text-white truncate max-w-[180px] sm:max-w-xs">
+                      Barangay {selectedBarangay || "San Sebastian"}
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black tracking-tight truncate text-white">
+                    SiKap Legal & Privacy Statements
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-2"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tab Switcher */}
+            <div className="flex items-center border-b border-gray-200 bg-gray-50/90 px-4 sm:px-6 shrink-0 pt-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTermsModalTab("terms")}
+                className={`flex items-center gap-2 pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                  termsModalTab === "terms"
+                    ? "border-[#0A6B43] text-[#0A6B43] font-black"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>Terms of Service</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTermsModalTab("privacy")}
+                className={`flex items-center gap-2 pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
+                  termsModalTab === "privacy"
+                    ? "border-[#0A6B43] text-[#0A6B43] font-black"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <span>Privacy Policy</span>
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 text-gray-700 space-y-4 text-xs sm:text-sm leading-relaxed">
+              {termsModalTab === "terms" ? (
+                <div className="space-y-4">
+                  <div className="border-b border-gray-100 pb-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Barangay {selectedBarangay || "San Sebastian"} • SK Youth Portal
+                    </span>
+                    <h4 className="text-base sm:text-lg font-black text-gray-900 mt-1">
+                      SiKap Terms of Service
+                    </h4>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Katipunan ng Kabataan (KK) Youth Portal Terms
+                    </p>
+                  </div>
+
+                  <div className="space-y-3.5 text-xs sm:text-[13px] leading-relaxed text-gray-700">
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>1. Acceptance of Terms</span>
+                      </h5>
+                      <p>
+                        By creating an account, submitting your registration, or accessing the SiKap portal, you agree to be bound by these Terms of Service and all applicable laws and regulations of the Republic of the Philippines, including the SK Reform Act of 2015 (Republic Act No. 10742 as amended by Republic Act No. 11768) and the Local Government Code of 1991 (Republic Act No. 7160). If you do not agree to these Terms, you must not proceed with registration.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>2. Eligibility & Katipunan ng Kabataan Membership</span>
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li><strong className="text-gray-800">Age Requirement:</strong> Registration is open exclusively to Filipino citizens who are at least eighteen (18) years of age but not more than thirty (30) years of age at the time of application, in strict compliance with the legal definition of youth under Philippine law.</li>
+                        <li><strong className="text-gray-800">Residency Requirement:</strong> You must be a bona fide resident of Barangay {selectedBarangay || "San Sebastian"} for at least six (6) months prior to registration.</li>
+                        <li><strong className="text-gray-800">One Account per Youth:</strong> Each youth is permitted only one (1) official SiKap account linked to their validated identity. Duplicate accounts or impersonations will result in immediate disqualification and revocation of portal access.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>3. Identity Verification & Documentary Submissions</span>
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li><strong className="text-gray-800">Accurate Information:</strong> You certify that all personal profile details, contact numbers, educational background, employment status, and demographic classifications provided during registration are true, accurate, current, and complete.</li>
+                        <li><strong className="text-gray-800">Valid Identification:</strong> You are required to submit an authentic, clear, and legible copy of a government-recognized identification card (e.g., National ID / PhilSys, Student ID, Voter's ID / Certificate, LRN Document, Passport, Driver's License, or Barangay Clearance).</li>
+                        <li><strong className="text-gray-800">Penalties for Misrepresentation:</strong> Falsification of documents, deliberate submission of altered files, or providing fraudulent residency or age claims constitutes grounds for account termination and possible administrative or legal action under Article 172 of the Revised Penal Code.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>4. Official Verification Process & Portal Status</span>
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li><strong className="text-gray-800">Pending Review:</strong> Upon submission of your registration, your profile is placed in "Pending Review" status pending physical or electronic evaluation by the Sangguniang Kabataan (SK) Chairperson and authorized Council Officers of Barangay {selectedBarangay || "San Sebastian"}.</li>
+                        <li><strong className="text-gray-800">Approval & Activation:</strong> You will only gain access to official government-sponsored training allocations, TESDA scholarship endorsements, job referrals, and youth welfare programs once your profile is verified and marked "Active".</li>
+                        <li><strong className="text-gray-800">Revocation & Inactivation:</strong> The SK Council reserves the right to suspend or revoke an account if the member ages out (exceeds 30 years old), transfers permanent residency outside Barangay {selectedBarangay || "San Sebastian"}, or violates portal guidelines.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>5. Training Referrals & TESDA Partner Program Rules</span>
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li><strong className="text-gray-800">Skills Matching:</strong> SiKap utilizes youth profile attributes (hobbies, educational attainment, availability, and career aspirations) to recommend matched Technical-Vocational Education and Training (TVET) programs offered by accredited TESDA partners.</li>
+                        <li><strong className="text-gray-800">No Guarantee of Employment:</strong> While SiKap provides referrals and endorsements to authorized training partners, acceptance into specific classes is subject to training center slots, prerequisites, and program schedules.</li>
+                        <li><strong className="text-gray-800">Commitment to Completion:</strong> When a youth member formally commits to and enrolls in a subsidized training program, they are expected to maintain regular attendance and complete the module, ensuring public training funds are utilized responsibly.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>6. AI-Assisted Recommendation Disclaimer</span>
+                      </h5>
+                      <p>
+                        SiKap employs algorithmic Content-Based Filtering (CBF) and Google Gemini AI assistance to analyze training alignments and generate personalized learning pathways. These AI-generated suggestions serve solely as educational and vocational guidance and do not restrict you from exploring other programs offered in your community.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>7. Code of Conduct & Platform Usage</span>
+                      </h5>
+                      <p>
+                        You agree to use the SiKap portal only for lawful youth development purposes. You shall not attempt to breach security, inject malicious code, harvest data from other youth members, or disrupt system availability. You are responsible for maintaining the confidentiality of your login credentials and for all activities that occur under your account.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>8. Limitation of Liability</span>
+                      </h5>
+                      <p>
+                        The Sangguniang Kabataan of Barangay {selectedBarangay || "San Sebastian"}, the Barangay Council, and partner training institutions provide this platform as a public governance and youth welfare service. While we endeavor to keep the system operational and accurate, the SK Council shall not be liable for technical interruptions, telecommunications downtime, or external partner schedule modifications.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>9. Amendments to Terms</span>
+                      </h5>
+                      <p>
+                        The SK Council reserves the right to modify or replace these Terms to conform with updated national youth policies, municipal ordinances, or platform features. Continued use of SiKap after such changes constitutes acceptance of the updated Terms.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="border-b border-gray-100 pb-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Republic Act No. 10173 • Data Privacy Act of 2012
+                    </span>
+                    <h4 className="text-base sm:text-lg font-black text-gray-900 mt-1">
+                      SiKap Privacy Policy
+                    </h4>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Barangay {selectedBarangay || "San Sebastian"} — Sangguniang Kabataan Council
+                    </p>
+                  </div>
+
+                  <div className="space-y-3.5 text-xs sm:text-[13px] leading-relaxed text-gray-700">
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>1. Statement of Policy</span>
+                      </h5>
+                      <p>
+                        The Sangguniang Kabataan (SK) Council of Barangay {selectedBarangay || "San Sebastian"} is committed to protecting your personal data and upholding your fundamental rights as a data subject in full compliance with Republic Act No. 10173 (Data Privacy Act of 2012), its Implementing Rules and Regulations (IRR), and all issuances of the National Privacy Commission (NPC).
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>2. Information We Collect</span>
+                      </h5>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li><strong className="text-gray-800">Personal Identity:</strong> Full legal name, date of birth, age, sex/gender, civil status, and purok / address in Barangay {selectedBarangay || "San Sebastian"}.</li>
+                        <li><strong className="text-gray-800">Contact Details:</strong> Mobile phone number and official login email address.</li>
+                        <li><strong className="text-gray-800">Socio-Demographic Profile:</strong> Educational attainment, current employment status (e.g., In-School Youth, Out-of-School Youth / OSY, Working Youth, Unemployed), youth sector classification, hobbies, and career interests.</li>
+                        <li><strong className="text-gray-800">Verification Documents:</strong> Identification card number, ID type, and digital image/file upload of your supporting identity document.</li>
+                        <li><strong className="text-gray-800">Program & Training Data:</strong> Enrolled TESDA courses, training attendance, completion status, certificates attained, and referral history.</li>
+                        <li><strong className="text-gray-800">Technical & Device Information:</strong> Login timestamps, IP address, and browser session identifiers used for fraud prevention and security audits.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>3. Purpose & Legal Basis of Processing</span>
+                      </h5>
+                      <p className="mb-1.5">
+                        Your personal data is processed under the legal bases of Explicit Consent (Section 12.a and 13.a of RA 10173) and the performance of a public task mandated by law under RA 10742 (SK Reform Act of 2015):
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li>Establishing and maintaining the official registry of Katipunan ng Kabataan members in Barangay {selectedBarangay || "San Sebastian"};</li>
+                        <li>Verifying youth age (18–30) and local barangay residency requirements;</li>
+                        <li>Matching youth profiles with suitable TESDA livelihood courses and technical-vocational training;</li>
+                        <li>Processing official endorsements, attendance tracking, and completion certification;</li>
+                        <li>Generating anonymized statistical reports for youth development planning and municipal governance;</li>
+                        <li>Communicating announcements regarding youth assemblies, job caravans, training slots, and emergency relief programs.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>4. Data Sharing & Disclosure</span>
+                      </h5>
+                      <p className="mb-1.5">
+                        Your personal data will never be sold, rented, or traded for commercial marketing purposes. Data disclosure is limited to authorized stakeholders on a strict need-to-know basis:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 pl-1 text-gray-600">
+                        <li><strong className="text-gray-800">Sangguniang Kabataan Council & Barangay Officials:</strong> The SK Chairperson and designated officers verify member identities and manage local community allocations.</li>
+                        <li><strong className="text-gray-800">Accredited TESDA Partner Centers:</strong> When you apply for a training program, your name, contact details, educational background, and verification status are shared with the training provider solely to facilitate class enlistment and certification.</li>
+                        <li><strong className="text-gray-800">Statutory Regulatory Authorities:</strong> Anonymized, aggregated demographic summaries may be submitted to the National Youth Commission (NYC), the Department of the Interior and Local Government (DILG), and the Local Youth Development Council (LYDC) as required by national reporting standards.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>5. Automated Profiling & Artificial Intelligence (AI)</span>
+                      </h5>
+                      <p>
+                        SiKap utilizes automated recommendation algorithms and Google Gemini AI assistance to analyze your declared interests, skills, and educational background to suggest relevant vocational pathways. Automated recommendations do not carry binding legal decisions; final training selection and enrollment decisions remain entirely under the voluntary discretion of the youth member and partner institutions.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>6. Data Storage & Information Security Measures</span>
+                      </h5>
+                      <p>
+                        We implement technical, physical, and organizational security measures, including HTTPS encryption in transit, hashed passwords via bcrypt, restricted role-based database access, and secure local/cloud storage. Uploaded ID images are stored in protected directories accessible solely to verified administrators during the validation phase.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>7. Data Retention & Disposal Policy</span>
+                      </h5>
+                      <p>
+                        Your personal information is retained in the active Katipunan ng Kabataan directory as long as you remain an eligible youth member (ages 18 to 30) residing in Barangay {selectedBarangay || "San Sebastian"}. Upon reaching age thirty-one (31) or upon permanent relocation outside the barangay, your record is transitioned into an archived status. Physical copies (if any) are shredded and digital files are permanently erased or anonymized in accordance with NPC guidelines.
+                      </p>
+                    </div>
+
+                    <div>
+                      <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
+                        <span>8. Your Rights as a Data Subject</span>
+                      </h5>
+                      <p className="mb-1.5">
+                        Under the Data Privacy Act of 2012, you possess the right to be informed, right to access, right to rectification, right to erasure or blocking, and right to lodge a complaint with the National Privacy Commission (NPC).
+                      </p>
+                    </div>
+
+                    <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100">
+                      <h5 className="font-black text-xs uppercase tracking-wide mb-1 text-[#0A6B43]">
+                        9. Inquiries & Official Contact
+                      </h5>
+                      <div className="text-gray-700 space-y-0.5">
+                        <p><strong>Office:</strong> Sangguniang Kabataan Council of Barangay {selectedBarangay || "San Sebastian"}</p>
+                        <p><strong>Email:</strong> sikap.system@gmail.com</p>
+                        <p><strong>Office Address:</strong> {selectedBarangay || "San Sebastian"} Barangay Hall, Sangguniang Kabataan Office</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 sm:p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3 shrink-0">
+              <div className="text-[11px] text-gray-500 hidden sm:block">
+                Katipunan ng Kabataan (KK) — Barangay {selectedBarangay || "San Sebastian"}
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-200/70 rounded-xl transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCertifyResidency(true);
+                    setShowTermsModal(false);
+                  }}
+                  className="px-5 py-2 text-xs font-black text-white bg-[#0A6B43] hover:bg-[#075332] rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>I Have Read & Agree</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

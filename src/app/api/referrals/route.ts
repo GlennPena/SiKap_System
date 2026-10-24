@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notifyReferralStatusChanged, notifyNewApplicationReceived } from "@/lib/notifications";
 
+export const dynamic = "force-dynamic";
+
 function mapToPipelineItem(r: any) {
   const formattedDate = r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
   return {
