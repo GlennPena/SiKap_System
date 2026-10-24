@@ -1,6 +1,16 @@
+"use client";
+
 import React, { useEffect, useRef, useState } from 'react';
 
-export const AnimatedGridBackground: React.FC = () => {
+interface AnimatedGridBackgroundProps {
+  className?: string;
+  opacity?: number;
+}
+
+export const AnimatedGridBackground: React.FC<AnimatedGridBackgroundProps> = ({
+  className = '',
+  opacity = 0.15,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ cols: 0, rows: 0 });
   
@@ -38,7 +48,7 @@ export const AnimatedGridBackground: React.FC = () => {
 
   // Don't render tiles until we have measured
   if (cols === 0 || rows === 0) {
-    return <div ref={containerRef} className="absolute inset-0 z-0 pointer-events-none" />;
+    return <div ref={containerRef} className={`absolute inset-0 z-0 pointer-events-none ${className}`} />;
   }
 
   // Pre-generate grid coordinates
@@ -52,10 +62,10 @@ export const AnimatedGridBackground: React.FC = () => {
   return (
     <div 
       ref={containerRef} 
-      className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
+      className={`absolute inset-0 z-0 pointer-events-none overflow-hidden ${className}`}
       style={{ 
         perspective: '1200px', 
-        opacity: 0.15 
+        opacity: opacity 
       }}
     >
       <div 

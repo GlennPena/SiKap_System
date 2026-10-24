@@ -16,8 +16,7 @@ import {
   Plus,
   MapPin,
   Clock,
-  Check,
-  Target
+  Check
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
@@ -117,6 +116,75 @@ const NumberCounter = ({ value, suffix = "", duration = 1, delay = 0, className 
   return <span ref={ref} className={className}>{displayValue}{suffix}</span>;
 };
 
+// --- CHRONOLOGICAL ON-SCROLL VELOCITY HOOK & WRAPPER ---
+const useScrollSpeedSection = (amount: number = 0.2) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount });
+  const [speedState, setSpeedState] = useState<{ isVisible: boolean; speed: number }>({
+    isVisible: false,
+    speed: 1,
+  });
+
+  useEffect(() => {
+    if (isInView && !speedState.isVisible) {
+      setSpeedState({
+        isVisible: true,
+        speed: getSpeedFactor(),
+      });
+    }
+  }, [isInView, speedState.isVisible]);
+
+  return { ref, isVisible: speedState.isVisible, speed: speedState.speed };
+};
+
+const ChronoItem = ({
+  isVisible,
+  speed,
+  delay,
+  duration = 0.4,
+  y = 16,
+  className = "",
+  children,
+  as = "div",
+}: {
+  isVisible: boolean;
+  speed: number;
+  delay: number;
+  duration?: number;
+  y?: number;
+  className?: string;
+  children: React.ReactNode;
+  as?: "div" | "h2" | "p";
+}) => {
+  const controls = useAnimation();
+  const Component = as === "h2" ? motion.h2 : as === "p" ? motion.p : motion.div;
+
+  useEffect(() => {
+    if (isVisible) {
+      controls.start({
+        opacity: 1,
+        y: 0,
+        transition: {
+          duration: duration * speed,
+          delay: delay * speed,
+          ease: "easeOut",
+        },
+      });
+    }
+  }, [isVisible, speed, delay, duration, controls]);
+
+  return (
+    <Component
+      initial={{ opacity: 0, y }}
+      animate={controls}
+      className={className}
+    >
+      {children}
+    </Component>
+  );
+};
+// -------------------------------------------------------
+
 
 interface LandingPageProps {
   programs: TESDAProgram[];
@@ -130,6 +198,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   addToast
 }) => {
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
+  const workflowScroll = useScrollSpeedSection(0.2);
+  const faqScroll = useScrollSpeedSection(0.2);
+  const ctaScroll = useScrollSpeedSection(0.25);
   const [liveStats, setLiveStats] = useState({
     totalYouth: 0,
     totalPrograms: 0,
@@ -176,6 +247,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   ];
 
+  const workflowSteps = [
+    {
+      num: "01",
+      title: "Discover & Profile",
+      desc: "KK Youth register their educational background, current competencies, barangay location, and livelihood aspirations through a simple, guided profiling process."
+    },
+    {
+      num: "02",
+      title: "Match & Recommend",
+      desc: "SiKap's intelligent matching algorithm evaluates youth profiles against verified TESDA programs to highlight best-fit pathways with transparent, explainable rationales."
+    },
+    {
+      num: "03",
+      title: "Apply & Connect",
+      desc: "Youth explore recommended programs, compare program details and schedules, and apply directly to partner training centers with real-time slot tracking."
+    },
+    {
+      num: "04",
+      title: "Train & Certify",
+      desc: "Partner training institutes confirm applications, automatically reserve cohort capacity, and guide candidates through skills training toward accredited certification."
+    }
+  ];
+
   const handleScrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -191,15 +285,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="max-w-[1500px] mx-auto px-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-20">
 
-            {/* Logo & Brand ID */}
-            <div className="flex items-center cursor-pointer select-none group shrink-0" onClick={() => handleScrollToSection("hero")}>
+            {/* Logo & Brand ID (Static / Non-clickable) */}
+            <div className="flex items-center select-none shrink-0 cursor-default">
               {/* Mobile Viewport Logo */}
               <div className="sm:hidden flex items-center">
-                <SikapLogo size={32} logoSize={36} textSize={24} showText={true} showSubtext={false} gap="gap-1.5" />
+                <SikapLogo size={34} logoSize={34} textSize={28} showText={true} showSubtext={false} gap="gap-1" textClassName="translate-y-[0.5px]" disableHover={true} />
               </div>
               {/* Tablet & Desktop Viewport Logo */}
               <div className="hidden sm:flex items-center">
-                <SikapLogo size={44} logoSize={50} textSize={34} showText={true} showSubtext={false} gap="gap-2" />
+                <SikapLogo size={58} logoSize={58} textSize={42} showText={true} showSubtext={false} gap="gap-1" textClassName="translate-y-[1.5px]" disableHover={true} />
               </div>
             </div>
 
@@ -211,7 +305,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 id="landing-access-portals-btn"
               >
                 <span>Sign In</span>
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1 transition-transform shrink-0" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
               </button>
             </div>
 
@@ -266,10 +360,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-2.5 sm:gap-4 pt-1 sm:pt-1.5">
                     <button
                       onClick={onEnterLogin}
-                      className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-sm sm:text-base lg:text-lg font-black px-6 sm:px-9 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-3 cursor-pointer"
+                      className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-sm sm:text-base lg:text-lg font-black px-6 sm:px-9 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-3 group cursor-pointer"
                     >
                       <span>Sign In</span>
-                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200" />
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
                     </button>
                     <button
                       onClick={() => handleScrollToSection("workflow")}
@@ -283,13 +377,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               {/* Hero Right Visual Column */}
               <FadeIn direction="right" delay={0.6} className="lg:col-span-5 relative mt-6 lg:mt-0">
-                <div className="absolute inset-0 sm:-inset-2 bg-emerald-100/35 rounded-3xl blur-lg -z-10"></div>
+                <div className="absolute inset-0 sm:-inset-2 bg-emerald-400/20 rounded-3xl blur-xl -z-10"></div>
 
                 {/* Interactive Demo Matching Mockup Card */}
-                <div className="bg-white border sm:border-2 border-emerald-100/90 rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xl sm:shadow-2xl space-y-3 sm:space-y-5.5">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl shadow-emerald-950/10 space-y-3 sm:space-y-5.5">
+                  <div className="flex items-start justify-between border-b border-gray-100 pb-3 sm:pb-4">
                     <div className="flex items-center gap-2.5 sm:gap-3.5">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-emerald-50 rounded-xl sm:rounded-2xl flex items-center justify-center text-emerald-800 font-black text-xs sm:text-sm shadow-inner border border-emerald-100 shrink-0">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-800 font-black text-xs sm:text-sm shadow-inner border border-emerald-100 shrink-0">
                         KK
                       </div>
                       <div>
@@ -297,7 +391,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         <p className="text-[10px] sm:text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
                       </div>
                     </div>
-                    <span className="text-[9px] sm:text-sm bg-[#0A6B43] text-white px-2.5 sm:px-3.5 py-0.5 sm:py-1 rounded-full font-black uppercase tracking-wider shadow-2xs shrink-0">
+                    <span className="text-[12px] bg-[#0A6B43] text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full font-bold uppercase tracking-wider shadow-2xs shrink-0 self-start mt-0.5">
                       OSY Youth
                     </span>
                   </div>
@@ -322,40 +416,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     </div>
 
                     <div className="bg-amber-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1 sm:space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-black text-xs sm:text-base text-amber-900">
-                        <Target className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-700 shrink-0" />
+                      <div className="font-black text-xs sm:text-base text-amber-900">
                         Gemini Match Rationale
                       </div>
                       <p className="text-gray-700 font-medium text-[10px] sm:text-sm leading-relaxed">
-                        "Juan has hands-on skills in metal fabrication. This vocational program will officially certify his qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
+                        "You have hands-on skills in metal fabrication. This vocational program will officially certify your qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1 sm:gap-2 text-[10px] sm:text-sm font-black text-gray-600 pt-0.5">
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
-                      <span>No Fees</span>
-                    </span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
-                      <span>Free Tools</span>
-                    </span>
-                    <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
-                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
-                      <span>Transport Allowance</span>
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 text-[10px] sm:text-sm font-black text-gray-600 pt-0.5">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                        <span>No Fees</span>
+                      </span>
+                      <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                        <span>Free Tools</span>
+                      </span>
+                    </div>
+                    <div
+                      className="bg-[#0A6B43] text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl font-bold inline-flex items-center gap-1 sm:gap-1.5 shadow-xs select-none pointer-events-none cursor-default"
+                    >
+                      <span>Apply Now</span>
+                      <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                    </div>
                   </div>
                 </div>
 
                 {/* Mini overlap card - Visible & Optimized across all screen sizes */}
-                <div className="mt-2.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3 sm:p-5.5 rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl border border-emerald-700/80 flex items-center gap-2.5 sm:gap-4 max-w-full sm:max-w-[285px] z-10">
-                  <div className="w-7 h-7 sm:w-10 sm:h-10 bg-emerald-500 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 text-white shadow-xs">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+                <div className="mt-2.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3 sm:p-4.5 rounded-xl sm:rounded-2xl shadow-2xl shadow-emerald-950/50 flex items-center gap-3 sm:gap-3.5 max-w-full sm:max-w-[325px] z-10">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 text-emerald-300 shadow-inner">
+                    <Check className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-base font-black leading-tight text-white">Authorized Portals</p>
-                    <p className="text-[10px] sm:text-xs text-emerald-300 font-semibold mt-0.5 leading-snug">Dual synchronization for Youth & SK Officials</p>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-xs sm:text-base font-black leading-tight text-white">Skills-to-Training Match</p>
+                    <p className="text-[10px] sm:text-xs text-emerald-300 font-semibold leading-snug">Personalized programs based on youth profiles</p>
                   </div>
                 </div>
 
@@ -446,8 +543,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
 
                       {/* Floating Mini Card: Scales up in place when dot is hovered */}
-                      <div className="absolute left-9 sm:left-11 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-emerald-200/90 py-2 px-4 rounded-xl shadow-xl flex items-center gap-2 whitespace-nowrap pointer-events-none transform origin-left transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-emerald-400">
-                        <span className="w-2 h-2 rounded-full bg-[#0A6B43] animate-pulse"></span>
+                      <div className="absolute left-9 sm:left-11 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-emerald-200/90 py-2 px-4 rounded-xl shadow-xl flex items-center whitespace-nowrap pointer-events-none transform origin-left transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-emerald-400">
                         <span className="text-xs sm:text-sm font-black text-gray-900 tracking-tight">
                           San Luis, Pampanga
                         </span>
@@ -468,10 +564,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <NumberCounter value={10.7} suffix="M" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Out-of-School Youth</h4>
+                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Out-of-School Youth</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
                     Young Filipinos facing barriers to education, skills development, and employment.
                   </p>
                 </FadeIn>
@@ -483,10 +579,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <NumberCounter value={49} suffix="%" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Want to Return to Education</h4>
+                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Want to Return to Education</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
                     Nearly half of interviewed out-of-school youth expressed interest in returning to formal education.
                   </p>
                 </FadeIn>
@@ -498,10 +594,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <NumberCounter value={21} suffix="%" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">Plan to Pursue Employment</h4>
+                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Plan to Pursue Employment</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
                     Many young people are looking for pathways toward work and greater economic participation.
                   </p>
                 </FadeIn>
@@ -513,10 +609,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <NumberCounter value={17} duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-[#0A6B43] tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-sm sm:text-base font-extrabold text-gray-900">San Luis Barangays</h4>
+                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">San Luis Barangays</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-sm text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
                     Bridging local youth directly to verified TESDA institute cohorts and sustainable careers.
                   </p>
                 </FadeIn>
@@ -530,15 +626,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Where Potential Meets Opportunity Section */}
       <section id="opportunity" className="py-24 lg:py-32 bg-[#0A4D30] text-white relative overflow-hidden">
-        {/* Grid Texture Overlay */}
-        <div
-          className="absolute inset-0 pointer-events-none z-0 opacity-16 mix-blend-overlay"
-          style={{
-            backgroundImage: "url('/grid.png')",
-            backgroundRepeat: "repeat",
-            backgroundSize: "32px 32px",
-          }}
-        />
+        {/* Animated 3D Grid Tiles Background */}
+        <AnimatedGridBackground />
 
         {/* Subtle background ambient lighting */}
         <div className="absolute top-0 right-0 -mr-40 -mt-40 w-[600px] h-[600px] bg-emerald-400/10 rounded-full blur-3xl pointer-events-none z-0"></div>
@@ -574,103 +663,78 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Dynamic Workflow / Road map Section */}
       <section id="workflow" className="py-20 sm:py-28 bg-white border-b border-gray-100 overflow-hidden">
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+        <div
+          ref={workflowScroll.ref}
+          className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
 
-            {/* Left Column: Editorial Sticky Header */}
-            <FadeIn direction="left" amount={0.3} className="lg:col-span-5 lg:sticky lg:top-28 space-y-6">
-              <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
-                HOW SIKAP WORKS
-              </span>
+            {/* Left Column: Editorial Header aligned with top of right side */}
+            <div className="lg:col-span-5 space-y-6 pt-0">
+              <ChronoItem
+                isVisible={workflowScroll.isVisible}
+                speed={workflowScroll.speed}
+                delay={0.08}
+                duration={0.4}
+              >
+                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+                  HOW SIKAP WORKS
+                </span>
+              </ChronoItem>
 
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]">
+              <ChronoItem
+                as="h2"
+                isVisible={workflowScroll.isVisible}
+                speed={workflowScroll.speed}
+                delay={0.50}
+                duration={0.45}
+                y={18}
+                className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]"
+              >
                 From <span className="text-[#0A6B43]">profile</span> to <span className="text-[#0A6B43]">opportunity</span>
-              </h2>
+              </ChronoItem>
 
-              <p className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-md">
+              <ChronoItem
+                as="p"
+                isVisible={workflowScroll.isVisible}
+                speed={workflowScroll.speed}
+                delay={0.98}
+                duration={0.45}
+                className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-md"
+              >
                 A simple path from discovering your strengths to finding the right training opportunity.
-              </p>
-            </FadeIn>
+              </ChronoItem>
+            </div>
 
-            {/* Right Column: Numbered Process Rows */}
+            {/* Right Column: Numbered Process Rows - ONLY appears after left side completes */}
             <div className="lg:col-span-7 divide-y divide-gray-200/70 border-t border-gray-200/70">
-
-              {/* Step 01 */}
-              <FadeIn direction="right" delay={0.6} amount={0.3} className="py-6 sm:py-8 group">
-                <div className="flex items-start gap-4 sm:gap-6">
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
-                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
-                      01
-                    </span>
+              {workflowSteps.map((step, i) => (
+                <ChronoItem
+                  key={step.num}
+                  isVisible={workflowScroll.isVisible}
+                  speed={workflowScroll.speed}
+                  delay={1.48 + (i * 0.22)}
+                  duration={0.38}
+                  y={18}
+                  className="py-6 sm:py-8 group"
+                >
+                  <div className="flex items-start gap-4 sm:gap-6">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                      <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                        {step.num}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                        {step.title}
+                      </h3>
+                      <p className="text-sm sm:text-base text-gray-500 font-normal leading-relaxed">
+                        {step.desc}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
-                      Discover & Profile
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
-                      KK Youth register their educational background, current competencies, barangay location, and livelihood aspirations through a simple, guided profiling process.
-                    </p>
-                  </div>
-                </div>
-              </FadeIn>
-
-              {/* Step 02 */}
-              <FadeIn direction="right" delay={0.7} amount={0.3} className="py-6 sm:py-8 group">
-                <div className="flex items-start gap-4 sm:gap-6">
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
-                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
-                      02
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
-                      Match & Recommend
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
-                      SiKap's intelligent matching algorithm evaluates youth profiles against verified TESDA programs to highlight best-fit pathways with transparent, explainable rationales.
-                    </p>
-                  </div>
-                </div>
-              </FadeIn>
-
-              {/* Step 03 */}
-              <FadeIn direction="right" delay={0.8} amount={0.3} className="py-6 sm:py-8 group">
-                <div className="flex items-start gap-4 sm:gap-6">
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
-                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
-                      03
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
-                      Apply & Connect
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
-                      Youth explore recommended programs, compare program details and schedules, and apply directly to partner training centers with real-time slot tracking.
-                    </p>
-                  </div>
-                </div>
-              </FadeIn>
-
-              {/* Step 04 */}
-              <FadeIn direction="right" delay={0.9} amount={0.3} className="py-6 sm:py-8 group">
-                <div className="flex items-start gap-4 sm:gap-6">
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
-                    <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
-                      04
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
-                      Train & Certify
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-500 font-normal leading-relaxed">
-                      Partner training institutes confirm applications, automatically reserve cohort capacity, and guide candidates through skills training toward accredited certification.
-                    </p>
-                  </div>
-                </div>
-              </FadeIn>
-
+                </ChronoItem>
+              ))}
             </div>
 
           </div>
@@ -688,89 +752,113 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             backgroundSize: "200px 200px",
           }}
         />
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div
+          ref={faqScroll.ref}
+          className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10"
+        >
           <div className="flex flex-col items-center text-center space-y-12 lg:space-y-16">
 
-            {/* Header */}
+            {/* Header: Top part appears first completely */}
             <div className="space-y-6 flex flex-col items-center w-full">
-              <FadeIn direction="up" amount={0.3} delay={0.1}>
+              <ChronoItem
+                isVisible={faqScroll.isVisible}
+                speed={faqScroll.speed}
+                delay={0.08}
+                duration={0.4}
+              >
                 <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
                   FREQUENTLY ASKED QUESTIONS
                 </span>
-              </FadeIn>
+              </ChronoItem>
 
-              <FadeIn direction="up" amount={0.3} delay={0.2}>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]">
-                  Have <span className="text-[#0A6B43]">questions</span> about <span className="text-[#0A6B43]">SiKap</span>?
-                </h2>
-              </FadeIn>
+              <ChronoItem
+                as="h2"
+                isVisible={faqScroll.isVisible}
+                speed={faqScroll.speed}
+                delay={0.50}
+                duration={0.45}
+                y={18}
+                className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]"
+              >
+                Have <span className="text-[#0A6B43]">questions</span> about <span className="text-[#0A6B43]">SiKap</span>?
+              </ChronoItem>
 
-              <FadeIn direction="up" amount={0.3} delay={0.3}>
-                <p className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-2xl mx-auto">
-                  Find clear answers regarding program eligibility, AI matchmaking, free TESDA certifications, and direct enrollment in San Luis, Pampanga.
-                </p>
-              </FadeIn>
+              <ChronoItem
+                as="p"
+                isVisible={faqScroll.isVisible}
+                speed={faqScroll.speed}
+                delay={0.98}
+                duration={0.45}
+                className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-2xl mx-auto"
+              >
+                Find clear answers regarding program eligibility, AI matchmaking, free TESDA certifications, and direct enrollment in San Luis, Pampanga.
+              </ChronoItem>
             </div>
 
-            {/* Minimalist Editorial Accordion Rows */}
+            {/* Minimalist Editorial Accordion Rows: Only appear AFTER header completes */}
             <div className="w-full divide-y divide-gray-200/70 border-t border-gray-200/70 text-left">
               {faqs.map((faq, i) => {
                 const isOpen = activeFaqIndex === i;
                 return (
-                  <FadeIn key={i} direction="up" delay={0.4 + (i * 0.15)} amount={0.3}>
-                    <div className="py-5 sm:py-7 group transition-colors duration-200">
-                      <button
-                        type="button"
-                        onClick={() => toggleFaq(i)}
-                        className="w-full text-left flex items-start justify-between gap-4 sm:gap-6 cursor-pointer"
-                        aria-expanded={isOpen}
+                  <ChronoItem
+                    key={i}
+                    isVisible={faqScroll.isVisible}
+                    speed={faqScroll.speed}
+                    delay={1.48 + (i * 0.18)}
+                    duration={0.38}
+                    className="py-5 sm:py-7 group transition-colors duration-200"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleFaq(i)}
+                      className="w-full text-left flex items-start justify-between gap-4 sm:gap-6 cursor-pointer"
+                      aria-expanded={isOpen}
+                    >
+                      <h3 className={`text-base sm:text-xl font-bold tracking-tight transition-colors duration-200 pr-2 ${isOpen ? "text-[#0A6B43]" : "text-gray-900 group-hover:text-[#0A6B43]"}`}>
+                        {faq.q}
+                      </h3>
+                      <motion.div
+                        animate={{ rotate: isOpen ? 45 : 0 }}
+                        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${isOpen
+                          ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
+                          : "bg-white border-gray-200 text-gray-500 group-hover:border-[#0A6B43] group-hover:text-[#0A6B43]"
+                          }`}
                       >
-                        <h3 className={`text-base sm:text-xl font-bold tracking-tight transition-colors duration-200 pr-2 ${isOpen ? "text-[#0A6B43]" : "text-gray-900 group-hover:text-[#0A6B43]"}`}>
-                          {faq.q}
-                        </h3>
-                        <motion.div
-                          animate={{ rotate: isOpen ? 45 : 0 }}
-                          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${isOpen
-                            ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
-                            : "bg-white border-gray-200 text-gray-500 group-hover:border-[#0A6B43] group-hover:text-[#0A6B43]"
-                            }`}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </motion.div>
-                      </button>
+                        <Plus className="w-4 h-4" />
+                      </motion.div>
+                    </button>
 
-                      <AnimatePresence initial={false}>
-                        {isOpen && (
-                          <motion.div
-                            key="content"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{
-                              height: "auto",
-                              opacity: 1,
-                              transition: {
-                                height: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
-                                opacity: { duration: 0.25, delay: 0.05 }
-                              }
-                            }}
-                            exit={{
-                              height: 0,
-                              opacity: 0,
-                              transition: {
-                                height: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
-                                opacity: { duration: 0.15 }
-                              }
-                            }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pt-3.5 sm:pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed">
-                              {faq.a}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </FadeIn>
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          key="content"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{
+                            height: "auto",
+                            opacity: 1,
+                            transition: {
+                              height: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+                              opacity: { duration: 0.25, delay: 0.05 }
+                            }
+                          }}
+                          exit={{
+                            height: 0,
+                            opacity: 0,
+                            transition: {
+                              height: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+                              opacity: { duration: 0.15 }
+                            }
+                          }}
+                          className="overflow-hidden"
+                        >
+                          <div className="pt-3.5 sm:pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed">
+                            {faq.a}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </ChronoItem>
                 );
               })}
             </div>
@@ -791,8 +879,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           }}
         />
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <FadeIn amount={0.3} duration={0.4} className="relative rounded-3xl overflow-hidden bg-[#0A4D30] border border-emerald-800/60 shadow-2xl px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-12 text-left">
-
+          <div
+            ref={ctaScroll.ref}
+            className="relative rounded-3xl overflow-hidden bg-[#0A4D30] border border-emerald-800/60 shadow-2xl px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-12 text-left"
+          >
             {/* Animated 3D Grid Overlay */}
             <AnimatedGridBackground />
 
@@ -801,27 +891,47 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
               <div className="space-y-6 lg:space-y-30 max-w-2xl">
-                <FadeIn direction="left" delay={0.4}>
-                  <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]">
-                    Ready to secure your <span className="text-[#F5A623]">vocational</span> career <span className="text-[#F5A623]">pathway</span>?
-                  </h2>
-                </FadeIn>
+                {/* 1. Header appears FIRST */}
+                <ChronoItem
+                  as="h2"
+                  isVisible={ctaScroll.isVisible}
+                  speed={ctaScroll.speed}
+                  delay={0.08}
+                  duration={0.48}
+                  y={20}
+                  className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]"
+                >
+                  Ready to Take the <span className="text-[#F5A623]">Next Step</span> Toward <span className="text-[#F5A623]">Your Future</span>?
+                </ChronoItem>
 
-                <FadeIn direction="left" delay={0.6}>
-                  <p className="text-base sm:text-lg text-emerald-100/80 font-normal leading-relaxed">
-                    Discover free TESDA-accredited training programs matched to your strengths, interests, and aspirations across San Luis, Pampanga.
-                  </p>
-                </FadeIn>
+                {/* 2. Subheader appears SECOND - only after header completes */}
+                <ChronoItem
+                  as="p"
+                  isVisible={ctaScroll.isVisible}
+                  speed={ctaScroll.speed}
+                  delay={0.60}
+                  duration={0.48}
+                  className="text-base sm:text-lg text-emerald-100/80 font-normal leading-relaxed"
+                >
+                  Start your journey with SiKap and explore training opportunities that can help you develop new skills.
+                </ChronoItem>
               </div>
 
-              <FadeIn direction="up" delay={0.8} className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-3 sm:gap-4 shrink-0">
+              {/* 3. Buttons appear THIRD - only after subheader completes */}
+              <ChronoItem
+                isVisible={ctaScroll.isVisible}
+                speed={ctaScroll.speed}
+                delay={1.12}
+                duration={0.42}
+                className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-3 sm:gap-4 shrink-0"
+              >
                 <button
                   type="button"
                   onClick={onEnterLogin}
-                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
+                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2 sm:gap-2.5 group cursor-pointer"
                 >
                   <span>Register</span>
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
                 </button>
                 <button
                   type="button"
@@ -830,21 +940,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 >
                   How It Works
                 </button>
-              </FadeIn>
+              </ChronoItem>
             </div>
-          </FadeIn>
+          </div>
         </div>
       </section>
 
       {/* Minimalist Footer */}
-      <footer className="bg-[#0D1812] border-t border-emerald-950 pt-14 sm:pt-16 pb-8 mt-auto overflow-hidden">
+      <footer className="bg-[#082D21] border-t border-emerald-950/60 pt-14 sm:pt-16 pb-8 mt-auto overflow-hidden">
         <FadeIn className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-8 md:gap-4 text-center md:text-left">
 
             {/* Brand */}
             <div className="flex flex-col items-center md:items-start gap-3.5 sm:gap-4 max-w-xl">
               <div className="cursor-pointer inline-flex items-center justify-center" onClick={() => handleScrollToSection("hero")}>
-                <SikapLogo size={36} logoSize={42} textSize={28} variant="white" showText={true} />
+                <SikapLogo size={58} logoSize={58} textSize={42} variant="white" showText={true} gap="gap-1" textClassName="translate-y-[1.5px]" disableHover={true} />
               </div>
               <p className="text-sm text-gray-400 font-medium text-center md:text-left max-w-xl leading-relaxed">
                 SiKap helps young people in San Luis, Pampanga discover opportunities that fit their strengths and aspirations. By connecting youth profiles with relevant training programs, SiKap turns skills, interests, and goals into clearer pathways for learning, growth, and opportunity.
@@ -863,9 +973,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Bottom Sub-footer */}
-          <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-gray-900 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 text-xs font-medium text-gray-500 text-center md:text-left">
+          <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-emerald-900/50 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 text-xs font-medium text-gray-400 text-center md:text-left">
             <p>© 2026 SiKap. All rights reserved.</p>
-            <p className="text-emerald-500/80">Designed and developed by BITWISE</p>
+            <p className="text-emerald-400/90">Designed and developed by BITWISE</p>
           </div>
         </FadeIn>
       </footer>

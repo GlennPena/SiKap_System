@@ -8,7 +8,8 @@ import {
   Lock, Bell, Search, Filter, MapPin, Sparkles, AlertTriangle, ChevronRight, ChevronLeft,
   User, Mail, Phone, Calendar, CheckCircle, X, Layers, ExternalLink, ShieldCheck,
   Key, Power, Ban, FileText, History, Clock, Tag, Award, GraduationCap, CheckCircle as CheckIcon,
-  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu, Loader2
+  LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu, Loader2,
+  Table, ArrowUpRight, ChevronDown, ChevronUp
 } from "lucide-react";
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
@@ -17,6 +18,19 @@ import { motion } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { isProgramEnded } from "../lib/utils";
+
+const getPaginationItems = (current: number, total: number): (number | string)[] => {
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 3) {
+    return [1, 2, 3, "...", total];
+  }
+  if (current >= total - 2) {
+    return [1, "...", total - 2, total - 1, total];
+  }
+  return [1, "...", current - 1, current, current + 1, "...", total];
+};
 
 interface SuperAdminPortalProps {
   youthProfiles: YouthProfile[];
@@ -232,6 +246,9 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   const [youthStatusFilter, setYouthStatusFilter] = useState("All");
   const [youthDemographicFilter, setYouthDemographicFilter] = useState("All");
   const [youthEduFilter, setYouthEduFilter] = useState("All");
+  const [youthViewMode, setYouthViewMode] = useState<"grid" | "table">("table");
+  const [youthTableSortColumn, setYouthTableSortColumn] = useState<string>("name");
+  const [youthTableSortDirection, setYouthTableSortDirection] = useState<"asc" | "desc">("asc");
   const [selectedYouthDetail, setSelectedYouthDetail] = useState<YouthProfile | null>(null);
   const [youthPage, setYouthPage] = useState(1);
   const YOUTH_PER_PAGE = 10;
@@ -779,12 +796,58 @@ Please sign in at ${window.location.origin} and change your password immediately
     setYouthPage(1);
   }, [youthSearch, youthBrgyFilter, youthStatusFilter, youthDemographicFilter, youthEduFilter]);
 
+  const handleYouthTableSort = (column: string) => {
+    if (youthTableSortColumn === column) {
+      setYouthTableSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setYouthTableSortColumn(column);
+      setYouthTableSortDirection("asc");
+    }
+  };
+
+  const sortedYouthMasterlist = useMemo(() => {
+    const list = [...filteredYouthMasterlist];
+    list.sort((a, b) => {
+      let valA: any = "";
+      let valB: any = "";
+      switch (youthTableSortColumn) {
+        case "name":
+          valA = a.name.toLowerCase();
+          valB = b.name.toLowerCase();
+          break;
+        case "barangay":
+          valA = a.barangay.toLowerCase();
+          valB = b.barangay.toLowerCase();
+          break;
+        case "age":
+          valA = a.age;
+          valB = b.age;
+          break;
+        case "status":
+          valA = a.currentStatus.toLowerCase();
+          valB = b.currentStatus.toLowerCase();
+          break;
+        case "education":
+          valA = a.educationalAttainment.toLowerCase();
+          valB = b.educationalAttainment.toLowerCase();
+          break;
+        default:
+          valA = a.name.toLowerCase();
+          valB = b.name.toLowerCase();
+      }
+      if (valA < valB) return youthTableSortDirection === "asc" ? -1 : 1;
+      if (valA > valB) return youthTableSortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [filteredYouthMasterlist, youthTableSortColumn, youthTableSortDirection]);
+
   // Calculate total pages and slice for pagination (limit 10 per page)
-  const totalYouthPages = Math.max(1, Math.ceil(filteredYouthMasterlist.length / YOUTH_PER_PAGE));
+  const totalYouthPages = Math.max(1, Math.ceil(sortedYouthMasterlist.length / YOUTH_PER_PAGE));
   const paginatedYouthList = useMemo(() => {
     const start = (youthPage - 1) * YOUTH_PER_PAGE;
-    return filteredYouthMasterlist.slice(start, start + YOUTH_PER_PAGE);
-  }, [filteredYouthMasterlist, youthPage, YOUTH_PER_PAGE]);
+    return sortedYouthMasterlist.slice(start, start + YOUTH_PER_PAGE);
+  }, [sortedYouthMasterlist, youthPage, YOUTH_PER_PAGE]);
 
   // Suggestion 4: System-Wide Audit Log & Activity Stream
   const auditLogs = useMemo(() => {
@@ -1949,22 +2012,10 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
 
               {/* Registered System Demographics Breakdown */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-4">
-                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
-                        Registered System Accounts & Demographics by Assigned Role
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
-                        Live distribution across the 17 barangays of San Luis, Pampanga
-                      </p>
-                    </div>
-                  </div>
-                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shrink-0 shadow-2xs">
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">System Accounts & Demographics</h3>
+                  <span className="text-xs font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full shadow-2xs self-start sm:self-auto shrink-0">
                     {officialAccounts.length + councilors.length + youthProfiles.length} Total Users Active
                   </span>
                 </div>
@@ -1977,15 +2028,15 @@ Please sign in at ${window.location.origin} and change your password immediately
                     { label: "SK Councilors", count: stats.skCouncilors, color: "bg-purple-500", lightBg: "bg-purple-50 border-purple-200 text-purple-800" },
                     { label: "KK Youth Members", count: stats.kkMembers, color: "bg-[#0A6B43]", lightBg: "bg-emerald-100/80 border-emerald-300 text-emerald-900" }
                   ].map((roleItem, index) => (
-                    <div key={index} className="bg-slate-50/80 border border-slate-200/90 p-4 rounded-xl flex flex-col justify-between hover:bg-white hover:shadow-xs transition-all">
-                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">{roleItem.label}</p>
+                    <div key={index} className="bg-white border border-gray-200/90 p-4 rounded-xl flex flex-col justify-between hover:shadow-xs hover:-translate-y-0.5 transition-all duration-200">
+                      <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">{roleItem.label}</p>
                       <div className="mt-3 flex items-baseline justify-between">
-                        <span className="text-2xl font-black text-slate-900">{roleItem.count}</span>
+                        <span className="text-2xl font-black text-gray-900">{roleItem.count}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${roleItem.lightBg}`}>
                           Active
                         </span>
                       </div>
-                      <div className="w-full bg-slate-200 h-1.5 rounded-full mt-3 overflow-hidden">
+                      <div className="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden">
                         <div className={`h-full ${roleItem.color} rounded-full`} style={{ width: "100%" }} />
                       </div>
                     </div>
@@ -1999,7 +2050,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                 {/* Provisioning Quick Shortcuts */}
                 <div className="bg-gradient-to-br from-[#112F24] to-[#164132] text-white rounded-2xl p-4 sm:p-6 shadow-md space-y-4 lg:col-span-1">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shrink-0">
+                    <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black shrink-0 shadow-xs">
                       <PlusCircle className="w-5 h-5" />
                     </div>
                     <div>
@@ -2017,7 +2068,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                       onClick={() => {
                         setIsReportModalOpen(true);
                       }}
-                      className="w-full py-2.5 px-4 bg-emerald-800/80 hover:bg-emerald-700/80 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer border border-emerald-500/40"
+                      className="w-full py-2.5 px-4 bg-emerald-800/80 hover:bg-emerald-700/80 active:scale-[0.99] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer border border-emerald-500/40"
                     >
                       <span className="flex items-center gap-2">
                         <FileText className="w-3.5 h-3.5 text-emerald-300" />
@@ -2029,7 +2080,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                       onClick={() => {
                         setActiveTab("youth_masterlist");
                       }}
-                      className="w-full py-2.5 px-4 bg-emerald-700/60 hover:bg-emerald-600/70 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer border border-emerald-500/40"
+                      className="w-full py-2.5 px-4 bg-emerald-700/60 hover:bg-emerald-600/70 active:scale-[0.99] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer border border-emerald-500/40"
                     >
                       <span>Explore Youth Masterlist</span>
                       <ArrowRight className="w-4 h-4 text-emerald-300" />
@@ -2039,7 +2090,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                         setActiveTab("create_account");
                         setRole("SK Chairperson");
                       }}
-                      className="w-full py-2.5 px-4 bg-white hover:bg-emerald-50 text-slate-900 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer"
+                      className="w-full py-2.5 px-4 bg-white hover:bg-emerald-50 active:scale-[0.99] text-gray-900 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer"
                     >
                       <span>Provision SK / Captain Account</span>
                       <ArrowRight className="w-4 h-4 text-[#0A6B43]" />
@@ -2049,7 +2100,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                         setActiveTab("create_tesda");
                         setRole("TESDA Representative");
                       }}
-                      className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer"
+                      className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-between cursor-pointer"
                     >
                       <span>Provision TESDA Representative</span>
                       <ArrowRight className="w-4 h-4 text-slate-950" />
@@ -2058,53 +2109,53 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
 
                 {/* Infrastructure Health & Security Grid */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 shadow-xs lg:col-span-2 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-3.5">
+                <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-6 shadow-xs lg:col-span-2 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-gray-100 pb-3.5">
                     <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
                         <Activity className="w-5 h-5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
+                        <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">
                           Infrastructure Architecture & Security Node Status
                         </h3>
-                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">
                           Core system microservices, cryptographic tokens, and database latency
                         </p>
                       </div>
                     </div>
-                    <span className="self-start sm:self-auto text-[10px] sm:text-[11px] bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-full border border-slate-200/80 shrink-0">
+                    <span className="self-start sm:self-auto text-[10px] sm:text-[11px] bg-gray-100 text-gray-600 font-bold px-2.5 py-1 rounded-full border border-gray-200 shrink-0">
                       Refreshed: Real-time
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-                    <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                      <div className="flex items-center gap-2 text-amber-700 font-bold">
+                    <div className="p-4 bg-gray-50/80 border border-gray-200/80 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2 text-amber-800 font-bold">
                         <Lock className="w-4 h-4 text-amber-600" />
                         <span>Security Layer</span>
                       </div>
-                      <p className="text-slate-600 text-[11px] leading-relaxed">
+                      <p className="text-gray-600 text-[11px] leading-relaxed">
                         OAuth 2.0 and NextAuth JWT tokens enforced with Bcrypt 10-round salted password hashing.
                       </p>
                     </div>
 
-                    <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                      <div className="flex items-center gap-2 text-blue-700 font-bold">
+                    <div className="p-4 bg-gray-50/80 border border-gray-200/80 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2 text-blue-800 font-bold">
                         <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" style={{ animationDuration: "8s" }} />
                         <span>Database Sync</span>
                       </div>
-                      <p className="text-slate-600 text-[11px] leading-relaxed">
+                      <p className="text-gray-600 text-[11px] leading-relaxed">
                         Prisma PostgreSQL engine with cascaded foreign-key consistency and real-time state sync.
                       </p>
                     </div>
 
-                    <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                      <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                    <div className="p-4 bg-gray-50/80 border border-gray-200/80 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold">
                         <Sparkles className="w-4 h-4 text-emerald-600" />
                         <span>AI Inference Engine</span>
                       </div>
-                      <p className="text-slate-600 text-[11px] leading-relaxed">
+                      <p className="text-gray-600 text-[11px] leading-relaxed">
                         Content-Based Filtering (CBF) engine active with zero queue latency, coupled with Gemini LLM for personalized insights.
                       </p>
                     </div>
@@ -2142,93 +2193,122 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
               </div>
 
-              {/* Comprehensive Filter Controls */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                  <div className="flex-1 relative">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      type="text"
-                      placeholder="Search youth by Name, Purok, Target Skills, or Livelihood Goal..."
-                      value={youthSearch}
-                      onChange={(e) => setYouthSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                    />
-                  </div>
-
-                  <span className="text-xs font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl shrink-0">
-                    Showing {filteredYouthMasterlist.length} of {youthProfiles.length} KK Youth
+              {/* Single Main Card Container for Registered Youth, Search & Results */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Card Name on left, active counter badge on right */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Katipunan ng Kabataan Masterlist</h3>
+                  <span className="text-xs font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full shadow-2xs self-start sm:self-auto shrink-0">
+                    Showing {filteredYouthMasterlist.length} of {youthProfiles.length} Members
                   </span>
                 </div>
 
-                {/* Filter Selector Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
-                  <div>
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Barangay Zone (17)</label>
-                    <CustomSelect
-                      value={youthBrgyFilter}
-                      onChange={(val) => setYouthBrgyFilter(val)}
-                      options={[
-                        { value: "All", label: "All 17 Barangays" },
-                        ...barangays.map(b => ({ value: b.name, label: b.name }))
-                      ]}
-                      size="sm"
-                      placeholder="All 17 Barangays"
+                {/* Second Row: Search bar with current filters + Grid/Table view */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, skill, purok, or barangay…"
+                      value={youthSearch}
+                      onChange={(e) => setYouthSearch(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                     />
                   </div>
 
-                  <div>
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Livelihood / Education Status</label>
-                    <CustomSelect
-                      value={youthStatusFilter}
-                      onChange={(val) => setYouthStatusFilter(val)}
-                      options={[
-                        { value: "All", label: "All Statuses" },
-                        { value: "Out-of-school", label: "Out-of-school (OSY)" },
-                        { value: "In-school", label: "In-school" },
-                        { value: "Employed", label: "Employed" },
-                        { value: "Self-employed", label: "Self-employed" },
-                        { value: "Graduate", label: "Graduate" }
-                      ]}
-                      size="sm"
-                      placeholder="All Statuses"
-                    />
-                  </div>
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 sm:flex-initial">
+                      <CustomSelect
+                        value={youthBrgyFilter}
+                        onChange={(val) => setYouthBrgyFilter(val)}
+                        options={[
+                          { value: "All", label: "All Barangays" },
+                          ...barangays.map(b => ({ value: b.name, label: b.name }))
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Barangays"
+                      />
 
-                  <div>
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Special Sector / Demographics</label>
-                    <CustomSelect
-                      value={youthDemographicFilter}
-                      onChange={(val) => setYouthDemographicFilter(val)}
-                      options={[
-                        { value: "All", label: "All Sectors" },
-                        { value: "Solo Parent", label: "Solo Parent" },
-                        { value: "PWD", label: "Person with Disability (PWD)" },
-                        { value: "Indigenous", label: "Indigenous Youth" }
-                      ]}
-                      size="sm"
-                      placeholder="All Sectors"
-                    />
-                  </div>
+                      <CustomSelect
+                        value={youthStatusFilter}
+                        onChange={(val) => setYouthStatusFilter(val)}
+                        options={[
+                          { value: "All", label: "All Statuses" },
+                          { value: "Out-of-school", label: "Out-of-school (OSY)" },
+                          { value: "In-school", label: "In-school" },
+                          { value: "Employed", label: "Employed" },
+                          { value: "Self-employed", label: "Self-employed" },
+                          { value: "Graduate", label: "Graduate" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Statuses"
+                      />
 
-                  <div>
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">Educational Attainment</label>
-                    <CustomSelect
-                      value={youthEduFilter}
-                      onChange={(val) => setYouthEduFilter(val)}
-                      options={[
-                        { value: "All", label: "All Attainments" },
-                        ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
-                      ]}
-                      size="sm"
-                      placeholder="All Attainments"
-                    />
+                      <CustomSelect
+                        value={youthDemographicFilter}
+                        onChange={(val) => setYouthDemographicFilter(val)}
+                        options={[
+                          { value: "All", label: "All Sectors" },
+                          { value: "Solo Parent", label: "Solo Parent" },
+                          { value: "PWD", label: "Person with Disability (PWD)" },
+                          { value: "Indigenous", label: "Indigenous Youth" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Sectors"
+                      />
+
+                      <CustomSelect
+                        value={youthEduFilter}
+                        onChange={(val) => setYouthEduFilter(val)}
+                        options={[
+                          { value: "All", label: "All Education" },
+                          ...EDUCATIONAL_ATTAINMENT_OPTIONS.map(edu => ({ value: edu, label: edu }))
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All Education"
+                      />
+                    </div>
+
+                    {/* View Mode Switcher */}
+                    <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setYouthViewMode("grid")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${
+                          youthViewMode === "grid"
+                            ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                            : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                        }`}
+                        title="Grid Cards View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Grid</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setYouthViewMode("table")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${
+                          youthViewMode === "table"
+                            ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                            : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                        }`}
+                        title="Table View"
+                      >
+                        <Table className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Table</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
+                {/* Reset Filters Notification (if active) */}
                 {(youthSearch || youthBrgyFilter !== "All" || youthStatusFilter !== "All" || youthDemographicFilter !== "All" || youthEduFilter !== "All") && (
-                  <div className="flex items-center justify-between pt-2 text-xs">
-                    <span className="text-slate-500 font-medium">Active filters applied</span>
+                  <div className="flex items-center justify-between pt-1 text-xs text-gray-500 border-t border-gray-100">
+                    <span className="font-medium">Active filters applied</span>
                     <button
                       onClick={() => {
                         setYouthSearch("");
@@ -2239,157 +2319,450 @@ Please sign in at ${window.location.origin} and change your password immediately
                       }}
                       className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <X className="w-3.5 h-3.5" /> Reset Filters
+                      <X className="w-3.5 h-3.5" /> Clear Filters
                     </button>
                   </div>
                 )}
-              </div>
 
-              {/* Masterlist Table Card */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200/80 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
-                        <th className="p-4 pl-6">KK Member Name</th>
-                        <th className="p-4">Barangay Zone</th>
-                        <th className="p-4">Age / Education</th>
-                        <th className="p-4">Current Status</th>
-                        <th className="p-4">Special Sectors</th>
-                        <th className="p-4">Key Competencies</th>
-                        <th className="p-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                      {paginatedYouthList.length > 0 ? (
-                        paginatedYouthList.map((y) => (
-                          <tr key={y.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-4 pl-6 font-bold text-slate-900 text-sm">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
-                                  {y.name.charAt(0)}
-                                </div>
-                                <div>
-                                  <span className="block">{y.name}</span>
-                                  <span className="text-[10px] font-mono text-slate-400 font-normal">{y.purok}</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-4 font-bold text-slate-800">
-                              <div className="flex items-center gap-1 text-xs">
-                                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>{y.barangay.replace(/^Barangay\s+/i, "")}</span>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <span className="font-bold text-slate-900">{y.age} y/o</span>
-                              <span className="text-[11px] text-slate-500 block">{y.educationalAttainment}</span>
-                            </td>
-                            <td className="p-4">
-                              <span className={`inline-block text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-                                y.currentStatus === "Out-of-school"
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : y.currentStatus === "In-school"
-                                  ? "bg-blue-50 text-blue-800 border-blue-200"
-                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              }`}>
-                                {y.currentStatus}
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex flex-wrap gap-1">
-                                {y.soloParent && <span className="text-[9px] font-bold px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded">Solo Parent</span>}
-                                {y.pwd && <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 rounded">PWD</span>}
-                                {y.indigenous && <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-50 text-amber-700 border border-amber-200 rounded">Indigenous</span>}
-                                {!y.soloParent && !y.pwd && !y.indigenous && <span className="text-slate-400 text-[11px]">—</span>}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
-                                {y.skills && y.skills.slice(0, 2).map((s: string, sIdx: number) => (
-                                  <span key={sIdx} className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-semibold">
-                                    {s}
-                                  </span>
-                                ))}
-                                {y.skills && y.skills.length > 2 && (
-                                  <span className="text-[10px] text-slate-400 font-bold">+{y.skills.length - 2}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-4 text-center">
-                              <button
-                                onClick={() => setSelectedYouthDetail(y)}
-                                className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-[#0A6B43] border border-slate-200 hover:border-emerald-300 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <Eye className="w-3.5 h-3.5" /> Full Profile
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
-                            No Katipunan ng Kabataan members found matching current search or filters.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination Controls (Limit 10 per page) */}
-                {filteredYouthMasterlist.length > 0 && (
-                  <div className="p-4 px-6 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <span className="text-slate-500 font-medium">
-                      Showing <strong>{((youthPage - 1) * YOUTH_PER_PAGE) + 1}</strong> to <strong>{Math.min(youthPage * YOUTH_PER_PAGE, filteredYouthMasterlist.length)}</strong> of <strong>{filteredYouthMasterlist.length}</strong> youth records
-                    </span>
-
-                    <div className="flex items-center gap-1.5 self-center sm:self-auto">
-                      <button
-                        onClick={() => setYouthPage(prev => Math.max(1, prev - 1))}
-                        disabled={youthPage === 1}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                      </button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: totalYouthPages }, (_, i) => i + 1).map((pg) => {
-                          if (
-                            pg === 1 || 
-                            pg === totalYouthPages || 
-                            (pg >= youthPage - 1 && pg <= youthPage + 1)
-                          ) {
-                            return (
-                              <button
-                                key={pg}
-                                onClick={() => setYouthPage(pg)}
-                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                  youthPage === pg
-                                    ? "bg-[#0A6B43] text-white shadow-xs"
-                                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
-                                }`}
-                              >
-                                {pg}
-                              </button>
-                            );
-                          } else if (pg === youthPage - 2 || pg === youthPage + 2) {
-                            return <span key={pg} className="px-1 text-slate-400 font-bold">...</span>;
-                          }
-                          return null;
-                        })}
+                {/* Results Section (Grid View or Table View) */}
+                <div>
+                  {sortedYouthMasterlist.length === 0 ? (
+                    <div className="border border-gray-200 rounded-xl p-10 text-center space-y-3 bg-white">
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0A6B43] flex items-center justify-center mx-auto">
+                        <Users className="w-6 h-6" />
                       </div>
-
+                      <h4 className="text-base font-bold text-gray-900">No Katipunan ng Kabataan Members Found</h4>
+                      <p className="text-xs text-gray-500 max-w-md mx-auto">
+                        We couldn't find any youth records matching your current filter configuration. Try broadening your search or resetting filters.
+                      </p>
                       <button
-                        onClick={() => setYouthPage(prev => Math.min(totalYouthPages, prev + 1))}
-                        disabled={youthPage === totalYouthPages}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+                        onClick={() => {
+                          setYouthSearch("");
+                          setYouthBrgyFilter("All");
+                          setYouthStatusFilter("All");
+                          setYouthDemographicFilter("All");
+                          setYouthEduFilter("All");
+                        }}
+                        className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                       >
-                        Next <ChevronRight className="w-3.5 h-3.5" />
+                        Reset All Filters
                       </button>
                     </div>
-                  </div>
-                )}
+                  ) : youthViewMode === "grid" ? (
+                    /* Grid Cards View - Matching SK/KK format */
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {paginatedYouthList.map((y) => (
+                          <div
+                            key={y.id}
+                            className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between group"
+                            id={`youth-card-${y.id}`}
+                          >
+                            <div>
+                              {/* Avatar - Name, _ years old . gender */}
+                              <div className="flex items-center gap-3 mb-3.5">
+                                <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
+                                  {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <h4 className="font-bold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-base truncate leading-snug tracking-tight">
+                                    {y.name}
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                    {y.age} years old · {y.gender || "Youth"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Break Line between Avatar and Location */}
+                              <hr className="border-gray-100 my-3.5" />
+
+                              {/* Location (Barangay & Purok) & Educational Attainment */}
+                              <div className="flex items-center gap-2 text-xs text-gray-600 mb-4 min-w-0">
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span className="font-medium">{y.barangay.replace(/^Barangay\s+/i, "")} ({y.purok})</span>
+                                </div>
+                                <span className="text-gray-300 shrink-0 select-none">·</span>
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span className="truncate">{y.educationalAttainment}</span>
+                                </div>
+                              </div>
+
+                              {/* Livelihood Status Pill Badge */}
+                              <div className="mb-3.5">
+                                <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${
+                                  y.currentStatus === "Out-of-school"
+                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                    : y.currentStatus === "In-school"
+                                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                }`}>
+                                  {y.currentStatus}
+                                </span>
+                              </div>
+
+                              {/* Skills Pills */}
+                              <div className="flex flex-wrap gap-1 mb-4">
+                                {y.skills && y.skills.length > 0 ? (
+                                  <>
+                                    {y.skills.slice(0, 3).map((skill, sIdx) => (
+                                      <span key={sIdx} className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100/60 px-2 py-0.5 rounded-md">
+                                        {skill}
+                                      </span>
+                                    ))}
+                                    {y.skills.length > 3 && (
+                                      <span className="text-[11px] font-bold text-gray-400 px-1 py-0.5">
+                                        +{y.skills.length - 3}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-[11px] font-semibold px-2 py-0.5 bg-gray-100 text-gray-500 border border-gray-200/80 rounded-md">
+                                    No Skills Specified
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <button
+                              onClick={() => setSelectedYouthDetail(y)}
+                              className="w-full mt-2 py-2 px-3 bg-gray-50 hover:bg-emerald-50 hover:text-[#0A6B43] border border-gray-200/80 rounded-xl text-xs font-bold text-gray-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <span>View Full Profile</span>
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Grid Pagination Footer */}
+                      {sortedYouthMasterlist.length > YOUTH_PER_PAGE && (
+                        <div className="border-t border-gray-100 px-4 py-3 sm:px-6 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Showing <span className="font-semibold text-gray-800">{(youthPage - 1) * YOUTH_PER_PAGE + 1}</span> to{" "}
+                            <span className="font-semibold text-gray-800">{Math.min(sortedYouthMasterlist.length, youthPage * YOUTH_PER_PAGE)}</span> of{" "}
+                            <span className="font-semibold text-gray-800">{sortedYouthMasterlist.length}</span> members
+                          </p>
+
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                            <button
+                              type="button"
+                              disabled={youthPage === 1}
+                              onClick={() => setYouthPage(p => Math.max(1, p - 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                              <span>Previous</span>
+                            </button>
+
+                            {getPaginationItems(youthPage, totalYouthPages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span
+                                    key={`ellipsis-grid-${idx}`}
+                                    className="h-8 min-w-[32px] px-2 flex items-center justify-center text-xs text-gray-400 font-semibold select-none"
+                                  >
+                                    ...
+                                  </span>
+                                );
+                              }
+                              const pageNum = Number(item);
+                              const isActive = youthPage === pageNum;
+                              return (
+                                <button
+                                  key={`grid-page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => setYouthPage(pageNum)}
+                                  className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer outline-none focus:outline-none ${
+                                    isActive
+                                      ? "bg-[#0A6B43] text-white shadow-xs font-bold"
+                                      : "border border-gray-200 bg-white text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 active:scale-95"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+
+                            <button
+                              type="button"
+                              disabled={youthPage === totalYouthPages}
+                              onClick={() => setYouthPage(p => Math.min(totalYouthPages, p + 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Table View - Matching SK Table format */
+                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-[12px]">
+                          <thead>
+                            <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleYouthTableSort("name")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    youthTableSortColumn === "name" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by KK Youth Member (${youthTableSortColumn === "name" ? (youthTableSortDirection === "asc" ? "Increasing" : "Decreasing") : "Click to sort"})`}
+                                >
+                                  <span>Youth Member</span>
+                                  {youthTableSortColumn === "name" ? (
+                                    youthTableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleYouthTableSort("barangay")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    youthTableSortColumn === "barangay" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Barangay Zone`}
+                                >
+                                  <span>Barangay Zone</span>
+                                  {youthTableSortColumn === "barangay" ? (
+                                    youthTableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleYouthTableSort("age")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    youthTableSortColumn === "age" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Age`}
+                                >
+                                  <span>Age</span>
+                                  {youthTableSortColumn === "age" ? (
+                                    youthTableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleYouthTableSort("education")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    youthTableSortColumn === "education" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Education`}
+                                >
+                                  <span>Education</span>
+                                  {youthTableSortColumn === "education" ? (
+                                    youthTableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleYouthTableSort("status")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none whitespace-nowrap group outline-none focus:outline-none focus:ring-0 focus-visible:outline-none border-0 ${
+                                    youthTableSortColumn === "status" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                  }`}
+                                  title={`Sort by Livelihood Status`}
+                                >
+                                  <span>Status</span>
+                                  {youthTableSortColumn === "status" ? (
+                                    youthTableSortDirection === "asc" ? (
+                                      <ChevronUp className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                    )
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 opacity-60 shrink-0 transition-opacity" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">Special Sectors</th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">Key Competencies</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {paginatedYouthList.map((y) => (
+                              <tr key={y.id} className="hover:bg-emerald-50/30 transition-colors">
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
+                                      {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-gray-900 truncate">{y.name}</p>
+                                      <p className="text-[11px] text-gray-400 truncate">{y.email || `${y.purok}`}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-gray-700 whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5 font-medium">
+                                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>{y.barangay.replace(/^Barangay\s+/i, "")}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                  {y.age} y/o · {y.gender || "Youth"}
+                                </td>
+                                <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
+                                  {y.educationalAttainment}
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${
+                                    y.currentStatus === "Out-of-school"
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : y.currentStatus === "In-school"
+                                      ? "bg-blue-50 text-blue-800 border-blue-200"
+                                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  }`}>
+                                    {y.currentStatus}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <div className="flex flex-wrap gap-1">
+                                    {y.soloParent && <span className="text-[10px] font-bold px-1.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-md">Solo Parent</span>}
+                                    {y.pwd && <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md">PWD</span>}
+                                    {y.indigenous && <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md">Indigenous</span>}
+                                    {!y.soloParent && !y.pwd && !y.indigenous && <span className="text-gray-400 text-[11px]">—</span>}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                    {y.skills && y.skills.length > 0 ? (
+                                      <>
+                                        {y.skills.slice(0, 2).map((skill, sIdx) => (
+                                          <span key={sIdx} className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100/60 px-2 py-0.5 rounded-md">
+                                            {skill}
+                                          </span>
+                                        ))}
+                                        {y.skills.length > 2 && (
+                                          <span className="text-[11px] font-bold text-gray-400 px-1 py-0.5">
+                                            +{y.skills.length - 2}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-[11px] font-semibold px-2 py-0.5 bg-gray-100 text-gray-500 border border-gray-200/80 rounded-md">
+                                        No Skills Specified
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-center whitespace-nowrap">
+                                  <button
+                                    onClick={() => setSelectedYouthDetail(y)}
+                                    title="View Full Profile"
+                                    className="w-8.5 h-8.5 rounded-full bg-white border border-gray-200/90 text-[#0A6B43] shadow-xs hover:bg-[#0A6B43] hover:text-white hover:border-[#0A6B43] hover:shadow-sm inline-flex items-center justify-center transition-all cursor-pointer active:scale-95 group mx-auto outline-none focus:outline-none focus:ring-0 focus-visible:outline-none"
+                                  >
+                                    <ArrowUpRight className="w-4.5 h-4.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Table Pagination Footer */}
+                      {sortedYouthMasterlist.length > YOUTH_PER_PAGE && (
+                        <div className="border-t border-gray-100 px-4 py-3 sm:px-6 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+                          <p className="text-xs text-gray-500 font-medium">
+                            Showing <span className="font-semibold text-gray-800">{(youthPage - 1) * YOUTH_PER_PAGE + 1}</span> to{" "}
+                            <span className="font-semibold text-gray-800">{Math.min(sortedYouthMasterlist.length, youthPage * YOUTH_PER_PAGE)}</span> of{" "}
+                            <span className="font-semibold text-gray-800">{sortedYouthMasterlist.length}</span> members
+                          </p>
+
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                            <button
+                              type="button"
+                              disabled={youthPage === 1}
+                              onClick={() => setYouthPage(p => Math.max(1, p - 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                              <span>Previous</span>
+                            </button>
+
+                            {getPaginationItems(youthPage, totalYouthPages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span
+                                    key={`ellipsis-tbl-${idx}`}
+                                    className="h-8 min-w-[32px] px-2 flex items-center justify-center text-xs text-gray-400 font-semibold select-none"
+                                  >
+                                    ...
+                                  </span>
+                                );
+                              }
+                              const pageNum = Number(item);
+                              const isActive = youthPage === pageNum;
+                              return (
+                                <button
+                                  key={`tbl-page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => setYouthPage(pageNum)}
+                                  className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer outline-none focus:outline-none ${
+                                    isActive
+                                      ? "bg-[#0A6B43] text-white shadow-xs font-bold"
+                                      : "border border-gray-200 bg-white text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 active:scale-95"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+
+                            <button
+                              type="button"
+                              disabled={youthPage === totalYouthPages}
+                              onClick={() => setYouthPage(p => Math.min(totalYouthPages, p + 1))}
+                              className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
             </div>
@@ -2423,28 +2796,32 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* Top Mini KPI Stats Row */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-                <div className="bg-white border border-slate-200/90 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
+                <div className="bg-white border border-gray-200/90 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Total Zones</span>
-                    <Building2 className="w-4 h-4 text-emerald-700" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">Total Zones</span>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold">
+                      <Building2 className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-slate-900">{brgyCoverageSummary.total}</span>
-                    <span className="text-[11px] text-slate-500 font-semibold">Barangays</span>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">{brgyCoverageSummary.total}</span>
+                    <span className="text-[11px] text-gray-500 font-semibold">Barangays</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-medium mt-1">100% municipal coverage</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-1">100% municipal coverage</p>
                 </div>
 
-                <div className="bg-white border border-slate-200/90 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
+                <div className="bg-white border border-gray-200/90 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Fully Assigned</span>
-                    <CheckCircle2 className="w-4 h-4 text-[#0A6B43]" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">Fully Assigned</span>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-[#0A6B43]">{brgyCoverageSummary.fullyCovered}</span>
-                    <span className="text-[11px] text-slate-500 font-semibold">/ 17</span>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black text-[#0A6B43] tracking-tight">{brgyCoverageSummary.fullyCovered}</span>
+                    <span className="text-[11px] text-gray-500 font-semibold">/ 17</span>
                   </div>
-                  <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1.5 overflow-hidden">
+                  <div className="w-full bg-gray-100 h-1.5 rounded-full mt-2 overflow-hidden">
                     <div 
                       className="bg-[#0A6B43] h-full rounded-full transition-all" 
                       style={{ width: `${(brgyCoverageSummary.fullyCovered / 17) * 100}%` }} 
@@ -2452,98 +2829,130 @@ Please sign in at ${window.location.origin} and change your password immediately
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-200/90 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
+                <div className="bg-white border border-gray-200/90 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">SK Chairpersons</span>
-                    <Shield className="w-4 h-4 text-blue-600" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">SK Chairpersons</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-bold">
+                      <Shield className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-slate-900">{stats.skChairpersons}</span>
-                    <span className="text-[11px] text-slate-500 font-semibold">/ 17 Active</span>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">{stats.skChairpersons}</span>
+                    <span className="text-[11px] text-gray-500 font-semibold">/ 17 Active</span>
                   </div>
                   <p className="text-[10px] text-blue-600 font-bold mt-1">{17 - stats.skChairpersons} vacancies</p>
                 </div>
 
-                <div className="bg-white border border-slate-200/90 p-4 rounded-2xl shadow-xs flex flex-col justify-between">
+                <div className="bg-white border border-gray-200/90 p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Barangay Captains</span>
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">Barangay Captains</span>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center font-bold">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-slate-900">{stats.brgyCaptains}</span>
-                    <span className="text-[11px] text-slate-500 font-semibold">/ 17 Active</span>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">{stats.brgyCaptains}</span>
+                    <span className="text-[11px] text-gray-500 font-semibold">/ 17 Active</span>
                   </div>
                   <p className="text-[10px] text-emerald-600 font-bold mt-1">{17 - stats.brgyCaptains} vacancies</p>
                 </div>
               </div>
 
-              {/* Filter, Search & View Switcher Toolbar */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex-1 relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    placeholder="Search by Barangay name, SK Chairperson, or Barangay Captain..."
-                    value={brgySearch}
-                    onChange={(e) => setBrgySearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CustomSelect
-                    value={brgyStatusFilter}
-                    onChange={(val) => setBrgyStatusFilter(val)}
-                    options={[
-                      { value: "All", label: "All 17 Barangays" },
-                      { value: "Fully Assigned", label: `Fully Assigned (${brgyCoverageSummary.fullyCovered})` },
-                      { value: "Needs SK Chairperson", label: `Needs SK Chairperson (${brgyCoverageSummary.needsSk})` },
-                      { value: "Needs Barangay Captain", label: `Needs Barangay Captain (${brgyCoverageSummary.needsCap})` },
-                      { value: "Needs Assignment", label: `Needs Any Assignment (${brgyCoverageSummary.needsAny})` }
-                    ]}
-                    size="sm"
-                    placeholder="All 17 Barangays"
-                  />
-
-                  {/* View Mode Switcher */}
-                  <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-                    <button
-                      onClick={() => setBrgyViewMode("grid")}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        brgyViewMode === "grid"
-                          ? "bg-white text-slate-900 shadow-xs"
-                          : "text-slate-500 hover:text-slate-900"
-                      }`}
-                      title="Grid Cards View"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Cards</span>
-                    </button>
-                    <button
-                      onClick={() => setBrgyViewMode("table")}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        brgyViewMode === "table"
-                          ? "bg-white text-slate-900 shadow-xs"
-                          : "text-slate-500 hover:text-slate-900"
-                      }`}
-                      title="Compact Table View"
-                    >
-                      <List className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Table</span>
-                    </button>
-                  </div>
-
+              {/* Single Main Card Container for Barangay Directory */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Card Name on left, Provision Leader on right */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Barangay Administrative Directory</h3>
                   <button
                     onClick={() => {
                       setActiveTab("create_account");
                       setRole("SK Chairperson");
                     }}
-                    className="px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-4 sm:px-5 py-2.5 rounded-xl text-[14px] font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
                   >
-                    <PlusCircle className="w-3.5 h-3.5" /> Provision Leader
+                    <PlusCircle className="w-4.5 h-4.5 shrink-0" />
+                    <span>Provision Leader</span>
                   </button>
                 </div>
-              </div>
+
+                {/* Second Row: Search bar with current filters + Grid/Table view */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by Barangay name, SK Chairperson, or Barangay Captain…"
+                      value={brgySearch}
+                      onChange={(e) => setBrgySearch(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <div className="min-w-[200px]">
+                      <CustomSelect
+                        value={brgyStatusFilter}
+                        onChange={(val) => setBrgyStatusFilter(val)}
+                        options={[
+                          { value: "All", label: "All 17 Barangays" },
+                          { value: "Fully Assigned", label: `Fully Assigned (${brgyCoverageSummary.fullyCovered})` },
+                          { value: "Needs SK Chairperson", label: `Needs SK (${brgyCoverageSummary.needsSk})` },
+                          { value: "Needs Barangay Captain", label: `Needs Captain (${brgyCoverageSummary.needsCap})` },
+                          { value: "Needs Assignment", label: `Needs Assignment (${brgyCoverageSummary.needsAny})` }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="All 17 Barangays"
+                      />
+                    </div>
+
+                    {/* View Mode Switcher */}
+                    <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setBrgyViewMode("grid")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${
+                          brgyViewMode === "grid"
+                            ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                            : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                        }`}
+                        title="Grid Cards View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Grid</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrgyViewMode("table")}
+                        className={`h-full px-3 rounded-lg flex items-center gap-1.5 text-[12px] transition-all cursor-pointer outline-none focus:outline-none focus:ring-0 focus-visible:outline-none ${
+                          brgyViewMode === "table"
+                            ? "bg-white text-[#0A6B43] shadow-xs font-bold"
+                            : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                        }`}
+                        title="Table View"
+                      >
+                        <Table className="w-3.5 h-3.5 shrink-0" />
+                        <span className="hidden sm:inline">Table</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reset Filters Notification (if active) */}
+                {(brgySearch || brgyStatusFilter !== "All") && (
+                  <div className="flex items-center justify-between pt-1 text-xs text-gray-500 border-t border-gray-100">
+                    <span className="font-medium">Active filters applied</span>
+                    <button
+                      onClick={() => {
+                        setBrgySearch("");
+                        setBrgyStatusFilter("All");
+                      }}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" /> Clear Filters
+                    </button>
+                  </div>
+                )}
 
               {/* ============================================================ */}
               {/* VIEW 1: ORGANIZED GRID CARDS VIEW */}
@@ -2556,23 +2965,23 @@ Please sign in at ${window.location.origin} and change your password immediately
                     return (
                       <div 
                         key={item.name}
-                        className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-md hover:-translate-y-1.5 transition-all duration-200 flex flex-col justify-between space-y-4 group"
+                        className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md hover:-translate-y-1.5 transition-all duration-200 flex flex-col justify-between space-y-4 group"
                       >
                         {/* Card Header: Zone Name + Status Badge + Rename */}
-                        <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center font-black text-sm shrink-0 border border-emerald-200">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center font-black text-sm shrink-0 border border-emerald-100 shadow-2xs">
                               <MapPin className="w-4.5 h-4.5" />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                              <h3 className="text-sm sm:text-base font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate tracking-tight">
                                 Barangay {item.name}
                               </h3>
-                              <span className="text-[10px] text-slate-500 font-medium">San Luis, Pampanga</span>
+                              <span className="text-[10px] text-gray-400 font-medium">San Luis, Pampanga</span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 shrink-0">
                             <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border shrink-0 ${
                               isFullyCovered 
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
@@ -2582,7 +2991,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                             </span>
                             <button
                               onClick={() => handleEditBrgyClick(item.name)}
-                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                               title="Rename Barangay"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -2594,9 +3003,9 @@ Please sign in at ${window.location.origin} and change your password immediately
                         <div className="space-y-2.5">
                           
                           {/* SK Chairperson Box */}
-                          <div className={`p-3 rounded-xl border transition-all ${
+                          <div className={`p-3.5 rounded-xl border transition-all ${
                             item.sk.status === "Active" 
-                              ? "bg-slate-50/90 border-slate-200" 
+                              ? "bg-gray-50/70 border-gray-200/80 hover:bg-white hover:border-gray-300" 
                               : "bg-amber-50/40 border-dashed border-amber-300"
                           }`}>
                             <div className="flex items-center justify-between mb-1.5">
@@ -2604,10 +3013,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                                 <Shield className="w-3 h-3" /> SK Chairperson
                               </span>
                               {item.sk.id && (
-                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded ${
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-full border ${
                                   item.sk.status === "Active" 
-                                    ? "bg-emerald-100 text-emerald-800" 
-                                    : "bg-amber-100 text-amber-800"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
                                 }`}>
                                   {item.sk.status}
                                 </span>
@@ -2617,15 +3026,15 @@ Please sign in at ${window.location.origin} and change your password immediately
                             {item.sk.id ? (
                               <div className="flex items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="text-xs font-bold text-slate-900 truncate">{item.sk.name}</p>
-                                  <p className="text-[10px] font-mono text-slate-500 truncate">{item.sk.email}</p>
+                                  <p className="text-xs font-bold text-gray-900 truncate">{item.sk.name}</p>
+                                  <p className="text-[10px] font-mono text-gray-400 truncate">{item.sk.email}</p>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   {/* Reset Password */}
                                   <button
                                     onClick={() => handleResetPassword({ id: item.sk.id!, name: item.sk.name, email: item.sk.email, role: "SK Chairperson", barangay: item.name })}
                                     disabled={updatingUserId === item.sk.id}
-                                    className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-100/60 rounded-md transition-colors cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
                                     title="Reset Password to Temporary"
                                   >
                                     <Key className="w-3.5 h-3.5" />
@@ -2634,7 +3043,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   <button
                                     onClick={() => handleToggleStatus({ id: item.sk.id!, name: item.sk.name, status: item.sk.status })}
                                     disabled={updatingUserId === item.sk.id}
-                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-100/60 rounded-md transition-colors cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
                                     title={item.sk.status === "Active" ? "Suspend Account" : "Reactivate Account"}
                                   >
                                     {item.sk.status === "Active" ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
@@ -2642,7 +3051,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   {/* Delete */}
                                   <button
                                     onClick={() => setDeleteAccountTarget({ id: item.sk.id!, name: item.sk.name, role: "SK Chairperson" })}
-                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-100/60 rounded-md transition-colors cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                                     title="Delete SK Chairperson Account"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -2651,14 +3060,14 @@ Please sign in at ${window.location.origin} and change your password immediately
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-2 py-0.5">
-                                <span className="text-[11px] text-slate-400 italic">No Chairperson assigned</span>
+                                <span className="text-[11px] text-gray-400 italic">No Chairperson assigned</span>
                                 <button
                                   onClick={() => {
                                     setActiveTab("create_account");
                                     setRole("SK Chairperson");
                                     setBarangayAssignment(item.name);
                                   }}
-                                  className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                                  className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                                 >
                                   <UserPlus className="w-3 h-3" /> Assign Now
                                 </button>
@@ -2667,9 +3076,9 @@ Please sign in at ${window.location.origin} and change your password immediately
                           </div>
 
                           {/* Barangay Captain Box */}
-                          <div className={`p-3 rounded-xl border transition-all ${
+                          <div className={`p-3.5 rounded-xl border transition-all ${
                             item.cap.status === "Active" 
-                              ? "bg-slate-50/90 border-slate-200" 
+                              ? "bg-gray-50/70 border-gray-200/80 hover:bg-white hover:border-gray-300" 
                               : "bg-amber-50/40 border-dashed border-amber-300"
                           }`}>
                             <div className="flex items-center justify-between mb-1.5">
@@ -2677,10 +3086,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                                 <ShieldCheck className="w-3 h-3" /> Barangay Captain
                               </span>
                               {item.cap.id && (
-                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded ${
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-full border ${
                                   item.cap.status === "Active" 
-                                    ? "bg-emerald-100 text-emerald-800" 
-                                    : "bg-amber-100 text-amber-800"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
                                 }`}>
                                   {item.cap.status}
                                 </span>
@@ -2690,15 +3099,15 @@ Please sign in at ${window.location.origin} and change your password immediately
                             {item.cap.id ? (
                               <div className="flex items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="text-xs font-bold text-slate-900 truncate">{item.cap.name}</p>
-                                  <p className="text-[10px] font-mono text-slate-500 truncate">{item.cap.email}</p>
+                                  <p className="text-xs font-bold text-gray-900 truncate">{item.cap.name}</p>
+                                  <p className="text-[10px] font-mono text-gray-400 truncate">{item.cap.email}</p>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   {/* Reset Password */}
                                   <button
                                     onClick={() => handleResetPassword({ id: item.cap.id!, name: item.cap.name, email: item.cap.email, role: "Barangay Captain", barangay: item.name })}
                                     disabled={updatingUserId === item.cap.id}
-                                    className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-100/60 rounded-md transition-colors cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors cursor-pointer"
                                     title="Reset Password to Temporary"
                                   >
                                     <Key className="w-3.5 h-3.5" />
@@ -2707,7 +3116,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   <button
                                     onClick={() => handleToggleStatus({ id: item.cap.id!, name: item.cap.name, status: item.cap.status })}
                                     disabled={updatingUserId === item.cap.id}
-                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-100/60 rounded-md transition-colors cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
                                     title={item.cap.status === "Active" ? "Suspend Account" : "Reactivate Account"}
                                   >
                                     {item.cap.status === "Active" ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
@@ -2715,7 +3124,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   {/* Delete */}
                                   <button
                                     onClick={() => setDeleteAccountTarget({ id: item.cap.id!, name: item.cap.name, role: "Barangay Captain" })}
-                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-100/60 rounded-md transition-colors cursor-pointer"
+                                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                                     title="Delete Barangay Captain Account"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -2724,14 +3133,14 @@ Please sign in at ${window.location.origin} and change your password immediately
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-2 py-0.5">
-                                <span className="text-[11px] text-slate-400 italic">No Captain assigned</span>
+                                <span className="text-[11px] text-gray-400 italic">No Captain assigned</span>
                                 <button
                                   onClick={() => {
                                     setActiveTab("create_account");
                                     setRole("Barangay Captain");
                                     setBarangayAssignment(item.name);
                                   }}
-                                  className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                                  className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
                                 >
                                   <UserPlus className="w-3 h-3" /> Assign Now
                                 </button>
@@ -2741,14 +3150,14 @@ Please sign in at ${window.location.origin} and change your password immediately
 
                         </div>
 
-                        {/* Card Footer: Demographic summary & Full Roster Modal Trigger */}
-                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        {/* Card Sub-Footer: Councilor count + Youth residents + Roster action */}
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <Users className="w-3 h-3 text-slate-500 shrink-0" />
+                            <span className="text-[11px] font-bold text-gray-600 bg-gray-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <Users className="w-3 h-3 text-gray-500 shrink-0" />
                               <span>{item.councilorCount} Councilors</span>
                             </span>
-                            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <GraduationCap className="w-3 h-3 text-[#0A6B43] shrink-0" />
                               <span>{item.kkCount} Youth</span>
                             </span>
@@ -2759,13 +3168,12 @@ Please sign in at ${window.location.origin} and change your password immediately
                               setSelectedBrgy(item.name);
                               setIsViewModalOpen(true);
                             }}
-                            className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 cursor-pointer transition-colors group-hover:translate-x-0.5 transition-transform"
                           >
                             <span>Roster</span>
-                            <ArrowRight className="w-3 h-3" />
+                            <ArrowRight className="w-3.5 h-3.5" />
                           </button>
                         </div>
-
                       </div>
                     );
                   })}
@@ -2776,13 +3184,13 @@ Please sign in at ${window.location.origin} and change your password immediately
               {/* VIEW 2: COMPACT HIGH-LEGIBILITY TABLE VIEW */}
               {/* ============================================================ */}
               {brgyViewMode === "table" && (
-                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-                  <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden">
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <div>
-                      <h3 className="text-sm font-extrabold text-slate-900">Barangay Administrative Directory (17 Municipal Zones)</h3>
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">Tabular overview of SK Chairpersons and Barangay Captains across San Luis</p>
+                      <h3 className="text-sm font-extrabold text-gray-900">Barangay Administrative Directory (17 Municipal Zones)</h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Tabular overview of SK Chairpersons and Barangay Captains across San Luis</p>
                     </div>
-                    <span className="text-xs font-bold text-slate-500">
+                    <span className="text-xs font-bold text-gray-500">
                       Showing <strong>{filteredBarangays.length}</strong> of 17 zones
                     </span>
                   </div>
@@ -2790,7 +3198,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200/80 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
+                        <tr className="bg-gray-50 border-b border-gray-200/80 text-[10px] text-gray-500 uppercase tracking-wider font-extrabold">
                           <th className="p-4 pl-6">Barangay Zone</th>
                           <th className="p-4">SK Chairperson</th>
                           <th className="p-4">Barangay Captain</th>
@@ -2799,12 +3207,12 @@ Please sign in at ${window.location.origin} and change your password immediately
                           <th className="p-4 text-center">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
                         {paginatedBarangayList.map((item, index) => (
-                          <tr key={index} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-4 pl-6 font-extrabold text-slate-900 text-sm">
-                              <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-[#0A6B43] flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200">
+                          <tr key={index} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="p-4 pl-6 font-extrabold text-gray-900 text-sm">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-[#0A6B43] flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
                                   <MapPin className="w-3.5 h-3.5" />
                                 </div>
                                 <span>{item.name}</span>
@@ -2816,10 +3224,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                               {item.sk.id ? (
                                 <div className="flex items-center justify-between gap-2">
                                   <div>
-                                    <p className="font-bold text-slate-900">{item.sk.name}</p>
-                                    <p className="text-[11px] text-slate-500 font-medium">{item.sk.email}</p>
-                                    <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.2 rounded mt-1 ${
-                                      item.sk.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
+                                    <p className="font-bold text-gray-900">{item.sk.name}</p>
+                                    <p className="text-[11px] text-gray-500 font-medium">{item.sk.email}</p>
+                                    <span className={`inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full mt-1 ${
+                                      item.sk.status === "Active" ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
                                     }`}>
                                       {item.sk.status}
                                     </span>
@@ -2828,7 +3236,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     <button
                                       onClick={() => handleResetPassword({ id: item.sk.id!, name: item.sk.name, email: item.sk.email, role: "SK Chairperson", barangay: item.name })}
                                       disabled={updatingUserId === item.sk.id}
-                                      className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                                       title="Reset Password to Temporary"
                                     >
                                       <Key className="w-3.5 h-3.5" />
@@ -2836,14 +3244,14 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     <button
                                       onClick={() => handleToggleStatus({ id: item.sk.id!, name: item.sk.name, status: item.sk.status })}
                                       disabled={updatingUserId === item.sk.id}
-                                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                       title={item.sk.status === "Active" ? "Suspend Account" : "Reactivate Account"}
                                     >
                                       {item.sk.status === "Active" ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
                                     </button>
                                     <button
                                       onClick={() => setDeleteAccountTarget({ id: item.sk.id!, name: item.sk.name, role: "SK Chairperson" })}
-                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                       title="Delete SK Chairperson Account"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -2857,7 +3265,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     setRole("SK Chairperson");
                                     setBarangayAssignment(item.name);
                                   }}
-                                  className="text-xs font-bold text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                                  className="text-xs font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
                                 >
                                   <UserPlus className="w-3.5 h-3.5" /> Assign Chairperson
                                 </button>
@@ -2869,10 +3277,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                               {item.cap.id ? (
                                 <div className="flex items-center justify-between gap-2">
                                   <div>
-                                    <p className="font-bold text-slate-900">{item.cap.name}</p>
-                                    <p className="text-[11px] text-slate-500 font-medium">{item.cap.email}</p>
-                                    <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.2 rounded mt-1 ${
-                                      item.cap.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
+                                    <p className="font-bold text-gray-900">{item.cap.name}</p>
+                                    <p className="text-[11px] text-gray-500 font-medium">{item.cap.email}</p>
+                                    <span className={`inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full mt-1 ${
+                                      item.cap.status === "Active" ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
                                     }`}>
                                       {item.cap.status}
                                     </span>
@@ -2881,7 +3289,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     <button
                                       onClick={() => handleResetPassword({ id: item.cap.id!, name: item.cap.name, email: item.cap.email, role: "Barangay Captain", barangay: item.name })}
                                       disabled={updatingUserId === item.cap.id}
-                                      className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                                       title="Reset Password to Temporary"
                                     >
                                       <Key className="w-3.5 h-3.5" />
@@ -2889,14 +3297,14 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     <button
                                       onClick={() => handleToggleStatus({ id: item.cap.id!, name: item.cap.name, status: item.cap.status })}
                                       disabled={updatingUserId === item.cap.id}
-                                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                       title={item.cap.status === "Active" ? "Suspend Account" : "Reactivate Account"}
                                     >
                                       {item.cap.status === "Active" ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
                                     </button>
                                     <button
                                       onClick={() => setDeleteAccountTarget({ id: item.cap.id!, name: item.cap.name, role: "Barangay Captain" })}
-                                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                       title="Delete Barangay Captain Account"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -2910,21 +3318,21 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     setRole("Barangay Captain");
                                     setBarangayAssignment(item.name);
                                   }}
-                                  className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                                  className="text-xs font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
                                 >
                                   <UserPlus className="w-3.5 h-3.5" /> Assign Captain
                                 </button>
                               )}
                             </td>
 
-                            <td className="p-4 text-center font-bold text-slate-700">
-                              <span className="px-2.5 py-1 bg-slate-100 rounded-md inline-block text-xs">
+                            <td className="p-4 text-center font-bold text-gray-700">
+                              <span className="px-2.5 py-1 bg-gray-100 rounded-lg inline-block text-xs">
                                 {item.councilorCount}
                               </span>
                             </td>
 
                             <td className="p-4 text-center font-bold text-[#0A6B43]">
-                              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md inline-block text-xs">
+                              <span className="px-2.5 py-1 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-lg inline-block text-xs">
                                 {item.kkCount}
                               </span>
                             </td>
@@ -2936,14 +3344,14 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     setSelectedBrgy(item.name);
                                     setIsViewModalOpen(true);
                                   }}
-                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-[#0A6B43] border border-slate-200 hover:border-emerald-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                                   title="View Barangay Roster"
                                 >
                                   <Eye className="w-3.5 h-3.5" /> View
                                 </button>
                                 <button
                                   onClick={() => handleEditBrgyClick(item.name)}
-                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-gray-400 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                                   title="Rename Barangay"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
@@ -2955,62 +3363,72 @@ Please sign in at ${window.location.origin} and change your password immediately
                       </tbody>
                     </table>
                   </div>
-                </div>
-              )}
 
-              {/* Pagination Controls for Barangay Directory (6 per page) */}
-              {filteredBarangays.length > 0 && (
-                <div className="p-4 px-6 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <span className="text-slate-500 font-medium">
-                    Showing <strong>{((brgyPage - 1) * BRGY_PER_PAGE) + 1}</strong> to <strong>{Math.min(brgyPage * BRGY_PER_PAGE, filteredBarangays.length)}</strong> of <strong>{filteredBarangays.length}</strong> barangay zones
-                  </span>
+                  {/* Table Pagination Footer */}
+                  {filteredBarangays.length > BRGY_PER_PAGE && (
+                    <div className="border-t border-gray-100 px-4 py-3 sm:px-6 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Showing <span className="font-semibold text-gray-800">{(brgyPage - 1) * BRGY_PER_PAGE + 1}</span> to{" "}
+                        <span className="font-semibold text-gray-800">{Math.min(filteredBarangays.length, brgyPage * BRGY_PER_PAGE)}</span> of{" "}
+                        <span className="font-semibold text-gray-800">{filteredBarangays.length}</span> barangays
+                      </p>
 
-                  <div className="flex items-center gap-1.5 self-center sm:self-auto">
-                    <button
-                      onClick={() => setBrgyPage(prev => Math.max(1, prev - 1))}
-                      disabled={brgyPage === 1}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                    </button>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                        <button
+                          type="button"
+                          disabled={brgyPage === 1}
+                          onClick={() => setBrgyPage(p => Math.max(1, p - 1))}
+                          className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          <span>Previous</span>
+                        </button>
 
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: totalBrgyPages }, (_, i) => i + 1).map((pg) => {
-                        if (
-                          pg === 1 || 
-                          pg === totalBrgyPages || 
-                          (pg >= brgyPage - 1 && pg <= brgyPage + 1)
-                        ) {
+                        {getPaginationItems(brgyPage, totalBrgyPages).map((item, idx) => {
+                          if (item === "...") {
+                            return (
+                              <span
+                                key={`ellipsis-tbl-brgy-${idx}`}
+                                className="h-8 min-w-[32px] px-2 flex items-center justify-center text-xs text-gray-400 font-semibold select-none"
+                              >
+                                ...
+                              </span>
+                            );
+                          }
+                          const pageNum = Number(item);
+                          const isActive = brgyPage === pageNum;
                           return (
                             <button
-                              key={pg}
-                              onClick={() => setBrgyPage(pg)}
-                              className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                brgyPage === pg
-                                  ? "bg-[#0A6B43] text-white shadow-xs"
-                                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                              key={`tbl-brgy-page-${pageNum}`}
+                              type="button"
+                              onClick={() => setBrgyPage(pageNum)}
+                              className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer outline-none focus:outline-none ${
+                                isActive
+                                  ? "bg-[#0A6B43] text-white shadow-xs font-bold"
+                                  : "border border-gray-200 bg-white text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 active:scale-95"
                               }`}
                             >
-                              {pg}
+                              {pageNum}
                             </button>
                           );
-                        } else if (pg === brgyPage - 2 || pg === brgyPage + 2) {
-                          return <span key={pg} className="px-1 text-slate-400 font-bold">...</span>;
-                        }
-                        return null;
-                      })}
-                    </div>
+                        })}
 
-                    <button
-                      onClick={() => setBrgyPage(prev => Math.min(totalBrgyPages, prev + 1))}
-                      disabled={brgyPage === totalBrgyPages}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      Next <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                        <button
+                          type="button"
+                          disabled={brgyPage === totalBrgyPages}
+                          onClick={() => setBrgyPage(p => Math.min(totalBrgyPages, p + 1))}
+                          className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                        >
+                          <span>Next</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+
+              </div>
 
             </div>
           )}
@@ -3041,123 +3459,129 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
               </div>
 
-              {/* Header and Action */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex-1 min-w-0 relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search by TESDA Representative name or official email..."
-                    value={tesdaSearch}
-                    onChange={(e) => setTesdaSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                  />
+              {/* Single Main Card Container for TESDA Municipal Representatives */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Card Name on left, Provision New Representative on right */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">TESDA Municipal Representatives</h3>
+                  <button
+                    onClick={() => {
+                      setActiveTab("create_tesda");
+                      setRole("TESDA Representative");
+                    }}
+                    className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-4 sm:px-5 py-2.5 rounded-xl text-[14px] font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
+                  >
+                    <PlusCircle className="w-4.5 h-4.5 shrink-0" />
+                    <span>Provision New Representative</span>
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setActiveTab("create_tesda");
-                    setRole("TESDA Representative");
-                  }}
-                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-                >
-                  <PlusCircle className="w-4 h-4 shrink-0" />
-                  <span className="leading-snug">Provision New Representative</span>
-                </button>
-              </div>
-
-              <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
-                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
-                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                      <Briefcase className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">TESDA Municipal Representatives</h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Authorized technical and vocational training coordinators assigned to the municipality</p>
-                    </div>
+                {/* Second Row: Search bar */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search by representative name or official email…"
+                      value={tesdaSearch}
+                      onChange={(e) => setTesdaSearch(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
                   </div>
-                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shadow-2xs shrink-0">
+
+                  <span className="text-xs font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl shadow-2xs self-start sm:self-auto shrink-0">
                     {filteredTesdaReps.length} Representative(s)
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200/80 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
-                        <th className="p-4 pl-6">Representative Name</th>
-                        <th className="p-4">Official Email</th>
-                        <th className="p-4">Assigned Role</th>
-                        <th className="p-4 text-center">Status</th>
-                        <th className="p-4 text-center">Date Created</th>
-                        <th className="p-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                      {filteredTesdaReps.length > 0 ? (
-                        filteredTesdaReps.map((item) => (
-                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-4 pl-6 font-bold text-slate-900 text-sm">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-900 border border-amber-200 flex items-center justify-center font-black text-xs uppercase">
-                                  {item.name.charAt(0)}
+                {/* Results Table Container */}
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-[12px]">
+                      <thead>
+                        <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                          <th className="py-3 px-4 text-left whitespace-nowrap">Representative Name</th>
+                          <th className="py-3 px-4 text-left whitespace-nowrap">Official Email</th>
+                          <th className="py-3 px-4 text-left whitespace-nowrap">Assigned Role</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Date Created</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredTesdaReps.length > 0 ? (
+                          filteredTesdaReps.map((item) => (
+                            <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                                    {item.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-gray-900 truncate">{item.name}</p>
+                                    <p className="text-[11px] text-gray-400">TVET Technical Liaison</p>
+                                  </div>
                                 </div>
-                                <span>{item.name}</span>
-                              </div>
-                            </td>
-                            <td className="p-4 text-[#0A6B43] font-mono text-xs">{item.email}</td>
-                            <td className="p-4 text-slate-700">{item.role}</td>
-                            <td className="p-4 text-center">
-                              <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                item.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
-                              }`}>
-                                {item.status}
-                              </span>
-                            </td>
-                            <td className="p-4 text-center text-slate-500">{item.dateCreated}</td>
-                            <td className="p-4">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {/* Suggestion 2: Reset Password */}
-                                <button
-                                  onClick={() => handleResetPassword({ id: item.id, name: item.name, email: item.email, role: "TESDA Representative" })}
-                                  disabled={updatingUserId === item.id}
-                                  className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                                  title="Reset Password to Temporary"
-                                >
-                                  <Key className="w-3.5 h-3.5" />
-                                </button>
+                              </td>
+                              <td className="py-3 px-4 text-[#0A6B43] font-mono text-xs font-semibold whitespace-nowrap">
+                                {item.email}
+                              </td>
+                              <td className="py-3 px-4 text-gray-700 whitespace-nowrap font-medium">
+                                {item.role}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <span className={`inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                                  item.status === "Active" 
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
+                                }`}>
+                                  {item.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center text-gray-500 whitespace-nowrap">
+                                {item.dateCreated}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => handleResetPassword({ id: item.id, name: item.name, email: item.email, role: "TESDA Representative" })}
+                                    disabled={updatingUserId === item.id}
+                                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Reset Password to Temporary"
+                                  >
+                                    <Key className="w-3.5 h-3.5" />
+                                  </button>
 
-                                {/* Suggestion 3: Toggle Status */}
-                                <button
-                                  onClick={() => handleToggleStatus({ id: item.id, name: item.name, status: item.status })}
-                                  disabled={updatingUserId === item.id}
-                                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                  title={item.status === "Active" ? "Suspend Account" : "Reactivate Account"}
-                                >
-                                  {item.status === "Active" ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
-                                </button>
+                                  <button
+                                    onClick={() => handleToggleStatus({ id: item.id, name: item.name, status: item.status })}
+                                    disabled={updatingUserId === item.id}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                    title={item.status === "Active" ? "Suspend Account" : "Reactivate Account"}
+                                  >
+                                    {item.status === "Active" ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
+                                  </button>
 
-                                <button
-                                  onClick={() => setDeleteAccountTarget({ id: item.id, name: item.name, role: "TESDA Representative" })}
-                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                  title="Delete TESDA Representative Account"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                                  <button
+                                    onClick={() => setDeleteAccountTarget({ id: item.id, name: item.name, role: "TESDA Representative" })}
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Delete TESDA Representative Account"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-gray-400 font-medium">
+                              No TESDA Representatives registered matching your search criteria.
                             </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-400 font-medium">
-                            No TESDA Representatives registered matching search.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
@@ -3190,65 +3614,72 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
               </div>
 
-              {/* Filter controls */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex-1 min-w-0 relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search logs by actor, action description, or barangay..."
-                    value={auditSearch}
-                    onChange={(e) => setAuditSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <CustomSelect
-                    value={auditCategoryFilter}
-                    onChange={(val) => setAuditCategoryFilter(val)}
-                    options={[
-                      { value: "All", label: `All Event Categories (${auditLogs.length})` },
-                      { value: "User Provisioning", label: "User Provisioning" },
-                      { value: "Youth Registration", label: "Youth Registration" },
-                      { value: "Application & Enrollment", label: "Application & Enrollment" },
-                      { value: "Program Update", label: "Program Updates" },
-                      { value: "Announcement", label: "Announcements" }
-                    ]}
-                    size="sm"
-                    placeholder="All Event Categories"
-                  />
-                </div>
-              </div>
-
-              {/* Logs Stream Card */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
-                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                      <History className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
-                        Municipal Activity Stream & Audit Trail
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">
-                        Chronological record of account provisions, youth registrations, and program applications
-                      </p>
-                    </div>
-                  </div>
-                  <span className="self-start sm:self-auto text-[11px] sm:text-xs font-bold text-slate-600 bg-white border border-slate-200 px-2.5 py-1 rounded-full shadow-2xs shrink-0">
+              {/* Single Main Card Container for Security & Audit Logs */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                {/* Top Row: Card Name on left, active counter badge on right */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Municipal Activity Stream & Audit Trail</h3>
+                  <span className="text-xs font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full shadow-2xs self-start sm:self-auto shrink-0">
                     {auditLogs.length} Log Entries
                   </span>
                 </div>
 
-                <div className="divide-y divide-slate-100">
+                {/* Second Row: Search bar & Category filter */}
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search logs by actor, action description, or barangay…"
+                      value={auditSearch}
+                      onChange={(e) => setAuditSearch(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+
+                  <div className="min-w-[220px]">
+                    <CustomSelect
+                      value={auditCategoryFilter}
+                      onChange={(val) => setAuditCategoryFilter(val)}
+                      options={[
+                        { value: "All", label: `All Event Categories (${auditLogs.length})` },
+                        { value: "User Provisioning", label: "User Provisioning" },
+                        { value: "Youth Registration", label: "Youth Registration" },
+                        { value: "Application & Enrollment", label: "Application & Enrollment" },
+                        { value: "Program Update", label: "Program Updates" },
+                        { value: "Announcement", label: "Announcements" }
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                      placeholder="All Event Categories"
+                    />
+                  </div>
+                </div>
+
+                {/* Reset Filters Notification (if active) */}
+                {(auditSearch || auditCategoryFilter !== "All") && (
+                  <div className="flex items-center justify-between pt-1 text-xs text-gray-500 border-t border-gray-100">
+                    <span className="font-medium">Active filter applied</span>
+                    <button
+                      onClick={() => {
+                        setAuditSearch("");
+                        setAuditCategoryFilter("All");
+                      }}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" /> Clear Filters
+                    </button>
+                  </div>
+                )}
+
+                {/* Logs Stream Container */}
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs divide-y divide-gray-100">
                   {paginatedAuditLogs.length > 0 ? (
                     paginatedAuditLogs.map((log) => (
-                      <div key={log.id} className="p-4 px-6 hover:bg-slate-50/80 transition-colors flex items-start gap-3.5">
+                      <div key={log.id} className="p-4 px-6 hover:bg-emerald-50/30 transition-colors flex items-start gap-3.5">
                         <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                           log.category === "User Provisioning" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                          log.category === "Youth Registration" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                          log.category === "Youth Registration" ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200" :
                           log.category === "Application & Enrollment" ? "bg-blue-50 text-blue-700 border border-blue-200" :
                           "bg-purple-50 text-purple-700 border border-purple-200"
                         }`}>
@@ -3261,84 +3692,92 @@ Please sign in at ${window.location.origin} and change your password immediately
 
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                            <p className="text-xs font-extrabold text-slate-900">{log.action}</p>
-                            <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                            <p className="text-xs font-extrabold text-gray-900">{log.action}</p>
+                            <span className="text-[11px] font-medium text-gray-400 flex items-center gap-1">
                               <Clock className="w-3 h-3" /> {log.timestamp}
                             </span>
                           </div>
                           
-                          <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-slate-600">
-                            <span className="font-medium">{log.target}</span>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-gray-600">
+                            <span className="font-medium text-gray-800">{log.target}</span>
                             {log.barangay && (
-                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-md">
+                              <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                                 {log.barangay}
                               </span>
                             )}
-                            <span className="text-[10px] text-slate-400">by {log.actor}</span>
+                            <span className="text-[10px] text-gray-400">by {log.actor}</span>
                           </div>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="p-8 text-center text-slate-400 font-medium">
+                    <div className="p-8 text-center text-gray-400 font-medium">
                       No audit events recorded for current filters.
                     </div>
                   )}
-                </div>
 
-                {/* Pagination Controls for Audit Logs (Limit 10 per page) */}
-                {auditLogs.length > 0 && (
-                  <div className="p-4 px-6 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <span className="text-slate-500 font-medium">
-                      Showing <strong>{((auditPage - 1) * AUDIT_PER_PAGE) + 1}</strong> to <strong>{Math.min(auditPage * AUDIT_PER_PAGE, auditLogs.length)}</strong> of <strong>{auditLogs.length}</strong> log entries
-                    </span>
+                  {/* Pagination Controls for Audit Logs */}
+                  {auditLogs.length > AUDIT_PER_PAGE && (
+                    <div className="p-4 px-6 bg-white border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <span className="text-gray-500 font-medium">
+                        Showing <span className="font-semibold text-gray-800">{(auditPage - 1) * AUDIT_PER_PAGE + 1}</span> to{" "}
+                        <span className="font-semibold text-gray-800">{Math.min(auditPage * AUDIT_PER_PAGE, auditLogs.length)}</span> of{" "}
+                        <span className="font-semibold text-gray-800">{auditLogs.length}</span> log entries
+                      </span>
 
-                    <div className="flex items-center gap-1.5 self-center sm:self-auto">
-                      <button
-                        onClick={() => setAuditPage(prev => Math.max(1, prev - 1))}
-                        disabled={auditPage === 1}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                        <button
+                          type="button"
+                          disabled={auditPage === 1}
+                          onClick={() => setAuditPage(p => Math.max(1, p - 1))}
+                          className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          <span>Previous</span>
+                        </button>
 
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: totalAuditPages }, (_, i) => i + 1).map((pg) => {
-                          if (
-                            pg === 1 || 
-                            pg === totalAuditPages || 
-                            (pg >= auditPage - 1 && pg <= auditPage + 1)
-                          ) {
+                        {getPaginationItems(auditPage, totalAuditPages).map((item, idx) => {
+                          if (item === "...") {
                             return (
-                              <button
-                                key={pg}
-                                onClick={() => setAuditPage(pg)}
-                                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                  auditPage === pg
-                                    ? "bg-[#0A6B43] text-white shadow-xs"
-                                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
-                                }`}
+                              <span
+                                key={`ellipsis-audit-${idx}`}
+                                className="h-8 min-w-[32px] px-2 flex items-center justify-center text-xs text-gray-400 font-semibold select-none"
                               >
-                                {pg}
-                              </button>
+                                ...
+                              </span>
                             );
-                          } else if (pg === auditPage - 2 || pg === auditPage + 2) {
-                            return <span key={pg} className="px-1 text-slate-400 font-bold">...</span>;
                           }
-                          return null;
+                          const pageNum = Number(item);
+                          const isActive = auditPage === pageNum;
+                          return (
+                            <button
+                              key={`audit-page-${pageNum}`}
+                              type="button"
+                              onClick={() => setAuditPage(pageNum)}
+                              className={`h-8 min-w-[32px] px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer outline-none focus:outline-none ${
+                                isActive
+                                  ? "bg-[#0A6B43] text-white shadow-xs font-bold"
+                                  : "border border-gray-200 bg-white text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 active:scale-95"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
                         })}
-                      </div>
 
-                      <button
-                        onClick={() => setAuditPage(prev => Math.min(totalAuditPages, prev + 1))}
-                        disabled={auditPage === totalAuditPages}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        Next <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          disabled={auditPage === totalAuditPages}
+                          onClick={() => setAuditPage(p => Math.min(totalAuditPages, p + 1))}
+                          className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                        >
+                          <span>Next</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
             </div>
@@ -3371,19 +3810,19 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
 
               <div className="max-w-3xl mx-auto">
-                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+                <div className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden">
                 
-                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
                       <Lock className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Provision Barangay Leader Account</h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for SK Chairpersons and Barangay Captains across 17 Barangays</p>
+                      <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">Provision Barangay Leader Account</h3>
+                      <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for SK Chairpersons and Barangay Captains across 17 Barangays</p>
                     </div>
                   </div>
-                  <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                  <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 shrink-0">
                     OAuth 2.0 Node
                   </span>
                 </div>
@@ -3392,32 +3831,32 @@ Please sign in at ${window.location.origin} and change your password immediately
                   
                   {/* Section 1: Official Info */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
                       1. Official Credentials & Name
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Authorized Full Name</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Authorized Full Name</label>
                         <input
                           type="text"
                           required
                           placeholder="e.g. Captain Danilo Santos"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full p-3 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-900 text-xs focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
                         />
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Official Email Address</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Official Email Address</label>
                         <input
                           type="email"
                           required
                           placeholder="e.g. danilosantos.captain@sanluispampanga.gov.ph"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full p-3 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-900 text-xs focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
                         />
                       </div>
                     </div>
@@ -3425,13 +3864,13 @@ Please sign in at ${window.location.origin} and change your password immediately
 
                   {/* Section 2: Role & Barangay */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
                       2. Role & Territorial Zone Assignment (17 Barangays)
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Assigned Official Role</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Assigned Official Role</label>
                         <CustomSelect
                           value={role}
                           onChange={(val) => handleRoleChange({ target: { value: val } } as any)}
@@ -3445,7 +3884,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Barangay Assignment</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Barangay Assignment</label>
                         <CustomSelect
                           value={barangayAssignment}
                           onChange={(val) => setBarangayAssignment(val)}
@@ -3459,12 +3898,12 @@ Please sign in at ${window.location.origin} and change your password immediately
 
                   {/* Section 3: Generated Password */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
                       3. Temporary Security Node
                     </h4>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-slate-700 uppercase">Temporary Generated Password</label>
+                      <label className="text-[11px] font-bold text-gray-700 uppercase">Temporary Generated Password</label>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <div className="relative flex-1 min-w-0">
                           <input
@@ -3472,20 +3911,20 @@ Please sign in at ${window.location.origin} and change your password immediately
                             required
                             value={tempPassword}
                             onChange={(e) => setTempPassword(e.target.value)}
-                            className="w-full p-2.5 sm:p-3 bg-slate-50 border border-slate-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs sm:text-sm"
+                            className="w-full p-2.5 sm:p-3 bg-gray-50/80 border border-gray-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden text-xs sm:text-sm transition-all"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={generatePassword}
-                          className="px-3.5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs self-stretch sm:self-auto"
+                          className="px-3.5 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs self-stretch sm:self-auto"
                           title="Generate New Password"
                         >
                           <RefreshCw className="w-3.5 h-3.5 shrink-0" />
                           <span>Regenerate</span>
                         </button>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">The official will be prompted to update this password upon initial sign in.</p>
+                      <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium">The official will be prompted to update this password upon initial sign in.</p>
                     </div>
                   </div>
 
@@ -3493,7 +3932,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3 sm:py-3.5 px-4 bg-gradient-to-r from-[#0A6B43] to-[#075332] hover:from-[#075332] hover:to-[#053F26] text-white text-xs sm:text-sm font-bold sm:font-black rounded-xl tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-center"
+                      className="w-full py-3 sm:py-3.5 px-4 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-sm font-bold sm:font-black rounded-xl tracking-wide shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-center"
                     >
                       {isSubmitting ? (
                         <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
@@ -3537,19 +3976,19 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
 
               <div className="max-w-3xl mx-auto">
-                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+                <div className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden">
                 
-                <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
                       <Briefcase className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Provision TESDA Partner Representative</h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for TVET technical training officers</p>
+                      <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">Provision TESDA Partner Representative</h3>
+                      <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for TVET technical training officers</p>
                     </div>
                   </div>
-                  <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
+                  <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 shrink-0">
                     Municipal Partner
                   </span>
                 </div>
@@ -3558,32 +3997,32 @@ Please sign in at ${window.location.origin} and change your password immediately
                   
                   {/* Section 1: Partner Info */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
                       1. Representative Profile & Contact
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Authorized Full Name</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Authorized Full Name</label>
                         <input
                           type="text"
                           required
                           placeholder="e.g. Evelyn Castor"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full p-3 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-900 text-xs focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
                         />
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Official Email Address</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Official Email Address</label>
                         <input
                           type="email"
                           required
                           placeholder="e.g. evelyn.castor@tesda.gov.ph"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                          className="w-full p-3 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-900 text-xs focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
                         />
                       </div>
                     </div>
@@ -3591,28 +4030,28 @@ Please sign in at ${window.location.origin} and change your password immediately
 
                   {/* Section 2: Scope Assignment */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
                       2. Role & Jurisdiction
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Assigned Official Role</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Assigned Official Role</label>
                         <input
                           type="text"
                           readOnly
                           value="TESDA Representative"
-                          className="w-full p-3 bg-slate-100 border border-slate-200 text-slate-500 rounded-xl cursor-not-allowed outline-hidden"
+                          className="w-full p-3 bg-gray-100/70 border border-gray-200 text-gray-500 rounded-xl text-xs cursor-not-allowed outline-hidden"
                         />
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase">Jurisdiction Scope</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Jurisdiction Scope</label>
                         <input
                           type="text"
                           readOnly
                           value="Municipal-wide (All 17 San Luis Barangays)"
-                          className="w-full p-3 bg-slate-100 border border-slate-200 text-slate-500 rounded-xl cursor-not-allowed outline-hidden"
+                          className="w-full p-3 bg-gray-100/70 border border-gray-200 text-gray-500 rounded-xl text-xs cursor-not-allowed outline-hidden"
                         />
                       </div>
                     </div>
@@ -3620,12 +4059,12 @@ Please sign in at ${window.location.origin} and change your password immediately
 
                   {/* Section 3: Generated Password */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
                       3. Temporary Security Node
                     </h4>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-slate-700 uppercase">Temporary Generated Password</label>
+                      <label className="text-[11px] font-bold text-gray-700 uppercase">Temporary Generated Password</label>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <div className="relative flex-1 min-w-0">
                           <input
@@ -3633,13 +4072,13 @@ Please sign in at ${window.location.origin} and change your password immediately
                             required
                             value={tempPassword}
                             onChange={(e) => setTempPassword(e.target.value)}
-                            className="w-full p-2.5 sm:p-3 bg-slate-50 border border-slate-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs sm:text-sm"
+                            className="w-full p-2.5 sm:p-3 bg-gray-50/80 border border-gray-200 text-[#0A6B43] font-mono font-bold rounded-xl tracking-wider focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden text-xs sm:text-sm transition-all"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={generatePassword}
-                          className="px-3.5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs self-stretch sm:self-auto"
+                          className="px-3.5 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs self-stretch sm:self-auto"
                           title="Generate New Password"
                         >
                           <RefreshCw className="w-3.5 h-3.5 shrink-0" />
@@ -3653,7 +4092,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3 sm:py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs sm:text-sm font-bold sm:font-black rounded-xl tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-center"
+                      className="w-full py-3 sm:py-3.5 px-4 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-sm font-bold sm:font-black rounded-xl tracking-wide shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-center"
                     >
                       {isSubmitting ? (
                         <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
@@ -4197,147 +4636,239 @@ Please sign in at ${window.location.origin} and change your password immediately
       </main>
 
       {/* ============================================================ */}
-      {/* YOUTH PROFILE DETAIL MODAL (Suggestion 1) */}
+      {/* YOUTH PROFILE DETAIL MODAL (Polished Youth Dossier) */}
       {/* ============================================================ */}
       {selectedYouthDetail && (
         <div 
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedYouthDetail(null);
           }}
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden animate-in fade-in duration-200"
         >
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-slate-50 border border-gray-200 rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl relative flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200 ease-out">
             
-            <div className="p-5 px-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+            {/* Modal Header Banner */}
+            <div className="bg-gradient-to-r from-[#064e3b] via-[#0A6B43] to-[#042f2e] text-white p-4 sm:p-5 flex items-center justify-between shrink-0 shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-bold text-sm border border-emerald-200">
-                  {selectedYouthDetail.name.charAt(0)}
+                <div className="w-11 h-11 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                  {selectedYouthDetail.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                 </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">{selectedYouthDetail.name}</h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Barangay {selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")} · {selectedYouthDetail.purok}
-                    {selectedYouthDetail.email ? ` · ${selectedYouthDetail.email}` : ""}
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black tracking-tight truncate leading-tight text-white drop-shadow-xs">
+                    {selectedYouthDetail.name}
+                  </h3>
+                  <p className="text-xs text-emerald-100/90 font-medium mt-0.5 truncate">
+                    {selectedYouthDetail.email || `Barangay ${selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")} · ${selectedYouthDetail.purok}`}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedYouthDetail(null)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+                className="p-1.5 text-emerald-100 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer shrink-0"
+                title="Close Dossier"
+                aria-label="Close Dossier"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-5 flex-1 text-slate-700">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Gender</span>
-                  <span className="font-bold text-slate-900 text-sm">{selectedYouthDetail.gender || "Male"}</span>
+            {/* Modal Scrollable Contents */}
+            <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5 text-gray-700">
+              
+              {/* Super Admin Quick Actions Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200/90 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-500">Account Governance:</span>
+                  <span className={`inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
+                    selectedYouthDetail.approvalStatus === "Approved" || !selectedYouthDetail.approvalStatus
+                      ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                  }`}>
+                    {selectedYouthDetail.approvalStatus || "Active Resident"}
+                  </span>
                 </div>
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Age</span>
-                  <span className="font-bold text-slate-900 text-sm">{selectedYouthDetail.age} years old</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Livelihood Status</span>
-                  <span className="font-bold text-[#0A6B43] text-sm">{selectedYouthDetail.currentStatus}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Education</span>
-                  <span className="font-bold text-slate-900 text-xs">{selectedYouthDetail.educationalAttainment}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleResetYouthPassword(selectedYouthDetail)}
+                    disabled={updatingUserId === selectedYouthDetail.id}
+                    className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Generate temporary password for this youth account"
+                  >
+                    <Key className="w-3.5 h-3.5 text-amber-700" />
+                    <span>{updatingUserId === selectedYouthDetail.id ? "Generating..." : "Reset Password"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteAccountTarget({
+                        id: selectedYouthDetail.id,
+                        name: selectedYouthDetail.name,
+                        role: "KK Youth Member",
+                        isYouth: true
+                      });
+                      setSelectedYouthDetail(null);
+                    }}
+                    className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Permanently delete this youth profile and account"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                    <span>Delete Account</span>
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Declared Livelihood Goal</span>
-                <p className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-xl text-slate-900 font-medium text-xs leading-relaxed">
-                  "{selectedYouthDetail.livelihoodGoal || "Seeking technical-vocational training and local employment opportunities."}"
-                </p>
+              {/* Personal Information Card */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 border border-gray-100 space-y-4">
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
+                  <User className="w-4.5 h-4.5 text-[#0A6B43] shrink-0" />
+                  <h4 className="text-[15px] font-bold text-gray-900 tracking-tight">Personal & Demographic Information</h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-gray-900">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Territorial Barangay</span>
+                    <p className="text-[14px] font-bold text-gray-900 mt-0.5 leading-snug">
+                      Barangay {selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Purok / Zone</span>
+                    <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                      {selectedYouthDetail.purok || "Purok 1"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Age</span>
+                    <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                      {selectedYouthDetail.age} years old
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Gender</span>
+                    <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                      {selectedYouthDetail.gender || "Female"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Educational Attainment</span>
+                    <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                      {selectedYouthDetail.educationalAttainment || "Senior High School Graduate"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Livelihood Status</span>
+                    <p className="text-[14px] font-extrabold text-[#0A6B43] mt-0.5 leading-snug">
+                      {selectedYouthDetail.currentStatus}
+                    </p>
+                  </div>
+
+                  {selectedYouthDetail.contactNumber && (
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Contact Number</span>
+                      <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                        {selectedYouthDetail.contactNumber}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Sector Preference</span>
+                    <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                      {selectedYouthDetail.sectorPreference || "General / Flexible"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Registration Status</span>
+                    <p className="text-[14px] font-semibold text-gray-900 mt-0.5 leading-snug">
+                      {selectedYouthDetail.registeredDate || "Verified katipunan member"}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-2">Competencies & Skills</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedYouthDetail.skills && selectedYouthDetail.skills.length > 0 ? (
-                    selectedYouthDetail.skills.map((s: string, idx: number) => (
-                      <span key={idx} className="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-800 text-xs font-bold">
-                        {s}
+              {/* Career Goals, Competencies & Demographics Card */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 border border-gray-100 space-y-5">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1.5">
+                    Declared Career & Livelihood Goal
+                  </span>
+                  <p className="p-3.5 bg-emerald-50/60 border border-emerald-200/80 rounded-xl text-gray-900 font-medium text-xs leading-relaxed">
+                    "{selectedYouthDetail.livelihoodGoal || "Seeking technical-vocational training, livelihood skills development, and municipal employment opportunities."}"
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-2">
+                    Competencies & Technical Skills
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedYouthDetail.skills && selectedYouthDetail.skills.length > 0 ? (
+                      selectedYouthDetail.skills.map((s: string, idx: number) => (
+                        <span key={idx} className="bg-gray-100 border border-gray-200 px-3 py-1 rounded-xl text-gray-800 text-xs font-bold shadow-2xs">
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-400 italic text-xs">No skills listed yet</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-2">
+                    Training Interests & Program Modules
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedYouthDetail.interests && selectedYouthDetail.interests.length > 0 ? (
+                      selectedYouthDetail.interests.map((it: string, idx: number) => (
+                        <span key={idx} className="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1 rounded-xl text-xs font-bold shadow-2xs">
+                          {it}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-400 italic text-xs">No interests listed</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-2">
+                    Special Demographics
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedYouthDetail.soloParent && (
+                      <span className="bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1 rounded-full text-xs font-bold">
+                        Solo Parent
                       </span>
-                    ))
-                  ) : (
-                    <span className="text-slate-400 italic">No skills listed yet</span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-2">Areas of Interest</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedYouthDetail.interests && selectedYouthDetail.interests.length > 0 ? (
-                    selectedYouthDetail.interests.map((it: string, idx: number) => (
-                      <span key={idx} className="bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-lg text-xs font-bold">
-                        {it}
+                    )}
+                    {selectedYouthDetail.pwd && (
+                      <span className="bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full text-xs font-bold">
+                        Person with Disability
                       </span>
-                    ))
-                  ) : (
-                    <span className="text-slate-400 italic">No interests listed</span>
-                  )}
+                    )}
+                    {selectedYouthDetail.indigenous && (
+                      <span className="bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1 rounded-full text-xs font-bold">
+                        Indigenous Youth
+                      </span>
+                    )}
+                    {!selectedYouthDetail.soloParent && !selectedYouthDetail.pwd && !selectedYouthDetail.indigenous && (
+                      <span className="bg-gray-100 text-gray-600 border border-gray-200 px-3 py-1 rounded-full text-xs font-medium">
+                        General Youth Resident
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Special Demographics</span>
-                <div className="flex gap-2">
-                  {selectedYouthDetail.soloParent && <span className="bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full text-xs font-bold">Solo Parent</span>}
-                  {selectedYouthDetail.pwd && <span className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full text-xs font-bold">Person with Disability</span>}
-                  {selectedYouthDetail.indigenous && <span className="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full text-xs font-bold">Indigenous Youth</span>}
-                  {!selectedYouthDetail.soloParent && !selectedYouthDetail.pwd && !selectedYouthDetail.indigenous && (
-                    <span className="text-slate-400 italic">General Youth Demographic</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 px-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleResetYouthPassword(selectedYouthDetail)}
-                  disabled={updatingUserId === selectedYouthDetail.id}
-                  className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  title="Generate temporary password for this youth account"
-                >
-                  <Key className="w-3.5 h-3.5 text-amber-700" />
-                  <span>{updatingUserId === selectedYouthDetail.id ? "Generating..." : "Reset Password"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteAccountTarget({
-                      id: selectedYouthDetail.id,
-                      name: selectedYouthDetail.name,
-                      role: "KK Youth Member",
-                      isYouth: true
-                    });
-                    setSelectedYouthDetail(null);
-                  }}
-                  className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Permanently delete this youth profile and account"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                  <span>Delete Account</span>
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedYouthDetail(null)}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer text-center"
-              >
-                Close Profile
-              </button>
             </div>
 
           </div>
@@ -4352,38 +4883,50 @@ Please sign in at ${window.location.origin} and change your password immediately
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsViewModalOpen(false);
           }}
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden animate-in fade-in duration-200"
         >
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl overflow-hidden max-h-[88vh] flex flex-col text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-slate-50 border border-gray-200 rounded-2xl sm:rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl relative flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200 ease-out">
             
-            {/* Modal Header */}
-            <div className="p-5 px-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-              <div>
-                <span className="text-[10px] font-black text-[#0A6B43] uppercase tracking-wider block">Administrative Roster</span>
-                <h3 className="text-base font-black text-slate-900">Barangay {selectedBrgyDetails.name} Zone Summary</h3>
+            {/* Modal Header Banner */}
+            <div className="bg-gradient-to-r from-[#064e3b] via-[#0A6B43] to-[#042f2e] text-white p-4 sm:p-5 flex items-center justify-between shrink-0 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black tracking-tight truncate leading-tight text-white drop-shadow-xs">
+                    Barangay {selectedBrgyDetails.name} Zone Summary
+                  </h3>
+                  <p className="text-xs text-emerald-100/90 font-medium mt-0.5 truncate">
+                    Administrative Leadership Roster & Katipunan ng Kabataan Directory
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsViewModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+                className="p-1.5 text-emerald-100 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer shrink-0"
+                title="Close Summary"
+                aria-label="Close Summary"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-xs font-semibold">
               
               {/* Leaders summary cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-slate-50 border border-slate-200/90 p-4 rounded-xl flex flex-col justify-between">
+                <div className="bg-white border border-gray-200/90 p-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between space-y-3">
                   <div>
-                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">SK Chairperson</span>
-                    <p className="font-extrabold text-sm text-slate-900 mt-1">{selectedBrgyDetails.sk.name}</p>
-                    <p className="text-slate-500 text-[11px] mt-0.5">{selectedBrgyDetails.sk.email}</p>
+                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">SK Chairperson</span>
+                    <p className="font-extrabold text-base text-gray-900 mt-1">{selectedBrgyDetails.sk.name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5 font-medium">{selectedBrgyDetails.sk.email}</p>
                   </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-200">
-                    <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
-                      selectedBrgyDetails.sk.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-500"
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <span className={`inline-block text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
+                      selectedBrgyDetails.sk.status === "Active" ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200" : "bg-gray-100 text-gray-500"
                     }`}>
                       {selectedBrgyDetails.sk.status}
                     </span>
@@ -4393,7 +4936,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                           setDeleteAccountTarget({ id: selectedBrgyDetails.sk.id!, name: selectedBrgyDetails.sk.name, role: "SK Chairperson" });
                           setIsViewModalOpen(false);
                         }}
-                        className="text-red-600 hover:text-red-700 flex items-center gap-1 text-[11px] font-bold hover:underline cursor-pointer"
+                        className="text-red-600 hover:text-red-700 flex items-center gap-1 text-xs font-bold hover:underline cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Delete Account
                       </button>
@@ -4401,15 +4944,15 @@ Please sign in at ${window.location.origin} and change your password immediately
                   </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200/90 p-4 rounded-xl flex flex-col justify-between">
+                <div className="bg-white border border-gray-200/90 p-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between space-y-3">
                   <div>
-                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Barangay Captain</span>
-                    <p className="font-extrabold text-sm text-slate-900 mt-1">{selectedBrgyDetails.cap.name}</p>
-                    <p className="text-slate-500 text-[11px] mt-0.5">{selectedBrgyDetails.cap.email}</p>
+                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Barangay Captain</span>
+                    <p className="font-extrabold text-base text-gray-900 mt-1">{selectedBrgyDetails.cap.name}</p>
+                    <p className="text-gray-500 text-xs mt-0.5 font-medium">{selectedBrgyDetails.cap.email}</p>
                   </div>
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-200">
-                    <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
-                      selectedBrgyDetails.cap.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-500"
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <span className={`inline-block text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
+                      selectedBrgyDetails.cap.status === "Active" ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200" : "bg-gray-100 text-gray-500"
                     }`}>
                       {selectedBrgyDetails.cap.status}
                     </span>
@@ -4419,7 +4962,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                           setDeleteAccountTarget({ id: selectedBrgyDetails.cap.id!, name: selectedBrgyDetails.cap.name, role: "Barangay Captain" });
                           setIsViewModalOpen(false);
                         }}
-                        className="text-red-600 hover:text-red-700 flex items-center gap-1 text-[11px] font-bold hover:underline cursor-pointer"
+                        className="text-red-600 hover:text-red-700 flex items-center gap-1 text-xs font-bold hover:underline cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Delete Account
                       </button>
@@ -4430,16 +4973,16 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* Councilors Table */}
               <div>
-                <h4 className="text-xs font-extrabold uppercase text-slate-900 mb-2 flex items-center gap-1.5">
+                <h4 className="text-xs font-extrabold uppercase text-gray-900 mb-2 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-[#0A6B43]" />
                   SK Councilors Roster ({selectedBrgyDetails.councilors.length}/11 Capacity)
                 </h4>
                 {selectedBrgyDetails.councilors.length > 0 ? (
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                  <div className="bg-white border border-gray-200/90 rounded-2xl overflow-hidden shadow-xs">
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[620px] text-left text-xs border-collapse">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold whitespace-nowrap">
+                          <tr className="bg-gray-50 border-b border-gray-200/80 text-[10px] text-gray-500 uppercase tracking-wider font-extrabold whitespace-nowrap">
                             <th className="p-3 pl-4">Councilor Name</th>
                             <th className="p-3">Official Role</th>
                             <th className="p-3">Email Address</th>
@@ -4448,30 +4991,37 @@ Please sign in at ${window.location.origin} and change your password immediately
                             <th className="p-3 text-center pr-4">Action</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700 whitespace-nowrap">
+                        <tbody className="divide-y divide-gray-100 text-gray-700 whitespace-nowrap">
                           {selectedBrgyDetails.councilors.map((c, i) => (
-                            <tr key={c.id || i} className="hover:bg-slate-50 transition-colors">
-                              <td className="p-3 pl-4 font-bold text-slate-900">{c.name}</td>
+                            <tr key={c.id || i} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="p-3 pl-4 font-bold text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-[11px] shrink-0">
+                                    {c.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <span>{c.name}</span>
+                                </div>
+                              </td>
                               <td className="p-3">
-                                <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                <span className={`inline-block text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                                   c.role?.toLowerCase().includes("secretary")
                                     ? "bg-amber-50 text-amber-800 border-amber-200"
                                     : c.role?.toLowerCase().includes("treasurer")
                                     ? "bg-teal-50 text-teal-800 border-teal-200"
-                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : "bg-emerald-50 text-[#0A6B43] border border-emerald-200"
                                 }`}>
                                   {c.role || "SK Councilor"}
                                 </span>
                               </td>
-                              <td className="p-3 text-slate-500">{c.email}</td>
+                              <td className="p-3 text-gray-500 font-mono text-[11px]">{c.email}</td>
                               <td className="p-3 text-center">
-                                <span className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                  c.status === "Active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-500"
+                                <span className={`inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                                  c.status === "Active" ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200" : "bg-gray-100 text-gray-500"
                                 }`}>
                                   {c.status}
                                 </span>
                               </td>
-                              <td className="p-3 text-right text-slate-400 font-medium">{c.dateCreated}</td>
+                              <td className="p-3 text-right text-gray-400 font-medium">{c.dateCreated}</td>
                               <td className="p-3 text-center pr-4">
                                 <button
                                   type="button"
@@ -4484,7 +5034,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     });
                                     setIsViewModalOpen(false);
                                   }}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100/80 border border-red-200/80 rounded-lg transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100/80 border border-red-200/80 rounded-xl transition-colors cursor-pointer"
                                   title={`Delete ${c.name}'s account`}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -4498,7 +5048,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-50 border border-slate-200 p-6 text-center rounded-xl text-slate-400">
+                  <div className="bg-white border border-gray-200/90 p-6 text-center rounded-2xl text-gray-400">
                     No councilors registered for this barangay yet.
                   </div>
                 )}
@@ -4506,29 +5056,36 @@ Please sign in at ${window.location.origin} and change your password immediately
 
               {/* KK Members list */}
               <div>
-                <h4 className="text-xs font-extrabold uppercase text-slate-900 mb-2 flex items-center gap-1.5">
+                <h4 className="text-xs font-extrabold uppercase text-gray-900 mb-2 flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
                   Registered KK Youth Residents ({selectedBrgyDetails.youth.length})
                 </h4>
                 {selectedBrgyDetails.youth.length > 0 ? (
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-2xs">
+                  <div className="bg-white border border-gray-200/90 rounded-2xl overflow-hidden max-h-52 overflow-y-auto shadow-xs">
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[500px] text-left text-xs border-collapse">
                         <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 uppercase tracking-wider font-extrabold sticky top-0 whitespace-nowrap">
+                          <tr className="bg-gray-50 border-b border-gray-200/80 text-[10px] text-gray-500 uppercase tracking-wider font-extrabold sticky top-0 whitespace-nowrap">
                             <th className="p-3 pl-4">Member Name</th>
                             <th className="p-3">Age</th>
                             <th className="p-3">Purok</th>
                             <th className="p-3 pr-4">Attainment / Status</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-700 whitespace-nowrap">
+                        <tbody className="divide-y divide-gray-100 text-gray-700 whitespace-nowrap">
                           {selectedBrgyDetails.youth.map((y, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                              <td className="p-3 pl-4 font-bold text-slate-900">{y.name}</td>
-                              <td className="p-3 text-slate-500">{y.age} y/o</td>
-                              <td className="p-3 text-slate-500">{y.purok}</td>
-                              <td className="p-3 pr-4 text-slate-600 font-medium">{y.educationalAttainment}</td>
+                            <tr key={i} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="p-3 pl-4 font-bold text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                    {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <span>{y.name}</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-gray-500">{y.age} y/o</td>
+                              <td className="p-3 text-gray-500">{y.purok}</td>
+                              <td className="p-3 pr-4 text-gray-600 font-medium">{y.educationalAttainment}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -4536,7 +5093,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-50 border border-slate-200 p-6 text-center rounded-xl text-slate-400">
+                  <div className="bg-white border border-gray-200/90 p-6 text-center rounded-2xl text-gray-400">
                     No KK youth registered for this barangay yet.
                   </div>
                 )}
@@ -4545,10 +5102,10 @@ Please sign in at ${window.location.origin} and change your password immediately
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 px-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="p-4 px-6 bg-white border-t border-gray-100 flex justify-end">
               <button
                 onClick={() => setIsViewModalOpen(false)}
-                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-colors cursor-pointer"
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors cursor-pointer text-xs"
               >
                 Close Summary
               </button>
@@ -4566,15 +5123,15 @@ Please sign in at ${window.location.origin} and change your password immediately
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsEditModalOpen(false);
           }}
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
         >
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md overflow-hidden text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-white border border-gray-200 rounded-3xl w-full max-w-md overflow-hidden text-xs font-semibold shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
             
-            <div className="p-5 px-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase">Rename Barangay Zone</h3>
+            <div className="bg-gradient-to-r from-[#064e3b] via-[#0A6B43] to-[#042f2e] text-white p-4 sm:p-5 flex justify-between items-center shadow-xs">
+              <h3 className="text-sm font-extrabold uppercase tracking-wide text-white">Rename Barangay Zone</h3>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="p-1 text-emerald-100 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -4582,27 +5139,27 @@ Please sign in at ${window.location.origin} and change your password immediately
 
             <form onSubmit={handleSaveBrgyName} className="p-6 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-700 uppercase">Administrative Barangay Name</label>
+                <label className="text-[11px] font-bold text-gray-700 uppercase">Administrative Barangay Name</label>
                 <input
                   type="text"
                   required
                   value={editBrgyName}
                   onChange={(e) => setEditBrgyName(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                  className="w-full p-3 bg-gray-50/80 border border-gray-200 text-gray-900 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
                 />
               </div>
 
               <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="flex-1 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer text-xs"
                 >
                   Save Changes
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer"
+                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors cursor-pointer text-xs font-bold"
                 >
                   Cancel
                 </button>
@@ -4621,35 +5178,35 @@ Please sign in at ${window.location.origin} and change your password immediately
           onClick={(e) => {
             if (e.target === e.currentTarget) setCreatedCredentials(null);
           }}
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
         >
           <div className="bg-white border border-emerald-200 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 ease-out">
             
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center mx-auto mb-1 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center mx-auto mb-1 shadow-xs">
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
             <div>
-              <h3 className="text-lg font-black text-slate-900">
+              <h3 className="text-lg font-black text-gray-900">
                 {createdCredentials.isReset ? "Password Reset Successfully!" : "Account Provisioned Successfully!"}
               </h3>
-              <p className="text-xs text-slate-500 font-medium mt-1">
+              <p className="text-xs text-gray-500 font-medium mt-1">
                 {createdCredentials.isReset ? "New temporary password initialized in database" : "Official access credentials have been initialized in database"}
               </p>
             </div>
             
-            <div className="text-left bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs text-slate-700 font-medium">
-              <p><strong className="text-slate-400 uppercase text-[9px] tracking-wider block">Assigned Official Name</strong> <span className="text-slate-900 font-bold">{createdCredentials.name}</span></p>
-              <p><strong className="text-slate-400 uppercase text-[9px] tracking-wider block">Provisioned Role</strong> <span className="text-[#0A6B43] font-bold">{createdCredentials.role}</span></p>
+            <div className="text-left bg-gray-50/80 border border-gray-200 rounded-2xl p-4 space-y-2 text-xs text-gray-700 font-medium">
+              <p><strong className="text-gray-400 uppercase text-[9px] font-extrabold tracking-wider block">Assigned Official Name</strong> <span className="text-gray-900 font-bold">{createdCredentials.name}</span></p>
+              <p><strong className="text-gray-400 uppercase text-[9px] font-extrabold tracking-wider block">Provisioned Role</strong> <span className="text-[#0A6B43] font-bold">{createdCredentials.role}</span></p>
               {createdCredentials.barangay && (
-                <p><strong className="text-slate-400 uppercase text-[9px] tracking-wider block">Barangay Zone</strong> <span className="text-slate-900 font-bold">{createdCredentials.barangay}</span></p>
+                <p><strong className="text-gray-400 uppercase text-[9px] font-extrabold tracking-wider block">Barangay Zone</strong> <span className="text-gray-900 font-bold">{createdCredentials.barangay}</span></p>
               )}
-              <div className="h-px bg-slate-200 my-2" />
-              <p><strong className="text-slate-400 uppercase text-[9px] tracking-wider block">Registered Email</strong> <span className="text-blue-700 font-mono text-[11px] font-bold">{createdCredentials.email}</span></p>
-              <p><strong className="text-slate-400 uppercase text-[9px] tracking-wider block">Temporary Password</strong> <span className="text-amber-700 font-mono text-sm font-bold tracking-wider">{createdCredentials.pass}</span></p>
+              <div className="h-px bg-gray-200 my-2" />
+              <p><strong className="text-gray-400 uppercase text-[9px] font-extrabold tracking-wider block">Registered Email</strong> <span className="text-[#0A6B43] font-mono text-[11px] font-bold">{createdCredentials.email}</span></p>
+              <p><strong className="text-gray-400 uppercase text-[9px] font-extrabold tracking-wider block">Temporary Password</strong> <span className="text-amber-800 font-mono text-sm font-bold tracking-wider">{createdCredentials.pass}</span></p>
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+            <p className="text-[11px] text-gray-400 leading-relaxed font-medium">
               Copy this secure credential card and send it privately to the assigned official.
             </p>
 
@@ -4663,7 +5220,7 @@ Please sign in at ${window.location.origin} and change your password immediately
               </button>
               <button
                 onClick={() => setCreatedCredentials(null)}
-                className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 Dismiss
               </button>

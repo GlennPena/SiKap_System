@@ -18,7 +18,7 @@ import { KKYouthRegister } from "./components/KKYouthRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
-import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Target, Loader2 } from "lucide-react";
+import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 const MatchBadge: React.FC = () => {
@@ -26,10 +26,10 @@ const MatchBadge: React.FC = () => {
   const [calcScore, setCalcScore] = useState(0);
 
   useEffect(() => {
-    // Stage 1: While card is entering diagonally (0s to 0.85s). Display "Analyzing..."
+    // Stage 1: Display "Analyzing..." briefly while card settles
     const analyzeTimer = setTimeout(() => {
       setMatchState("calculating");
-    }, 850);
+    }, 550);
 
     return () => clearTimeout(analyzeTimer);
   }, []);
@@ -39,7 +39,7 @@ const MatchBadge: React.FC = () => {
       let current = 0;
       const target = 94;
       const interval = setInterval(() => {
-        current += Math.floor(Math.random() * 6) + 4;
+        current += Math.floor(Math.random() * 8) + 7;
         if (current >= target) {
           setCalcScore(target);
           setMatchState("complete");
@@ -47,7 +47,7 @@ const MatchBadge: React.FC = () => {
         } else {
           setCalcScore(current);
         }
-      }, 55); // smooth, readable calculation count-up over ~750ms
+      }, 38); // Balanced, readable calculation count-up over ~380ms
 
       return () => clearInterval(interval);
     }
@@ -374,17 +374,17 @@ export default function App() {
               <div className="flex items-start justify-between w-full relative z-10 mb-8">
                 <div className="w-full mt-2">
                   <motion.h1
-                    initial={{ opacity: 0, x: -35 }}
+                    initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.65, ease: "easeOut" }}
+                    transition={{ duration: 0.48, ease: "easeOut" }}
                     className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 drop-shadow-xs"
                   >
                     Your Path Continues Here
                   </motion.h1>
                   <motion.p
-                    initial={{ opacity: 0, x: -25 }}
+                    initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.65, ease: "easeOut", delay: 0.15 }}
+                    transition={{ duration: 0.48, ease: "easeOut", delay: 0.08 }}
                     className="text-base md:text-lg text-emerald-100/95 leading-relaxed font-medium pr-4 mt-2"
                   >
                     Explore more opportunities specially matched to you
@@ -392,18 +392,18 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Hero "Image" Mockup - OSY CARD entering diagonally from lower-left to destination */}
+              {/* Hero "Image" Mockup - OSY CARD entering subtly into destination */}
               <motion.div
-                initial={{ opacity: 0, x: -90, y: 90 }}
+                initial={{ opacity: 0, x: -30, y: 30 }}
                 animate={{ opacity: 1, x: 0, y: 0 }}
-                transition={{ duration: 0.75, ease: "easeOut", delay: 0.1 }}
+                transition={{ duration: 0.72, ease: "easeOut", delay: 0.1 }}
                 className="absolute top-[28%] -left-[30%] w-[80%] max-w-[800px] transform scale-[1.3] origin-top-left z-10 pointer-events-auto"
               >
-                <div className="bg-white border-2 border-emerald-100/90 rounded-3xl p-8 shadow-2xl aspect-[3/4] min-h-[600px] overflow-hidden transition-transform duration-700 hover:rotate-0 [transform:perspective(1200px)_rotateX(0deg)_rotateY(-10deg)_rotateZ(9deg)]">
+                <div className="bg-white rounded-3xl p-8 shadow-2xl aspect-[3/4] min-h-[600px] overflow-hidden transition-transform duration-700 hover:rotate-0 [transform:perspective(1200px)_rotateX(0deg)_rotateY(-10deg)_rotateZ(9deg)]">
                   <div className="transform scale-[1.5] origin-top-right w-[68%] ml-auto space-y-6">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+                    <div className="flex items-start justify-between border-b border-gray-100 pb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-800 font-black text-sm shadow-inner border border-emerald-100">
+                        <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-800 font-black text-sm shadow-inner border border-emerald-100 shrink-0">
                           KK
                         </div>
                         <div>
@@ -411,7 +411,7 @@ export default function App() {
                           <p className="text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
                         </div>
                       </div>
-                      <span className="text-xs bg-[#0A6B43] text-white px-3 py-1.5 rounded-full font-black uppercase tracking-wider shadow-2xs">
+                      <span className="text-[12px] bg-[#0A6B43] text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full font-bold uppercase tracking-wider shadow-2xs shrink-0 self-start mt-0.5">
                         OSY Youth
                       </span>
                     </div>
@@ -426,12 +426,11 @@ export default function App() {
                       </div>
 
                       <div className="bg-amber-50/70 rounded-2xl p-5 border border-amber-200/70 text-sm text-amber-950 leading-relaxed space-y-2">
-                        <div className="flex items-center gap-1.5 font-black text-sm text-amber-900">
-                          <Target className="w-5 h-5 text-amber-700 shrink-0" />
+                        <div className="font-black text-sm text-amber-900">
                           Gemini Match Rationale
                         </div>
                         <p className="text-gray-700 font-medium text-xs leading-relaxed">
-                          "Juan has hands-on skills in metal fabrication. This vocational program will officially certify his qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
+                          "You have hands-on skills in metal fabrication. This vocational program will officially certify your qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
                         </p>
                       </div>
                     </div>
@@ -451,12 +450,13 @@ export default function App() {
                 className={`${isSelfRegistering ? 'flex' : 'hidden md:flex'} absolute top-2 sm:top-3 md:top-5 lg:top-7 left-0 w-full justify-center z-50 pointer-events-auto`}
               >
                 <SikapLogo
-                  size={42}
-                  logoSize={52}
-                  textSize={36}
+                  size={46}
+                  logoSize={48}
+                  textSize={42}
                   showText={true}
                   showSubtext={false}
-                  gap="gap-1.5"
+                  gap="gap-2.5"
+                  textClassName="translate-y-[1.5px]"
                   disableHover={true}
                 />
               </motion.div>
