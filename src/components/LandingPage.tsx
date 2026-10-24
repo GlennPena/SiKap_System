@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
+import { TermsAndPrivacyModal } from "./TermsAndPrivacyModal";
 import { motion, AnimatePresence, useInView, animate, useAnimation } from "motion/react";
 import { onRealtimeSync } from "../lib/realtime-sync";
 
@@ -190,18 +191,28 @@ const ChronoItem = ({
 interface LandingPageProps {
   programs: TESDAProgram[];
   onEnterLogin: () => void;
+  onEnterSignUp?: () => void;
   addToast: (message: string, type: "success" | "error" | "info") => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   programs,
   onEnterLogin,
+  onEnterSignUp,
   addToast
 }) => {
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
   const workflowScroll = useScrollSpeedSection(0.2);
   const faqScroll = useScrollSpeedSection(0.2);
   const ctaScroll = useScrollSpeedSection(0.25);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [policyModalTab, setPolicyModalTab] = useState<"terms" | "privacy">("privacy");
+
+  const handleOpenPolicy = (tab: "terms" | "privacy") => {
+    setPolicyModalTab(tab);
+    setIsPolicyModalOpen(true);
+  };
+
   const [liveStats, setLiveStats] = useState({
     totalYouth: 0,
     totalPrograms: 0,
@@ -969,7 +980,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 <button
                   type="button"
-                  onClick={onEnterLogin}
+                  onClick={onEnterSignUp || onEnterLogin}
                   className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2 sm:gap-2.5 group cursor-pointer"
                 >
                   <span>Register</span>
@@ -995,32 +1006,132 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Brand */}
             <div className="flex flex-col items-center md:items-start gap-3.5 sm:gap-4 max-w-xl">
-              <div className="cursor-pointer inline-flex items-center justify-center" onClick={() => handleScrollToSection("hero")}>
-                <SikapLogo size={58} logoSize={58} textSize={42} variant="white" showText={true} gap="gap-1" textClassName="translate-y-[1.5px]" disableHover={true} />
+              <div className="select-none inline-flex items-center justify-center cursor-default">
+                {/* Mobile Viewport Logo */}
+                <div className="sm:hidden flex items-center">
+                  <SikapLogo size={34} logoSize={34} textSize={28} variant="white" showText={true} showSubtext={false} gap="gap-1" textClassName="translate-y-[0.5px]" disableHover={true} />
+                </div>
+                {/* Tablet & Desktop Viewport Logo */}
+                <div className="hidden sm:flex items-center">
+                  <SikapLogo size={58} logoSize={58} textSize={42} variant="white" showText={true} showSubtext={false} gap="gap-1" textClassName="translate-y-[1.5px]" disableHover={true} />
+                </div>
               </div>
               <p className="text-sm text-gray-400 font-medium text-center md:text-left max-w-xl leading-relaxed">
                 SiKap helps young people in San Luis, Pampanga discover opportunities that fit their strengths and aspirations. By connecting youth profiles with relevant training programs, SiKap turns skills, interests, and goals into clearer pathways for learning, growth, and opportunity.
               </p>
             </div>
 
-            {/* Links */}
-            <div className="flex flex-wrap justify-center md:justify-end gap-x-6 sm:gap-x-8 gap-y-3 sm:gap-y-4 text-sm font-bold text-gray-400 pt-2">
-              <button onClick={() => handleScrollToSection("hero")} className="hover:text-white transition-colors cursor-pointer">Home</button>
-              <button onClick={() => handleScrollToSection("impact-map")} className="hover:text-white transition-colors cursor-pointer">Why It Matters</button>
-              <button onClick={() => handleScrollToSection("opportunity")} className="hover:text-white transition-colors cursor-pointer">What SiKap Offers</button>
-              <button onClick={() => handleScrollToSection("workflow")} className="hover:text-white transition-colors cursor-pointer">How SiKap Works</button>
-              <button onClick={() => handleScrollToSection("faq")} className="hover:text-white transition-colors cursor-pointer">FAQs</button>
+            {/* Links - Three Columns (Left: Account, Middle: Legal, Right: Navigation) */}
+            <div className="flex flex-row flex-wrap items-start justify-center md:justify-end gap-8 sm:gap-10 lg:gap-16 pt-2 shrink-0">
+              {/* Column 1 (Left): Account */}
+              <div className="flex flex-col items-start gap-3 text-left">
+                <span className="text-sm font-bold uppercase tracking-wider text-white">
+                  Account
+                </span>
+                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                  <button
+                    type="button"
+                    onClick={onEnterSignUp || onEnterLogin}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    Create an Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onEnterLogin}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </div>
+
+              {/* Column 2 (Middle): Legal */}
+              <div className="flex flex-col items-start gap-3 text-left">
+                <span className="text-sm font-bold uppercase tracking-wider text-white">
+                  Legal
+                </span>
+                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPolicy("terms")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    Terms & Conditions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPolicy("privacy")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    Privacy Policy
+                  </button>
+                </div>
+              </div>
+
+              {/* Column 3 (Right): Navigation */}
+              <div className="flex flex-col items-start gap-3 text-left">
+                <span className="text-sm font-bold uppercase tracking-wider text-white">
+                  Navigation
+                </span>
+                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToSection("hero")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    Home
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToSection("impact-map")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    Why It Matters
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToSection("opportunity")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    What SiKap Offers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToSection("workflow")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    How SiKap Works
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToSection("faq")}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    FAQs
+                  </button>
+                </div>
+              </div>
             </div>
 
           </div>
 
           {/* Bottom Sub-footer */}
-          <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-emerald-900/50 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 text-xs font-medium text-gray-400 text-center md:text-left">
+          <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-emerald-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-xs font-medium text-gray-400 text-center sm:text-left">
             <p>© 2026 SiKap. All rights reserved.</p>
-            <p className="text-emerald-400/90">Designed and developed by BITWISE</p>
+            <p>
+              Designed and developed by <span className="font-bold text-white">BITWISE</span>
+            </p>
           </div>
         </FadeIn>
       </footer>
+
+      {/* Terms & Conditions / Privacy Policy Modal */}
+      <TermsAndPrivacyModal
+        isOpen={isPolicyModalOpen}
+        initialTab={policyModalTab}
+        onClose={() => setIsPolicyModalOpen(false)}
+      />
 
     </div>
   );

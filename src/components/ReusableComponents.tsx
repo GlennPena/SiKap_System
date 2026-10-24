@@ -1092,14 +1092,13 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                                 setViewMonth(idx);
                                 setIsMonthOpen(false);
                               }}
-                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
                                 isSelected
                                   ? "bg-emerald-50 text-[#0A6B43] font-bold"
                                   : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
                               }`}
                             >
                               <span>{name}</span>
-                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
                             </button>
                           );
                         })}
@@ -1116,7 +1115,7 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                       setIsYearOpen(!isYearOpen);
                       setIsMonthOpen(false);
                     }}
-                    className={`flex items-center gap-1 bg-gray-50/90 hover:bg-emerald-50/40 border text-xs font-bold text-gray-800 rounded-lg pl-2.5 pr-2 py-1 transition-all cursor-pointer ${
+                    className={`w-[74px] flex items-center justify-between bg-gray-50/90 hover:bg-emerald-50/40 border text-xs font-bold text-gray-800 rounded-lg pl-2.5 pr-2 py-1 transition-all cursor-pointer ${
                       isYearOpen ? "border-[#0A6B43] ring-1 ring-emerald-500/20 bg-white" : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
@@ -1131,12 +1130,10 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -4, scale: 0.98 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute right-0 sm:left-0 top-full mt-1.5 w-28 max-h-44 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1"
+                        className="absolute left-0 right-0 w-full min-w-[74px] top-full mt-1.5 max-h-44 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1 [scrollbar-width:thin]"
                       >
                         {years.map(y => {
                           const isSelected = viewYear === y;
-                          const ageAtYear = currentYear - y;
-                          const isEligibleYouth = showAgeIndicator && ageAtYear >= 18 && ageAtYear <= 30;
                           return (
                             <button
                               key={y}
@@ -1146,23 +1143,13 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                                 setViewYear(y);
                                 setIsYearOpen(false);
                               }}
-                              className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                              className={`w-full text-center py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
                                 isSelected
                                   ? "bg-emerald-50 text-[#0A6B43] font-bold"
-                                  : isEligibleYouth
-                                    ? "text-gray-900 hover:bg-emerald-50/50"
-                                    : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
+                                  : "text-gray-700 hover:bg-gray-50 active:bg-emerald-50/40"
                               }`}
                             >
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span>{y}</span>
-                                {showAgeIndicator && ageAtYear >= 18 && ageAtYear <= 30 && (
-                                  <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                    {ageAtYear}yo
-                                  </span>
-                                )}
-                              </div>
-                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />}
+                              <span>{y}</span>
                             </button>
                           );
                         })}
@@ -1270,12 +1257,8 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                   </>
                 ) : (
                   <div className="w-full flex items-center justify-between text-[10px]">
-                    <div className="flex items-center gap-1 text-gray-500 font-medium">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                      <span>KK Youth: 18–30 yrs</span>
-                    </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-[9px] text-gray-400 mr-0.5">Quick:</span>
+                      <span className="text-[9px] text-gray-400 mr-0.5 font-medium">Quick:</span>
                       {[18, 21, 25].map(presetAge => {
                         const targetY = currentYear - presetAge;
                         const isCurrentYear = viewYear === targetY;
@@ -1299,6 +1282,13 @@ export const SiKapDatePicker: React.FC<SiKapDatePickerProps> = ({
                         );
                       })}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(false)}
+                      className="text-[10px] text-[#0A6B43] hover:text-emerald-700 font-bold cursor-pointer"
+                    >
+                      Done
+                    </button>
                   </div>
                 )
               ) : (

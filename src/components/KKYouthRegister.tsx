@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import {
-  ArrowLeft, MapPin, Check, Sparkles, Clock, CheckCircle,
+  ArrowLeft, ArrowRight, MapPin, Check, Sparkles, Clock, CheckCircle,
   User, Mail, Phone, Calendar, Award, GraduationCap, Plus, X,
   Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft, ChevronDown,
   Eye, EyeOff, AlertCircle, ZoomIn, ShieldCheck, RefreshCw, FileText, Lock
@@ -547,7 +547,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
         {/* Stepper Progress - Anchored persistently at top */}
         {currentStep < 5 && (
-          <div className="mb-2.5 sm:mb-4 bg-white border border-gray-150 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs shrink-0 w-full max-w-2xl mx-auto" id="kk-reg-stepper">
+          <div className="mb-2.5 sm:mb-4 bg-white border border-gray-200/90 p-2.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-xs shrink-0 w-full max-w-2xl mx-auto" id="kk-reg-stepper">
             {/* Mobile View Progress */}
             <div className="flex justify-between items-center md:hidden mb-2">
               <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full uppercase tracking-wider">
@@ -850,7 +850,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   </div>
 
                   {/* Scrollable Form Fields ONLY */}
-                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5 pb-24">
+                  <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
                     <div className="w-full max-w-xl mx-auto space-y-3.5 p-0.5">
 
                       {/* Row 1: Full Name */}
@@ -935,9 +935,20 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         <div className="flex items-center justify-between">
                           <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Email Address *</label>
                           {isEmailVerified && (
-                            <span className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEmailVerified(false);
+                                setOtpSent(false);
+                                setOtpCode("");
+                                setOtpError(null);
+                                setDevCode(null);
+                              }}
+                              title="Click to change email"
+                              className="text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1 transition-colors cursor-pointer"
+                            >
                               <Check className="w-3 h-3 stroke-[3]" /> Verified
-                            </span>
+                            </button>
                           )}
                         </div>
                         <div className="relative">
@@ -982,36 +993,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         ) : null}
 
                         {/* Interactive Verification Section in the current placement */}
-                        {regEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail) && !emailExists && !isCheckingEmail && (
+                        {regEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail) && !emailExists && !isCheckingEmail && !isEmailVerified && (
                           <div className="pt-1">
-                            {isEmailVerified ? (
-                              <div className="flex items-center justify-between p-2.5 sm:p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-xl text-xs">
-                                <div className="flex items-center gap-2 min-w-0 pr-2">
-                                  <div className="w-6 h-6 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="font-extrabold text-[#0A6B43] text-xs">Email Verified Successfully</p>
-                                    <p className="text-[11px] text-emerald-800/80 font-medium truncate">
-                                      Your identity and email ownership have been secured.
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setIsEmailVerified(false);
-                                    setOtpSent(false);
-                                    setOtpCode("");
-                                    setOtpError(null);
-                                    setDevCode(null);
-                                  }}
-                                  className="text-[11px] font-bold text-gray-500 hover:text-gray-800 underline shrink-0 cursor-pointer"
-                                >
-                                  Change Email
-                                </button>
-                              </div>
-                            ) : !otpSent ? (
+                            {!otpSent ? (
                               <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                                 <div className="flex items-center gap-2 text-xs text-gray-600">
                                   <Mail className="w-4 h-4 text-[#0A6B43] shrink-0" />
@@ -1039,101 +1023,83 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                 </button>
                               </div>
                             ) : (
-                              <div className="p-3.5 sm:p-4 bg-emerald-50/30 border border-emerald-200/90 rounded-2xl space-y-3 animate-in fade-in duration-200">
-                                <div className="flex items-start justify-between gap-2">
+                              <div className="p-3.5 sm:p-4 bg-gray-50/80 border border-gray-200 rounded-xl space-y-3 animate-in fade-in duration-200">
+                                <div>
+                                  <p className="text-[12px] text-gray-600 font-medium leading-relaxed">
+                                    <strong className="text-gray-900 font-bold">Enter Verification Code.</strong> We sent a 6-digit code to{" "}
+                                    <strong className="text-gray-900 font-bold">{regEmail}</strong>.
+                                  </p>
+                                </div>
+
+                                {/* Clean 6-digit numeric input with a Verify button */}
+                                <div className="space-y-1.5">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
-                                      <Lock className="w-3.5 h-3.5" />
+                                    <div className="relative flex-1">
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        autoComplete="one-time-code"
+                                        maxLength={6}
+                                        value={otpCode}
+                                        onChange={(e) => {
+                                          const val = e.target.value.replace(/\D/g, "");
+                                          setOtpCode(val);
+                                          if (otpError) setOtpError(null);
+                                        }}
+                                        placeholder="000000"
+                                        className={`w-full h-11 px-4 bg-white rounded-xl font-mono text-center text-lg sm:text-xl font-bold tracking-[0.3em] transition-all shadow-2xs ${
+                                          otpError
+                                            ? "border border-rose-400 bg-rose-50/30 text-rose-900 focus:bg-white focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                                            : "border border-gray-300 text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden"
+                                        }`}
+                                      />
                                     </div>
-                                    <div>
-                                      <span className="text-xs font-black text-gray-900 block leading-tight">Enter Verification Code</span>
-                                      <span className="text-[11px] text-gray-500 font-medium">
-                                        We sent a 6-digit code to <strong className="text-gray-800">{regEmail}</strong>
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOtpSent(false);
-                                      setOtpCode("");
-                                      setOtpError(null);
-                                      setDevCode(null);
-                                    }}
-                                    className="text-[11px] font-bold text-gray-400 hover:text-gray-600 underline cursor-pointer shrink-0"
-                                  >
-                                    Edit email
-                                  </button>
-                                </div>
-
-                                {/* Single clean 6-digit monospace input box with a "Verify" button */}
-                                <div className="flex items-center gap-2">
-                                  <div className="relative flex-1">
-                                    <input
-                                      type="text"
-                                      inputMode="numeric"
-                                      autoComplete="one-time-code"
-                                      maxLength={6}
-                                      value={otpCode}
-                                      onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, "");
-                                        setOtpCode(val);
-                                        setOtpError(null);
-                                      }}
-                                      placeholder="000000"
-                                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl font-mono text-center text-lg sm:text-xl font-black tracking-[0.3em] text-gray-900 placeholder:text-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all shadow-xs"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    disabled={otpCode.length !== 6 || isVerifyingOtp}
-                                    onClick={handleVerifyOtp}
-                                    className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                                  >
-                                    {isVerifyingOtp ? (
-                                      <>
-                                        <RefreshCw className="w-4 h-4 animate-spin" />
-                                        <span>Verifying...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Check className="w-4 h-4 stroke-[2.5]" />
-                                        <span>Verify</span>
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-
-                                {/* Resend & Feedback alerts */}
-                                <div className="flex items-center justify-between text-[11px] pt-0.5">
-                                  <span className="text-gray-500 font-medium">Didn't receive code?</span>
-                                  {otpCountdown > 0 ? (
-                                    <span className="text-gray-400 font-semibold flex items-center gap-1">
-                                      <Clock className="w-3 h-3" />
-                                      Resend in {otpCountdown}s
-                                    </span>
-                                  ) : (
                                     <button
                                       type="button"
-                                      disabled={isSendingOtp}
-                                      onClick={handleSendOtp}
-                                      className="font-bold text-[#0A6B43] hover:text-[#075332] underline cursor-pointer disabled:opacity-50"
+                                      disabled={otpCode.length !== 6 || isVerifyingOtp}
+                                      onClick={handleVerifyOtp}
+                                      className="h-11 px-5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                                     >
-                                      Resend code
+                                      {isVerifyingOtp ? (
+                                        <>
+                                          <RefreshCw className="w-4 h-4 animate-spin" />
+                                          <span>Verifying...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Check className="w-4 h-4 stroke-[2.5]" />
+                                          <span>Verify</span>
+                                        </>
+                                      )}
                                     </button>
+                                  </div>
+
+                                  {otpError && (
+                                    <p className="text-xs font-semibold text-rose-600 flex items-center gap-1.5 pt-0.5 animate-in fade-in duration-150">
+                                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                      <span>{otpError}</span>
+                                    </p>
                                   )}
                                 </div>
 
-                                {otpError && (
-                                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                                    <span>{otpError}</span>
-                                  </div>
-                                )}
+                                {/* Simple centered Resend Code Link */}
+                                <div className="text-center pt-0.5">
+                                  <p className="text-[12px] font-medium text-gray-600">
+                                    Didn't receive code?{" "}
+                                    <button
+                                      type="button"
+                                      disabled={otpCountdown > 0 || isSendingOtp}
+                                      onClick={handleSendOtp}
+                                      className="text-[#0A6B43] text-[12px] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2 disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
+                                    >
+                                      {otpCountdown > 0 ? `Resend code (${otpCountdown}s)` : "Resend code"}
+                                    </button>
+                                  </p>
+                                </div>
 
                                 {devCode && (
                                   <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-mono flex items-center justify-between">
-                                    <span>[Dev Preview Code]: <strong>{devCode}</strong></span>
+                                    <span>Demo code: <strong>{devCode}</strong></span>
                                     <button
                                       type="button"
                                       onClick={() => setOtpCode(devCode)}
@@ -1573,21 +1539,13 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                   <div
                                     onClick={() => setShowIdPreviewModal(true)}
                                     className="flex items-center gap-2.5 text-left cursor-pointer flex-1 min-w-0 group"
-                                    title="Click to double-check uploaded image"
+                                    title="Click to check uploaded image"
                                   >
                                     <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                                       <FileCheck className="w-5 h-5" />
                                     </div>
                                     <div className="truncate flex-1 min-w-0">
                                       <p className="text-xs font-bold text-gray-800 truncate group-hover:text-[#0A6B43] transition-colors">{regIdFileName}</p>
-                                      <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1.5">
-                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                        <span>Attached</span>
-                                        <span className="text-gray-300">•</span>
-                                        <span className="text-[#0A6B43] underline font-extrabold flex items-center gap-0.5">
-                                          <ZoomIn className="w-3 h-3" /> Double-check image
-                                        </span>
-                                      </p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0 ml-2">
@@ -1595,10 +1553,10 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                       type="button"
                                       onClick={() => setShowIdPreviewModal(true)}
                                       className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                                      title="Double-check image"
+                                      title="Check image"
                                     >
                                       <ZoomIn className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">Double-Check</span>
+                                      <span className="hidden sm:inline">Check</span>
                                     </button>
                                     <button
                                       type="button"
@@ -1619,7 +1577,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                   <div
                                     onClick={() => setShowIdPreviewModal(true)}
                                     className="max-w-xs mx-auto border-2 border-emerald-100 hover:border-[#0A6B43] rounded-xl overflow-hidden shadow-xs relative group bg-slate-900/5 hover:bg-emerald-50/20 p-2 cursor-pointer transition-all hover:shadow-md"
-                                    title="Click to double-check and expand ID image"
+                                    title="Click to check and expand ID image"
                                     role="button"
                                     tabIndex={0}
                                     onKeyDown={(e) => {
@@ -1634,7 +1592,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                         <FileDigit className="w-8 h-8 text-emerald-600" />
                                         <p className="text-[11px] font-bold text-slate-800">PDF Document Attached</p>
                                         <p className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-1">
-                                          <ZoomIn className="w-3 h-3" /> Click to double-check preview
+                                          <ZoomIn className="w-3 h-3" /> Click to check preview
                                         </p>
                                       </div>
                                     ) : (
@@ -1649,7 +1607,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                       <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
                                         <ZoomIn className="w-4 h-4 text-white" />
                                       </div>
-                                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-200">Click to Double-Check</p>
+                                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-200">Click to Check</p>
                                       <p className="text-[9px] text-slate-200 font-medium text-center">Inspect clarity before submitting</p>
                                     </div>
                                   </div>
@@ -1761,10 +1719,10 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(currentStep - 1)}
-                className="px-4 sm:px-5 py-2 sm:py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold rounded-lg sm:rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer hover:border-gray-300"
+                className="group px-4 sm:px-5 py-2 sm:py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold rounded-lg sm:rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer hover:border-gray-300"
               >
-                <ChevronLeft className="w-4 h-4" />
-                Back
+                <ChevronLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
+                <span>Back</span>
               </button>
             )}
 
@@ -1774,67 +1732,64 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 type="button"
                 disabled={!isStepValid(currentStep)}
                 onClick={() => setCurrentStep(currentStep + 1)}
-                className={`px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(currentStep)
+                className={`group px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(currentStep)
                   ? "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer hover:-translate-y-0.5"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
               >
-                Continue
-                <ChevronRight className="w-4 h-4" />
+                <span>Continue</span>
+                <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isStepValid(currentStep) ? "group-hover:translate-x-1" : ""}`} />
               </button>
             ) : (
               <button
                 type="button"
                 disabled={!isStepValid(4) || isRegistering}
                 onClick={(e) => handleSubmit(e as any)}
-                className={`px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(4) && !isRegistering
+                className={`group px-5 sm:px-6 py-2 sm:py-2.5 text-xs font-bold rounded-lg sm:rounded-xl shadow-xs transition-all flex items-center gap-1.5 ${isStepValid(4) && !isRegistering
                   ? "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer hover:-translate-y-0.5"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
               >
-                {isRegistering ? "Submitting..." : "Submit Profiling"}
-                <ChevronRight className="w-4 h-4" />
+                <span>{isRegistering ? "Submitting..." : "Submit Profiling"}</span>
+                <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isStepValid(4) && !isRegistering ? "group-hover:translate-x-1" : ""}`} />
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Expanded Document Double-Check Modal */}
+      {/* Expanded Document Check Modal */}
       {mounted && showIdPreviewModal && regIdImage && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-[9999] animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowIdPreviewModal(false);
           }}
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-hidden animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
           aria-labelledby="id-preview-modal-title"
         >
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ease-out">
-            {/* Modal Header */}
-            <div className="px-4 sm:px-6 py-3.5 border-b border-gray-100 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 id="id-preview-modal-title" className="text-sm sm:text-base font-black text-gray-900 leading-tight">
-                    Double-Check Uploaded Document
-                  </h3>
-                  <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium">
-                    {regIdType || "Identification Document"} • {regIdFileName || "Uploaded File"}
-                  </p>
-                </div>
+          <div
+            className="bg-white border border-gray-200/90 rounded-2xl sm:rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col text-slate-800 animate-in fade-in zoom-in-95 duration-200 ease-out relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Top Header Banner */}
+            <div className="bg-white px-5 sm:px-6 py-4.5 sm:py-5 shrink-0 border-b border-gray-100">
+              <div className="flex items-center justify-between gap-4">
+                <h3 id="id-preview-modal-title" className="text-xl sm:text-2xl font-black text-[#0A6B43] tracking-tight truncate leading-tight">
+                  Check Uploaded Document
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={() => setShowIdPreviewModal(false)}
+                  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all cursor-pointer shrink-0"
+                  title="Close check"
+                  aria-label="Close check"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowIdPreviewModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors cursor-pointer"
-                title="Close preview"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {/* Modal Document Viewer Area */}
@@ -1855,8 +1810,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
               )}
             </div>
 
-            {/* Verification Metadata & Clarifications */}
-            <div className="p-3.5 sm:p-4 bg-white border-t border-gray-100 space-y-2.5">
+            {/* Verification Metadata & Footer */}
+            <div className="px-5 sm:px-6 py-4 bg-white border-t border-gray-200 space-y-3 shrink-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Selected ID Type</span>
@@ -1868,26 +1823,26 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-1">
-                <p className="text-[11px] text-gray-500 font-medium hidden sm:block">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
                   Ensure name and photo are clearly visible to avoid verification delays.
                 </p>
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
                   <label
                     htmlFor="id-file-upload-input"
                     onClick={() => setShowIdPreviewModal(false)}
-                    className="px-3.5 py-2 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                    className="group px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-gray-50 active:scale-95 text-gray-700 border border-gray-300 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-4 h-4 transition-transform duration-200 group-hover:rotate-45" />
                     <span>Change File</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setShowIdPreviewModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-white bg-[#0A6B43] hover:bg-[#075332] rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                    className="group px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Check className="w-3.5 h-3.5" />
                     <span>Looks Good</span>
+                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
                   </button>
                 </div>
               </div>

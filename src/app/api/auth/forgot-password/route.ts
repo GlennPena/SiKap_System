@@ -12,8 +12,7 @@ function maskEmail(email: string): string {
   }
   const first = local[0];
   const last = local[local.length - 1];
-  const maskedLocal = `${first}${"*".repeat(Math.min(local.length - 2, 5))}${last}`;
-  return `${maskedLocal}@${domain}`;
+  return `${first}*${last}@${domain}`;
 }
 
 export async function POST(req: Request) {
@@ -47,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "No registered account found with this email address. Please verify your credentials or register as a Katipunan ng Kabataan member."
+          message: "No registered account found with this email address."
         },
         { status: 404 }
       );

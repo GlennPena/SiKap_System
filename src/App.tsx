@@ -473,7 +473,14 @@ export default function App() {
         viewingLanding ? (
           <LandingPage
             programs={programs}
-            onEnterLogin={() => setViewingLanding(false)}
+            onEnterLogin={() => {
+              setIsSelfRegistering(false);
+              setViewingLanding(false);
+            }}
+            onEnterSignUp={() => {
+              setIsSelfRegistering(true);
+              setViewingLanding(false);
+            }}
             addToast={addToast}
           />
         ) : (
@@ -611,7 +618,7 @@ export default function App() {
                       onBackToHome={() => setIsSelfRegistering(false)}
                     />
                     <div className="text-center pt-4 sm:pt-5 pb-1 shrink-0">
-                      <p className="text-xs sm:text-sm font-semibold text-gray-700">
+                      <p className="text-[14px] font-semibold text-gray-700">
                         Have a SiKap account?{" "}
                         <button
                           type="button"
@@ -654,8 +661,10 @@ export default function App() {
 
                       {/* Login Form */}
                       <form onSubmit={handleFormLogin} className="space-y-5 sm:space-y-6 lg:space-y-7">
-                        <div className="space-y-2 lg:space-y-2.5">
-                          <label className="text-sm lg:text-base font-semibold text-gray-700">Email</label>
+                        <div className="space-y-1 lg:space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <label className="text-sm lg:text-base font-semibold text-gray-700">Email</label>
+                          </div>
                           <input
                             type="email"
                             placeholder="juan.delacruz@gmail.com"
@@ -674,39 +683,41 @@ export default function App() {
                           />
                         </div>
 
-                        <div className="space-y-2 lg:space-y-2.5">
-                          <div className="flex justify-between items-center">
-                            <label className="text-sm lg:text-base font-semibold text-gray-700">Password</label>
-                            <button
-                              type="button"
-                              disabled={isLoggingIn}
-                              onClick={() => setIsForgotPasswordOpen(true)}
-                              className="text-xs sm:text-sm font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Forgot?
-                            </button>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type={showPassword ? "text" : "password"}
-                              placeholder="••••••••"
-                              value={password}
-                              disabled={isLoggingIn || lockoutSeconds > 0}
-                              onChange={(e) => setPassword(e.target.value)}
-                              className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
-                            />
-                            <button
-                              type="button"
-                              disabled={isLoggingIn || lockoutSeconds > 0}
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center disabled:opacity-50"
-                            >
-                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
+                        <div className="space-y-3 sm:space-y-3.5">
+                          <div className="space-y-1 lg:space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <label className="text-sm lg:text-base font-semibold text-gray-700">Password</label>
+                              <button
+                                type="button"
+                                disabled={isLoggingIn}
+                                onClick={() => setIsForgotPasswordOpen(true)}
+                                className="text-xs sm:text-sm font-semibold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Forgot?
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={password}
+                                disabled={isLoggingIn || lockoutSeconds > 0}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 sm:px-5 py-2.5 sm:py-3 lg:py-3.5 bg-gray-50/80 border border-gray-200 rounded-xl lg:rounded-2xl text-sm sm:text-base pr-12 focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+                              />
+                              <button
+                                type="button"
+                                disabled={isLoggingIn || lockoutSeconds > 0}
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center disabled:opacity-50"
+                              >
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              </button>
+                            </div>
                           </div>
 
                           {/* Remember Me Checkbox */}
-                          <div className="flex items-center gap-2.5 pt-2">
+                          <div className="flex items-center gap-2.5 pt-0.5">
                             <input
                               id="remember-me-checkbox"
                               type="checkbox"
@@ -781,7 +792,7 @@ export default function App() {
 
                       {/* Registration Link */}
                       <div className="text-center mt-6 sm:mt-8 lg:mt-10">
-                        <p className="text-sm lg:text-base font-semibold text-gray-700">
+                        <p className="text-[14px] font-semibold text-gray-700">
                           New to SiKap?{" "}
                           <button
                             type="button"

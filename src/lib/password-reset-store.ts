@@ -98,7 +98,7 @@ export function verifyPasswordResetCode(
     return {
       valid: false,
       message: remaining > 0 
-        ? `Invalid verification code. ${remaining} attempt(s) remaining.` 
+        ? "Invalid verification code. Please check and try again." 
         : "Invalid verification code. Maximum attempts reached."
     };
   }

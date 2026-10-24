@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { 
-  KeyRound, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, 
-  CheckCircle2, AlertCircle, RefreshCw, X, Sparkles, ShieldCheck
+  Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, 
+  AlertCircle, RefreshCw, X, Sparkles, ShieldCheck
 } from "lucide-react";
 
 interface ForgotPasswordModalProps {
@@ -14,6 +14,14 @@ interface ForgotPasswordModalProps {
   addToast: (msg: string, type: "success" | "error" | "info") => void;
 }
 
+function maskEmail(email: string): string {
+  const parts = email.split("@");
+  if (parts.length !== 2) return email;
+  const [local, domain] = parts;
+  if (local.length <= 2) return `${local[0]}*@${domain}`;
+  return `${local[0]}*${local[local.length - 1]}@${domain}`;
+}
+
 export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   isOpen,
   initialEmail = "",
@@ -21,7 +29,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   onSuccess,
   addToast,
 }) => {
-  const [step, setStep] = useState<"EMAIL" | "CODE" | "PASSWORD" | "SUCCESS">("EMAIL");
+  const [step, setStep] = useState<"EMAIL" | "CODE" | "PASSWORD">("EMAIL");
   const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,7 +46,10 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
 
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [resendCountdown, setResendCountdown] = useState(0);
 
   const codeInputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +62,9 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       setNewPassword("");
       setConfirmPassword("");
       setErrorMsg(null);
+      setEmailError(null);
+      setCodeError(null);
+      setIsVerifyingCode(false);
       setDevCode(null);
       setAccountInfo(null);
       setStep("EMAIL");
@@ -72,10 +86,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setEmailError(null);
+    setCodeError(null);
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      setErrorMsg("Please enter a valid registered email address.");
+      setEmailError("Please enter a valid registered email address.");
       return;
     }
 
@@ -110,25 +126,49 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
         codeInputRef.current?.focus();
       }, 100);
     } catch (err: any) {
-      setErrorMsg(err.message || "Unable to send recovery code. Please try again.");
+      setEmailError(err.message || "No registered account found with this email address.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // STEP 2: Verify Code
-  const handleVerifyCode = (e: React.FormEvent) => {
+  // STEP 2: Verify Code with API and inline error validation
+  const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setCodeError(null);
 
     const cleanCode = code.trim();
     if (cleanCode.length !== 6 || !/^\d{6}$/.test(cleanCode)) {
-      setErrorMsg("Please enter the complete 6-digit numeric recovery code.");
+      setCodeError("Please enter the complete 6-digit numeric recovery code.");
+      codeInputRef.current?.focus();
       return;
     }
 
-    // Advance to new password step
-    setStep("PASSWORD");
+    setIsVerifyingCode(true);
+    try {
+      const res = await fetch("/api/auth/verify-reset-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: cleanCode,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Invalid or expired recovery code.");
+      }
+
+      // Valid code: proceed to step 3
+      setStep("PASSWORD");
+    } catch (err: any) {
+      setCodeError(err.message || "Invalid or expired recovery code.");
+      codeInputRef.current?.focus();
+    } finally {
+      setIsVerifyingCode(false);
+    }
   };
 
   // STEP 3: Reset Password
@@ -163,8 +203,8 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
         throw new Error(data.message || "Failed to reset password.");
       }
 
-      setStep("SUCCESS");
-      addToast("Password reset successfully! You can now log in.", "success");
+      // Immediate success: invoke onSuccess callback which closes modal and triggers success notification
+      onSuccess(email.trim().toLowerCase());
     } catch (err: any) {
       setErrorMsg(err.message || "Unable to reset password. Please check your code.");
       // If code was invalid, step back to code
@@ -181,92 +221,88 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-hidden animate-in fade-in duration-200"
     >
-      <div className="bg-white border border-emerald-100 rounded-3xl w-full max-w-md max-h-[90dvh] overflow-y-auto shadow-2xl flex flex-col text-slate-800 animate-in fade-in zoom-in-95 duration-200 ease-out relative">
-        {/* Modal Top Header */}
-        <div className="bg-gradient-to-r from-[#112F24] to-[#164132] text-white p-6 relative">
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-4 top-4 text-emerald-200/80 hover:text-white hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
-            title="Close recovery"
-          >
-            <X className="w-5 h-5" />
-          </button>
+      <div className="bg-white border border-gray-200/90 rounded-2xl sm:rounded-3xl w-full max-w-xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col text-slate-800 animate-in fade-in zoom-in-95 duration-200 ease-out relative">
+        {/* Modal Top Header Banner */}
+        <div className="bg-[#0A4D30] text-white px-5 sm:px-6 py-4.5 sm:py-5 shrink-0 shadow-xs border-b border-emerald-900/40">
+          <div className="flex items-center justify-between gap-4">
+            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate leading-tight drop-shadow-xs">
+              Account Password Recovery
+            </h3>
 
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
-              <KeyRound className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-md border border-amber-400/30">
-                  Security Recovery
-                </span>
-              </div>
-              <h3 className="text-base font-black text-white tracking-tight mt-0.5">
-                Account Password Recovery
-              </h3>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 sm:p-2 text-emerald-100 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer shrink-0"
+              title="Close recovery"
+              aria-label="Close recovery"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-
-          {/* Stepper Progress Bar */}
-          {step !== "SUCCESS" && (
-            <div className="flex items-center gap-1.5 mt-5">
-              {[
-                { s: "EMAIL", num: 1, label: "Email" },
-                { s: "CODE", num: 2, label: "Verify" },
-                { s: "PASSWORD", num: 3, label: "Password" },
-              ].map((st, i) => {
-                const isActive = step === st.s;
-                const isPassed =
-                  (st.s === "EMAIL" && (step === "CODE" || step === "PASSWORD")) ||
-                  (st.s === "CODE" && step === "PASSWORD");
-
-                return (
-                  <React.Fragment key={st.s}>
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-colors ${
-                          isActive
-                            ? "bg-amber-400 text-slate-950"
-                            : isPassed
-                            ? "bg-emerald-500 text-white"
-                            : "bg-emerald-900/80 text-emerald-300 border border-emerald-700"
-                        }`}
-                      >
-                        {isPassed ? "✓" : st.num}
-                      </div>
-                      <span
-                        className={`text-[11px] font-bold ${
-                          isActive ? "text-white" : "text-emerald-300/80"
-                        }`}
-                      >
-                        {st.label}
-                      </span>
-                    </div>
-                    {i < 2 && (
-                      <div
-                        className={`flex-1 h-0.5 rounded-full ${
-                          isPassed ? "bg-emerald-500" : "bg-emerald-900/80"
-                        }`}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 space-y-4">
+        {/* Modal Scrollable Body */}
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5 flex-1">
+          {/* Stepper Progress Counter in Main Content */}
+          <div className="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3.5 sm:p-4 shadow-2xs">
+              <div className="flex items-center justify-between gap-2">
+                {[
+                  { s: "EMAIL", num: 1, label: "Account Email" },
+                  { s: "CODE", num: 2, label: "Verification Code" },
+                  { s: "PASSWORD", num: 3, label: "New Password" },
+                ].map((st, i) => {
+                  const isActive = step === st.s;
+                  const isPassed =
+                    (st.s === "EMAIL" && (step === "CODE" || step === "PASSWORD")) ||
+                    (st.s === "CODE" && step === "PASSWORD");
+
+                  return (
+                    <React.Fragment key={st.s}>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all shadow-2xs ${
+                            isActive
+                              ? "bg-[#0A6B43] text-white shadow-xs font-black ring-2 ring-emerald-600/30"
+                              : isPassed
+                              ? "bg-emerald-200 text-[#075332] font-black"
+                              : "bg-gray-100 text-gray-400 border border-gray-200"
+                          }`}
+                        >
+                          {isPassed ? "✓" : st.num}
+                        </div>
+                        <span
+                          className={`text-xs font-semibold ${
+                            isActive
+                              ? "text-[#075332] font-black"
+                              : isPassed
+                              ? "text-emerald-800"
+                              : "text-gray-400 hidden sm:inline"
+                          }`}
+                        >
+                          {st.label}
+                        </span>
+                      </div>
+                      {i < 2 && (
+                        <div
+                          className={`flex-1 h-0.5 rounded-full transition-all ${
+                            isPassed ? "bg-emerald-500" : "bg-gray-200"
+                          }`}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+
           {/* Error Alert Box */}
-          {errorMsg && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2 animate-in fade-in duration-150">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="flex-1 font-medium leading-relaxed">{errorMsg}</div>
+          {/* Error Alert Box (for general errors not tied to inline email field) */}
+          {errorMsg && !emailError && (
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in duration-150 shadow-2xs">
+              <AlertCircle className="w-4.5 h-4.5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 font-semibold leading-relaxed">{errorMsg}</div>
             </div>
           )}
 
@@ -274,54 +310,59 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           {/* STEP 1: ENTER EMAIL */}
           {/* ============================================================ */}
           {step === "EMAIL" && (
-            <form onSubmit={handleRequestCode} className="space-y-4">
-              <div>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed mb-4">
-                  Please enter your registered SiKap email address. We will verify your account and issue a 6-digit recovery verification code.
+            <form onSubmit={handleRequestCode} className="space-y-4 sm:space-y-5">
+              <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 sm:p-4">
+                <p className="text-[12px] text-gray-600 font-medium leading-relaxed">
+                  Enter your registered email to receive a 6-digit recovery code.
                 </p>
+              </div>
 
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                   Registered Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4.5 h-4.5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="email"
                     required
                     autoFocus
-                    placeholder="e.g. rhea.cruz@sanluispampanga.gov.ph"
+                    placeholder="e.g. juan.delacruz@sanluispampanga.gov.ph"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full text-xs font-medium pl-10 pr-3.5 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    className={`w-full text-xs sm:text-sm font-medium pl-10.5 pr-4 py-3 rounded-xl border transition-all placeholder:text-gray-400 ${
+                      emailError
+                        ? "border-rose-400 bg-rose-50/30 text-rose-900 focus:bg-white focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                        : "border-gray-200 bg-gray-50/70 text-gray-900 focus:bg-white focus:outline-none focus:border-[#0A6B43] focus:ring-2 focus:ring-[#0A6B43]/20"
+                    }`}
                   />
                 </div>
-                <p className="text-[11px] text-slate-400 font-medium mt-1.5">
-                  Applies to all accounts: KK Youth, SK Officials, Captains, TESDA, and Super Admin.
-                </p>
+                {emailError && (
+                  <p className="text-xs font-semibold text-rose-600 flex items-center gap-1.5 pt-0.5 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{emailError}</span>
+                  </p>
+                )}
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="flex items-center justify-end pt-3 border-t border-gray-100">
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-5 py-2.5 rounded-xl text-xs font-black bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="group px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Checking Account...
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Checking Account...</span>
                     </>
                   ) : (
                     <>
-                      Send Recovery Code
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <span>Send Recovery Code</span>
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
                     </>
                   )}
                 </button>
@@ -333,37 +374,34 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           {/* STEP 2: ENTER 6-DIGIT CODE */}
           {/* ============================================================ */}
           {step === "CODE" && (
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              {/* Account Match Badge */}
-              {accountInfo && (
-                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1 text-xs text-slate-700">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
-                      Verified Account
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-white border border-emerald-200 px-2 py-0.2 rounded-full">
-                      Active
-                    </span>
-                  </div>
-                  <p className="font-bold text-slate-900 text-xs">{accountInfo.name}</p>
-                  <p className="text-[11px] text-emerald-800 font-medium">{accountInfo.designation}</p>
-                  <p className="text-[11px] text-slate-500 font-mono">Dispatched to: {accountInfo.maskedEmail}</p>
-                </div>
-              )}
+            <form onSubmit={handleVerifyCode} className="space-y-4 sm:space-y-5">
+              {/* Simple Account Notification Card */}
+              <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 sm:p-4">
+                <p className="text-[12px] text-gray-600 font-medium leading-relaxed">
+                  We found your SiKap account and sent a 6-digit recovery code to{" "}
+                  <strong className="text-gray-900 font-bold">
+                    {accountInfo?.maskedEmail || maskEmail(email)}
+                  </strong>{" "}
+                  to verify your identity.
+                </p>
+              </div>
 
               {/* Dev / Local Mode Helper */}
               {devCode && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-800">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
-                    <span>Local / Intranet Environment Code:</span>
+                <div className="p-3.5 sm:p-4 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-2 shadow-2xs">
+                  <div className="flex items-center gap-2 font-bold text-amber-900">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Intranet / Local Demo Testing Code:</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white border border-amber-200 px-3 py-1.5 rounded-lg">
-                    <span className="font-mono font-black text-lg text-[#0A6B43] tracking-widest">{devCode}</span>
+                  <div className="flex items-center justify-between bg-white border border-amber-200/90 px-3.5 py-2 rounded-xl shadow-2xs">
+                    <span className="font-mono font-black text-xl text-[#0A6B43] tracking-widest">{devCode}</span>
                     <button
                       type="button"
-                      onClick={() => setCode(devCode)}
-                      className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-[10px] font-bold rounded-md transition-colors cursor-pointer"
+                      onClick={() => {
+                        setCode(devCode);
+                        if (codeError) setCodeError(null);
+                      }}
+                      className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                     >
                       Fill Code
                     </button>
@@ -371,56 +409,82 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  6-Digit Recovery Verification Code
+              {/* Centered type field with dotted placeholder, maintaining matching height and size */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider text-center">
+                  6-Digit Verification Code
                 </label>
-                <input
-                  ref={codeInputRef}
-                  type="text"
-                  maxLength={6}
-                  required
-                  placeholder="• • • • • •"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  className="w-full text-center text-xl font-mono font-black tracking-widest px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                />
-                <p className="text-[11px] text-slate-400 text-center font-medium mt-1.5">
-                  Enter the 6-digit numeric security code sent to your email.
+                <div className="w-full">
+                  <input
+                    ref={codeInputRef}
+                    type="text"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    placeholder="• • • • • •"
+                    value={code}
+                    onChange={(e) => {
+                      setCode(e.target.value.replace(/\D/g, ""));
+                      if (codeError) setCodeError(null);
+                    }}
+                    className={`w-full text-center text-xl sm:text-2xl font-mono font-bold tracking-[0.35em] px-4 py-3 rounded-xl border transition-all placeholder:text-gray-300 placeholder:tracking-[0.35em] ${
+                      codeError
+                        ? "border-rose-400 bg-rose-50/30 text-rose-900 focus:bg-white focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                        : "border-gray-200 bg-gray-50/70 text-gray-900 focus:bg-white focus:outline-none focus:border-[#0A6B43] focus:ring-2 focus:ring-[#0A6B43]/20"
+                    }`}
+                  />
+                </div>
+                {codeError && (
+                  <p className="text-xs font-semibold text-rose-600 flex items-center justify-center gap-1.5 pt-0.5 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{codeError}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Resend Code Link matching Register Here style */}
+              <div className="text-center pt-0.5">
+                <p className="text-[12px] font-medium text-gray-600">
+                  Did not receive code?{" "}
+                  <button
+                    type="button"
+                    disabled={resendCountdown > 0 || isLoading || isVerifyingCode}
+                    onClick={handleRequestCode}
+                    className="text-[#0A6B43] text-[12px] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2 disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
+                  >
+                    {resendCountdown > 0 ? `Resend Code (${resendCountdown}s)` : "Resend Code"}
+                  </button>
                 </p>
               </div>
 
-              {/* Resend Code Button */}
-              <div className="text-center pt-1">
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  disabled={resendCountdown > 0 || isLoading}
-                  onClick={handleRequestCode}
-                  className="text-xs font-bold text-[#0A6B43] hover:underline disabled:text-slate-400 disabled:no-underline cursor-pointer disabled:cursor-not-allowed inline-flex items-center gap-1"
+                  onClick={() => {
+                    setCodeError(null);
+                    setStep("EMAIL");
+                  }}
+                  className="group px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-gray-50 active:scale-95 text-gray-700 border border-gray-300 shadow-2xs transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <RefreshCw className={`w-3 h-3 ${isLoading ? "animate-spin" : ""}`} />
-                  {resendCountdown > 0
-                    ? `Resend code in ${resendCountdown}s`
-                    : "Did not receive code? Resend Code"}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setStep("EMAIL")}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Change Email
+                  <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
+                  <span>Change Email</span>
                 </button>
                 <button
                   type="submit"
-                  disabled={code.trim().length !== 6}
-                  className="px-5 py-2.5 rounded-xl text-xs font-black bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  disabled={isVerifyingCode || code.trim().length !== 6}
+                  className="group px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Verify Code
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  {isVerifyingCode ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verify Code</span>
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -430,136 +494,111 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           {/* STEP 3: NEW PASSWORD */}
           {/* ============================================================ */}
           {step === "PASSWORD" && (
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed mb-3">
-                  Identity verified! Create a new secure password for your account.
+            <form onSubmit={handleResetPassword} className="space-y-5">
+              <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 sm:p-4">
+                <p className="text-[12px] text-gray-600 font-medium leading-relaxed">
+                  Identity verified! Set a new password to regain access to your account.
                 </p>
+              </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      New Password (minimum 6 characters)
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type={showPass ? "text" : "password"}
-                        required
-                        minLength={6}
-                        autoFocus
-                        placeholder="••••••••"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full text-xs font-medium pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPass(!showPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type={showConfirmPass ? "text" : "password"}
-                        required
-                        minLength={6}
-                        placeholder="••••••••"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full text-xs font-medium pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPass(!showConfirmPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    New Password (minimum 6 characters)
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4.5 h-4.5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type={showPass ? "text" : "password"}
+                      required
+                      minLength={6}
+                      autoFocus
+                      placeholder="••••••••"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full text-xs sm:text-sm font-medium pl-10.5 pr-11 py-3 rounded-xl border border-gray-200 bg-gray-50/70 text-gray-900 focus:bg-white focus:outline-none focus:border-[#0A6B43] focus:ring-2 focus:ring-[#0A6B43]/20 transition-all placeholder:text-gray-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                    >
+                      {showPass ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                    </button>
                   </div>
                 </div>
 
-                {/* Validation indicators */}
-                <div className="pt-2 space-y-1 text-[11px]">
-                  <div className={`flex items-center gap-1.5 ${newPassword.length >= 6 ? "text-emerald-700 font-bold" : "text-slate-400"}`}>
-                    <span>{newPassword.length >= 6 ? "✓" : "•"}</span>
-                    <span>At least 6 characters</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${newPassword && newPassword === confirmPassword ? "text-emerald-700 font-bold" : "text-slate-400"}`}>
-                    <span>{newPassword && newPassword === confirmPassword ? "✓" : "•"}</span>
-                    <span>Passwords match</span>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4.5 h-4.5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type={showConfirmPass ? "text" : "password"}
+                      required
+                      minLength={6}
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full text-xs sm:text-sm font-medium pl-10.5 pr-11 py-3 rounded-xl border border-gray-200 bg-gray-50/70 text-gray-900 focus:bg-white focus:outline-none focus:border-[#0A6B43] focus:ring-2 focus:ring-[#0A6B43]/20 transition-all placeholder:text-gray-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPass(!showConfirmPass)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer p-1"
+                    >
+                      {showConfirmPass ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                    </button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2.5 pt-2">
+              {/* Validation indicators */}
+              <div className="p-3 bg-gray-50/80 border border-gray-200/70 rounded-xl space-y-1.5 text-xs">
+                <div className={`flex items-center gap-2 ${newPassword.length >= 6 ? "text-emerald-700 font-bold" : "text-gray-400 font-medium"}`}>
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white border border-current shrink-0">
+                    {newPassword.length >= 6 ? "✓" : "•"}
+                  </span>
+                  <span>At least 6 characters long</span>
+                </div>
+                <div className={`flex items-center gap-2 ${newPassword && newPassword === confirmPassword ? "text-emerald-700 font-bold" : "text-gray-400 font-medium"}`}>
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white border border-current shrink-0">
+                    {newPassword && newPassword === confirmPassword ? "✓" : "•"}
+                  </span>
+                  <span>Password confirmation matches</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setStep("CODE")}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="group px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-gray-50 active:scale-95 text-gray-700 border border-gray-300 shadow-2xs transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back
+                  <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
+                  <span>Back</span>
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || newPassword.length < 6 || newPassword !== confirmPassword}
-                  className="px-5 py-2.5 rounded-xl text-xs font-black bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="group px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Updating Password...
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Updating Password...</span>
                     </>
                   ) : (
                     <>
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      Set New Password
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Set New Password</span>
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
                     </>
                   )}
                 </button>
               </div>
             </form>
-          )}
-
-          {/* ============================================================ */}
-          {/* STEP 4: SUCCESS */}
-          {/* ============================================================ */}
-          {step === "SUCCESS" && (
-            <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center mx-auto shadow-xs border-2 border-emerald-200">
-                <CheckCircle2 className="w-9 h-9" />
-              </div>
-
-              <div>
-                <h4 className="text-base font-black text-slate-900">
-                  Password Reset Successful!
-                </h4>
-                <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed max-w-xs mx-auto">
-                  Your credentials have been securely updated in the database. You can now log in using your new password.
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => onSuccess(email)}
-                  className="w-full py-3 px-4 rounded-xl text-xs font-black bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors cursor-pointer"
-                >
-                  Proceed to Sign In
-                </button>
-              </div>
-            </div>
           )}
         </div>
       </div>
