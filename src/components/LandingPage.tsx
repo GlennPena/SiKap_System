@@ -239,53 +239,49 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   useEffect(() => {
     let isMounted = true;
+    let lastFetched = 0;
 
     const refreshStats = async () => {
       try {
         const res = await fetch("/api/stats");
         const json = await res.json();
         if (isMounted && json.success && json.data) {
+          lastFetched = Date.now();
           setLiveStats(prev => {
             if (JSON.stringify(prev) === JSON.stringify(json.data)) return prev;
             return json.data;
           });
         }
       } catch (err) {
-        // Silently ignore network hiccup during background poll
+        // Silently ignore network hiccup
       }
     };
 
     // Initial load
     refreshStats();
 
-    // Listen to real-time events across tabs & within window
+    // Listen to real-time events across tabs & within window (instant on mutation)
     const unsubscribe = onRealtimeSync(() => {
       refreshStats();
     });
 
-    // Window focus & tab visibility handlers for instant revalidation
+    // Window focus & tab visibility handlers for instant revalidation (throttled to at most once per 30s)
     const handleFocus = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        refreshStats();
+        if (Date.now() - lastFetched > 30000) {
+          refreshStats();
+        }
       }
     };
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleFocus);
 
-    // Background interval every 6 seconds while tab is active
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        refreshStats();
-      }
-    }, 6000);
-
     return () => {
       isMounted = false;
       unsubscribe();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleFocus);
-      clearInterval(interval);
     };
   }, []);
 
