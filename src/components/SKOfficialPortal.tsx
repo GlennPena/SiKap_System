@@ -1211,11 +1211,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   };
 
   // Skill Chip methods
-  const handleAddSkill = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && skillInput.trim()) {
-      e.preventDefault();
-      if (!regSkills.includes(skillInput.trim())) {
-        setRegSkills([...regSkills, skillInput.trim()]);
+  const handleAddSkill = (e?: React.KeyboardEvent | React.MouseEvent) => {
+    if (e && "key" in e && e.key !== "Enter") return;
+    if (e) e.preventDefault();
+    const trimmed = skillInput.trim();
+    if (trimmed) {
+      if (!regSkills.includes(trimmed)) {
+        setRegSkills([...regSkills, trimmed]);
       }
       setSkillInput("");
     }
@@ -1287,7 +1289,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       soloParent: regSolo,
       pwd: regPwd,
       indigenous: regIndigenous,
-      approvalStatus: "Approved"
+      approvalStatus: "Approved",
+      verificationIdType: "SK Chairman Registered (In-Person)",
+      registeredByOfficial: true
     };
 
     try {
@@ -1304,38 +1308,15 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         setNewlyCreatedId(createdProfile.id);
         addToast(`Registered ${createdProfile.name} and provisioned login account!`, "success");
         broadcastDataChange("youth", "registered");
+        setShowRegSuccess(true);
       } else {
-        const newId = `y-${Date.now()}`;
-        const fallbackProfile: YouthProfile = {
-          id: newId,
-          ...payload,
-          barangay: `Barangay ${brgyName}`,
-          registeredDate: "Just now",
-          matchScore: 85,
-          hasReferred: false,
-          approvalStatus: "Approved" as const
-        };
-        setYouthProfiles(prev => [fallbackProfile, ...prev]);
-        setNewlyCreatedId(newId);
-        if (data.message) addToast(data.message, "info");
+        addToast(data.message || "Failed to register youth member in database.", "error");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to register user in database:", err);
-      const newId = `y-${Date.now()}`;
-      const fallbackProfile: YouthProfile = {
-        id: newId,
-        ...payload,
-        barangay: `Barangay ${brgyName}`,
-        registeredDate: "Just now",
-        matchScore: 85,
-        hasReferred: false,
-        approvalStatus: "Approved" as const
-      };
-      setYouthProfiles(prev => [fallbackProfile, ...prev]);
-      setNewlyCreatedId(newId);
+      addToast(err?.message || "An unexpected network error occurred while registering youth.", "error");
     } finally {
       setIsRegistering(false);
-      setShowRegSuccess(true);
     }
   };
 
@@ -4225,6 +4206,24 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             </p>
                           </div>
 
+                          {/* Verification Method & Origin */}
+                          <div className="col-span-1 sm:col-span-2">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Verification Method</span>
+                            <div className="mt-1 flex items-center gap-2">
+                              {selectedYouth.verificationIdType?.toLowerCase().includes("in-person") || selectedYouth.verificationIdType?.toLowerCase().includes("sk") || !selectedYouth.verificationIdImage ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-xs font-bold">
+                                  <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                                  <span>SK Chairman Registered (In-Person Verification)</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold">
+                                  <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                                  <span>Online Upload: {selectedYouth.verificationIdType || "Government / Student ID"}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
                           {/* Location (switched with Contact Number, extended to the right column) */}
                           <div className="col-span-1 sm:col-span-2">
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Location</span>
@@ -4626,7 +4625,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.REGISTER_YOUTH && (
             <div className="space-y-6">
-              <div className="flex items-center gap-3">
+              <div className="w-full max-w-[92%] sm:max-w-[90%] mx-auto flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
@@ -4640,37 +4639,37 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Form Container */}
-              <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-6 md:p-8 relative">
+              {/* Form Container - Widened to 90% viewing width */}
+              <div className="w-full max-w-[92%] sm:max-w-[90%] mx-auto bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-6 sm:p-8 lg:p-10 relative">
 
                 {/* AI assessment overlay loader */}
                 {isRegistering && (
-                  <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-2xl z-20 flex flex-col items-center justify-center text-center p-8">
-                    <div className="w-16 h-16 rounded-full border-4 border-emerald-100 border-t-[#0A6B43] animate-spin mb-4" />
-                    <h3 className="text-lg font-bold text-gray-800 mb-1">AI Matchmaking Active</h3>
-                    <p className="text-sm text-gray-500 max-w-sm leading-relaxed mb-4">
+                  <div className="absolute inset-0 bg-white/95 backdrop-blur-xs rounded-2xl z-20 flex flex-col items-center justify-center text-center p-4 sm:p-8 lg:p-10 overflow-y-auto">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-4 border-emerald-100 border-t-[#0A6B43] animate-spin mb-3 sm:mb-4 shrink-0" />
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">AI Matchmaking Active</h3>
+                    <p className="text-xs sm:text-sm text-gray-500 max-w-lg leading-relaxed mb-3 sm:mb-4 px-2">
                       {programs.length === 0
                         ? `Content-filtering is processing ${regName || "youth"}'s skills profile... (0 active TESDA programs currently in database)`
                         : `Content-filtering is comparing ${regName || "youth"}'s skills profile to ${programs.length} available local TESDA modules...`}
                     </p>
-                    <div className="w-48 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="w-48 sm:w-64 h-1.5 sm:h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-600 rounded-full animate-pulse" style={{ width: "66%" }} />
                     </div>
                   </div>
                 )}
 
-                {/* Success Overlay state */}
+                {/* Success Overlay state - Fully optimized for mobile responsiveness */}
                 {showRegSuccess && (
-                  <div className="absolute inset-0 bg-white rounded-2xl z-20 flex flex-col items-center justify-center text-center p-8">
-                    <div className="w-14 h-14 rounded-full bg-emerald-50 text-[#0A6B43] flex items-center justify-center mb-4 border border-emerald-100 shadow-xs">
-                      <CheckCircle className="w-8 h-8 animate-bounce" />
+                  <div className="absolute inset-0 bg-white rounded-2xl z-20 flex flex-col items-center justify-start sm:justify-center text-center p-4 sm:p-8 lg:p-10 overflow-y-auto">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-emerald-50 text-[#0A6B43] flex items-center justify-center mb-3 sm:mb-4 border border-emerald-100 shadow-xs shrink-0 mt-2 sm:mt-0">
+                      <CheckCircle className="w-7 h-7 sm:w-9 sm:h-9 text-[#0A6B43]" />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-800 mb-1">Profile Created Successfully!</h3>
+                    <h3 className="text-xl sm:text-2xl font-extrabold text-gray-900 mb-1.5 sm:mb-2 tracking-tight">Profile Created Successfully!</h3>
 
                     {(() => {
                       if (programs.length === 0) {
                         return (
-                          <p className="text-sm text-gray-500 max-w-md leading-relaxed mb-6">
+                          <p className="text-xs sm:text-sm lg:text-base text-gray-600 max-w-2xl leading-relaxed mb-4 sm:mb-6 font-normal px-1">
                             AI completed processing <strong className="text-gray-800">{regName}</strong>! Currently, there are <span className="text-amber-700 font-bold">0 active training programs</span> in the system database. Add TESDA programs to generate automated skill matches.
                           </p>
                         );
@@ -4706,34 +4705,36 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       const compatibleCount = matches.filter(m => m.score >= 60).length;
 
                       return (
-                        <p className="text-sm text-gray-500 max-w-md leading-relaxed mb-4">
+                        <p className="text-xs sm:text-sm lg:text-base text-gray-600 max-w-2xl leading-relaxed mb-4 sm:mb-5 font-normal px-1">
                           AI completed processing <strong className="text-gray-800">{regName}</strong>! Identified <span className="text-[#0A6B43] font-bold">{compatibleCount} compatible skills {compatibleCount === 1 ? 'match' : 'matches'}</span> out of {programs.length} active programs. Top fit is <strong className="text-emerald-900">{topFit.program.title}</strong> ({topFit.score}% Match score).
                         </p>
                       );
                     })()}
 
                     {regEmail && (
-                      <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3.5 mb-6 text-left max-w-md w-full shadow-2xs">
-                        <p className="text-[10px] font-extrabold text-[#0A6B43] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                          Provisioned KK Member Login Account
+                      <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 mb-4 sm:mb-6 text-left max-w-2xl w-full shadow-2xs">
+                        <p className="text-[10px] sm:text-xs font-extrabold text-[#0A6B43] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
+                          <span>Provisioned KK Member Login Account</span>
                         </p>
-                        <div className="text-xs text-gray-800 space-y-1 mt-2 bg-white p-2.5 rounded-lg border border-emerald-100 font-sans">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-medium text-[11px]">Email:</span>
-                            <span className="font-bold text-emerald-950">{regEmail}</span>
+                        <div className="text-xs sm:text-sm text-gray-800 space-y-2 bg-white p-3 sm:p-3.5 rounded-lg sm:rounded-xl border border-emerald-100 font-sans">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 sm:py-0.5 gap-0.5 sm:gap-2">
+                            <span className="text-gray-500 font-medium text-[11px] sm:text-xs shrink-0">Email:</span>
+                            <span className="font-bold text-emerald-950 font-mono text-xs sm:text-sm break-all">{regEmail}</span>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500 font-medium text-[11px]">Password:</span>
-                            <span className="font-bold text-emerald-950">{regPassword}</span>
+                          <div className="border-t border-gray-100" />
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 sm:py-0.5 gap-0.5 sm:gap-2">
+                            <span className="text-gray-500 font-medium text-[11px] sm:text-xs shrink-0">Password:</span>
+                            <span className="font-bold text-emerald-950 font-mono text-xs sm:text-sm break-all">{regPassword}</span>
                           </div>
                         </div>
-                        <p className="text-[10px] text-emerald-800 mt-2 font-medium">
-                          ✓ User account created in database. The member can now log in at the home page using these credentials.
+                        <p className="text-[10px] sm:text-xs text-emerald-800 mt-2 sm:mt-2.5 font-medium flex items-start sm:items-center gap-1 leading-snug">
+                          <span className="shrink-0">✓</span>
+                          <span>User account created in database. The member can now log in at the home page using these credentials.</span>
                         </p>
                       </div>
                     )}
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 w-full max-w-2xl justify-center pb-2 sm:pb-0">
                       <button
                         onClick={() => {
                           if (newlyCreatedId) {
@@ -4743,13 +4744,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           }
                           setShowRegSuccess(false);
                         }}
-                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                        className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         View Matches & Pathway →
                       </button>
                       <button
                         onClick={resetRegForm}
-                        className="px-5 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                        className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 border border-gray-200 text-gray-700 hover:bg-gray-50 active:scale-95 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center"
                       >
                         Add Another Profile
                       </button>
@@ -4945,15 +4946,27 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-gray-500 uppercase block">Add Technical Skills (Press Enter)</label>
-                      <input
-                        type="text"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyDown={handleAddSkill}
-                        placeholder="Type a skill e.g. Welding, Food Safety, Typing and press Enter"
-                        className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
+                      <label className="text-[11px] font-bold text-gray-500 uppercase block">Add Technical Skills (Press Enter or click Add)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={skillInput}
+                          onChange={(e) => setSkillInput(e.target.value)}
+                          onKeyDown={handleAddSkill}
+                          placeholder="Type a skill e.g. Welding, Food Safety, Typing"
+                          className="flex-1 min-w-0 h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddSkill()}
+                          disabled={!skillInput.trim()}
+                          className="h-[40px] px-4 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shrink-0 transition-all shadow-xs"
+                          title="Add Skill"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Add</span>
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {regSkills.map((s) => (
                           <span key={s} className="bg-emerald-50 text-[#0A6B43] border border-emerald-100 text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5">
@@ -5369,69 +5382,83 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Header & Controls Toolbar */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Competency Diagnostics</h3>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
-                    {localSkillsGaps.length}
-                  </span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                  <div className="w-full sm:w-auto min-w-[200px]">
-                    <CustomSelect
-                      value={analyticsSectorFilter}
-                      onChange={(val) => setAnalyticsSectorFilter(val)}
-                      options={[
-                        { value: "All", label: "All Sector Categories" },
-                        { value: "IT", label: "IT & Digital Technologies" },
-                        { value: "Food", label: "Food, Culinary & Baking" },
-                        { value: "Trades", label: "Construction, Welding & Electrical" },
-                        { value: "Automotive", label: "Automotive & Engine Mechanics" },
-                        { value: "Agriculture", label: "Agriculture & Agribusiness" }
-                      ]}
-                      size="sm"
-                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                      placeholder="All Sector Categories"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleExportSkillsGapExcel}
-                      className="flex-1 sm:flex-none justify-center h-[38px] px-4 rounded-xl border border-gray-200 bg-white text-emerald-800 hover:bg-emerald-50 text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
-                      title="Export Skills Gap Report to styled Excel spreadsheet (.xls)"
-                    >
-                      <Download className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span className="truncate">Export Excel (.xls)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsSkillsGapReportModalOpen(true)}
-                      className="flex-1 sm:flex-none justify-center h-[38px] px-4 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
-                      title="Generate printable Skills Gap Analytics report and PDF summary"
-                    >
-                      <Printer className="w-4 h-4 shrink-0" />
-                      <span className="truncate">Print Summary</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
               {localYouthProfiles.length === 0 ? (
-                <div className="bg-white border border-gray-100/80 rounded-2xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                  <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
-                    <BarChart2 className="w-7 h-7" />
+                /* Skills Gap Analytics Card Container - Consistent with TESDA Programs and Announcements */
+                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                  {/* Top Row: Title and Counter Badge */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Competency Diagnostics</h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                        0
+                      </span>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Youth Registered Yet</h3>
-                    <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
-                      Skills gap analytics are calculated automatically from registered youth profiles in <strong>Barangay {designatedBarangay}</strong>. Once KK members register or self-verify, their skill gaps will analyze here.
-                    </p>
+
+                  {/* Empty State matching TESDA Programs & Announcements */}
+                  <div className="py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                      <BarChart2 className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Youth Registered Yet</h3>
+                      <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
+                        Skills gap analytics are calculated automatically from registered youth profiles in <strong>Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</strong>. Once KK members register or self-verify, their skill gaps will appear here.
+                      </p>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <>
+                  {/* Header & Controls Toolbar */}
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5 bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Competency Diagnostics</h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
+                        {localSkillsGaps.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                      <div className="w-full sm:w-auto min-w-[200px]">
+                        <CustomSelect
+                          value={analyticsSectorFilter}
+                          onChange={(val) => setAnalyticsSectorFilter(val)}
+                          options={[
+                            { value: "All", label: "All Sector Categories" },
+                            { value: "IT", label: "IT & Digital Technologies" },
+                            { value: "Food", label: "Food, Culinary & Baking" },
+                            { value: "Trades", label: "Construction, Welding & Electrical" },
+                            { value: "Automotive", label: "Automotive & Engine Mechanics" },
+                            { value: "Agriculture", label: "Agriculture & Agribusiness" }
+                          ]}
+                          size="sm"
+                          buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                          placeholder="All Sector Categories"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={handleExportSkillsGapExcel}
+                          className="flex-1 sm:flex-none justify-center h-[38px] px-4 rounded-xl border border-gray-200 bg-white text-emerald-800 hover:bg-emerald-50 text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-98"
+                          title="Export Skills Gap Report to styled Excel spreadsheet (.xls)"
+                        >
+                          <Download className="w-4 h-4 text-emerald-700 shrink-0" />
+                          <span className="truncate">Export Excel (.xls)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsSkillsGapReportModalOpen(true)}
+                          className="flex-1 sm:flex-none justify-center h-[38px] px-4 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-[12px] font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                          title="Generate printable Skills Gap Analytics report and PDF summary"
+                        >
+                          <Printer className="w-4 h-4 shrink-0" />
+                          <span className="truncate">Print Summary</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Insights KPI summaries */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4">
                     {(() => {
@@ -5557,8 +5584,23 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           </div>
 
                           {filteredGaps.length === 0 ? (
-                            <div className="text-center py-8 px-4 text-[14px] text-gray-400 bg-gray-50/60 rounded-xl border border-gray-100">
-                              No competency gaps found under the "{analyticsSectorFilter}" sector category.
+                            <div className="py-10 px-4 text-center max-w-md mx-auto space-y-3">
+                              <div className="w-12 h-12 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                                <BarChart2 className="w-6 h-6" />
+                              </div>
+                              <div className="space-y-1">
+                                <h4 className="text-[16px] font-extrabold text-gray-900 tracking-tight leading-snug">No Sector Gaps Found</h4>
+                                <p className="text-[13px] text-gray-500 font-normal leading-relaxed">
+                                  No competency gaps found under the "{analyticsSectorFilter}" sector category.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setAnalyticsSectorFilter("All")}
+                                className="mt-2 px-3.5 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                              >
+                                Clear Sector Filter
+                              </button>
                             </div>
                           ) : (
                             <div className="space-y-3.5 sm:space-y-4">

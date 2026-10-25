@@ -5,7 +5,7 @@ import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
-  BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
+  BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
   TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload
@@ -892,6 +892,36 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return b.matchScore - a.matchScore;
     });
   }, [scoredPrograms]);
+
+  // Pagination for Matched Programs Tab - 6 programs per page
+  const MATCHES_PER_PAGE = 6;
+  const [matchesPage, setMatchesPage] = useState<number>(1);
+
+  // Pagination page numbers generator helper
+  const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, "...", totalPages];
+    }
+    if (currentPage >= totalPages - 2) {
+      return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+  };
+
+  const totalMatchesPages = Math.ceil(matchesTabPrograms.length / MATCHES_PER_PAGE) || 1;
+  const currentMatchesPage = Math.min(matchesPage, totalMatchesPages);
+  const paginatedMatchesPrograms = useMemo(() => {
+    const start = (currentMatchesPage - 1) * MATCHES_PER_PAGE;
+    return matchesTabPrograms.slice(start, start + MATCHES_PER_PAGE);
+  }, [matchesTabPrograms, currentMatchesPage]);
+
+  // Reset to page 1 whenever skills or sector preferences change
+  useEffect(() => {
+    setMatchesPage(1);
+  }, [youthProfile?.skills, youthProfile?.sectorPreference]);
 
   useEffect(() => {
     // Only fetch AI match rationale once actual youth profile is resolved and has a registered barangay
@@ -2123,7 +2153,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     Mabuhay, {youthProfile.name}!
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Discover TESDA training opportunities that match your skills, interests, and career goals.
+                    {isUnverified
+                      ? "Explore your Content-Based Filtering (CBF) training matches below. Program applications will unlock once verified by your Barangay SK Chairman."
+                      : "Discover TESDA training opportunities that match your skills, interests, and career goals."}
                   </p>
                 </div>
               </div>
@@ -2336,6 +2368,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     {featuredLang === "tl" ? "Nagtapos Na ang Pagsasanay" : "Training Cohorts Concluded"}
                                   </span>
 
+                                  {isUnverified && (
+                                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100/90 px-2.5 py-0.5 rounded-md border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                      <Eye className="w-3.5 h-3.5 text-amber-700" />
+                                      <span>{featuredLang === "tl" ? "Pasilip Lamang (View-Only)" : "View-Only Preview"}</span>
+                                    </span>
+                                  )}
+
                                   {/* Language Toggle for OSY */}
                                   <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-250 text-[10px] font-bold">
                                     <button
@@ -2378,9 +2417,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                             <div className="bg-linear-to-br from-amber-50/70 to-orange-50/50 p-4 sm:p-5 rounded-xl border border-amber-200/80 space-y-3.5">
                               <p className="text-xs text-amber-950 leading-relaxed font-medium">
-                                {featuredLang === "tl"
-                                  ? `Sa kasalukuyan ay walang aktibong kurso na tumutugma sa iyong profile sa ${youthProfile.sectorPreference || "iyong napiling larangan"}. Ang mga bagong iskedyul ng pagsasanay ay inilalathala bawat tatlong buwan ng TESDA.`
-                                  : `There are currently no open programs actively enrolling that match your profile in ${youthProfile.sectorPreference || "your chosen sector"}. New training schedules are published quarterly by TESDA.`}
+                                {isUnverified
+                                  ? featuredLang === "tl"
+                                    ? `Nasa View-Only mode ang iyong account habang naghihintay ng opisyal na beripikasyon mula sa iyong Barangay SK Chairman. Sa kasalukuyan, wala ring bukas na pagsasanay na tumutugma sa iyong profile sa ${youthProfile.sectorPreference || "iyong napiling larangan"}. Ang mga bagong iskedyul ng pagsasanay ay inilalathala bawat tatlong buwan ng TESDA.`
+                                    : `Your account is currently in View-Only mode awaiting official verification by your Barangay SK Chairman. There are currently no open programs actively enrolling that match your profile in ${youthProfile.sectorPreference || "your chosen sector"}. New training schedules are published quarterly by TESDA.`
+                                  : featuredLang === "tl"
+                                    ? `Sa kasalukuyan ay walang aktibong kurso na tumutugma sa iyong profile sa ${youthProfile.sectorPreference || "iyong napiling larangan"}. Ang mga bagong iskedyul ng pagsasanay ay inilalathala bawat tatlong buwan ng TESDA.`
+                                    : `There are currently no open programs actively enrolling that match your profile in ${youthProfile.sectorPreference || "your chosen sector"}. New training schedules are published quarterly by TESDA.`}
                               </p>
 
                               {/* Profile Context Pill - cleanly separated with proper spacing */}
@@ -2409,30 +2452,82 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                           <div className="mt-7 sm:mt-8 lg:mt-auto pt-6 border-t border-slate-200/80 space-y-3">
                             <p className="text-[11px] text-gray-500 font-medium text-center leading-normal">
-                              {featuredLang === "tl"
-                                ? "Maaari mong tingnan ang iba pang mga kurso o i-update ang iyong mga kasanayan."
-                                : "Explore other available programs or update your registered competencies."}
+                              {isUnverified
+                                ? featuredLang === "tl"
+                                  ? "Pasilip Lamang: Ang pag-update ng kasanayan at pagpapatala sa kurso ay magiging bukas kapag na-verify na ng SK Chairman ang iyong account."
+                                  : "View-Only Notice: Skill preference updates and program applications will unlock once your profile is verified by the SK Chairman."
+                                : featuredLang === "tl"
+                                  ? "Maaari mong tingnan ang iba pang mga kurso o i-update ang iyong mga kasanayan."
+                                  : "Explore other available programs or update your registered competencies."}
                             </p>
 
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full">
                               <button
                                 onClick={() => {
+                                  if (isUnverified) {
+                                    addToast(
+                                      "Skills and profile preferences cannot be modified while your account is awaiting verification.",
+                                      "info"
+                                    );
+                                    return;
+                                  }
                                   setActiveTab(YouthScreen.PROFILE);
                                   setProfileActiveTab("skills");
                                 }}
-                                className="flex-1 w-full text-xs font-bold px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-800 border border-gray-250 transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer text-center"
+                                className={`flex-1 w-full text-xs font-bold px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center shadow-2xs ${
+                                  isUnverified
+                                    ? "bg-gray-100 hover:bg-gray-150 text-gray-500 border border-gray-250 cursor-pointer"
+                                    : "bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-800 border border-gray-250 cursor-pointer"
+                                }`}
                               >
-                                <Edit className="w-3.5 h-3.5 text-gray-600 shrink-0" />
-                                <span>{featuredLang === "tl" ? "I-update ang Kasanayan" : "Update Skills & Preferences"}</span>
+                                {isUnverified ? (
+                                  <Lock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                ) : (
+                                  <Edit className="w-3.5 h-3.5 text-gray-600 shrink-0" />
+                                )}
+                                <span>
+                                  {isUnverified
+                                    ? featuredLang === "tl"
+                                      ? "Naka-lock ang Kasanayan (View-Only)"
+                                      : "Update Skills (Locked)"
+                                    : featuredLang === "tl"
+                                      ? "I-update ang Kasanayan"
+                                      : "Update Skills & Preferences"}
+                                </span>
                               </button>
 
                               <button
-                                onClick={() => setActiveTab(YouthScreen.MATCHES)}
-                                className="flex-1 w-full text-xs font-bold px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer text-center"
+                                onClick={() => {
+                                  if (isUnverified) {
+                                    addToast(
+                                      "Full program catalog and applications will unlock once your SK Chairman verifies your profile.",
+                                      "info"
+                                    );
+                                    return;
+                                  }
+                                  setActiveTab(YouthScreen.MATCHES);
+                                }}
+                                className={`flex-1 w-full text-xs font-bold px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-center shadow-2xs ${
+                                  isUnverified
+                                    ? "bg-amber-100/90 hover:bg-amber-200/90 text-amber-900 border border-amber-300 cursor-pointer"
+                                    : "bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs cursor-pointer"
+                                }`}
                               >
-                                <Compass className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
-                                <span>{featuredLang === "tl" ? "Tingnan ang Lahat ng Kurso" : "Browse All Available Programs"}</span>
-                                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                                {isUnverified ? (
+                                  <Eye className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                ) : (
+                                  <Compass className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                                )}
+                                <span>
+                                  {isUnverified
+                                    ? featuredLang === "tl"
+                                      ? "Awaiting Verification (View-Only)"
+                                      : "Awaiting Verification (View-Only)"
+                                    : featuredLang === "tl"
+                                      ? "Tingnan ang Lahat ng Kurso"
+                                      : "Browse All Available Programs"}
+                                </span>
+                                {!isUnverified && <ArrowRight className="w-3.5 h-3.5 shrink-0" />}
                               </button>
                             </div>
                           </div>
@@ -2459,6 +2554,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider text-[#D97706] bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
                                 {featuredLang === "tl" ? "Tampok na AI Match para sa Iyo" : "Featured AI Match for You"}
                               </span>
+
+                              {isUnverified && (
+                                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100/90 px-2.5 py-0.5 rounded-md border border-amber-300 flex items-center gap-1 shadow-2xs">
+                                  <Eye className="w-3.5 h-3.5 text-amber-700" />
+                                  <span>{featuredLang === "tl" ? "Pasilip Lamang (View-Only)" : "View-Only Preview"}</span>
+                                </span>
+                              )}
 
                               {/* Language Toggle for OSY */}
                               <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-250 text-[10px] font-bold">
@@ -2592,18 +2694,30 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 {(featuredLang === "tl"
                                   ? (featuredBulletsTl && featuredBulletsTl.length === 3
                                     ? featuredBulletsTl
-                                    : [
-                                      `Gamitin ang iyong mga natutunang kasanayan sa ${youthProfile.skills.slice(0, 2).join(" at ") || youthProfile.sectorPreference || "bokasyonal na larangan"} sa simula ng kurso.`,
-                                      `Tapusin ang pagsasanay sa ${featuredProg.provider || "TESDA GPSAT"} para makakuha ng pambansang sertipikasyon (NC II).`,
-                                      `Gamitin ang tulong ng SK sa Barangay ${youthProfile.barangay || "San Luis"} para makapasok sa trabaho at maabot ang pangarap na "${youthProfile.livelihoodGoal || "matatag na hanapbuhay"}".`
-                                    ])
+                                    : isUnverified
+                                      ? [
+                                        `Kumpletuhin ang beripikasyon sa iyong SK Chairperson sa Barangay ${youthProfile.barangay || "San Luis"}.`,
+                                        `Suriin ang mga kurso tulad ng ${featuredProg.title} na tugma sa iyong kasanayan habang naka-View Only.`,
+                                        `Kapag na-verify na ang iyong account, direktang mag-aplay para sa sertipikadong pagsasanay ng TESDA.`
+                                      ]
+                                      : [
+                                        `Gamitin ang iyong mga natutunang kasanayan sa ${youthProfile.skills.slice(0, 2).join(" at ") || youthProfile.sectorPreference || "bokasyonal na larangan"} sa simula ng kurso.`,
+                                        `Tapusin ang pagsasanay sa ${featuredProg.provider || "TESDA GPSAT"} para makakuha ng pambansang sertipikasyon (NC II).`,
+                                        `Gamitin ang tulong ng SK sa Barangay ${youthProfile.barangay || "San Luis"} para makapasok sa trabaho at maabot ang pangarap na "${youthProfile.livelihoodGoal || "matatag na hanapbuhay"}".`
+                                      ])
                                   : (liveGeminiBullets && liveGeminiBullets.length === 3
                                     ? liveGeminiBullets
-                                    : [
-                                      `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early program modules.`,
-                                      `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
-                                      `Utilize the support and referrals of the SK in Barangay ${youthProfile.barangay || "San Luis"} to enter employment and achieve your dream of "${youthProfile.livelihoodGoal || "sustainable livelihood"}".`
-                                    ])
+                                    : isUnverified
+                                      ? [
+                                        `Complete in-person verification with your SK Chairperson in Barangay ${youthProfile.barangay || "San Luis"}.`,
+                                        `Review programs like ${featuredProg.title} aligned with your competencies during this view-only preview.`,
+                                        `Once verified by your SK Chairman, directly submit your application for certified TVET training.`
+                                      ]
+                                      : [
+                                        `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early program modules.`,
+                                        `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
+                                        `Utilize the support and referrals of the SK in Barangay ${youthProfile.barangay || "San Luis"} to enter employment and achieve your dream of "${youthProfile.livelihoodGoal || "sustainable livelihood"}".`
+                                      ])
                                 ).map((bullet, bIdx) => (
                                   <li key={bIdx} className="flex items-start gap-2.5 bg-white/80 p-2.5 sm:p-3 rounded-xl border border-emerald-100/80 shadow-2xs">
                                     <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-extrabold text-[10px] shrink-0 mt-0.5 shadow-2xs">
@@ -2648,7 +2762,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               className="w-full sm:w-auto text-xs font-bold px-5 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                               <Eye className="w-4 h-4 text-emerald-200" />
-                              {isEnded ? "View Details (Ended)" : "View Details & Apply"}
+                              {isUnverified
+                                ? "View Program Details (Preview)"
+                                : isEnded
+                                  ? "View Details (Ended)"
+                                  : "View Details & Apply"}
                             </button>
                           </div>
                         </div>
@@ -2670,51 +2788,84 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <div className="lg:col-span-2 space-y-4 sm:space-y-6 flex flex-col">
 
                   {/* My Livelihood Status Card */}
-                  <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between">
+                  <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between">
                     <div>
-                      <div className="flex justify-between items-center mb-3 sm:mb-4 gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-2.5 mb-3 sm:mb-4">
                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">My Livelihood Status</span>
-                        <span className="bg-amber-50 text-amber-700 text-xs font-black px-3 py-1 border border-amber-200 rounded-full uppercase inline-block">
-                          {youthProfile.currentStatus}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {isUnverified && (
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase flex items-center gap-1 shadow-2xs shrink-0 ${
+                              youthProfile.approvalStatus === "Rejected"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                : "bg-amber-100 text-amber-900 border-amber-300"
+                            }`}>
+                              <Clock className="w-3 h-3 text-amber-700 shrink-0" />
+                              {youthProfile.approvalStatus === "Rejected" ? "Declined" : "Pending Verification"}
+                            </span>
+                          )}
+                          <span className="bg-amber-50 text-amber-700 text-xs font-black px-3 py-1 border border-amber-200 rounded-full uppercase inline-block shrink-0">
+                            {youthProfile.currentStatus}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="bg-gray-50/80 rounded-xl p-3.5 space-y-1">
-                        <span className="text-[10px] sm:text-xs text-gray-400 font-semibold uppercase tracking-wider block">
-                          Current active objective
+                      <div className={`${isUnverified ? "bg-amber-50/80 border border-amber-200/90" : "bg-gray-50/80"} rounded-xl p-3 sm:p-3.5 space-y-1.5`}>
+                        <span className={`text-[10px] sm:text-xs font-semibold uppercase tracking-wider block flex items-center gap-1 ${isUnverified ? "text-amber-800" : "text-gray-400"}`}>
+                          {isUnverified && <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+                          {isUnverified ? "Account Status (View-Only)" : "Current active objective"}
                         </span>
-                        <p className="text-xs sm:text-sm font-bold text-[#D97706] leading-snug">
-                          {(() => {
-                            const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
-                            const enrolledApp = userApps.find(r => r.status === "Enrolled");
-                            if (enrolledApp) return `Enrolled in ${enrolledApp.programTitle}`;
+                        <p className={`text-xs sm:text-sm font-bold leading-snug break-words ${isUnverified ? "text-amber-950" : "text-[#D97706]"}`}>
+                          {isUnverified
+                            ? youthProfile.approvalStatus === "Rejected"
+                              ? "Registration Not Approved — Visit Barangay SK"
+                              : "Awaiting SK Chairman Verification"
+                            : (() => {
+                                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                                const enrolledApp = userApps.find(r => r.status === "Enrolled");
+                                if (enrolledApp) return `Enrolled in ${enrolledApp.programTitle}`;
 
-                            const pendingApp = userApps.find(r => r.status === "Pending");
-                            if (pendingApp) return `Application Pending: ${pendingApp.programTitle}`;
+                                const pendingApp = userApps.find(r => r.status === "Pending");
+                                if (pendingApp) return `Application Pending: ${pendingApp.programTitle}`;
 
-                            const declinedApp = userApps.find(r => r.status === "Declined");
-                            if (declinedApp && userApps.length === 1) return "Revise Profile & Explore Opportunities";
+                                const declinedApp = userApps.find(r => r.status === "Declined");
+                                if (declinedApp && userApps.length === 1) return "Revise Profile & Explore Opportunities";
 
-                            // If all matching qualifications are certified/completed
-                            if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
-                              return "Step 4: Livelihood Placement & Career Launch";
-                            }
+                                // If all matching qualifications are certified/completed
+                                if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
+                                  return "Step 4: Livelihood Placement & Career Launch";
+                                }
 
-                            // If there is an active matching program
-                            if (activeMatchingPrograms.length > 0) {
-                              return `Apply Directly for ${activeMatchingPrograms[0].program.title}`;
-                            }
+                                // If there is an active matching program
+                                if (activeMatchingPrograms.length > 0) {
+                                  return `Apply Directly for ${activeMatchingPrograms[0].program.title}`;
+                                }
 
-                            // If all matching cohorts have concluded / off-cycle
-                            return "Awaiting Upcoming TESDA Training Schedules";
-                          })()}
+                                // If all matching cohorts have concluded / off-cycle
+                                return "Awaiting Upcoming TESDA Training Schedules";
+                              })()}
                         </p>
+                        {isUnverified && (
+                          <p className="text-[11px] text-amber-800 font-medium leading-relaxed pt-0.5 break-words">
+                            {youthProfile.approvalStatus === "Rejected"
+                              ? "Your registration could not be verified by your Barangay SK Chairman. Please visit your Barangay Hall."
+                              : "Your account is currently in View-Only mode. Once your Barangay SK Chairman verifies your profile, direct program applications and pathway tracking will be unlocked."}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="pt-4 mt-4 border-t border-gray-100">
+                    <div className="pt-3.5 sm:pt-4 mt-3.5 sm:mt-4 border-t border-gray-100">
                       <button
                         onClick={() => {
+                          if (isUnverified) {
+                            addToast(
+                              youthProfile.approvalStatus === "Rejected"
+                                ? "Account registration was not approved. Please visit your Barangay Hall."
+                                : "Account is in View-Only mode awaiting SK verification. Full pathway tracking will unlock once approved.",
+                              "info"
+                            );
+                            return;
+                          }
                           if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
                             setActiveTab(YouthScreen.PATHWAY);
                           } else if (activeMatchingPrograms.length === 0 && (!referrals || !referrals.some(r => isSameYouth(r.youthName, youthProfile.name) && (r.status === "Pending" || r.status === "Enrolled")))) {
@@ -2723,27 +2874,35 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             setActiveTab(YouthScreen.PATHWAY);
                           }
                         }}
-                        className="w-full bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white text-xs font-bold py-2.5 px-4 rounded-xl text-center transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
+                        className={`w-full text-xs sm:text-sm font-bold py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-center transition-all flex items-center justify-center gap-1.5 sm:gap-2 shadow-2xs ${
+                          isUnverified
+                            ? "bg-amber-100/90 hover:bg-amber-200/90 text-amber-900 border border-amber-300 cursor-pointer"
+                            : "bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white cursor-pointer"
+                        }`}
                       >
-                        <span>
-                          {(() => {
-                            const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
-                            if (userApps.some(r => r.status === "Enrolled")) return "Track Class Schedule & Details";
-                            if (userApps.some(r => r.status === "Pending")) return "Track Application Status";
-                            if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) return "View Step 4 Career Plan";
-                            if (activeMatchingPrograms.length === 0) return "Browse Available Programs";
-                            return "Track Pathway Progress";
-                          })()}
+                        <span className="truncate sm:whitespace-normal">
+                          {isUnverified
+                            ? youthProfile.approvalStatus === "Rejected"
+                              ? "Registration Incomplete"
+                              : "Awaiting Verification (View-Only)"
+                            : (() => {
+                                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                                if (userApps.some(r => r.status === "Enrolled")) return "Track Class Schedule & Details";
+                                if (userApps.some(r => r.status === "Pending")) return "Track Application Status";
+                                if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) return "View Step 4 Career Plan";
+                                if (activeMatchingPrograms.length === 0) return "Browse Available Programs";
+                                return "Track Pathway Progress";
+                              })()}
                         </span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                       </button>
                     </div>
                   </div>
 
                   {/* My Skills Segment */}
-                  <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between flex-1">
+                  <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between flex-1">
                     <div>
-                      <div className="flex justify-between items-center mb-3 sm:mb-4 gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-2.5 mb-3 sm:mb-4">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">My Registered Skills</span>
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
@@ -2795,7 +2954,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
 
                     <p className="text-[11px] text-gray-400 mt-4 sm:mt-6 italic leading-relaxed">
-                      Tip: Adding more technical or vocational skills updates your compatibility index in real-time.
+                      {isUnverified
+                        ? "Note: Competencies are locked in View-Only mode while awaiting verification by your Barangay SK Chairman."
+                        : "Tip: Adding more technical or vocational skills updates your compatibility index in real-time."}
                     </p>
                   </div>
 
@@ -2915,8 +3076,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {matchesTabPrograms.map(({ program: prog, matchScore: score }) => {
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {paginatedMatchesPrograms.map(({ program: prog, matchScore: score }) => {
 
                     return (
                       <div
@@ -3139,6 +3301,84 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           );
                   })}
                         </div>
+
+                  {/* Pagination Controls - 6 matched programs per page */}
+                  {totalMatchesPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                      <p className="text-xs text-gray-500 font-medium order-2 sm:order-1">
+                        Showing{" "}
+                        <span className="font-bold text-gray-800">
+                          {Math.min((currentMatchesPage - 1) * MATCHES_PER_PAGE + 1, matchesTabPrograms.length)}
+                        </span>
+                        {" "}-{" "}
+                        <span className="font-bold text-gray-800">
+                          {Math.min(currentMatchesPage * MATCHES_PER_PAGE, matchesTabPrograms.length)}
+                        </span>
+                        {" "}of{" "}
+                        <span className="font-bold text-gray-800">{matchesTabPrograms.length}</span> matched programs
+                      </p>
+
+                      <div className="flex items-center gap-1.5 order-1 sm:order-2">
+                        <button
+                          type="button"
+                          disabled={currentMatchesPage === 1}
+                          onClick={() => {
+                            setMatchesPage(p => Math.max(1, p - 1));
+                            window.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Prev</span>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {getPaginationItems(currentMatchesPage, totalMatchesPages).map((item, idx) => {
+                            if (item === "...") {
+                              return (
+                                <span key={`matches-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                  ...
+                                </span>
+                              );
+                            }
+                            const pageNum = Number(item);
+                            const isSelected = pageNum === currentMatchesPage;
+                            return (
+                              <button
+                                key={`matches-page-${pageNum}`}
+                                type="button"
+                                onClick={() => {
+                                  setMatchesPage(pageNum);
+                                  window.scrollTo({ top: 380, behavior: "smooth" });
+                                }}
+                                className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={currentMatchesPage === totalMatchesPages}
+                          onClick={() => {
+                            setMatchesPage(p => Math.min(totalMatchesPages, p + 1));
+                            window.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
                       </div>
                     )
@@ -4577,43 +4817,69 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </div>
                 )}
 
-                {/* Submitted Government ID Details */}
+                {/* Submitted Government ID / In-Person Verification Details */}
                 <div className="pt-3.5 space-y-2.5">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Submitted Verification ID</span>
-                  <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">ID Type:</span>
-                      <span className="font-medium text-gray-800 text-right">{youthProfile.verificationIdType || "Government / Student ID"}</span>
-                    </div>
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                    {youthProfile.verificationIdType?.toLowerCase().includes("in-person") || youthProfile.verificationIdType?.toLowerCase().includes("sk") || (!youthProfile.verificationIdImage && youthProfile.approvalStatus === "Approved")
+                      ? "Official Verification Status"
+                      : "Submitted Verification ID"}
+                  </span>
 
-                    {youthProfile.verificationIdNumber && (
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-medium">ID Number:</span>
-                        <span className="font-medium text-gray-800 text-right font-mono text-xs">
-                          {youthProfile.verificationIdNumber}
+                  {youthProfile.verificationIdType?.toLowerCase().includes("in-person") || youthProfile.verificationIdType?.toLowerCase().includes("sk") || (!youthProfile.verificationIdImage && youthProfile.approvalStatus === "Approved") ? (
+                    <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200 space-y-2.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-emerald-900 font-medium">Registration Mode:</span>
+                        <span className="font-bold text-[#0A6B43] flex items-center gap-1.5 text-xs sm:text-sm">
+                          <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                          SK Chairman Registered (In-Person)
                         </span>
                       </div>
-                    )}
-
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">ID Photo Attached:</span>
-                      {youthProfile.verificationIdImage ? (
-                        <div
-                          className="w-16 h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
-                          onClick={() => setShowIdPhotoModal(true)}
-                          title="Click to view full ID photo"
-                        >
-                          <img
-                            src={youthProfile.verificationIdImage}
-                            alt="ID Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">No image submitted</span>
-                      )}
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-emerald-900 font-medium">Verification Status:</span>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-[#0A6B43] border border-emerald-300 font-extrabold text-xs">
+                          Face-to-Face Verified
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-800/90 leading-relaxed pt-1 border-t border-emerald-200/60 font-medium">
+                        Physical identity and barangay residency verified face-to-face during on-site Katipunan ng Kabataan registration with the SK Chairperson. No digital ID upload required.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 font-medium">ID Type:</span>
+                        <span className="font-medium text-gray-800 text-right">{youthProfile.verificationIdType || "Government / Student ID"}</span>
+                      </div>
+
+                      {youthProfile.verificationIdNumber && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-500 font-medium">ID Number:</span>
+                          <span className="font-medium text-gray-800 text-right font-mono text-xs">
+                            {youthProfile.verificationIdNumber}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 font-medium">ID Photo Attached:</span>
+                        {youthProfile.verificationIdImage ? (
+                          <div
+                            className="w-16 h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
+                            onClick={() => setShowIdPhotoModal(true)}
+                            title="Click to view full ID photo"
+                          >
+                            <img
+                              src={youthProfile.verificationIdImage}
+                              alt="ID Preview"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">No image submitted</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Fast Link to Digital ID Card */}
@@ -5570,6 +5836,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
               {/* Modal Scrollable Body */ }
     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollbar p-4 sm:p-6 space-y-4 sm:space-y-5">
+      {isUnverified && (
+        <div className="bg-amber-50 border border-amber-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 flex items-center gap-2.5 text-xs text-amber-900 font-medium shadow-2xs">
+          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>You are previewing this program in <strong>View-Only mode</strong>. Direct enrollment will unlock once your account is verified by your Barangay SK Chairman.</span>
+        </div>
+      )}
       {/* 4-Factor Transparent CBF Score Breakdown */}
       {(() => {
         const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
@@ -5899,7 +6171,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   ) : overlapWarning ? (
                     "Schedule Overlap Detected"
                   ) : isUnverified ? (
-                    "Pending SK Verification"
+                    "Pending SK Verification (View-Only)"
                   ) : (
                     <>
                       <Send className="w-4 h-4 text-white" />

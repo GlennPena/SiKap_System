@@ -53,8 +53,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Email is already registered" }, { status: 400 });
     }
 
-    // Verify email was verified via registration OTP (unless test override)
-    if (!isEmailVerifiedForRegistration(email)) {
+    // Check if registration was initiated in-person by SK Official / Administrator
+    const isOfficialRegistration = Boolean(
+      body.registeredByOfficial || 
+      body.approvalStatus === "Approved" ||
+      (verificationIdType && (
+        verificationIdType.toLowerCase().includes("in-person") ||
+        verificationIdType.toLowerCase().includes("sk")
+      ))
+    );
+
+    // Verify email was verified via registration OTP (bypassed for in-person SK Official registrations)
+    if (!isOfficialRegistration && !isEmailVerifiedForRegistration(email)) {
       return NextResponse.json(
         { success: false, message: "Please verify your email address with the 6-digit security code before completing registration." },
         { status: 400 }
@@ -171,8 +181,8 @@ export async function POST(req: Request) {
             soloParent: Boolean(soloParent),
             pwd: Boolean(pwd),
             indigenous: Boolean(indigenous),
-            approvalStatus: body.approvalStatus === "Approved" ? ApprovalStatus.Approved : ApprovalStatus.Pending,
-            verificationIdType,
+            approvalStatus: isOfficialRegistration || body.approvalStatus === "Approved" ? ApprovalStatus.Approved : ApprovalStatus.Pending,
+            verificationIdType: verificationIdType || (isOfficialRegistration ? "SK Chairman Registered (In-Person)" : null),
             verificationIdNumberEnc,
             verificationIdImageEnc
           }
@@ -205,8 +215,8 @@ export async function POST(req: Request) {
           soloParent: Boolean(soloParent),
           pwd: Boolean(pwd),
           indigenous: Boolean(indigenous),
-          approvalStatus: body.approvalStatus === "Approved" ? ApprovalStatus.Approved : ApprovalStatus.Pending,
-          verificationIdType,
+          approvalStatus: isOfficialRegistration || body.approvalStatus === "Approved" ? ApprovalStatus.Approved : ApprovalStatus.Pending,
+          verificationIdType: verificationIdType || (isOfficialRegistration ? "SK Chairman Registered (In-Person)" : null),
           verificationIdNumberEnc,
           verificationIdImageEnc
         };
