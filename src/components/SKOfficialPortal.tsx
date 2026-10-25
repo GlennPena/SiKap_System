@@ -23,6 +23,7 @@ import {
 } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard } from "./SettingsShared";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
@@ -6485,216 +6486,225 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
           {currentScreen === SKOfficialScreen.SETTINGS && (
             <div className="space-y-6">
-              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
+              {/* Settings Header Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <SettingsHeaderBanner subtitle="Manage official administrative profile, security credentials, system notifications, and ID credentials." />
 
-                {/* Content */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Settings
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage official administrative profile, security credentials, system notifications, and ID credentials.
-                  </p>
-                </div>
-              </div>
-
-              {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                <div
-                  className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
-                >
-                  {[
+              {/* 2-Column Settings Layout: Left Vertical Sidebar + Right Main Content Area */}
+              <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+                {/* Left Vertical Sidebar Navigation */}
+                <SettingsSidebarNav
+                  tabs={[
                     { id: "profile", label: "Official Details", icon: User },
                     { id: "security", label: "Security & Password", icon: Lock },
                     { id: "preferences", label: "Alerts & Notifications", icon: Bell },
                     { id: "credentials", label: "Digital ID Card", icon: ShieldCheck },
-                  ].map((tab) => {
-                    const isActive = activeSettingsTab === tab.id;
-                    const IconComponent = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveSettingsTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[14px] font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${isActive
-                          ? "bg-[#0A6B43] text-white shadow-xs"
-                          : "bg-transparent text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/70"
-                          }`}
-                      >
-                        <IconComponent
-                          fill={isActive ? "currentColor" : "none"}
-                          className={`w-4 h-4 shrink-0 transition-all duration-200 ease-out ${isActive
-                            ? `text-white ${tab.id === "security"
-                              ? "[&>path]:fill-none"
-                              : tab.id === "credentials"
-                                ? "[&>path:last-child]:stroke-[#0A6B43] [&>path:last-child]:fill-none"
-                                : ""
-                            }`
-                            : "text-gray-500 hover:text-[#0A6B43]"
-                            }`}
-                        />
-                        <span className="transition-colors duration-200 ease-out">{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                  ]}
+                  activeTab={activeSettingsTab}
+                  onTabChange={(tabId) => setActiveSettingsTab(tabId as any)}
+                />
 
-              <div className="max-w-4xl lg:max-w-5xl mx-auto w-full">
-                <AnimatePresence mode="wait">
-                {/* Sub-Tab 1: Official Details Form */}
-                {activeSettingsTab === "profile" && (
-                  <motion.div
-                    key="profile"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="bg-white rounded-2xl p-5 sm:p-7 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full mx-auto"
-                  >
-                    <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                      <div className="border-b border-gray-100 pb-3 sm:pb-3.5">
-                        <div className="flex items-center gap-2 sm:gap-2.5">
-                          <User className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0" />
-                          <div className="min-w-0">
-                            <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
-                              Personal Demographics
+                {/* Right Main Content Area */}
+                <main className="flex-1 min-w-0 w-full">
+                  <AnimatePresence mode="wait">
+                  {/* Sub-Tab 1: Official Details Dossier & Edit Form */}
+                  {activeSettingsTab === "profile" && (
+                    <motion.div
+                      key="profile"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-6 w-full"
+                    >
+                      {/* Left Column: Official Dossier Info or Active Edit Form */}
+                      <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                      {!isEditingProfile ? (
+                        /* Read-Only Dossier Mode */
+                        <div className="space-y-6">
+                          <div className="border-b border-gray-100 pb-3">
+                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                              <User className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              Official Profile Details
                             </h3>
-                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
-                              Official government identity and contact information
-                            </p>
+                          </div>
+
+                          {/* Section 1: Basic Information */}
+                          <div className="space-y-3.5">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Basic Information
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Full Name</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{settingsName}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Role / Position</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{settingsPos}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Official Email Address</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={settingsEmail}>
+                                    {settingsEmail}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{settingsPhone || "Not configured"}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Section 2: Administrative Jurisdiction */}
+                          <div className="space-y-3.5 pt-1">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Administrative Jurisdiction
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Barangay Jurisdiction</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Municipality</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">San Luis</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Province</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">Pampanga</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bottom Action: Edit Details Button */}
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingProfile(true)}
+                              className="group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                            >
+                              <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
+                              <span>Edit Details</span>
+                            </button>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Section 1: Basic Information */}
-                      <div className="space-y-3.5">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Basic Information
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Full Name*</label>
-                            {isEditingProfile ? (
-                              <input
-                                type="text"
-                                required
-                                value={settingsName}
-                                onChange={(e) => setSettingsName(e.target.value)}
-                                className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                disabled
-                                value={settingsName}
-                                className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                              />
-                            )}
+                      ) : (
+                        /* Edit Mode Form */
+                        <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                          <div className="border-b border-gray-100 pb-3">
+                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                              <Edit className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              Edit Profile Details
+                            </h3>
                           </div>
 
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Role/Position</label>
-                            <input
-                              type="text"
-                              disabled
-                              value={settingsPos}
-                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                            />
+                          {/* Section 1: Basic Information */}
+                          <div className="space-y-3.5">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Basic Information
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Full Name *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={settingsName}
+                                  onChange={(e) => setSettingsName(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Role / Position</label>
+                                <input
+                                  type="text"
+                                  disabled
+                                  value={settingsPos}
+                                  className="w-full px-3.5 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-500 cursor-not-allowed transition-all"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Official Email Address *</label>
+                                <input
+                                  type="email"
+                                  required
+                                  value={settingsEmail}
+                                  onChange={(e) => setSettingsEmail(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={settingsPhone}
+                                  onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Email*</label>
-                            {isEditingProfile ? (
-                              <input
-                                type="email"
-                                required
-                                value={settingsEmail}
-                                onChange={(e) => setSettingsEmail(e.target.value)}
-                                className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                              />
-                            ) : (
-                              <input
-                                type="email"
-                                disabled
-                                value={settingsEmail}
-                                className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                              />
-                            )}
+                          {/* Section 2: Administrative Jurisdiction */}
+                          <div className="space-y-3.5 pt-1">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Administrative Jurisdiction
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Barangay Jurisdiction</label>
+                                <input
+                                  type="text"
+                                  disabled
+                                  value={`Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}`}
+                                  className="w-full px-3.5 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-500 cursor-not-allowed transition-all"
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Municipality</label>
+                                <input
+                                  type="text"
+                                  disabled
+                                  value="San Luis"
+                                  className="w-full px-3.5 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-500 cursor-not-allowed transition-all"
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Province</label>
+                                <input
+                                  type="text"
+                                  disabled
+                                  value="Pampanga"
+                                  className="w-full px-3.5 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-500 cursor-not-allowed transition-all"
+                                />
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number*</label>
-                            {isEditingProfile ? (
-                              <input
-                                type="text"
-                                required
-                                value={settingsPhone}
-                                onChange={(e) => setSettingsPhone(formatContactNumber(e.target.value))}
-                                className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                disabled
-                                value={settingsPhone || "Not configured"}
-                                className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                              />
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section 2: Administrative Jurisdiction & Office Location */}
-                      <div className="space-y-3.5 pt-1">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Location Details
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Barangay Jurisdiction</label>
-                            <input
-                              type="text"
-                              disabled
-                              value={`Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}`}
-                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Municipality</label>
-                            <input
-                              type="text"
-                              disabled
-                              value="San Luis"
-                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Province</label>
-                            <input
-                              type="text"
-                              disabled
-                              value="Pampanga"
-                              className="w-full h-[40px] px-3.5 border border-gray-200 bg-gray-50/80 text-gray-500 font-medium rounded-xl text-[13px] cursor-default flex items-center"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Form Buttons */}
-                      <div className="pt-2 flex justify-end gap-2.5">
-                        {isEditingProfile ? (
-                          <>
+                          {/* Form Buttons */}
+                          <div className="pt-2 flex justify-end gap-2.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -6706,333 +6716,409 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 }
                               }}
                               disabled={isSavingProfile}
-                              className="px-4 py-2.5 rounded-xl text-[14px] font-bold text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 transition-all cursor-pointer"
+                              className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={isSavingProfile}
-                              className="px-5 py-2.5 rounded-xl text-[14px] font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-95"
+                              className="group/save px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
                             >
-                              {isSavingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                              Save Profile Changes
+                              {isSavingProfile ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4 transition-transform duration-200 group-hover/save:scale-125 group-hover/save:rotate-6" />
+                              )}
+                              <span>Save Profile Changes</span>
                             </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingProfile(true)}
-                            className="px-5 py-2.5 rounded-xl text-[14px] font-bold text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-95"
-                          >
-                            <Edit className="w-4 h-4" />
-                            Edit Profile Details
-                          </button>
-                        )}
+                          </div>
+                        </form>
+                      )}
                       </div>
-                    </form>
-                  </motion.div>
-                )}
 
-                {/* Sub-Tab 2: Security & Password */}
-                {activeSettingsTab === "security" && (
-                  <motion.div
-                    key="security"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full max-w-2xl sm:max-w-3xl mx-auto"
-                  >
-                    <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
-                      <div className="border-b border-gray-100 pb-3 sm:pb-3.5">
-                        <div className="flex items-center gap-2 sm:gap-2.5">
-                          <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0" />
-                          <div className="min-w-0">
-                            <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
+                      {/* Right Column: Identity Card & Governance Overview */}
+                      <div className="xl:col-span-5 space-y-4">
+                        {/* Profile Identity Card */}
+                        <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm space-y-4">
+                          <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                            <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
+                              <UserCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              Official Leadership Identity
+                            </h4>
+                            <span className="text-[11px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Active Official
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
+                              {settingsName
+                                ? settingsName
+                                  .split(" ")
+                                  .filter(Boolean)
+                                  .slice(0, 2)
+                                  .map((n) => n[0]?.toUpperCase())
+                                  .join("")
+                                : "SK"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-extrabold text-gray-900 text-base leading-tight truncate">{settingsName}</h4>
+                              <p className="text-xs font-bold text-[#0A6B43] mt-0.5">{settingsPos}</p>
+                              <p className="text-xs text-gray-500 font-medium mt-1 truncate">Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 pt-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Clearance Authority</span>
+                              <span className="font-bold text-gray-900">Tier 2 Admin Authority</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Barangay Youth Tracked</span>
+                              <span className="font-bold text-gray-900">{localYouthProfiles.length} KK Members</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Governing Municipality</span>
+                              <span className="font-bold text-gray-900">San Luis, Pampanga</span>
+                            </div>
+                          </div>
+
+                          <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80 text-[11px] text-gray-600 leading-relaxed font-medium">
+                            <p className="font-bold text-emerald-900 mb-1 flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              RA 10742 Statutory Mandate
+                            </p>
+                            Authorized under the Sangguniang Kabataan Reform Act to administer barangay youth profiling, recommend livelihood scholarships, and coordinate youth development initiatives.
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Sub-Tab 2: Security & Password */}
+                  {activeSettingsTab === "security" && (
+                    <motion.div
+                      key="security"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
+                    >
+                      <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                        <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
+                          <div className="border-b border-gray-100 pb-3">
+                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                              <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
                               Account Security & Password
                             </h3>
-                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
-                              Manage authentication and account access
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password*</label>
-                        <div className="relative">
-                          <input
-                            type={showCurrentPass ? "text" : "password"}
-                            required
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            placeholder="Enter current password..."
-                            className="w-full h-[40px] px-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowCurrentPass(!showCurrentPass)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                          >
-                            {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password*</label>
-                        <div className="relative">
-                          <input
-                            type={showNewPass ? "text" : "password"}
-                            required
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Enter new password (min. 6 characters)..."
-                            className="w-full h-[40px] px-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowNewPass(!showNewPass)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                          >
-                            {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password*</label>
-                        <div className="relative">
-                          <input
-                            type={showConfirmPass ? "text" : "password"}
-                            required
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="Re-type new password..."
-                            className="w-full h-[40px] px-3.5 pr-10 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowConfirmPass(!showConfirmPass)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                          >
-                            {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex justify-end">
-                        <button
-                          type="submit"
-                          disabled={isChangingPassword}
-                          className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-[14px] font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
-                        >
-                          {isChangingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                          Update Account Password
-                        </button>
-                      </div>
-                    </form>
-                  </motion.div>
-                )}
-
-
-
-                {/* Sub-Tab 3: System Notifications */}
-                {activeSettingsTab === "preferences" && (
-                  <motion.div
-                    key="preferences"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="w-full mx-auto"
-                  >
-                    <NotificationSettingsCard
-                      userRole="SK_OFFICIAL"
-                      userEmail={settingsEmail || currentUser?.email}
-                      addToast={addToast}
-                      className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
-                    />
-                  </motion.div>
-                )}
-
-                {/* Sub-Tab 4: Official SK Digital ID Card */}
-                {activeSettingsTab === "credentials" && (
-                  <motion.div
-                    key="credentials"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="space-y-6 w-full max-w-3xl mx-auto"
-                  >
-                    <div className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                      <div className="border-b border-gray-100 pb-3 sm:pb-3.5">
-                        <div className="flex items-center gap-2 sm:gap-2.5">
-                          <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-[#0A6B43] shrink-0" />
-                          <div className="min-w-0">
-                            <h3 className="text-base sm:text-lg lg:text-xl font-extrabold text-gray-900 tracking-tight leading-snug">
-                              Official SK Digital ID Card
-                            </h3>
-                            <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
-                              Administrative credential and verified authority badge
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Official Digital ID Card */}
-                      <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
-                        {/* Top Section: Organization Header */}
-                        <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
-                          {/* Left Logo: Municipality of San Luis Seal */}
-                          <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
-                            <img
-                              src="/san-luis-seal.png"
-                              alt="Municipality of San Luis Seal"
-                              className="w-full h-full object-contain"
-                            />
                           </div>
 
-                          {/* Centered Institutional Information */}
-                          <div className="text-center flex-1 px-1 min-w-0">
-                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
-                              Republic of the Philippines
-                            </p>
-                            <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
-                              Municipality of San Luis
-                            </p>
-                            <p className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-[#0A6B43] leading-tight">
-                              Province of Pampanga
-                            </p>
-                            <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
-                              Sangguniang Kabataan
-                            </p>
-                          </div>
-
-                          {/* Right Logo: Sangguniang Kabataan */}
-                          <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
-                            <img
-                              src="/sk-logo.png"
-                              alt="Sangguniang Kabataan Logo"
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Second Section: Full-Width Title Bar */}
-                        <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
-                          <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
-                            Sangguniang Kabataan Official ID Card
-                          </span>
-                        </div>
-
-                        {/* Main Content Area: Two Columns */}
-                        <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
-                          {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
-                          <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
-                            <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-emerald-600/30 bg-gradient-to-tr from-[#082D21] to-[#0A6B43] flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-black text-lg sm:text-xl">
-                                {settingsName
-                                  ? settingsName
-                                    .split(" ")
-                                    .filter(Boolean)
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .slice(0, 2)
-                                  : "SK"}
-                              </div>
-                              <span className="text-[9px] font-extrabold text-white/90 uppercase tracking-wider mt-1.5">Official Photo</span>
-                            </div>
-
-                            {/* ID Number in one row without ellipsis */}
-                            <div className="mt-2 text-center w-full">
-                              <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
-                                ID: {`SK-SL-${designatedBarangay.replace(/^Barangay\s+/i, "").toUpperCase().slice(0, 3)}-${String(currentUser?.id || "001").toUpperCase().slice(-4)}`}
-                              </span>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password *</label>
+                            <div className="relative">
+                              <input
+                                type={showCurrentPass ? "text" : "password"}
+                                required
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                placeholder="Enter current password..."
+                                className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              >
+                                {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
                             </div>
                           </div>
 
-                          {/* Right Column: Official Information in compact rows and columns */}
-                          <div className="flex-1 w-full space-y-2.5 min-w-0">
-                            {/* Official Name */}
-                            <div className="border-b border-gray-100 pb-1.5">
-                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Official Name</span>
-                              <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
-                                {settingsName}
-                              </h4>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password *</label>
+                            <div className="relative">
+                              <input
+                                type={showNewPass ? "text" : "password"}
+                                required
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password (min. 6 characters)..."
+                                className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPass(!showNewPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              >
+                                {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
                             </div>
+                          </div>
 
-                            {/* Designation & Phone Number */}
-                            <div className="grid grid-cols-12 gap-2">
-                              <div className="col-span-7 min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Position</span>
-                                <span className="text-xs font-black text-[#0A6B43] block truncate mt-0.5">
-                                  {settingsPos}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
+                              {confirmPassword.length > 0 && (
+                                <span className={`text-[11px] font-bold ${confirmPassword === newPassword ? "text-[#0A6B43]" : "text-rose-500"}`}>
+                                  {confirmPassword === newPassword ? "Passwords match ✓" : "Passwords do not match"}
                                 </span>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <input
+                                type={showConfirmPass ? "text" : "password"}
+                                required
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="Re-type new password..."
+                                className={`w-full px-3 py-2 pr-10 h-10 border rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${
+                                  confirmPassword.length > 0 && confirmPassword !== newPassword ? "border-rose-300 bg-rose-50/20" : "border-gray-200"
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              >
+                                {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword}
+                              className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword
+                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                                  : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                              }`}
+                            >
+                              {isChangingPassword ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Lock className="w-4 h-4 transition-transform duration-200 group-hover/pwd:rotate-12 group-hover/pwd:scale-115" />
+                              )}
+                              <span>Update Account Password</span>
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+
+                      {/* Security Guide Companion Card */}
+                      <div className="xl:col-span-5">
+                        <SettingsSecurityGuideCard
+                          newPassword={newPassword}
+                          accountTypeLabel="SK Official Account"
+                          accountNotice="Your account holds official administrative authority over youth profiling and scholarship referrals in San Luis, Pampanga. Maintain strict credential confidentiality."
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Sub-Tab 3: System Notifications */}
+                  {activeSettingsTab === "preferences" && (
+                    <motion.div
+                      key="preferences"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
+                    >
+                      <div className="xl:col-span-7">
+                        <NotificationSettingsCard
+                          userRole="SK_OFFICIAL"
+                          userEmail={settingsEmail || currentUser?.email}
+                          addToast={addToast}
+                          className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
+                        />
+                      </div>
+                      <div className="xl:col-span-5 space-y-4">
+                        <SettingsNotificationChannelsCard
+                          pushDescription="Real-time push alerts for pending youth registrations, validation requests, and municipal memos."
+                          emailDescription="Official administrative documents, youth demographic exports, and security verification codes sent to your registered official inbox."
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Sub-Tab 4: Official SK Digital ID Card */}
+                  {activeSettingsTab === "credentials" && (
+                    <motion.div
+                      key="credentials"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="space-y-6 w-full pb-6"
+                    >
+                      <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                        <div className="border-b border-gray-100 pb-3">
+                          <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                            <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                            Official SK Digital ID Card
+                          </h3>
+                          <p className="text-sm text-gray-400 font-medium mt-0.5">
+                            Official Sangguniang Kabataan identification credential for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
+                          </p>
+                        </div>
+
+                        {/* Official Digital ID Card */}
+                        <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
+                          {/* Top Section: Organization Header */}
+                          <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
+                            {/* Left Logo: Municipality of San Luis Seal */}
+                            <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                              <img
+                                src="/san-luis-seal.png"
+                                alt="Municipality of San Luis Seal"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+
+                            {/* Centered Institutional Information */}
+                            <div className="text-center flex-1 px-1 min-w-0">
+                              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                                Republic of the Philippines
+                              </p>
+                              <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
+                                Municipality of San Luis
+                              </p>
+                              <p className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-[#0A6B43] leading-tight">
+                                Province of Pampanga
+                              </p>
+                              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                                Sangguniang Kabataan
+                              </p>
+                            </div>
+
+                            {/* Right Logo: Sangguniang Kabataan */}
+                            <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                              <img
+                                src="/sk-logo.png"
+                                alt="Sangguniang Kabataan Logo"
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Second Section: Full-Width Title Bar */}
+                          <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
+                            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
+                              Sangguniang Kabataan Official ID Card
+                            </span>
+                          </div>
+
+                          {/* Main Content Area: Two Columns */}
+                          <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
+                            {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
+                            <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
+                              <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-emerald-600/30 bg-gradient-to-tr from-[#082D21] to-[#0A6B43] flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
+                                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-black text-lg sm:text-xl">
+                                  {settingsName
+                                    ? settingsName
+                                      .split(" ")
+                                      .filter(Boolean)
+                                      .map((n) => n[0])
+                                      .join("")
+                                      .toUpperCase()
+                                      .slice(0, 2)
+                                    : "SK"}
+                                </div>
+                                <span className="text-[9px] font-extrabold text-white/90 uppercase tracking-wider mt-1.5">Official Photo</span>
                               </div>
 
-                              <div className="col-span-5 min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone</span>
-                                <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                                  {settingsPhone || "N/A"}
+                              {/* ID Number in one row without ellipsis */}
+                              <div className="mt-2 text-center w-full">
+                                <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
+                                  ID: {`SK-SL-${designatedBarangay.replace(/^Barangay\s+/i, "").toUpperCase().slice(0, 3)}-${String(currentUser?.id || "001").toUpperCase().slice(-4)}`}
                                 </span>
                               </div>
                             </div>
 
-                            {/* Official Email */}
-                            <div>
-                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">System Email</span>
-                              <span className="text-xs font-mono font-medium text-gray-800 block truncate mt-0.5">
-                                {settingsEmail}
-                              </span>
-                            </div>
+                            {/* Right Column: Official Information in compact rows and columns */}
+                            <div className="flex-1 w-full space-y-2.5 min-w-0">
+                              {/* Official Name */}
+                              <div className="border-b border-gray-100 pb-1.5">
+                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Official Name</span>
+                                <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
+                                  {settingsName}
+                                </h4>
+                              </div>
 
-                            {/* Jurisdiction Address */}
-                            <div className="border-t border-gray-100 pt-1.5">
-                              <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Jurisdiction Office</span>
-                              <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
-                                Barangay Hall, Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
-                              </span>
+                              {/* Designation & Phone Number */}
+                              <div className="grid grid-cols-12 gap-2">
+                                <div className="col-span-7 min-w-0">
+                                  <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Position</span>
+                                  <span className="text-xs font-black text-[#0A6B43] block truncate mt-0.5">
+                                    {settingsPos}
+                                  </span>
+                                </div>
+
+                                <div className="col-span-5 min-w-0">
+                                  <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone</span>
+                                  <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                                    {settingsPhone || "N/A"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Official Email */}
+                              <div>
+                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">System Email</span>
+                                <span className="text-xs font-mono font-medium text-gray-800 block truncate mt-0.5">
+                                  {settingsEmail}
+                                </span>
+                              </div>
+
+                              {/* Jurisdiction Address */}
+                              <div className="border-t border-gray-100 pt-1.5">
+                                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Jurisdiction Office</span>
+                                <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
+                                  Barangay Hall, Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga
+                                </span>
+                              </div>
                             </div>
+                          </div>
+
+                          {/* Bottom Status Clearance Strip */}
+                          <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
+                            <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="text-[10px] uppercase tracking-wider">Clearance Status:</span>
+                              <span className="font-semibold text-gray-800 text-[11px] truncate">Tier 2 Administrative Authority</span>
+                            </div>
+                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
+                              Active Leader ✓
+                            </span>
                           </div>
                         </div>
 
-                        {/* Bottom Status Clearance Strip */}
-                        <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
-                          <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span className="text-[10px] uppercase tracking-wider">Clearance Status:</span>
-                            <span className="font-semibold text-gray-800 text-[11px] truncate">Tier 2 Administrative Authority</span>
-                          </div>
-                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
-                            Active Leader ✓
-                          </span>
+                        {/* Action Button: Moved to Bottom Right */}
+                        <div className="flex justify-end pt-3 w-full">
+                          <button
+                            onClick={() => {
+                              const fullIdStr = `SK-SL-${designatedBarangay.replace(/^Barangay\s+/i, "").toUpperCase().slice(0, 3)}-${String(currentUser?.id || "001").toUpperCase().slice(-4)}`;
+                              navigator.clipboard?.writeText(
+                                `Sangguniang Kabataan Official Digital ID Card:\nName: ${settingsName.toUpperCase()}\nPosition: ${settingsPos}\nID: ${fullIdStr}\nEmail: ${settingsEmail}\nPhone: ${settingsPhone || "N/A"}\nJurisdiction: Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga\nClearance: Tier 2 Administrative Authority (Active)`
+                              );
+                              addToast("Official Digital ID Card information copied to clipboard!", "success");
+                            }}
+                            className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[14px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <Copy className="w-4 h-4 text-[#0A6B43]" />
+                            Copy Digital ID Info
+                          </button>
                         </div>
                       </div>
-
-                      {/* Action Button: Moved to Bottom Right */}
-                      <div className="flex justify-end pt-3 w-full">
-                        <button
-                          onClick={() => {
-                            const fullIdStr = `SK-SL-${designatedBarangay.replace(/^Barangay\s+/i, "").toUpperCase().slice(0, 3)}-${String(currentUser?.id || "001").toUpperCase().slice(-4)}`;
-                            navigator.clipboard?.writeText(
-                              `Sangguniang Kabataan Official Digital ID Card:\nName: ${settingsName.toUpperCase()}\nPosition: ${settingsPos}\nID: ${fullIdStr}\nEmail: ${settingsEmail}\nPhone: ${settingsPhone || "N/A"}\nJurisdiction: Barangay ${designatedBarangay.replace(/^Barangay\s+/i, "")}, San Luis, Pampanga\nClearance: Tier 2 Administrative Authority (Active)`
-                            );
-                            addToast("Official Digital ID Card information copied to clipboard!", "success");
-                          }}
-                          className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[14px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                        >
-                          <Copy className="w-4 h-4 text-[#0A6B43]" />
-                          Copy Digital ID Info
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                </main>
               </div>
             </div>
           )}

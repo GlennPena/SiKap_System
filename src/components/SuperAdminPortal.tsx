@@ -14,8 +14,9 @@ import {
 import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
+import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard, SettingsTabItem } from "./SettingsShared";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { isProgramEnded } from "../lib/utils";
 import { broadcastDataChange } from "../lib/realtime-sync";
@@ -115,6 +116,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
@@ -4227,524 +4229,604 @@ Please sign in at ${window.location.origin} and change your password immediately
           {/* TAB 8: SUPER ADMIN PROFILE & GOVERNANCE COMMAND */}
           {/* ============================================================ */}
           {activeTab === "profile" && (
-            <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="space-y-8 animate-in fade-in duration-200">
               {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
+              <SettingsHeaderBanner
+                badge={
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-amber-400 text-slate-950 uppercase tracking-wider shadow-xs">
+                    <ShieldCheck className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                    Tier 1 Root Clearance
+                  </span>
+                }
+                title="Admin Profile & Security"
+                subtitle="Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls."
+              />
 
-                {/* Content */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black bg-amber-400 text-slate-950 uppercase tracking-wider shadow-xs">
-                      <ShieldCheck className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                      Tier 1 Root Clearance
-                    </span>
-                  </div>
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Admin Profile & Security
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage municipal youth governance oversight, central root credentials, administrative access keys, and system alert controls.
-                  </p>
-                </div>
-              </div>
+              {/* Master Two-Column Layout */}
+              <div className="flex flex-col lg:flex-row items-start gap-8">
+                {/* Left Sidebar Navigation */}
+                <SettingsSidebarNav
+                  tabs={[
+                    { id: "profile", label: "Administrator Profile", icon: Shield },
+                    { id: "security", label: "Security & Password", icon: Lock },
+                    { id: "notifications", label: "Central System Alerts", icon: Bell },
+                    { id: "badge", label: "Root Authorization Badge", icon: Award },
+                  ]}
+                  activeTab={profileActiveTab}
+                  onTabChange={(tabId) => setProfileActiveTab(tabId as any)}
+                />
 
-              {/* Sub-Tab Navigation Bar (Centered) */}
-              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1 w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-slate-200 mx-auto">
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("profile")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      profileActiveTab === "profile"
-                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
-                    }`}
-                  >
-                    <Shield className="w-4 h-4 shrink-0" />
-                    <span>Administrator Profile</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("security")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      profileActiveTab === "security"
-                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
-                    }`}
-                  >
-                    <Lock className="w-4 h-4 shrink-0" />
-                    <span>Security & Password</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("notifications")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      profileActiveTab === "notifications"
-                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
-                    }`}
-                  >
-                    <Bell className="w-4 h-4 shrink-0" />
-                    <span>Central System Alerts</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("badge")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      profileActiveTab === "badge"
-                        ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
-                    }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    <span>Root Authorization Badge</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Centered Tab Contents Container */}
-              <div className="max-w-5xl mx-auto w-full">
-                {/* TAB 1: ADMINISTRATOR PROFILE */}
-                {profileActiveTab === "profile" && (
-                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                  {/* Left Column (3 cols) */}
-                  <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-slate-100">
-                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-amber-400 shrink-0 mt-0.5 sm:mt-0">
-                            ADM
+                {/* Right Content Area */}
+                <main className="flex-1 min-w-0 w-full">
+                  <AnimatePresence mode="wait">
+                    {/* Sub-Tab 1: Administrator Profile */}
+                    {profileActiveTab === "profile" && (
+                      <motion.div
+                        key="profile"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start"
+                      >
+                        {/* Left Column: Form with View/Edit mode */}
+                        <div className="xl:col-span-7 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-gray-100">
+                            <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-amber-400 shrink-0 mt-0.5 sm:mt-0">
+                                ADM
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                  <h3 className="text-sm sm:text-base font-bold text-gray-900 truncate">{adminName}</h3>
+                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
+                                    Root Authority
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 font-medium mt-0.5 truncate">
+                                  {adminOffice}
+                                </p>
+                                <p className="text-xs font-mono text-gray-600 mt-1 truncate">
+                                  {adminEmail}
+                                </p>
+                              </div>
+                            </div>
+                            {!isEditingProfile && (
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingProfile(true)}
+                                className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-2xs shrink-0"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Edit Details</span>
+                              </button>
+                            )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                              <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">{adminName}</h3>
-                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
-                                Root Authority
+
+                          {!isEditingProfile ? (
+                            /* Read-Only Dossier Layout */
+                            <div className="space-y-6">
+                              <div className="space-y-4">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Basic Information</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Administrator Full Name</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-bold text-gray-900">
+                                      {adminName}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Official Designation</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-bold text-gray-900">
+                                      Super Administrator & MYDO Head
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Executive Email</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-mono font-medium text-gray-700">
+                                      {adminEmail}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Communication Hotline</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800">
+                                      {adminPhone || "Not configured"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Administrative Governance Details */}
+                              <div className="space-y-3 pt-4 border-t border-gray-100">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Administrative Governance</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Office / Department</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800">
+                                      {adminOffice}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Territorial Scope</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800">
+                                      Municipality of San Luis (17 Barangays)
+                                    </p>
+                                  </div>
+                                  <div className="sm:col-span-2 p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80 flex items-center justify-between">
+                                    <div>
+                                      <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Root Governance Clearance</p>
+                                      <p className="text-xs text-gray-600 mt-0.5">Unrestricted administrative governance across all barangay zones & institutional portals</p>
+                                    </div>
+                                    <span className="text-xs font-black text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg">
+                                      TIER 1 ROOT
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-4 border-t border-gray-100 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingProfile(true)}
+                                  className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span>Edit Details</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Editable Form Mode */
+                            <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                              <div className="space-y-4">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Basic Information</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Administrator Full Name *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={adminName}
+                                      onChange={(e) => setAdminName(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Official Designation</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-bold text-gray-900">
+                                      Super Administrator & MYDO Head
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Executive Email Address *</label>
+                                    <input
+                                      type="email"
+                                      required
+                                      value={adminEmail}
+                                      onChange={(e) => setAdminEmail(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Direct Contact Hotline</label>
+                                    <input
+                                      type="text"
+                                      value={adminPhone}
+                                      onChange={(e) => setAdminPhone(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Administrative Governance Details */}
+                              <div className="space-y-3 pt-4 border-t border-gray-100">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Administrative Governance</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Office / Department *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={adminOffice}
+                                      onChange={(e) => setAdminOffice(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Territorial Scope</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800">
+                                      Municipality of San Luis (17 Barangays)
+                                    </p>
+                                  </div>
+                                  <div className="sm:col-span-2 p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80 flex items-center justify-between">
+                                    <div>
+                                      <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Root Governance Clearance</p>
+                                      <p className="text-xs text-gray-600 mt-0.5">Unrestricted administrative governance across all barangay zones & institutional portals</p>
+                                    </div>
+                                    <span className="text-xs font-black text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg">
+                                      TIER 1 ROOT
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingProfile(false)}
+                                  disabled={isSavingProfile}
+                                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={isSavingProfile}
+                                  className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                                >
+                                  {isSavingProfile ? (
+                                    <>
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Saving Details...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      <span>Save Administrator Details</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+
+                        {/* Right Column: Authority & Clearance Summary */}
+                        <div className="xl:col-span-5 space-y-6">
+                          <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 text-xs">
+                            <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+                              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
+                                <ShieldCheck className="w-5 h-5 text-amber-700" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-black text-gray-900 leading-tight">Root Governance Authority</h4>
+                                <p className="text-[11px] text-gray-500 mt-0.5">Tier 1 Central Municipal Command</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Clearance Level:</span>
+                                <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                                  Tier 1 Root Governance
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Municipal Zones:</span>
+                                <span className="font-bold text-gray-900">
+                                  17 Barangays (San Luis)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Provisioned Accounts:</span>
+                                <span className="font-bold text-gray-900">
+                                  {officialAccounts.length} Official(s)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">KK Youth Tracked:</span>
+                                <span className="font-bold text-gray-900">
+                                  {stats.kkMembers} Members
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Institutional Hub:</span>
+                                <span className="font-bold text-[#0A6B43]">
+                                  MYDO Central Command
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 text-xs text-emerald-950 font-medium space-y-1.5">
+                              <p className="font-bold flex items-center gap-1.5 text-[#0A6B43]">
+                                <Shield className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                Statutory & Legal Framework
+                              </p>
+                              <p className="text-[11px] text-gray-600 leading-relaxed">
+                                Authorized under RA 10742 (Sangguniang Kabataan Reform Act) and the Data Privacy Act of 2012 (RA 10173) to administer youth livelihood records and official credentials.
+                              </p>
+                            </div>
+
+                            <div className="pt-2">
+                              <button
+                                type="button"
+                                disabled={isLoggingOut}
+                                onClick={handleSignOut}
+                                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
+                                  isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                                }`}
+                              >
+                                {isLoggingOut ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
+                                    <span>Signing out...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <LogOut className="w-3.5 h-3.5" />
+                                    <span>Sign Out Central Administration</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Sub-Tab 2: Security & Password */}
+                    {profileActiveTab === "security" && (
+                      <motion.div
+                        key="security"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start"
+                      >
+                        <div className="xl:col-span-7 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-3 flex items-center gap-2">
+                              <Lock className="w-4 h-4 text-[#0A6B43]" />
+                              Update Root Security Password
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-1">
+                              Ensure central administrative access remains strictly protected against unauthorized access
+                            </p>
+                          </div>
+
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
+                            <p className="font-bold flex items-center gap-1.5">
+                              <ShieldAlert className="w-4 h-4 text-amber-600" />
+                              Executive Security Notice
+                            </p>
+                            <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                              Changing the Root Administrator password will immediately update central access across all municipal services. Keep credentials strictly confidential.
+                            </p>
+                          </div>
+
+                          <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Current Security Password *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showCurrentPass ? "text" : "password"}
+                                  value={currentPassword}
+                                  onChange={(e) => setCurrentPassword(e.target.value)}
+                                  placeholder="Enter current password..."
+                                  className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                  required
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                New Security Password (min. 6 characters) *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showNewPass ? "text" : "password"}
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  placeholder="Enter new password..."
+                                  className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                  required
+                                  minLength={6}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowNewPass(!showNewPass)}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Confirm New Security Password *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showConfirmPass ? "text" : "password"}
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  placeholder="Re-type new password..."
+                                  className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                  required
+                                  minLength={6}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {confirmPassword.length > 0 && (
+                              <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                {newPassword === confirmPassword ? (
+                                  <span className="text-emerald-600 flex items-center gap-1">
+                                    <Check className="w-3.5 h-3.5" /> Passwords match
+                                  </span>
+                                ) : (
+                                  <span className="text-red-500 flex items-center gap-1">
+                                    <X className="w-3.5 h-3.5" /> Passwords do not match
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="pt-2">
+                              <button
+                                type="submit"
+                                disabled={isChangingPassword}
+                                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                {isChangingPassword ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Updating Root Password...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lock className="w-3.5 h-3.5" />
+                                    <span>Update Root Password</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* Right: Security Guide */}
+                        <div className="xl:col-span-5 space-y-6">
+                          <SettingsSecurityGuideCard
+                            newPassword={newPassword}
+                            accountTypeLabel="Root Administrative Account"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Sub-Tab 3: Notifications */}
+                    {profileActiveTab === "notifications" && (
+                      <motion.div
+                        key="notifications"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start"
+                      >
+                        <div className="xl:col-span-7">
+                          <NotificationSettingsCard
+                            userRole="SUPER_ADMIN"
+                            userEmail={currentUser?.email}
+                            addToast={addToast}
+                          />
+                        </div>
+                        <div className="xl:col-span-5 space-y-6">
+                          <SettingsNotificationChannelsCard />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Sub-Tab 4: Root Authorization Badge */}
+                    {profileActiveTab === "badge" && (
+                      <motion.div
+                        key="badge"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="space-y-6"
+                      >
+                        <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-3 flex items-center gap-2">
+                              <Award className="w-4 h-4 text-[#0A6B43]" />
+                              Root Authorization & Credential Badge
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-1">
+                              Official Super Administrator Central Command Badge recognized across all municipal systems
+                            </p>
+                          </div>
+
+                          {/* Digital Credential ID Card */}
+                          <div className="relative overflow-hidden rounded-3xl border-2 border-amber-500/40 bg-gradient-to-br from-slate-950 via-[#112F24] to-[#0A231A] text-white p-7 shadow-2xl">
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                            {/* Card Top Header */}
+                            <div className="flex items-center justify-between pb-5 border-b border-white/10 relative z-10 gap-3">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                                  <Shield className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-amber-400 truncate">Republic of the Philippines</p>
+                                  <p className="text-xs font-extrabold tracking-wide text-white truncate">Municipality of San Luis · MYDO</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 shrink-0">
+                                Root Clearance
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
-                              {adminOffice}
-                            </p>
-                            <p className="text-xs font-mono text-slate-600 mt-1 truncate">
-                              {adminEmail}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingProfile(!isEditingProfile)}
-                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${
-                            isEditingProfile
-                              ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                              : "bg-[#0A6B43] text-white hover:bg-[#085435]"
-                          }`}
-                        >
-                          <Edit className="w-3.5 h-3.5 shrink-0" />
-                          <span>{isEditingProfile ? "Cancel" : "Edit Profile"}</span>
-                        </button>
-                      </div>
 
-                      {/* View Mode */}
-                      {!isEditingProfile ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Administrator Full Name</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{adminName}</p>
-                          </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Official Designation</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">Super Administrator & MYDO Head</p>
-                          </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Executive Email</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{adminEmail}</p>
-                          </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Communication Hotline</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{adminPhone}</p>
-                          </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Office / Department</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">{adminOffice}</p>
-                          </div>
-                          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Territorial Scope</p>
-                            <p className="text-xs font-bold text-slate-800 mt-1">Municipality of San Luis (17 Barangays)</p>
-                          </div>
-                          <div className="sm:col-span-2 p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80 flex items-center justify-between">
-                            <div>
-                              <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Root Governance Clearance</p>
-                              <p className="text-xs text-slate-600 mt-0.5">Unrestricted administrative governance across all barangay zones & institutional portals</p>
+                            {/* Card Body */}
+                            <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
+                              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
+                                ADM
+                              </div>
+                              <div className="text-center sm:text-left space-y-1">
+                                <h4 className="text-lg font-black text-white tracking-tight">{adminName}</h4>
+                                <p className="text-xs font-semibold text-amber-300">Super Administrator & MYDO Head</p>
+                                <p className="text-[11px] text-slate-300 font-mono pt-1">
+                                  Municipal Youth Development Office · San Luis, Pampanga
+                                </p>
+                                <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-amber-300">
+                                  <span>AUTH-ID:</span>
+                                  <span className="font-bold">{currentUser?.id?.slice(0, 14) || "SA-MYDO-SANLUIS-001"}</span>
+                                </div>
+                              </div>
                             </div>
-                            <span className="text-xs font-black text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg">
-                              TIER 1 ROOT
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Edit Mode Form */
-                        <form onSubmit={handleSaveProfileSubmit} className="space-y-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Administrator Full Name
-                              </label>
-                              <input
-                                type="text"
-                                value={adminName}
-                                onChange={(e) => setAdminName(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Executive Email Address
-                              </label>
-                              <input
-                                type="email"
-                                value={adminEmail}
-                                onChange={(e) => setAdminEmail(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Direct Contact Hotline
-                              </label>
-                              <input
-                                type="text"
-                                value={adminPhone}
-                                onChange={(e) => setAdminPhone(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Department / Office Designation
-                              </label>
-                              <input
-                                type="text"
-                                value={adminOffice}
-                                onChange={(e) => setAdminOffice(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] bg-white text-slate-900"
-                                required
-                              />
+
+                            {/* Card Footer */}
+                            <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Central Infrastructure Controller</span>
+                              </div>
+                              <span className="font-mono text-slate-400">Tier 1 Root Governance</span>
                             </div>
                           </div>
-                          <div className="flex items-center justify-end gap-3 pt-2">
+
+                          {/* Copy Credential Button */}
+                          <div className="flex justify-end pt-2">
                             <button
                               type="button"
-                              onClick={() => setIsEditingProfile(false)}
-                              disabled={isSavingProfile}
-                              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                              onClick={() => {
+                                const info = `MUNICIPAL SUPER ADMINISTRATOR CREDENTIAL\nAdministrator: ${adminName}\nDesignation: Super Administrator & MYDO Head\nOffice: ${adminOffice}\nEmail: ${adminEmail}\nContact: ${adminPhone}\nJurisdiction: San Luis, Pampanga (17 Barangays)\nClearance: Tier 1 Root Governance\nAuthorization ID: ${currentUser?.id || "SA-MYDO-SANLUIS-001"}`;
+                                navigator.clipboard.writeText(info);
+                                addToast("Super Administrator Credential copied to clipboard!", "success");
+                              }}
+                              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
                             >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={isSavingProfile}
-                              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center gap-2"
-                            >
-                              {isSavingProfile ? (
-                                <>
-                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="w-3.5 h-3.5" />
-                                  Save Administrator Details
-                                </>
-                              )}
+                              <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Copy Root Credential Details
                             </button>
                           </div>
-                        </form>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right Column (2 cols): Authority & Clearance Summary */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
-                          <ShieldCheck className="w-5 h-5" />
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-black text-slate-900 leading-tight">Root Governance Authority</h4>
-                          <p className="text-[11px] text-slate-500 mt-0.5">Tier 1 Central Municipal Command</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 pt-2">
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Clearance Level</span>
-                          <span className="text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
-                            Tier 1 Root Governance
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Municipal Zones</span>
-                          <span className="text-xs font-bold text-slate-900">
-                            17 Barangays (San Luis)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Provisioned Accounts</span>
-                          <span className="text-xs font-bold text-slate-900">
-                            {officialAccounts.length} Official(s)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">KK Youth Tracked</span>
-                          <span className="text-xs font-bold text-slate-900">
-                            {stats.kkMembers} Members
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <span className="text-xs text-slate-600 font-medium">Institutional Hub</span>
-                          <span className="text-xs font-bold text-slate-900">
-                            MYDO Central Command
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
-                        <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                          <Shield className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Statutory & Legal Framework
-                        </p>
-                        Authorized under RA 10742 (Sangguniang Kabataan Reform Act) and the Data Privacy Act of 2012 (RA 10173) to administer youth livelihood records and official credentials.
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100">
-                        <button
-                          type="button"
-                          disabled={isLoggingOut}
-                          onClick={handleSignOut}
-                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
-                            isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-                          }`}
-                        >
-                          {isLoggingOut ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
-                              <span>Signing out...</span>
-                            </>
-                          ) : (
-                            <>
-                              <LogOut className="w-3.5 h-3.5" />
-                              <span>Sign Out Central Administration</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: ACCOUNT SECURITY */}
-              {profileActiveTab === "security" && (
-                <div className="max-w-2xl mx-auto bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                  <div className="border-b border-slate-100 pb-4">
-                    <div className="flex items-start sm:items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                        <Lock className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
-                          Update Root Security Password
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                          Ensure central administrative access remains strictly protected against unauthorized access.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Current Security Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPass ? "text" : "password"}
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                        >
-                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        New Security Password (minimum 6 characters)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showNewPass ? "text" : "password"}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] pr-10 text-slate-900"
-                          required
-                          minLength={6}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                        >
-                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Confirm New Security Password
-                      </label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A6B43] text-slate-900"
-                        required
-                        minLength={6}
-                      />
-                    </div>
-
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <span>
-                        Changing the Root Administrator password will immediately update central access across all municipal services. Ensure credentials are preserved safely.
-                      </span>
-                    </div>
-
-                    <div className="pt-2">
-                      <button
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        {isChangingPassword ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Updating Root Password...
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="w-3.5 h-3.5" />
-                            Update Root Password
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* TAB 3: NOTIFICATIONS */}
-              {profileActiveTab === "notifications" && (
-                <div className="max-w-3xl mx-auto">
-                  <NotificationSettingsCard
-                    userRole="SUPER_ADMIN"
-                    userEmail={currentUser?.email}
-                    addToast={addToast}
-                  />
-                </div>
-              )}
-
-              {/* TAB 4: ROOT AUTHORIZATION BADGE */}
-              {profileActiveTab === "badge" && (
-                <div className="max-w-xl mx-auto space-y-6">
-                  {/* Digital Credential ID Card */}
-                  <div className="relative overflow-hidden rounded-3xl border-2 border-amber-500/40 bg-gradient-to-br from-slate-950 via-[#112F24] to-[#0A231A] text-white p-7 shadow-2xl">
-                    <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-
-                    {/* Card Top Header */}
-                    <div className="flex items-center justify-between pb-5 border-b border-white/10 relative z-10 gap-3">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0">
-                          <Shield className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-400 truncate">Republic of the Philippines</p>
-                          <p className="text-xs font-extrabold tracking-wide text-white truncate">Municipality of San Luis · MYDO</p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 shrink-0">
-                        Root Clearance
-                      </span>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
-                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
-                        ADM
-                      </div>
-                      <div className="text-center sm:text-left space-y-1">
-                        <h4 className="text-lg font-black text-white tracking-tight">{adminName}</h4>
-                        <p className="text-xs font-semibold text-amber-300">Super Administrator & MYDO Head</p>
-                        <p className="text-[11px] text-slate-300 font-mono pt-1">
-                          Municipal Youth Development Office · San Luis, Pampanga
-                        </p>
-                        <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-amber-300">
-                          <span>AUTH-ID:</span>
-                          <span className="font-bold">{currentUser?.id?.slice(0, 14) || "SA-MYDO-SANLUIS-001"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Central Infrastructure Controller</span>
-                      </div>
-                      <span className="font-mono text-slate-400">Tier 1 Root Governance</span>
-                    </div>
-                  </div>
-
-                  {/* Copy Credential Button */}
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const info = `MUNICIPAL SUPER ADMINISTRATOR CREDENTIAL\nAdministrator: ${adminName}\nDesignation: Super Administrator & MYDO Head\nOffice: ${adminOffice}\nEmail: ${adminEmail}\nContact: ${adminPhone}\nJurisdiction: San Luis, Pampanga (17 Barangays)\nClearance: Tier 1 Root Governance\nAuthorization ID: ${currentUser?.id || "SA-MYDO-SANLUIS-001"}`;
-                        navigator.clipboard.writeText(info);
-                        addToast("Super Administrator Credential copied to clipboard!", "success");
-                      }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-4 h-4 text-[#0A6B43]" />
-                      Copy Root Credential Details
-                    </button>
-                  </div>
-                </div>
-              )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </main>
               </div>
             </div>
           )}

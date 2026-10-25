@@ -60,8 +60,9 @@ import {
 } from "lucide-react";
 import { SikapLogo, NotificationBellButton, EmptyState } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
+import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard, SettingsTabItem } from "./SettingsShared";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { isProgramEnded, toTitleCase } from "../lib/utils";
@@ -562,6 +563,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const handleSaveProfileSubmit = async (e: React.FormEvent) => {
@@ -4237,441 +4239,549 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           {/* SCREEN 6: EXECUTIVE PROFILE & AUDIT                                   */}
           {/* ===================================================================== */}
           {currentScreen === BarangayCaptainScreen.PROFILE && (
-            <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="space-y-8 animate-in fade-in duration-200">
               {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
+              <SettingsHeaderBanner
+                title="Executive Profile & Settings"
+                subtitle="Manage executive leadership records, account security, administrative alerts, and digital credentials."
+              />
 
-                {/* Content */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Executive Profile & Settings
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage executive leadership records, account security, administrative alerts, and digital credentials.
-                  </p>
-                </div>
-              </div>
+              {/* Master Two-Column Layout */}
+              <div className="flex flex-col lg:flex-row items-start gap-8">
+                {/* Left Sidebar Navigation */}
+                <SettingsSidebarNav
+                  tabs={[
+                    { id: "profile", label: "Executive Profile", icon: Shield },
+                    { id: "security", label: "Security & Password", icon: Lock },
+                    { id: "notifications", label: "Executive Alerts", icon: Bell },
+                    { id: "badge", label: "Punong Barangay Badge", icon: ShieldCheck },
+                  ]}
+                  activeTab={profileActiveTab}
+                  onTabChange={(tabId) => setProfileActiveTab(tabId as any)}
+                />
 
-              {/* Sub-Tab Navigation Bar */}
-              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5 w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-150 mx-auto">
-                  {[
-                    { id: "profile", label: "Executive Profile", icon: <Shield className="w-3.5 h-3.5 shrink-0" /> },
-                    { id: "security", label: "Security & Password", icon: <Lock className="w-3.5 h-3.5 shrink-0" /> },
-                    { id: "notifications", label: "Executive Alerts", icon: <Bell className="w-3.5 h-3.5 shrink-0" /> },
-                    { id: "badge", label: "Punong Barangay Badge", icon: <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setProfileActiveTab(tab.id as any)}
-                      className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                        profileActiveTab === tab.id
-                          ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
-                      }`}
-                    >
-                      {tab.icon}
-                      <span>{tab.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Centered Tab Contents Container */}
-              <div className="max-w-5xl mx-auto w-full">
-
-              {/* Sub-Tab 1: Executive Profile Information */}
-              {profileActiveTab === "profile" && (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-in fade-in duration-150">
-                  {/* Left Column: Form with View/Edit mode */}
-                  <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-xs">
-                    <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-100">
-                            <User className="w-4 h-4 shrink-0" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="font-black text-gray-900 text-sm sm:text-base tracking-tight leading-snug truncate">
-                              Punong Barangay Official Details
-                            </h3>
-                            <p className="text-[11px] text-gray-500 font-medium">Executive identity & credentials</p>
-                          </div>
-                        </div>
-                        {!isEditingProfile && (
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingProfile(true)}
-                            className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-2xs"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                            <span>Edit Profile Details</span>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Full Name *</label>
-                          {isEditingProfile ? (
-                            <input
-                              type="text"
-                              required
-                              value={captainName}
-                              onChange={(e) => setCaptainName(e.target.value)}
-                              className="w-full h-[40px] px-3.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 bg-gray-50/70 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition-colors"
-                            />
-                          ) : (
-                            <p className="h-[40px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-bold text-gray-900">
-                              {captainName}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Executive Designation</label>
-                          <div className="h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs flex items-center justify-between">
-                            <span className="font-bold text-amber-900">Punong Barangay</span>
-                            <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-md">
-                              Elected Executive
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Official Email Address *</label>
-                          {isEditingProfile ? (
-                            <input
-                              type="email"
-                              required
-                              value={captainEmail}
-                              onChange={(e) => setCaptainEmail(e.target.value)}
-                              className="w-full h-[40px] px-3.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 bg-gray-50/70 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition-colors"
-                            />
-                          ) : (
-                            <p className="h-[40px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-mono font-medium text-gray-700">
-                              {captainEmail}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-gray-400 uppercase block">Executive Contact Number</label>
-                          {isEditingProfile ? (
-                            <input
-                              type="text"
-                              value={captainPhone}
-                              onChange={(e) => setCaptainPhone(e.target.value)}
-                              className="w-full h-[40px] px-3.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 bg-gray-50/70 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition-colors"
-                            />
-                          ) : (
-                            <p className="h-[40px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800">
-                              {captainPhone || "Not configured"}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Barangay Jurisdiction Details */}
-                      <div className="space-y-3 pt-4 border-t border-gray-100">
-                        <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Territorial Jurisdiction</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Barangay</label>
-                            <div className="h-[40px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-emerald-900 font-bold rounded-xl text-xs">
-                              {formattedBrgyName}
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Municipality</label>
-                            <div className="h-[40px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-gray-700 font-semibold rounded-xl text-xs">
-                              San Luis
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase block">Province</label>
-                            <div className="h-[40px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-gray-700 font-semibold rounded-xl text-xs">
-                              Pampanga
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {isEditingProfile && (
-                        <div className="pt-2 flex justify-end gap-2.5 border-t border-gray-100">
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingProfile(false)}
-                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={isSavingProfile}
-                            className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
-                          >
-                            {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                            Save Executive Profile
-                          </button>
-                        </div>
-                      )}
-                    </form>
-                  </div>
-
-                  {/* Right Column: Governance Authority Card */}
-                  <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs space-y-4 text-xs">
-                      <div>
-                        <h4 className="font-bold text-gray-800 border-b border-gray-100 pb-2 flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                          Executive Powers & Authority
-                        </h4>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Executive Office:</span>
-                          <span className="font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">
-                            Elected Punong Barangay ✓
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Presiding Officer:</span>
-                          <span className="font-extrabold text-gray-800">Sangguniang Barangay</span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Purok Count:</span>
-                          <span className="font-bold text-gray-800">{uniquePuroks.length} Recorded Puroks</span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Youth Demographics:</span>
-                          <span className="font-bold text-gray-800">{localYouthProfiles.length} KK Members</span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">SK Oversight:</span>
-                          <span className="font-bold text-emerald-800">General Supervision</span>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                          <span className="text-gray-400 font-medium">Platform Access:</span>
-                          <span className="font-bold text-[#0A6B43]">Tier 3 Executive Access</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 text-[11px] text-emerald-950 font-medium space-y-1">
-                        <p className="font-bold flex items-center gap-1.5 text-[#0A6B43]">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Local Government Code Compliant
-                        </p>
-                        <p className="text-[10px] text-gray-600 leading-relaxed">
-                          Enforces Republic Act No. 7160 provisions for barangay governance, out-of-school youth welfare, and comprehensive community empowerment.
-                        </p>
-                      </div>
-
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          disabled={isLoggingOut}
-                          onClick={handleSignOut}
-                          className={`w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-all flex items-center justify-center gap-2 ${
-                            isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-                          }`}
-                        >
-                          {isLoggingOut ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-red-700" />
-                              <span>Signing out...</span>
-                            </>
-                          ) : (
-                            <>
-                              <LogOut className="w-3.5 h-3.5" />
-                              <span>Sign Out of Official Portal</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-Tab 2: Security & Password */}
-              {profileActiveTab === "security" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-6 max-w-xl mx-auto animate-in fade-in duration-150">
-                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-emerald-700" />
-                        Account Security & Password
-                      </h3>
-                      <p className="text-xs text-gray-400 font-medium mt-1">Update your login password to ensure security of executive administrative access</p>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
-                      <p className="font-bold flex items-center gap-1.5">
-                        <ShieldAlert className="w-4 h-4 text-amber-600" />
-                        Executive Security Notice
-                      </p>
-                      <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                        Your password must be at least 6 characters long. Keep your Punong Barangay portal login credentials strictly confidential.
-                      </p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase block">Current Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPass ? "text" : "password"}
-                          required
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Enter current password..."
-                          className="w-full h-[40px] px-3.5 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-gray-50/70 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition-colors"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase block">New Password *</label>
-                      <div className="relative">
-                        <input
-                          type={showNewPass ? "text" : "password"}
-                          required
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Enter new password (min. 6 characters)..."
-                          className="w-full h-[40px] px-3.5 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-gray-50/70 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition-colors"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase block">Confirm New Password *</label>
-                      <input
-                        type="password"
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Re-type new password..."
-                        className="w-full h-[40px] px-3.5 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-gray-50/70 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition-colors"
-                      />
-                    </div>
-
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                {/* Right Content Area */}
+                <main className="flex-1 min-w-0 w-full">
+                  <AnimatePresence mode="wait">
+                    {/* Sub-Tab 1: Executive Profile Information */}
+                    {profileActiveTab === "profile" && (
+                      <motion.div
+                        key="profile"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start"
                       >
-                        {isChangingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
-                        Update Account Password
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
+                        {/* Left Column: Form with View/Edit mode */}
+                        <div className="xl:col-span-7 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-100">
+                                <User className="w-4 h-4 shrink-0" />
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="font-black text-gray-900 text-sm sm:text-base tracking-tight leading-snug truncate">
+                                  Punong Barangay Official Details
+                                </h3>
+                                <p className="text-[11px] text-gray-500 font-medium">Executive identity & credentials</p>
+                              </div>
+                            </div>
+                            {!isEditingProfile && (
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingProfile(true)}
+                                className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-2xs"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Edit Profile Details</span>
+                              </button>
+                            )}
+                          </div>
 
-              {/* Sub-Tab 3: Notification Preferences */}
-              {profileActiveTab === "notifications" && (
-                <div className="max-w-2xl mx-auto animate-in fade-in duration-150">
-                  <NotificationSettingsCard
-                    userRole="BARANGAY_CAPTAIN"
-                    userEmail={captainEmail}
-                    addToast={showToast}
-                  />
-                </div>
-              )}
+                          {!isEditingProfile ? (
+                            /* Read-Only Dossier Layout */
+                            <div className="space-y-6">
+                              <div className="space-y-4">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Basic Information</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Full Name</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-bold text-gray-900">
+                                      {captainName}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Executive Designation</label>
+                                    <div className="h-[42px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs flex items-center justify-between">
+                                      <span className="font-bold text-amber-900">Punong Barangay</span>
+                                      <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-md">
+                                        Elected Executive
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Official Email Address</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-mono font-medium text-gray-700">
+                                      {captainEmail}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Executive Contact Number</label>
+                                    <p className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800">
+                                      {captainPhone || "Not configured"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
 
-              {/* Sub-Tab 4: Punong Barangay Executive Credential Badge */}
-              {profileActiveTab === "badge" && (
-                <div className="bg-white border border-gray-150 rounded-2xl shadow-xs p-6 space-y-5 max-w-lg mx-auto animate-in fade-in duration-150">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                      Barangay Executive Credentials Badge
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium mt-1">Official Punong Barangay Administrative Badge recognized across municipal systems</p>
-                  </div>
+                              {/* Territorial Jurisdiction Details */}
+                              <div className="space-y-3 pt-4 border-t border-gray-100">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Territorial Jurisdiction</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Barangay</label>
+                                    <div className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-emerald-900 font-bold rounded-xl text-xs">
+                                      {formattedBrgyName}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Municipality</label>
+                                    <div className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-gray-700 font-semibold rounded-xl text-xs">
+                                      San Luis
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Province</label>
+                                    <div className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-gray-700 font-semibold rounded-xl text-xs">
+                                      Pampanga
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
 
-                  {/* ID Badge Card */}
-                  <div className="bg-gradient-to-br from-[#082D21] to-[#0A6B43] text-white rounded-2xl p-5 shadow-lg border border-emerald-700/50 space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <span className="text-[9px] font-black uppercase text-[#D99427] tracking-widest block">Republic of the Philippines</span>
-                        <h4 className="text-sm font-extrabold tracking-tight text-white">Punong Barangay Executive</h4>
-                        <p className="text-[10px] text-emerald-200 font-bold">{formattedBrgyName} · San Luis, Pampanga</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center font-black text-sm text-amber-300">
-                        PB
-                      </div>
-                    </div>
+                              <div className="pt-4 border-t border-gray-100 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingProfile(true)}
+                                  className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span>Edit Details</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Editable Form Mode */
+                            <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                              <div className="space-y-4">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Basic Information</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Full Name *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={captainName}
+                                      onChange={(e) => setCaptainName(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Executive Designation</label>
+                                    <div className="h-[42px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs flex items-center justify-between">
+                                      <span className="font-bold text-amber-900">Punong Barangay</span>
+                                      <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-md">
+                                        Elected Executive
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Official Email Address *</label>
+                                    <input
+                                      type="email"
+                                      required
+                                      value={captainEmail}
+                                      onChange={(e) => setCaptainEmail(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Executive Contact Number</label>
+                                    <input
+                                      type="text"
+                                      value={captainPhone}
+                                      onChange={(e) => setCaptainPhone(e.target.value)}
+                                      className="w-full h-[42px] px-3.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
 
-                    <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Punong Barangay</span>
-                        <span className="font-extrabold text-white text-sm">{captainName}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Designation</span>
-                        <span className="font-extrabold text-[#D99427]">Elected Executive</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Official Email</span>
-                        <span className="font-mono text-[11px] text-emerald-100 truncate block">{captainEmail}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-emerald-300 uppercase block">Office Status</span>
-                        <span className="font-bold text-emerald-200 flex items-center gap-1 text-[11px]">
-                          <CheckCircle className="w-3 h-3 text-emerald-400" /> Active in Office
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                              {/* Territorial Jurisdiction Details */}
+                              <div className="space-y-3 pt-4 border-t border-gray-100">
+                                <h4 className="font-bold text-gray-800 text-xs uppercase tracking-wider">Territorial Jurisdiction</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Barangay</label>
+                                    <div className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-emerald-900 font-bold rounded-xl text-xs">
+                                      {formattedBrgyName}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Municipality</label>
+                                    <div className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-gray-700 font-semibold rounded-xl text-xs">
+                                      San Luis
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase block tracking-wider">Province</label>
+                                    <div className="h-[42px] px-3.5 flex items-center bg-gray-50/70 border border-gray-200 text-gray-700 font-semibold rounded-xl text-xs">
+                                      Pampanga
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
 
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(
-                          `Barangay Executive Credentials:\nName: ${captainName}\nTitle: Punong Barangay\nJurisdiction: ${formattedBrgyName}, San Luis, Pampanga\nEmail: ${captainEmail}\nStatus: Active in Office`
-                        );
-                        showToast("Punong Barangay credentials copied to clipboard!", "success");
-                      }}
-                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
-                      Copy Executive Credentials
-                    </button>
-                  </div>
-                </div>
-              )}
+                              <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingProfile(false)}
+                                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={isSavingProfile}
+                                  className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                                >
+                                  {isSavingProfile ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                                  <span>Save Executive Profile</span>
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+
+                        {/* Right Column: Governance Authority Card */}
+                        <div className="xl:col-span-5 space-y-6">
+                          <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 text-xs">
+                            <div>
+                              <h4 className="font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2 text-sm">
+                                <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                                Executive Powers & Authority
+                              </h4>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Executive Office:</span>
+                                <span className="font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">
+                                  Elected Punong Barangay ✓
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Presiding Officer:</span>
+                                <span className="font-extrabold text-gray-800">Sangguniang Barangay</span>
+                              </div>
+
+                              <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Purok Count:</span>
+                                <span className="font-bold text-gray-800">{uniquePuroks.length} Recorded Puroks</span>
+                              </div>
+
+                              <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Youth Demographics:</span>
+                                <span className="font-bold text-gray-800">{localYouthProfiles.length} KK Members</span>
+                              </div>
+
+                              <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">SK Oversight:</span>
+                                <span className="font-bold text-emerald-800">General Supervision</span>
+                              </div>
+
+                              <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                                <span className="text-gray-400 font-medium">Platform Access:</span>
+                                <span className="font-bold text-[#0A6B43]">Tier 3 Executive Access</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 text-xs text-emerald-950 font-medium space-y-1.5">
+                              <p className="font-bold flex items-center gap-1.5 text-[#0A6B43]">
+                                <Sparkles className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                Local Government Code Compliant
+                              </p>
+                              <p className="text-[11px] text-gray-600 leading-relaxed">
+                                Enforces Republic Act No. 7160 provisions for barangay governance, out-of-school youth welfare, and comprehensive community empowerment.
+                              </p>
+                            </div>
+
+                            <div className="pt-2">
+                              <button
+                                type="button"
+                                disabled={isLoggingOut}
+                                onClick={handleSignOut}
+                                className={`w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-all flex items-center justify-center gap-2 ${
+                                  isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                                }`}
+                              >
+                                {isLoggingOut ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-700" />
+                                    <span>Signing out...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <LogOut className="w-3.5 h-3.5" />
+                                    <span>Sign Out of Official Portal</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Sub-Tab 2: Security & Password */}
+                    {profileActiveTab === "security" && (
+                      <motion.div
+                        key="security"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start"
+                      >
+                        <div className="xl:col-span-7 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-3 flex items-center gap-2">
+                              <Lock className="w-4 h-4 text-[#0A6B43]" />
+                              Account Security & Password
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-1">
+                              Update your login password to ensure security of executive administrative access
+                            </p>
+                          </div>
+
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-800 space-y-1">
+                            <p className="font-bold flex items-center gap-1.5">
+                              <ShieldAlert className="w-4 h-4 text-amber-600" />
+                              Executive Security Notice
+                            </p>
+                            <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                              Your password must be at least 6 characters long. Keep your Punong Barangay portal login credentials strictly confidential.
+                            </p>
+                          </div>
+
+                          <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Current Password *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showCurrentPass ? "text" : "password"}
+                                  required
+                                  value={currentPassword}
+                                  onChange={(e) => setCurrentPassword(e.target.value)}
+                                  placeholder="Enter current password..."
+                                  className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                New Password *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showNewPass ? "text" : "password"}
+                                  required
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  placeholder="Enter new password (min. 6 characters)..."
+                                  className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowNewPass(!showNewPass)}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Confirm New Password *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showConfirmPass ? "text" : "password"}
+                                  required
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  placeholder="Re-type new password..."
+                                  className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {confirmPassword.length > 0 && (
+                              <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                {newPassword === confirmPassword ? (
+                                  <span className="text-emerald-600 flex items-center gap-1">
+                                    <Check className="w-3.5 h-3.5" /> Passwords match
+                                  </span>
+                                ) : (
+                                  <span className="text-red-500 flex items-center gap-1">
+                                    <X className="w-3.5 h-3.5" /> Passwords do not match
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="pt-2 flex justify-end">
+                              <button
+                                type="submit"
+                                disabled={isChangingPassword}
+                                className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                              >
+                                {isChangingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                                <span>Update Account Password</span>
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* Right: Security Guide */}
+                        <div className="xl:col-span-5 space-y-6">
+                          <SettingsSecurityGuideCard
+                            newPassword={newPassword}
+                            accountTypeLabel="Barangay Executive Account"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Sub-Tab 3: Notification Preferences */}
+                    {profileActiveTab === "notifications" && (
+                      <motion.div
+                        key="notifications"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start"
+                      >
+                        <div className="xl:col-span-7">
+                          <NotificationSettingsCard
+                            userRole="BARANGAY_CAPTAIN"
+                            userEmail={captainEmail}
+                            addToast={showToast}
+                          />
+                        </div>
+                        <div className="xl:col-span-5 space-y-6">
+                          <SettingsNotificationChannelsCard />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Sub-Tab 4: Punong Barangay Executive Credential Badge */}
+                    {profileActiveTab === "badge" && (
+                      <motion.div
+                        key="badge"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.18 }}
+                        className="space-y-6"
+                      >
+                        <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-3 flex items-center gap-2">
+                              <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
+                              Barangay Executive Credentials Badge
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-1">
+                              Official Punong Barangay Administrative Badge recognized across municipal systems
+                            </p>
+                          </div>
+
+                          {/* ID Badge Card */}
+                          <div className="bg-gradient-to-br from-[#082D21] to-[#0A6B43] text-white rounded-2xl p-5 shadow-lg border border-emerald-700/50 space-y-4">
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] font-black uppercase text-[#D99427] tracking-widest block">Republic of the Philippines</span>
+                                <h4 className="text-sm font-extrabold tracking-tight text-white">Punong Barangay Executive</h4>
+                                <p className="text-[10px] text-emerald-200 font-bold">{formattedBrgyName} · San Luis, Pampanga</p>
+                              </div>
+                              <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center font-black text-sm text-amber-300">
+                                PB
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <span className="text-[9px] font-bold text-emerald-300 uppercase block">Punong Barangay</span>
+                                <span className="font-extrabold text-white text-sm">{captainName}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold text-emerald-300 uppercase block">Designation</span>
+                                <span className="font-extrabold text-[#D99427]">Elected Executive</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold text-emerald-300 uppercase block">Official Email</span>
+                                <span className="font-mono text-[11px] text-emerald-100 truncate block">{captainEmail}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold text-emerald-300 uppercase block">Office Status</span>
+                                <span className="font-bold text-emerald-200 flex items-center gap-1 text-[11px]">
+                                  <CheckCircle className="w-3 h-3 text-emerald-400" /> Active in Office
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-2">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard?.writeText(
+                                  `Barangay Executive Credentials:\nName: ${captainName}\nTitle: Punong Barangay\nJurisdiction: ${formattedBrgyName}, San Luis, Pampanga\nEmail: ${captainEmail}\nStatus: Active in Office`
+                                );
+                                showToast("Punong Barangay credentials copied to clipboard!", "success");
+                              }}
+                              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Copy Executive Credentials
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </main>
               </div>
-
             </div>
           )}
 

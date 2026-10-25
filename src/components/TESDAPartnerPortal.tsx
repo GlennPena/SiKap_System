@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard } from "./SettingsShared";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
 import { toTitleCase, isProgramEnded } from "../lib/utils";
@@ -115,6 +116,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Sync state if currentUser changes
@@ -3853,512 +3855,548 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
           {/* SCREEN 5: PARTNER PROFILE & NOTIFICATION SETTINGS */}
           {currentScreen === TESDAPartnerScreen.SETTINGS && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
+            <div className="space-y-6">
+              {/* Settings Header Banner with Circular Gradient Background & Botanical Plant Growth */}
+              <SettingsHeaderBanner subtitle="Manage institutional TVET center credentials, representative details, system security, and notifications." />
 
-                {/* Content */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Settings
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage institutional TVET center credentials, representative details, system security, and notifications.
-                  </p>
-                </div>
-              </div>
+              {/* 2-Column Settings Layout: Left Vertical Sidebar + Right Main Content Area */}
+              <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+                {/* Left Vertical Sidebar Navigation */}
+                <SettingsSidebarNav
+                  tabs={[
+                    { id: "profile", label: "Institution Profile", icon: Building2 },
+                    { id: "security", label: "Security & Password", icon: Lock },
+                    { id: "notifications", label: "Alerts & Notifications", icon: Bell },
+                    { id: "badge", label: "TVET Accreditation Badge", icon: Award },
+                  ]}
+                  activeTab={profileActiveTab}
+                  onTabChange={(tabId) => setProfileActiveTab(tabId as any)}
+                />
 
-              {/* Sub-Tab Navigation Bar (Centered) */}
-              <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1 w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0 border border-gray-200/90 mx-auto">
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("profile")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "profile"
-                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
-                      }`}
-                  >
-                    <Building2 className="w-4 h-4 shrink-0" />
-                    <span>Institution Profile</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("security")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "security"
-                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
-                      }`}
-                  >
-                    <Lock className="w-4 h-4 shrink-0" />
-                    <span>Account Security</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("notifications")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "notifications"
-                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
-                      }`}
-                  >
-                    <Bell className="w-4 h-4 shrink-0" />
-                    <span>Alerts & Notifications</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("badge")}
-                    className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${profileActiveTab === "badge"
-                      ? "bg-[#0A6B43] text-white shadow-xs font-extrabold"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
-                      }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    <span>TVET Accreditation Badge</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Centered Tab Contents Container */}
-              <div className="max-w-5xl mx-auto w-full">
-                {/* TAB 1: INSTITUTION PROFILE */}
-                {profileActiveTab === "profile" && (
-                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                  {/* Left Column (3 cols) */}
-                  <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b border-gray-100">
-                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#0A6B43] text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md border-2 border-emerald-600 shrink-0 mt-0.5 sm:mt-0">
-                            {repName.charAt(0).toUpperCase() || "T"}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                              <h3 className="text-sm sm:text-base font-extrabold text-gray-900 truncate">{repName}</h3>
-                              <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                                Verified TVET Focal
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 font-medium mt-0.5 truncate">
-                              {centerName}
-                            </p>
-                            <p className="text-xs font-mono text-gray-600 mt-1 truncate">
-                              {repEmail}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingProfile(!isEditingProfile)}
-                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors self-start sm:self-auto shrink-0 ${isEditingProfile
-                              ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                              : "bg-[#0A6B43] text-white hover:bg-[#075332]"
-                            }`}
-                        >
-                          <Edit className="w-3.5 h-3.5 shrink-0" />
-                          <span>{isEditingProfile ? "Cancel" : "Edit Profile"}</span>
-                        </button>
-                      </div>
-
-                      {/* View Mode */}
+                {/* Right Main Content Area */}
+                <main className="flex-1 min-w-0 w-full">
+                  <AnimatePresence mode="wait">
+                  {/* TAB 1: INSTITUTION PROFILE */}
+                  {profileActiveTab === "profile" && (
+                    <motion.div
+                      key="profile"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-6 w-full"
+                    >
+                      {/* Left Column: Institution Dossier Info or Active Edit Form */}
+                      <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                       {!isEditingProfile ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
-                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Institution</p>
-                            <p className="text-xs font-bold text-gray-800 mt-1">{centerName}</p>
+                        /* Read-Only Dossier Mode */
+                        <div className="space-y-6">
+                          <div className="border-b border-gray-100 pb-3">
+                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                              <Building2 className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              Institution Profile Details
+                            </h3>
                           </div>
-                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
-                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Accredited Representative</p>
-                            <p className="text-xs font-bold text-gray-800 mt-1">{repName}</p>
-                          </div>
-                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
-                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Institutional Email</p>
-                            <p className="text-xs font-bold text-gray-800 mt-1">{repEmail}</p>
-                          </div>
-                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
-                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Contact / Hotline</p>
-                            <p className="text-xs font-bold text-gray-800 mt-1">{repPhone}</p>
-                          </div>
-                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
-                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Institution Classification</p>
-                            <p className="text-xs font-bold text-gray-800 mt-1">Public Vocational Institution (TESDA-Administered)</p>
-                          </div>
-                          <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-150">
-                            <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Regional Jurisdiction</p>
-                            <p className="text-xs font-bold text-gray-800 mt-1">District II, Pampanga · Region III Central Luzon</p>
-                          </div>
-                          <div className="sm:col-span-2 p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-150 flex items-center justify-between">
-                            <div>
-                              <p className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider">UTPRAS Operating Status</p>
-                              <p className="text-xs text-gray-600 mt-0.5 font-medium">Fully certified under Unified TVET Program Registration & Accreditation System</p>
+
+                          {/* Section 1: Basic Information */}
+                          <div className="space-y-3.5">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Training Institution Information
                             </div>
-                            <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
-                              ACTIVE
-                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5 sm:col-span-2">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{centerName}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Representative</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{repName}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={repEmail}>
+                                    {repEmail}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5 sm:col-span-2">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact / Hotline</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{repPhone || "Not configured"}</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institution Classification</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[15px] font-semibold text-gray-900 leading-tight">Public Vocational Institution (TESDA-Administered)</p>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Regional Jurisdiction</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[15px] font-semibold text-gray-900 leading-tight">District II, Pampanga · Region III Central Luzon</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Section 2: Accreditation & Operating Status */}
+                          <div className="space-y-3.5 pt-1">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <Award className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Accreditation & Operating Status
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">UTPRAS Operating Status</span>
+                                <div className="h-[42px] flex items-center">
+                                  <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                    ACTIVE & CERTIFIED
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accreditation Code</span>
+                                <div className="h-[42px] flex items-center">
+                                  <p className="text-[16px] font-mono font-bold text-gray-900 leading-tight">UTPRAS-R03-PAM-2024</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bottom Action: Edit Details Button */}
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingProfile(true)}
+                              className="group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                            >
+                              <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
+                              <span>Edit Details</span>
+                            </button>
                           </div>
                         </div>
                       ) : (
                         /* Edit Mode Form */
-                        <form onSubmit={handleSaveProfileSubmit} className="space-y-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="sm:col-span-2">
-                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                                Training Institution / Center Name
-                              </label>
-                              <input
-                                type="text"
-                                value={centerName}
-                                onChange={(e) => setCenterName(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
-                                required
-                              />
+                        <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                          <div className="border-b border-gray-100 pb-3">
+                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                              <Edit className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              Edit Institution Details
+                            </h3>
+                          </div>
+
+                          {/* Section 1: Basic Information */}
+                          <div className="space-y-3.5">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Training Institution Information
                             </div>
-                            <div>
-                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                                Accredited Focal Representative
-                              </label>
-                              <input
-                                type="text"
-                                value={repName}
-                                onChange={(e) => setRepName(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                                Institutional Email
-                              </label>
-                              <input
-                                type="email"
-                                value={repEmail}
-                                onChange={(e) => setRepEmail(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
-                                required
-                              />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                                Official Contact / Landline
-                              </label>
-                              <input
-                                type="text"
-                                value={repPhone}
-                                onChange={(e) => setRepPhone(e.target.value)}
-                                className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
-                              />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                              <div className="space-y-0.5 sm:col-span-2">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution / Center Name *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={centerName}
+                                  onChange={(e) => setCenterName(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Focal Representative *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={repName}
+                                  onChange={(e) => setRepName(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email *</label>
+                                <input
+                                  type="email"
+                                  required
+                                  value={repEmail}
+                                  onChange={(e) => setRepEmail(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5 sm:col-span-2">
+                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Official Contact / Landline</label>
+                                <input
+                                  type="text"
+                                  value={repPhone}
+                                  onChange={(e) => setRepPhone(e.target.value)}
+                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                />
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center justify-end gap-3 pt-2">
+
+                          {/* Form Buttons */}
+                          <div className="pt-2 flex justify-end gap-2.5">
                             <button
                               type="button"
                               onClick={() => setIsEditingProfile(false)}
                               disabled={isSavingProfile}
-                              className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+                              className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={isSavingProfile}
-                              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
+                              className="group/save px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
                             >
                               {isSavingProfile ? (
-                                <>
-                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  Saving...
-                                </>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
                               ) : (
-                                <>
-                                  <Check className="w-3.5 h-3.5" />
-                                  Save Institution Details
-                                </>
+                                <CheckCircle className="w-4 h-4 transition-transform duration-200 group-hover/save:scale-125 group-hover/save:rotate-6" />
                               )}
+                              <span>Save Institution Details</span>
                             </button>
                           </div>
                         </form>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Right Column (2 cols): Authority & Accreditation Card */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-200 shrink-0">
-                          <Award className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-extrabold text-gray-900">TVET Center Authority</h4>
-                          <p className="text-[11px] text-gray-500 font-medium">Accredited Training Partner Clearance</p>
-                        </div>
                       </div>
 
-                      <div className="space-y-3 pt-2">
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
-                          <span className="text-xs text-gray-600 font-medium">Clearance Level</span>
-                          <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/60 px-2 py-0.5 rounded-md border border-emerald-200">
-                            Institutional Partner (Tier 4)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
-                          <span className="text-xs text-gray-600 font-medium">Active Programs</span>
-                          <span className="text-xs font-bold text-gray-900">
-                            {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Program(s)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
-                          <span className="text-xs text-gray-600 font-medium">Enrolled Youth</span>
-                          <span className="text-xs font-bold text-gray-900">
-                            {referrals.filter((r) => r.status === "Enrolled").length} Trainee(s)
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
-                          <span className="text-xs text-gray-600 font-medium">Supervisory Office</span>
-                          <span className="text-xs font-bold text-gray-900">
-                            TESDA Pampanga PO
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/70 border border-gray-150">
-                          <span className="text-xs text-gray-600 font-medium">Accreditation Code</span>
-                          <span className="text-xs font-mono font-bold text-gray-700">
-                            UTPRAS-R03-PAM-2024
-                          </span>
-                        </div>
-                      </div>
+                      {/* Right Column: TVET Authority & Institutional Profile */}
+                      <div className="xl:col-span-5 space-y-4">
+                        <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm space-y-4">
+                          <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                            <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
+                              <Award className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              TVET Center Authority
+                            </h4>
+                            <span className="text-[11px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Verified TVET Focal
+                            </span>
+                          </div>
 
-                      <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-200/80 text-[11px] text-gray-600 leading-relaxed">
-                        <p className="font-bold text-gray-800 mb-1 flex items-center gap-1.5">
-                          <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43]" />
-                          Republic Act No. 7796 Mandate
-                        </p>
-                        Authorized under the Technical Education and Skills Development Act to evaluate youth program applications, administer competency training, and report graduation outcomes.
-                      </div>
+                          <div className="flex items-center gap-4">
+                            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
+                              {repName.charAt(0).toUpperCase() || "T"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-extrabold text-gray-900 text-base leading-tight truncate">{repName}</h4>
+                              <p className="text-xs font-bold text-[#0A6B43] mt-0.5 truncate">{centerName}</p>
+                              <p className="text-xs text-gray-500 font-medium mt-1 truncate">{repEmail}</p>
+                            </div>
+                          </div>
 
-                      <div className="pt-2 border-t border-gray-100">
-                        <button
-                          type="button"
-                          disabled={isLoggingOut}
-                          onClick={handleSignOut}
-                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-                            }`}
-                        >
-                          {isLoggingOut ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
-                              <span>Signing out...</span>
-                            </>
-                          ) : (
-                            <>
-                              <LogOut className="w-3.5 h-3.5" />
-                              <span>Sign Out of Institutional Portal</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                          <div className="space-y-2 pt-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Clearance Level</span>
+                              <span className="font-bold text-gray-900">Institutional Partner (Tier 4)</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Active TVET Programs</span>
+                              <span className="font-bold text-gray-900">
+                                {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Program(s)
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Enrolled Youth Trainees</span>
+                              <span className="font-bold text-gray-900">
+                                {referrals.filter((r) => r.status === "Enrolled").length} Trainee(s)
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Supervisory Office</span>
+                              <span className="font-bold text-gray-900">TESDA Pampanga PO</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                              <span className="text-gray-500 font-medium">Accreditation Code</span>
+                              <span className="font-mono font-bold text-gray-700">UTPRAS-R03-PAM-2024</span>
+                            </div>
+                          </div>
 
-              {/* TAB 2: ACCOUNT SECURITY */}
-              {profileActiveTab === "security" && (
-                <div className="max-w-2xl mx-auto bg-white p-4 sm:p-6 rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
-                  <div className="border-b border-gray-100 pb-4">
-                    <div className="flex items-start sm:items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                        <Lock className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">
-                          Update Account Password
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed font-medium">
-                          Ensure your institutional training partner credentials remain secure.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                          <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80 text-[11px] text-gray-600 leading-relaxed font-medium">
+                            <p className="font-bold text-emerald-900 mb-1 flex items-center gap-1.5">
+                              <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43]" />
+                              Republic Act No. 7796 Mandate
+                            </p>
+                            Authorized under the Technical Education and Skills Development Act to evaluate youth program applications, administer competency training, and report graduation outcomes.
+                          </div>
 
-                  <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                        Current Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPass ? "text" : "password"}
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 pr-10 text-gray-900 transition-colors"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPass(!showCurrentPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                        New Password (minimum 6 characters)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showNewPass ? "text" : "password"}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 pr-10 text-gray-900 transition-colors"
-                          required
-                          minLength={6}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPass(!showNewPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                        >
-                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                        Confirm New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full text-xs font-medium px-3.5 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:border-emerald-500 focus:bg-white bg-gray-50/70 text-gray-900 transition-colors"
-                        required
-                        minLength={6}
-                      />
-                    </div>
-
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <span className="font-medium">
-                        Updating your password will immediately secure your portal. Please ensure you keep a secure institutional record.
-                      </span>
-                    </div>
-
-                    <div className="pt-2">
-                      <button
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        {isChangingPassword ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Updating Security Password...
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="w-3.5 h-3.5" />
-                            Update Institutional Password
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* TAB 3: NOTIFICATIONS */}
-              {profileActiveTab === "notifications" && (
-                <div className="max-w-3xl mx-auto">
-                  <NotificationSettingsCard
-                    userRole="TESDA_PARTNER"
-                    userEmail={currentUser?.email}
-                    addToast={addToast}
-                  />
-                </div>
-              )}
-
-              {/* TAB 4: TVET ACCREDITATION BADGE */}
-              {profileActiveTab === "badge" && (
-                <div className="max-w-xl mx-auto space-y-6">
-                  {/* Digital Credential ID Card */}
-                  <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-700/40 bg-gradient-to-br from-emerald-950 via-slate-900 to-[#0A3D27] text-white p-7 shadow-2xl">
-                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-
-                    {/* Card Top Header */}
-                    <div className="flex items-center justify-between pb-5 border-b border-emerald-800/60 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-amber-400">
-                          <Award className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Republic of the Philippines</p>
-                          <p className="text-xs font-extrabold tracking-wide text-white">TESDA TVET Training Partner</p>
+                          <div className="pt-2 border-t border-gray-100">
+                            <button
+                              type="button"
+                              disabled={isLoggingOut}
+                              onClick={handleSignOut}
+                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
+                                isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                              }`}
+                            >
+                              {isLoggingOut ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
+                                  <span>Signing out...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <LogOut className="w-3.5 h-3.5" />
+                                  <span>Sign Out of Institutional Portal</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                        Official Partner
-                      </span>
-                    </div>
+                    </motion.div>
+                  )}
 
-                    {/* Card Body */}
-                    <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
-                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
-                        {repName.charAt(0).toUpperCase() || "T"}
-                      </div>
-                      <div className="text-center sm:text-left space-y-1">
-                        <h4 className="text-lg font-black text-white tracking-tight">{repName}</h4>
-                        <p className="text-xs font-semibold text-emerald-200">{centerName}</p>
-                        <p className="text-[11px] text-slate-300 font-mono pt-1">
-                          Provincial Office: Pampanga · Region III
-                        </p>
-                        <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-emerald-300">
-                          <span>REG-ID:</span>
-                          <span className="font-bold">{currentUser?.id?.slice(0, 12) || "TESDA-R03-GPSAT-01"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="pt-4 border-t border-emerald-800/60 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>UTPRAS Verified & Active</span>
-                      </div>
-                      <span className="font-mono text-slate-400">RA 7796 Accredited</span>
-                    </div>
-                  </div>
-
-                  {/* Copy Credential Button */}
-                  <div className="flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const info = `TESDA TVET PARTNER CREDENTIAL\nRepresentative: ${repName}\nInstitution: ${centerName}\nEmail: ${repEmail}\nContact: ${repPhone}\nPartner ID: ${currentUser?.id || "TESDA-R03-GPSAT-01"}\nUTPRAS Status: Active\nAccreditation Code: UTPRAS-R03-PAM-2024`;
-                        navigator.clipboard.writeText(info);
-                        addToast("TVET Institution Credential copied to clipboard!", "success");
-                      }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 shadow-2xs hover:shadow-xs transition-colors cursor-pointer"
+                  {/* TAB 2: ACCOUNT SECURITY */}
+                  {profileActiveTab === "security" && (
+                    <motion.div
+                      key="security"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
                     >
-                      <Copy className="w-4 h-4 text-[#0A6B43]" />
-                      Copy Credential Details
-                    </button>
-                  </div>
-                </div>
-              )}
+                      <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                        <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
+                          <div className="border-b border-gray-100 pb-3">
+                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                              <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              Account Security & Password
+                            </h3>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password *</label>
+                            <div className="relative">
+                              <input
+                                type={showCurrentPass ? "text" : "password"}
+                                required
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                placeholder="Enter current password..."
+                                className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              >
+                                {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password *</label>
+                            <div className="relative">
+                              <input
+                                type={showNewPass ? "text" : "password"}
+                                required
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password (min. 6 characters)..."
+                                className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPass(!showNewPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              >
+                                {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
+                              {confirmPassword.length > 0 && (
+                                <span className={`text-[11px] font-bold ${confirmPassword === newPassword ? "text-[#0A6B43]" : "text-rose-500"}`}>
+                                  {confirmPassword === newPassword ? "Passwords match ✓" : "Passwords do not match"}
+                                </span>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <input
+                                type={showConfirmPass ? "text" : "password"}
+                                required
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="Re-type new password..."
+                                className={`w-full px-3 py-2 pr-10 h-10 border rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${
+                                  confirmPassword.length > 0 && confirmPassword !== newPassword ? "border-rose-300 bg-rose-50/20" : "border-gray-200"
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                              >
+                                {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword}
+                              className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword
+                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                                  : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                              }`}
+                            >
+                              {isChangingPassword ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Lock className="w-4 h-4 transition-transform duration-200 group-hover/pwd:rotate-12 group-hover/pwd:scale-115" />
+                              )}
+                              <span>Update Institutional Password</span>
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+
+                      {/* Security Guide Companion Card */}
+                      <div className="xl:col-span-5">
+                        <SettingsSecurityGuideCard
+                          newPassword={newPassword}
+                          accountTypeLabel="TVET Partner Account"
+                          accountNotice="Your account maintains access to municipal youth training enrollments and competency certification records. Ensure institutional credentials remain strictly confidential."
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* TAB 3: NOTIFICATIONS */}
+                  {profileActiveTab === "notifications" && (
+                    <motion.div
+                      key="notifications"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
+                    >
+                      <div className="xl:col-span-7">
+                        <NotificationSettingsCard
+                          userRole="TESDA_PARTNER"
+                          userEmail={currentUser?.email}
+                          addToast={addToast}
+                          className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
+                        />
+                      </div>
+                      <div className="xl:col-span-5 space-y-4">
+                        <SettingsNotificationChannelsCard
+                          pushDescription="Real-time push alerts for youth program applications, batch intake milestones, and municipal referral submissions."
+                          emailDescription="Official endorsement packages, TVET compliance audits, and security authentication notices sent to your institutional address."
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* TAB 4: TVET ACCREDITATION BADGE */}
+                  {profileActiveTab === "badge" && (
+                    <motion.div
+                      key="badge"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="space-y-6 w-full pb-6"
+                    >
+                      <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                        <div className="border-b border-gray-100 pb-3">
+                          <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                            <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                            TVET Accreditation Badge
+                          </h3>
+                          <p className="text-sm text-gray-400 font-medium mt-0.5">
+                            Official TESDA training institution accreditation credential for San Luis, Pampanga
+                          </p>
+                        </div>
+
+                        {/* Digital Credential ID Card */}
+                        <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-700/40 bg-gradient-to-br from-emerald-950 via-slate-900 to-[#0A3D27] text-white p-7 shadow-2xl max-w-xl mx-auto w-full">
+                          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                          <div className="absolute bottom-0 left-0 w-40 h-40 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                          {/* Card Top Header */}
+                          <div className="flex items-center justify-between pb-5 border-b border-emerald-800/60 relative z-10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-amber-400">
+                                <Award className="w-6 h-6" />
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Republic of the Philippines</p>
+                                <p className="text-xs font-extrabold tracking-wide text-white">TESDA TVET Training Partner</p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                              Official Partner
+                            </span>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
+                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
+                              {repName.charAt(0).toUpperCase() || "T"}
+                            </div>
+                            <div className="text-center sm:text-left space-y-1">
+                              <h4 className="text-lg font-black text-white tracking-tight">{repName}</h4>
+                              <p className="text-xs font-semibold text-emerald-200">{centerName}</p>
+                              <p className="text-[11px] text-slate-300 font-mono pt-1">
+                                Provincial Office: Pampanga · Region III
+                              </p>
+                              <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-emerald-300">
+                                <span>REG-ID:</span>
+                                <span className="font-bold">{currentUser?.id?.slice(0, 12) || "TESDA-R03-GPSAT-01"}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer */}
+                          <div className="pt-4 border-t border-emerald-800/60 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>UTPRAS Verified & Active</span>
+                            </div>
+                            <span className="font-mono text-slate-400">RA 7796 Accredited</span>
+                          </div>
+                        </div>
+
+                        {/* Copy Credential Button */}
+                        <div className="flex justify-end pt-3 w-full">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const info = `TESDA TVET PARTNER CREDENTIAL\nRepresentative: ${repName}\nInstitution: ${centerName}\nEmail: ${repEmail}\nContact: ${repPhone}\nPartner ID: ${currentUser?.id || "TESDA-R03-GPSAT-01"}\nUTPRAS Status: Active\nAccreditation Code: UTPRAS-R03-PAM-2024`;
+                              navigator.clipboard.writeText(info);
+                              addToast("TVET Institution Credential copied to clipboard!", "success");
+                            }}
+                            className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[14px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <Copy className="w-4 h-4 text-[#0A6B43]" />
+                            Copy Credential Details
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                </main>
               </div>
             </div>
           )}
