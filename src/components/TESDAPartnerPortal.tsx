@@ -1270,7 +1270,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Helper to open applicant modal
   const openApplicantModal = (item: ReferralPipelineItem) => {
-    const matchedProfile = youthProfiles.find(y => y.name.toLowerCase().trim() === item.youthName.toLowerCase().trim());
+    const itemEmail = (item.youthEmail || (item as any).email || "").toLowerCase().trim();
+    const matchedProfile = youthProfiles.find(y =>
+      (item.youthId && y.id === item.youthId) ||
+      (itemEmail && y.email && y.email.toLowerCase().trim() === itemEmail) ||
+      (!item.youthId && !itemEmail && y.name.toLowerCase().trim() === item.youthName.toLowerCase().trim())
+    );
     if (matchedProfile) {
       setSelectedApplicant(matchedProfile);
     } else {
@@ -1315,11 +1320,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0 shrink-0">
-                <span className="text-[10px] sm:text-[11px] font-black text-amber-400 uppercase tracking-widest block leading-none">Partner</span>
-                <span className="text-[8.5px] sm:text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[85px] sm:max-w-[95px] xl:max-w-[105px]" title="TESDA Partner">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
+              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
+                <span className="text-xs sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight">Partner</span>
+                <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px]" title="TESDA Partner">
                   TESDA
                 </span>
               </div>
@@ -1483,10 +1488,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   : "TP"}
               </div>
 
-              {/* Complete Name without truncation or hover effect */}
+              {/* Complete Name and Email without hover effect */}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white leading-snug break-words">
                   {currentUser?.name || "TESDA Partner"}
+                </p>
+                <p className="text-xs text-gray-400 truncate leading-tight mt-0.5" title={currentUser?.email || "partner@tesda.gov.ph"}>
+                  {currentUser?.email || "partner@tesda.gov.ph"}
                 </p>
               </div>
             </div>

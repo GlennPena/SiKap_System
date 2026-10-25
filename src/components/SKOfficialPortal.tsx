@@ -29,6 +29,7 @@ import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
+import { SanLuisBarangayMap } from "./SanLuisBarangayMap";
 import { broadcastDataChange } from "../lib/realtime-sync";
 
 const getProgramCategory = (prog?: any): string => {
@@ -301,10 +302,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   // Check if current logged-in official is an SK Councilor, Secretary, or Treasurer
   const currentCouncilorRecord = useMemo(() => {
     if (!currentUser?.email && !currentUser?.name) return null;
-    return councilors.find(c =>
-      (currentUser.email && c.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
-      (currentUser.name && c.name && c.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim())
-    ) || null;
+    if (currentUser?.email) {
+      return councilors.find(c => c.email && c.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) || null;
+    }
+    return councilors.find(c => c.name && c.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) || null;
   }, [councilors, currentUser]);
 
   const officialPosition = useMemo(() => {
@@ -1868,6 +1869,263 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     return pendingProfiles.slice(start, start + PENDING_PER_PAGE);
   }, [pendingProfiles, currentPendingPage]);
 
+  // ============================================================
+  // REDESIGNED SK DASHBOARD STATE & COMPUTED METRICS
+  // ============================================================
+  const [dashboardMonthRange, setDashboardMonthRange] = useState<"6" | "12">("6");
+  const [hoveredGenderSlice, setHoveredGenderSlice] = useState<number | null>(null);
+  const [hoveredMonthIdx, setHoveredMonthIdx] = useState<number | null>(null);
+
+  // 1. KPI Cards data
+  const verifiedYouthCount = useMemo(() => {
+    return localYouthProfiles.filter(y => y.approvalStatus === "Approved").length;
+  }, [localYouthProfiles]);
+
+  const incompleteProfilesCount = useMemo(() => {
+    return localYouthProfiles.filter(y =>
+      !y.skills || y.skills.length === 0 || !y.educationalAttainment || !y.livelihoodGoal
+    ).length;
+  }, [localYouthProfiles]);
+
+  // 2. Youth Registration and Training Pathway (6 stages)
+  const pathwayStages = useMemo(() => {
+    const total = localYouthProfiles.length;
+    const stage1_Registered = total;
+    const stage2_ProfileComplete = localYouthProfiles.filter(y =>
+      y.skills && y.skills.length > 0 && y.educationalAttainment && y.livelihoodGoal
+    ).length;
+    const stage3_Matched = localYouthProfiles.filter(y => y.matchScore > 0).length;
+    const stage4_Interested = new Set(localReferrals.map(r => r.youthId || r.youthName)).size;
+    const stage5_Applied = localReferrals.filter(r => r.status === "Pending").length;
+    const stage6_Enrolled = localReferrals.filter(r => r.status === "Enrolled" || r.status === "Archived").length;
+
+    return [
+      {
+        step: 1,
+        title: "Registered",
+        count: stage1_Registered,
+        pct: 100,
+        type: "Baseline Registry",
+        description: "Enrolled in Katipunan ng Kabataan database"
+      },
+      {
+        step: 2,
+        title: "Profile Complete",
+        count: stage2_ProfileComplete,
+        pct: total > 0 ? Math.round((stage2_ProfileComplete / total) * 100) : 0,
+        type: "Data Verification",
+        description: "Recorded skills, education, and livelihood goal"
+      },
+      {
+        step: 3,
+        title: "AI Matched",
+        count: stage3_Matched,
+        pct: total > 0 ? Math.round((stage3_Matched / total) * 100) : 0,
+        type: "Algorithmic Match",
+        description: "Eligible for active TESDA listings"
+      },
+      {
+        step: 4,
+        title: "Interested",
+        count: stage4_Interested,
+        pct: total > 0 ? Math.round((stage4_Interested / total) * 100) : 0,
+        type: "Expressed Intent",
+        description: "Referral pathway initialized or bookmarked"
+      },
+      {
+        step: 5,
+        title: "Applied",
+        count: stage5_Applied,
+        pct: total > 0 ? Math.round((stage5_Applied / total) * 100) : 0,
+        type: "Formal Action",
+        description: "Application submitted for batch processing"
+      },
+      {
+        step: 6,
+        title: "Enrolled",
+        count: stage6_Enrolled,
+        pct: total > 0 ? Math.round((stage6_Enrolled / total) * 100) : 0,
+        type: "Active Training",
+        description: "Attending classes or completed qualification"
+      }
+    ];
+  }, [localYouthProfiles, localReferrals]);
+
+  // 3. Gender Distribution Donut Chart Data
+  const genderDistributionData = useMemo(() => {
+    let male = 0;
+    let female = 0;
+    let other = 0;
+
+    localYouthProfiles.forEach(y => {
+      const g = (y.gender || "").toLowerCase().trim();
+      if (g === "male" || g === "m") male++;
+      else if (g === "female" || g === "f") female++;
+      else other++;
+    });
+
+    const total = localYouthProfiles.length;
+    const pctMale = total > 0 ? Math.round((male / total) * 100) : 0;
+    const pctFemale = total > 0 ? Math.round((female / total) * 100) : 0;
+    const pctOther = total > 0 ? Math.max(0, 100 - pctMale - pctFemale) : 0;
+
+    return {
+      total,
+      male,
+      female,
+      other,
+      pctMale,
+      pctFemale,
+      pctOther,
+      slices: [
+        { label: "Male", count: male, pct: pctMale, color: "#176b4d" },
+        { label: "Female", count: female, pct: pctFemale, color: "#79bd98" },
+        { label: "Undisclosed / Other", count: other, pct: pctOther, color: "#f3b83f" }
+      ]
+    };
+  }, [localYouthProfiles]);
+
+  // 4. Educational Attainment Segmented Breakdown Data
+  const educationalDistributionData = useMemo(() => {
+    const counts: Record<string, number> = {
+      "Senior High School Level / Graduate": 0,
+      "Junior High School Level / Graduate": 0,
+      "College Level / Graduate": 0,
+      "Vocational / Tech-Voc": 0,
+      "Elementary Level / Graduate": 0,
+      "Other / Undisclosed": 0
+    };
+
+    localYouthProfiles.forEach(y => {
+      const edu = (y.educationalAttainment || "").toLowerCase();
+      if (edu.includes("senior") || edu.includes("shs") || edu.includes("grade 11") || edu.includes("grade 12")) {
+        counts["Senior High School Level / Graduate"]++;
+      } else if (edu.includes("junior") || edu.includes("jhs") || edu.includes("grade 7") || edu.includes("grade 8") || edu.includes("grade 9") || edu.includes("grade 10")) {
+        counts["Junior High School Level / Graduate"]++;
+      } else if (edu.includes("college") || edu.includes("bachelor") || edu.includes("tertiary") || edu.includes("undergraduate") || edu.includes("graduate")) {
+        counts["College Level / Graduate"]++;
+      } else if (edu.includes("vocational") || edu.includes("tech-voc") || edu.includes("tesda")) {
+        counts["Vocational / Tech-Voc"]++;
+      } else if (edu.includes("elementary")) {
+        counts["Elementary Level / Graduate"]++;
+      } else {
+        counts["Other / Undisclosed"]++;
+      }
+    });
+
+    const total = localYouthProfiles.length || 1;
+    const tiers = [
+      { name: "Senior High School Level / Graduate", count: counts["Senior High School Level / Graduate"], color: "#0A6B43", short: "Senior High" },
+      { name: "Junior High School Level / Graduate", count: counts["Junior High School Level / Graduate"], color: "#10B981", short: "Junior High" },
+      { name: "College Level / Graduate", count: counts["College Level / Graduate"], color: "#3B82F6", short: "College" },
+      { name: "Vocational / Tech-Voc", count: counts["Vocational / Tech-Voc"], color: "#8B5CF6", short: "Tech-Voc" },
+      { name: "Elementary Level / Graduate", count: counts["Elementary Level / Graduate"], color: "#F59E0B", short: "Elementary" },
+      { name: "Other / Undisclosed", count: counts["Other / Undisclosed"], color: "#94A3B8", short: "Other" }
+    ];
+
+    let highest = tiers[0];
+    tiers.forEach(t => {
+      if (t.count > highest.count) highest = t;
+    });
+
+    return {
+      total: localYouthProfiles.length,
+      tiers: tiers.map(t => ({
+        ...t,
+        pct: localYouthProfiles.length > 0 ? Math.round((t.count / total) * 100) : 0
+      })),
+      mostCommon: {
+        ...highest,
+        pct: localYouthProfiles.length > 0 ? Math.round((highest.count / total) * 100) : 0
+      }
+    };
+  }, [localYouthProfiles]);
+
+  // 5. Monthly Registration Progress (Column Chart)
+  const monthlyRegistrationData = useMemo(() => {
+    const numMonths = dashboardMonthRange === "6" ? 6 : 12;
+    const now = new Date();
+    const months: { label: string; yearMonth: string; count: number }[] = [];
+
+    for (let i = numMonths - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleDateString("en-US", { month: "short" });
+      const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      months.push({ label, yearMonth, count: 0 });
+    }
+
+    localYouthProfiles.forEach(y => {
+      const dateStr = (y as any).registeredDate || (y as any).createdAt;
+      if (dateStr) {
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const target = months.find(m => m.yearMonth === ym);
+          if (target) {
+            target.count++;
+          }
+        }
+      }
+    });
+
+    const maxCount = Math.max(1, ...months.map(m => m.count));
+    const totalInPeriod = months.reduce((acc, m) => acc + m.count, 0);
+
+    return {
+      months,
+      maxCount,
+      totalInPeriod
+    };
+  }, [localYouthProfiles, dashboardMonthRange]);
+
+  // 6. Skills Gap & Training Readiness Table
+  const dashboardSkillsGap = useMemo(() => {
+    const benchmarkSectors = [
+      { competency: "Computer Systems Servicing / IT Support", keywords: ["computer", "ict", "it", "hardware", "software", "programming", "networking", "systems"], sector: "IT" },
+      { competency: "Bread & Pastry Production / Baking", keywords: ["baking", "pastry", "bread", "cake", "cook", "culinary"], sector: "Food" },
+      { competency: "Shielded Metal Arc Welding (SMAW)", keywords: ["welding", "smaw", "metal", "fabrication"], sector: "Trades" },
+      { competency: "Electrical Installation & Maintenance", keywords: ["electrical", "electrician", "wiring", "electronics"], sector: "Trades" },
+      { competency: "Automotive Servicing & Mechanics", keywords: ["automotive", "mechanic", "engine", "motorcycle", "vehicle"], sector: "Automotive" },
+      { competency: "Organic Agriculture & Farming", keywords: ["agriculture", "farming", "crops", "gardening", "livestock", "agribusiness"], sector: "Agriculture" }
+    ];
+
+    return benchmarkSectors.map(item => {
+      const youthWithSkill = localYouthProfiles.filter(y => {
+        const allSkills = (y.skills || []).map(s => s.toLowerCase());
+        return item.keywords.some(kw => allSkills.some(s => s.includes(kw)));
+      }).length;
+
+      const youthInterested = localYouthProfiles.filter(y => {
+        const pref = (y.sectorPreference || "").toLowerCase();
+        const goal = (y.livelihoodGoal || "").toLowerCase();
+        const interests = (y.interests || []).map(i => i.toLowerCase());
+        return item.keywords.some(kw => pref.includes(kw) || goal.includes(kw) || interests.some(i => i.includes(kw)));
+      }).length;
+
+      const matchingCourses = programs.filter(p => {
+        const title = (p.title || "").toLowerCase();
+        return item.keywords.some(kw => title.includes(kw));
+      });
+
+      let status: "Critical Shortage" | "Moderate Gap" | "Adequate Coverage" = "Adequate Coverage";
+      if (youthInterested > 0 && matchingCourses.length === 0 && youthWithSkill < 3) {
+        status = "Critical Shortage";
+      } else if (youthInterested > youthWithSkill * 1.5 || (matchingCourses.length <= 1 && youthInterested > 3)) {
+        status = "Moderate Gap";
+      }
+
+      return {
+        competency: item.competency,
+        youthInterested,
+        youthWithSkill,
+        availablePrograms: matchingCourses.length,
+        programsList: matchingCourses.map(p => p.title),
+        status
+      };
+    });
+  }, [localYouthProfiles, programs]);
+
+
   // Helper for two-letter initials (first name first letter + last name first letter)
   const getPendingInitials = (nameStr: string) => {
     const parts = (nameStr || "").trim().split(/\s+/).filter(Boolean);
@@ -2294,11 +2552,11 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0 shrink-0">
-                <span className="text-[10px] sm:text-[11px] font-black text-[#D99427] uppercase tracking-widest block leading-none">Official</span>
-                <span className="text-[8.5px] sm:text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[85px] sm:max-w-[95px] xl:max-w-[105px]" title={designatedBarangay.replace(/^Barangay\s+/i, "")}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
+              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
+                <span className="text-xs sm:text-[13px] font-black text-[#D99427] uppercase tracking-wider block leading-tight">Official</span>
+                <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px]" title={designatedBarangay.replace(/^Barangay\s+/i, "")}>
                   {designatedBarangay.replace(/^Barangay\s+/i, "")}
                 </span>
               </div>
@@ -2546,10 +2804,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   : "SK"}
               </div>
 
-              {/* Complete Name without truncation or hover effect */}
+              {/* Complete Name and Email without hover effect */}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white leading-snug break-words">
-                  {settingsName || "SK Official"}
+                  {currentUser?.name || settingsName || "SK Official"}
+                </p>
+                <p className="text-xs text-gray-400 truncate leading-tight mt-0.5" title={currentUser?.email || settingsEmail || "sk.official@sanluispampanga.gov.ph"}>
+                  {currentUser?.email || settingsEmail || "sk.official@sanluispampanga.gov.ph"}
                 </p>
               </div>
             </div>
@@ -2764,481 +3025,747 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </div>
               </div>
 
-              {/* Metric Cards Banner */}
+              {/* ============================================================ */}
+              {/* 1. DASHBOARD OVERVIEW / KPI CARDS                             */}
+              {/* ============================================================ */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <MetricCard
-                  title="Registered OSY Youth"
-                  value={totalKK}
-                  subtitle={`in Barangay ${designatedBarangay}`}
-                  icon={<Users className="w-5 h-5" />}
-                  accent="green"
-                />
-                <MetricCard
-                  title="Matched & Applied"
-                  value={totalMatched}
-                  subtitle="applied independently"
-                  icon={<Target className="w-5 h-5" />}
-                  accent="gold"
-                />
-                <MetricCard
-                  title="TESDA Listings"
-                  value={activeTESDA}
-                  subtitle="active programs"
-                  icon={<BookOpen className="w-5 h-5" />}
-                  accent="teal"
-                />
-                <MetricCard
-                  title="Key Skills Gaps"
-                  value={localSkillsGaps.length}
-                  subtitle="unlocked categories"
-                  icon={<BarChart2 className="w-5 h-5" />}
-                  accent="charcoal"
-                />
-              </div>
-
-              {/* Dedicated Pending Approvals Card */}
-              <div className="bg-white border border-amber-200/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0">
-                      <AlertTriangle className="w-5 h-5" />
+                {/* Card 1: Total Registered OSY */}
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-150/80 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Registered OSY</span>
+                    <span className="p-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-100">
+                      <Users className="w-4 h-4" />
                     </span>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-gray-900 text-[22px] tracking-tight">Pending Registrations</h3>
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 leading-none">
-                        {pendingProfiles.length}
-                      </span>
-                    </div>
                   </div>
-                  <div className="flex items-center flex-wrap gap-2">
-                    <span className="text-xs border border-amber-200 bg-amber-50 text-amber-800 px-3 py-1 rounded-xl font-bold shrink-0">
-                      Scope: {designatedBarangay.startsWith("Barangay ") ? designatedBarangay : `Barangay ${designatedBarangay}`}
+                  <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                    {totalKK}
+                  </div>
+                  <p className="text-[11px] font-medium text-gray-500 mt-1">
+                    in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}
+                  </p>
+                </div>
+
+                {/* Card 2: Verified Youth */}
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-emerald-100 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Verified Youth</span>
+                    <span className="p-2 rounded-xl bg-emerald-100/70 text-[#0A6B43] border border-emerald-200">
+                      <CheckCircle className="w-4 h-4" />
                     </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-[#0A6B43] tracking-tight">
+                    {verifiedYouthCount}
+                  </div>
+                  <p className="text-[11px] font-semibold text-emerald-700 mt-1">
+                    {totalKK > 0 ? Math.round((verifiedYouthCount / totalKK) * 100) : 0}% verification rate
+                  </p>
+                </div>
+
+                {/* Card 3: Pending Verification */}
+                <div
+                  onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
+                  className="bg-white rounded-2xl p-4 sm:p-5 border border-amber-200 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
+                      Pending Verification
+                    </span>
+                    <span className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 group-hover:scale-105 transition-transform">
+                      <Clock className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight">
+                    {pendingProfiles.length}
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-[11px] font-bold text-amber-700">
+                      {pendingProfiles.length > 0 ? "Requires review →" : "All verified"}
+                    </p>
+                    {pendingProfiles.length > 0 && (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                        Queue
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {pendingProfiles.length > 0 ? (
-                  <>
-                    {/* Mobile View: Responsive Card List (visible on mobile <sm) */}
-                    <div className="space-y-3 sm:hidden">
-                      {paginatedPendingProfiles.map((y) => (
-                        <div
-                          key={y.id}
-                          className="bg-amber-50/20 hover:bg-amber-50/40 border border-amber-200/70 rounded-xl p-3.5 transition-all shadow-2xs space-y-2.5"
-                        >
-                          {/* Name & Basic Info Header */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-bold text-gray-900 text-sm truncate">{y.name}</h4>
-                              <p className="text-xs text-gray-600 mt-0.5">
-                                {y.age} y/o · <span className="font-bold text-gray-700">{y.purok}</span>
-                                <span className="text-emerald-700 font-bold ml-1">· {y.barangay}</span>
-                              </p>
-                            </div>
-                            <span className="bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0">
-                              {y.educationalAttainment}
-                            </span>
-                          </div>
+                {/* Card 4: Incomplete Profiles */}
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-150/80 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Incomplete Profiles</span>
+                    <span className="p-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100">
+                      <AlertTriangle className="w-4 h-4" />
+                    </span>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-rose-700 tracking-tight">
+                    {incompleteProfilesCount}
+                  </div>
+                  <p className="text-[11px] font-medium text-gray-500 mt-1">
+                    {incompleteProfilesCount > 0 ? "Missing skills or career goals" : "All profiles complete"}
+                  </p>
+                </div>
+              </div>
 
-                          {/* Aspirations / Goals */}
-                          <div className="text-xs bg-white/90 p-2.5 rounded-xl border border-gray-150/80 transition-all">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Aspirations & Goals</span>
-                            {y.livelihoodGoal ? (
-                              <div>
-                                <motion.div
-                                  layout
-                                  initial={false}
-                                  transition={{ duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] }}
-                                  className="overflow-hidden"
-                                >
-                                  <motion.p
-                                    layout="position"
-                                    className={`font-medium transition-all duration-200 ${
-                                      expandedAspirations[y.id]
-                                        ? "text-gray-900 leading-relaxed bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/60 shadow-2xs"
-                                        : "text-gray-700 line-clamp-2"
-                                    }`}
-                                  >
-                                    {y.livelihoodGoal}
-                                  </motion.p>
-                                </motion.div>
-                                {y.livelihoodGoal.length > 50 && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => toggleAspirationExpand(y.id, e)}
-                                    className="text-[11px] font-extrabold text-[#0A6B43] hover:text-[#075332] hover:underline mt-1.5 inline-flex items-center gap-1 cursor-pointer select-none transition-colors"
-                                  >
-                                    <span>{expandedAspirations[y.id] ? "See Less" : "See More"}</span>
-                                    <ChevronDown
-                                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                                        expandedAspirations[y.id] ? "rotate-180" : ""
-                                      }`}
-                                    />
-                                  </button>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400 italic">No specific goal stated</span>
-                            )}
-                          </div>
+              {/* ============================================================ */}
+              {/* 2. YOUTH REGISTRATION AND TRAINING PATHWAY                   */}
+              {/* ============================================================ */}
+              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
+                      Youth Registration & Training Pathway
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                      Stepped progression pipeline from community registration to accredited course enrollment
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                    <span>Progression Rate: <strong>{totalKK > 0 ? Math.round((pathwayStages[5].count / totalKK) * 100) : 0}%</strong> enrolled</span>
+                  </div>
+                </div>
 
-                          {/* Action Button */}
-                          <button
-                            type="button"
-                            onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                            className="w-full py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Review & Verify Registration
-                          </button>
+                {/* Stepped Pathway Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+                  {pathwayStages.map((st) => (
+                    <div
+                      key={st.step}
+                      className="relative bg-gray-50/70 hover:bg-emerald-50/30 border border-gray-200 hover:border-emerald-200 rounded-xl p-3.5 flex flex-col justify-between transition-all group shadow-2xs hover:shadow-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-700 font-extrabold text-[10px] flex items-center justify-center shadow-2xs group-hover:bg-[#0A6B43] group-hover:text-white group-hover:border-[#0A6B43] transition-colors">
+                            {st.step}
+                          </span>
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600">
+                            {st.pct}%
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                        <h4 className="font-extrabold text-xs text-gray-900 pt-1 group-hover:text-[#0A6B43] transition-colors">
+                          {st.title}
+                        </h4>
+                        <span className="text-[9px] font-bold uppercase tracking-wider block text-gray-400">
+                          {st.type}
+                        </span>
+                      </div>
 
-                    {/* Desktop & Tablet View: Structured Table (visible on sm+) */}
-                    <div className="hidden sm:block border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[550px] text-left border-collapse text-[12px]">
-                          <thead>
-                            <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
-                              <th className="py-3 px-4">Name</th>
-                              <th className="py-3 px-4">Age / Purok</th>
-                              <th className="py-3 px-4">Highest Attainment</th>
-                              <th className="py-3 px-4">Aspirations</th>
-                              <th className="py-3 px-4 text-center">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {paginatedPendingProfiles.map((y) => (
-                              <tr key={y.id} className="hover:bg-emerald-50/30 transition-colors">
-                                <td className="py-3 px-4 font-bold text-gray-900 whitespace-nowrap">{y.name}</td>
-                                <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
-                                  {y.age} y/o · <span className="font-bold text-gray-700">{y.purok}</span>
-                                  <div className="text-[10px] text-emerald-700 font-bold mt-0.5">{y.barangay}</div>
-                                </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  <span className="bg-emerald-50 text-[#0A6B43] border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] font-semibold">
-                                    {y.educationalAttainment}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 max-w-[200px]">
-                                  {y.livelihoodGoal && y.livelihoodGoal.length > 15 ? (
-                                    <div>
-                                      <motion.div
-                                        layout
-                                        initial={false}
-                                        transition={{ duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] }}
-                                        className="overflow-hidden"
-                                      >
-                                        <motion.p
-                                          layout="position"
-                                          className={`transition-all duration-200 ${
-                                            expandedAspirations[y.id]
-                                              ? "text-xs font-medium text-gray-900 leading-relaxed bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/80 my-1 shadow-2xs"
-                                              : "text-xs font-semibold text-gray-700 truncate"
-                                          }`}
-                                        >
-                                          {expandedAspirations[y.id] ? y.livelihoodGoal : `${y.livelihoodGoal.slice(0, 15)}...`}
-                                        </motion.p>
-                                      </motion.div>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => toggleAspirationExpand(y.id, e)}
-                                        className="text-[10px] font-extrabold text-[#0A6B43] hover:text-[#075332] hover:underline mt-0.5 inline-flex items-center gap-0.5 cursor-pointer select-none transition-colors"
-                                      >
-                                        <span>{expandedAspirations[y.id] ? "See Less" : "See More"}</span>
-                                        <ChevronDown
-                                          className={`w-3 h-3 transition-transform duration-200 ${
-                                            expandedAspirations[y.id] ? "rotate-180" : ""
-                                          }`}
-                                        />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs font-medium text-gray-600">{y.livelihoodGoal || "N/A"}</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 whitespace-nowrap text-center">
-                                  <button
-                                    onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                                    className="px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-bold text-[12px] rounded-xl shadow-xs hover:shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                    <span>Review</span>
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="mt-3 pt-2 border-t border-gray-200/60 flex items-baseline justify-between">
+                        <span className="text-xl font-black text-gray-900 group-hover:text-[#0A6B43] transition-colors">
+                          {st.count}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-medium">youth</span>
                       </div>
                     </div>
+                  ))}
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px] text-gray-500 bg-gray-50/50 p-2.5 rounded-xl border border-gray-150">
+                  <span>
+                    <strong>Note:</strong> Stages 1–3 represent baseline registry readiness and AI matching. Stages 4–6 represent verified youth action and institutional referral endorsement.
+                  </span>
+                  <button
+                    onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
+                    className="font-bold text-[#0A6B43] hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    View Referral Pipeline →
+                  </button>
+                </div>
+              </div>
 
-                    {/* Pagination Controls (Standardized using getPaginationItems) */}
-                    {totalPendingPages > 1 && (
-                      <div className="pt-3.5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <p className="text-xs text-gray-500 font-medium text-center sm:text-left">
-                          Showing <span className="font-semibold text-gray-800">{(currentPendingPage - 1) * PENDING_PER_PAGE + 1}</span> to{" "}
-                          <span className="font-semibold text-gray-800">{Math.min(currentPendingPage * PENDING_PER_PAGE, pendingProfiles.length)}</span> of{" "}
-                          <span className="font-semibold text-gray-800">{pendingProfiles.length}</span> pending registrations
+              {/* ============================================================ */}
+              {/* 3. INTERACTIVE BARANGAY MAP & GENDER DONUT CHART              */}
+              {/* ============================================================ */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                {/* Left (7 cols): San Luis Barangay Map */}
+                <div className="lg:col-span-7">
+                  <SanLuisBarangayMap
+                    youthProfiles={youthProfiles}
+                    designatedBarangay={designatedBarangay}
+                  />
+                </div>
+
+                {/* Right (5 cols): Youth Distribution by Gender Donut Chart */}
+                <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                          Distribution by Gender
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          Registered OSY gender demographics in {designatedBarangay}
                         </p>
-                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                          <button
-                            type="button"
-                            disabled={currentPendingPage === 1}
-                            onClick={() => setPendingDashboardPage(p => Math.max(1, p - 1))}
-                            className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
-                          >
-                            <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                            <span>Previous</span>
-                          </button>
+                      </div>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                        {genderDistributionData.total} Youth
+                      </span>
+                    </div>
 
-                          {getPaginationItems(currentPendingPage, totalPendingPages).map((item, idx) => {
-                            if (item === "...") {
-                              return (
-                                <span
-                                  key={`dash-pending-ellipsis-${idx}`}
-                                  className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
-                                >
-                                  ...
-                                </span>
-                              );
-                            }
-                            const pageNum = Number(item);
-                            const isActive = currentPendingPage === pageNum;
+                    {/* Donut Chart & Legend Layout */}
+                    {genderDistributionData.total === 0 ? (
+                      <div className="py-12 text-center text-xs text-gray-400 italic">
+                        No gender records registered in this Barangay yet.
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-8 py-6">
+                        {/* Donut SVG */}
+                        <div className="relative w-40 h-40 shrink-0 flex items-center justify-center">
+                          {(() => {
+                            const R = 44;
+                            const C = 2 * Math.PI * R; // ~276.46
+                            const total = genderDistributionData.total || 1;
+                            let accumulated = 0;
+
                             return (
-                              <button
-                                key={`dash-pending-page-${pageNum}`}
-                                type="button"
-                                onClick={() => setPendingDashboardPage(pageNum)}
-                                className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
-                                  isActive
-                                    ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
-                                    : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                              <svg className="w-40 h-40 -rotate-90 transform" viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+                                {genderDistributionData.slices.map((s, idx) => {
+                                  if (s.count <= 0) return null;
+                                  const sliceLen = (s.count / total) * C;
+                                  const strokeDash = `${sliceLen} ${C - sliceLen}`;
+                                  const offset = -accumulated;
+                                  accumulated += sliceLen;
+                                  const isHovered = hoveredGenderSlice === idx;
+
+                                  return (
+                                    <circle
+                                      key={idx}
+                                      cx="60"
+                                      cy="60"
+                                      r={R}
+                                      fill="none"
+                                      stroke={s.color}
+                                      strokeWidth={isHovered ? 20 : 16}
+                                      strokeDasharray={strokeDash}
+                                      strokeDashoffset={offset}
+                                      strokeLinecap="round"
+                                      className="cursor-pointer transition-[stroke-width] duration-150"
+                                      onMouseEnter={() => setHoveredGenderSlice(idx)}
+                                      onMouseLeave={() => setHoveredGenderSlice(null)}
+                                    />
+                                  );
+                                })}
+                              </svg>
+                            );
+                          })()}
+
+                          {/* Center Text */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                            {hoveredGenderSlice !== null ? (
+                              <div className="animate-in fade-in duration-150">
+                                <span
+                                  className="text-lg font-black leading-none block"
+                                  style={{ color: genderDistributionData.slices[hoveredGenderSlice].color }}
+                                >
+                                  {genderDistributionData.slices[hoveredGenderSlice].pct}%
+                                </span>
+                                <span className="text-[11px] font-bold text-gray-700 mt-1 block">
+                                  {genderDistributionData.slices[hoveredGenderSlice].count} youth
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="animate-in fade-in duration-150">
+                                <span className="text-2xl font-black text-gray-900 leading-none block">
+                                  {genderDistributionData.total}
+                                </span>
+                                <span className="text-[10px] text-gray-500 font-medium mt-1 block">
+                                  Total OSY
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="space-y-2.5 w-full sm:w-auto min-w-[170px]">
+                          {genderDistributionData.slices.map((s, idx) => {
+                            const isHovered = hoveredGenderSlice === idx;
+                            return (
+                              <div
+                                key={idx}
+                                onMouseEnter={() => setHoveredGenderSlice(idx)}
+                                onMouseLeave={() => setHoveredGenderSlice(null)}
+                                className={`flex items-center justify-between gap-4 py-1.5 px-3 rounded-xl transition-all cursor-pointer ${
+                                  isHovered ? "bg-gray-100 scale-[1.02]" : "hover:bg-gray-50"
                                 }`}
                               >
-                                {pageNum}
-                              </button>
+                                <div className="flex items-center gap-2.5">
+                                  <span
+                                    className="w-3 h-3 rounded-full shrink-0"
+                                    style={{ backgroundColor: s.color }}
+                                  />
+                                  <span className={`text-xs ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
+                                    {s.label}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-bold text-gray-900">
+                                  {s.count} <span className="text-gray-400 font-normal">({s.pct}%)</span>
+                                </span>
+                              </div>
                             );
                           })}
-
-                          <button
-                            type="button"
-                            disabled={currentPendingPage === totalPendingPages}
-                            onClick={() => setPendingDashboardPage(p => Math.min(totalPendingPages, p + 1))}
-                            className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
-                          >
-                            <span>Next</span>
-                            <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                          </button>
                         </div>
                       </div>
                     )}
-                  </>
-                ) : (
-                  <div className="bg-emerald-50/30 border border-emerald-100 rounded-xl p-5 sm:p-6 text-center space-y-1.5">
-                    <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-[#0A6B43] mx-auto" />
-                    <h3 className="text-[18px] font-extrabold text-emerald-900 tracking-tight">No Pending Approvals</h3>
-                    <p className="text-[14px] text-emerald-700 leading-relaxed font-normal">All Katipunan ng Kabataan self-registered records have been reviewed and verified.</p>
                   </div>
-                )}
+
+                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Missing/undisclosed records are categorized gracefully.</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Two Column Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                {/* Recent Youth Registrations (60%) */}
-                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 sm:p-6 lg:col-span-3 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 pb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight truncate">
-                        Recent Youth Registrations
-                      </h3>
-                      <span className="text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none shrink-0">
-                        {localYouthProfiles.length}
-                      </span>
+              {/* ============================================================ */}
+              {/* 4. EDUCATIONAL ATTAINMENT & MONTHLY PROGRESS                  */}
+              {/* ============================================================ */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-stretch">
+                {/* Left: Educational Attainment */}
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                          Educational Attainment
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          Highest educational level completed by registered OSY
+                        </p>
+                      </div>
+                      {educationalDistributionData.total > 0 && (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                          Top: {educationalDistributionData.mostCommon.short} ({educationalDistributionData.mostCommon.pct}%)
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
-                      <span className="text-[10px] text-gray-400 font-bold bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md sm:hidden">
-                        Swipe ↔
-                      </span>
-                      <button
-                        onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                        className="text-xs sm:text-sm font-bold text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer whitespace-nowrap flex items-center gap-1 group ml-auto sm:ml-0"
-                      >
-                        <span>View all youth</span>
-                        <span className="transition-transform group-hover:translate-x-0.5">→</span>
-                      </button>
-                    </div>
+
+                    {educationalDistributionData.total === 0 ? (
+                      <div className="py-10 text-center text-xs text-gray-400 italic">
+                        No educational records found in this Barangay yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Segmented Distribution Bar */}
+                        <div className="space-y-1.5">
+                          <div className="w-full h-3.5 bg-gray-100 rounded-full overflow-hidden flex shadow-2xs">
+                            {educationalDistributionData.tiers.map((t, idx) => {
+                              if (t.count <= 0) return null;
+                              return (
+                                <div
+                                  key={idx}
+                                  title={`${t.name}: ${t.count} youth (${t.pct}%)`}
+                                  style={{
+                                    width: `${t.pct}%`,
+                                    backgroundColor: t.color
+                                  }}
+                                  className="h-full transition-all hover:opacity-85 cursor-pointer"
+                                />
+                              );
+                            })}
+                          </div>
+                          <p className="text-[10px] text-gray-400 italic">
+                            Hover over color segments to see exact counts.
+                          </p>
+                        </div>
+
+                        {/* Category Breakdown Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                          {educationalDistributionData.tiers.map((t, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/80 flex flex-col justify-between"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                                <span className="text-xs font-bold text-gray-800 truncate" title={t.name}>
+                                  {t.short}
+                                </span>
+                              </div>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="text-base font-black text-gray-900">{t.count}</span>
+                                <span className="text-[10px] text-gray-500 font-semibold">{t.pct}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[480px] sm:min-w-full text-left border-collapse text-[12px]">
-                        <thead>
-                          <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
-                            <th className="py-3 px-4 whitespace-nowrap">Name</th>
-                            <th className="py-3 px-4 whitespace-nowrap">Age / Purok</th>
-                            <th className="py-3 px-4 whitespace-nowrap">Education</th>
-                            <th className="py-3 px-4 whitespace-nowrap">Primary Skill</th>
-                            <th className="py-3 px-4 text-right whitespace-nowrap">AI Score</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {localYouthProfiles.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="py-8 text-center text-xs text-gray-400 italic">
-                                No registered youth profiles found in this Barangay yet.
-                              </td>
-                            </tr>
-                          ) : (
-                            localYouthProfiles.slice(0, 6).map((y) => (
-                              <tr
-                                key={y.id}
-                                onClick={() => handleViewProfile(y.id)}
-                                className="hover:bg-emerald-50/30 cursor-pointer transition-colors"
-                              >
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
-                                      {y.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                                    </div>
-                                    <span className="font-bold text-gray-900 truncate hover:text-[#0A6B43] transition-colors">{y.name}</span>
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
-                                  {y.age} y/o · <span className="font-bold text-gray-700">{y.purok}</span>
-                                </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  <span
-                                    className="bg-emerald-50 text-[#0A6B43] font-semibold border border-emerald-100 px-2.5 py-0.5 rounded-full text-[10px] inline-block"
-                                    title={y.educationalAttainment}
-                                  >
-                                    {y.educationalAttainment}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 font-medium text-gray-600 whitespace-nowrap">
-                                  <span
-                                    className="truncate max-w-[100px] sm:max-w-[130px] inline-block align-middle"
-                                    title={y.skills[0] || "None"}
-                                  >
-                                    {y.skills[0] || "None"}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 text-right whitespace-nowrap">
-                                  {programs.length > 0 ? (
-                                    (() => {
-                                      const style = getMatchStyling(y.matchScore);
-                                      return (
-                                        <span className={`inline-flex items-center font-bold px-2.5 py-0.5 rounded-full text-[11px] border ${style.pillClass}`}>
-                                          {y.matchScore}%
-                                        </span>
-                                      );
-                                    })()
-                                  ) : (
-                                    <span className="font-semibold text-[10px] text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">
-                                      N/A
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Standardized across official Philippine DepEd & CHED curriculum tiers</span>
                   </div>
                 </div>
 
-                {/* Top Skills Gaps & Quick actions (40%) */}
-                <div className="space-y-6 lg:col-span-2">
-                  <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 sm:p-6">
-                    <div className="flex items-center gap-2 mb-3.5">
-                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">Top Skills Gaps Identified</h3>
-                      <span className="text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none shrink-0">
-                        {localSkillsGaps.length}
-                      </span>
+                {/* Right: Monthly Registration Progress Column Chart */}
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                          Monthly Registration Progress
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          Youth registrations recorded over time from official timestamps
+                        </p>
+                      </div>
+
+                      {/* Time Range Selector */}
+                      <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs">
+                        <button
+                          onClick={() => setDashboardMonthRange("6")}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            dashboardMonthRange === "6" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
+                          }`}
+                        >
+                          6 Months
+                        </button>
+                        <button
+                          onClick={() => setDashboardMonthRange("12")}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            dashboardMonthRange === "12" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
+                          }`}
+                        >
+                          12 Months
+                        </button>
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {localSkillsGaps.every(g => g.count === 0) ? (
-                        <div className="p-4 bg-emerald-50/40 border border-emerald-100/60 rounded-xl text-center space-y-1 my-1">
-                          <h3 className="text-[18px] font-extrabold text-emerald-900 tracking-tight">No Critical Skills Gaps</h3>
-                          <p className="text-[14px] text-gray-600 font-normal leading-relaxed">All registered youth in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} have sufficient skill coverage for their preferred sectors.</p>
-                        </div>
-                      ) : (
-                        localSkillsGaps.slice(0, 3).map((gap) => {
-                          const maxCount = Math.max(...localSkillsGaps.map(g => g.count), 1);
-                          const crit = getSkillGapCriticality(gap.percentage, gap.count);
+
+                    {/* Column Chart Visualization */}
+                    <div className="pt-2">
+                      <div className="h-44 w-full flex items-end justify-between gap-2 sm:gap-4 px-2 pb-2 border-b border-gray-200">
+                        {monthlyRegistrationData.months.map((m, idx) => {
+                          const heightPct = monthlyRegistrationData.maxCount > 0
+                            ? Math.max(8, Math.round((m.count / monthlyRegistrationData.maxCount) * 100))
+                            : 8;
+                          const isHovered = hoveredMonthIdx === idx;
+
                           return (
-                            <div key={gap.skill} className="space-y-1.5">
-                              <div className="flex justify-between items-center text-xs font-semibold gap-2">
-                                <div className="flex items-center gap-1.5 truncate min-w-0">
-                                  <span className="text-gray-700 truncate" title={gap.skill}>{gap.skill}</span>
-                                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 border ${crit.badgeClass}`}>
-                                    {crit.level}
-                                  </span>
+                            <div
+                              key={m.yearMonth}
+                              className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
+                              onMouseEnter={() => setHoveredMonthIdx(idx)}
+                              onMouseLeave={() => setHoveredMonthIdx(null)}
+                            >
+                              {/* Hover Tooltip */}
+                              {isHovered && (
+                                <div className="absolute -top-10 z-20 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md whitespace-nowrap animate-in fade-in duration-150">
+                                  {m.label}: {m.count} youth
                                 </div>
-                                <span className="text-gray-500 shrink-0 font-medium text-[11px]">{gap.count} youth ({gap.percentage}%)</span>
-                              </div>
-                              <div className={`w-full h-2 rounded-full overflow-hidden ${crit.trackClass}`}>
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${crit.barClass}`}
-                                  style={{ width: `${(gap.count / maxCount) * 100}%` }}
-                                />
-                              </div>
+                              )}
+
+                              {/* Number on top of column */}
+                              <span className={`text-[10px] mb-1 font-bold transition-colors ${
+                                isHovered ? "text-[#0A6B43] font-black" : "text-gray-500"
+                              }`}>
+                                {m.count}
+                              </span>
+
+                              {/* Column Bar */}
+                              <div
+                                style={{ height: `${heightPct}%` }}
+                                className={`w-full rounded-t-lg transition-all duration-300 ${
+                                  isHovered
+                                    ? "bg-[#064E3B] shadow-xs scale-y-105"
+                                    : m.count > 0
+                                    ? "bg-[#0A6B43]"
+                                    : "bg-gray-200"
+                                }`}
+                              />
                             </div>
                           );
-                        })
-                      )}
+                        })}
+                      </div>
+
+                      {/* X-Axis Month Labels */}
+                      <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2">
+                        {monthlyRegistrationData.months.map(m => (
+                          <span key={m.yearMonth} className="flex-1 text-center text-[10px] font-bold text-gray-500 truncate">
+                            {m.label}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <button
-                      onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
-                      className="w-full mt-4 py-2.5 text-center border border-dashed border-emerald-300 hover:border-emerald-500 text-[14px] font-bold text-[#0A6B43] bg-emerald-50/30 hover:bg-emerald-50/60 rounded-xl transition-colors cursor-pointer"
-                    >
-                      View Skills Gap Reports →
-                    </button>
                   </div>
 
-                  <div className="bg-white border border-gray-100/80 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6">
-                    <h3 className="font-extrabold text-gray-900 text-[22px] tracking-tight mb-3">Quick Actions</h3>
-                    <div className="grid grid-cols-1 gap-2.5">
+                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>
+                      Total in period: <strong>{monthlyRegistrationData.totalInPeriod} registrations</strong>
+                    </span>
+                    <span className="text-gray-400">Timestamps from database</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ============================================================ */}
+              {/* 5. SKILLS GAP AND TRAINING READINESS                         */}
+              {/* ============================================================ */}
+              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
+                        Skills Gap & Training Readiness Analysis
+                      </h3>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                        Diagnostics
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                      Comparing registered youth aspirations against recorded skills and active TESDA offerings
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
+                    className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline flex items-center gap-1 group self-start sm:self-auto cursor-pointer"
+                  >
+                    <span>Full Diagnostic Analytics</span>
+                    <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-[11px]">
+                        <tr>
+                          <th className="py-3 px-4">Skill or Competency</th>
+                          <th className="py-3 px-4 text-center">Youth Interested</th>
+                          <th className="py-3 px-4 text-center">Youth With Skills</th>
+                          <th className="py-3 px-4 text-center">Available TESDA Programs</th>
+                          <th className="py-3 px-4 text-right">Identified Gap</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {dashboardSkillsGap.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
+                            <td className="py-3 px-4 font-semibold text-gray-900">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                                <span>{item.competency}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center font-bold text-gray-800">
+                              <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200">
+                                {item.youthInterested}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center font-bold text-[#0A6B43]">
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+                                {item.youthWithSkill}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                item.availablePrograms > 0
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : "bg-gray-50 text-gray-400 border border-gray-200"
+                              }`}>
+                                {item.availablePrograms > 0 ? `${item.availablePrograms} Active Course(s)` : "None Available"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                                item.status === "Critical Shortage"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : item.status === "Moderate Gap"
+                                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              }`}>
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* ============================================================ */}
+              {/* 6. ANNOUNCEMENTS ALONGSIDE QUICK ACTIONS                     */}
+              {/* ============================================================ */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                {/* Left (7 cols): Community Announcements */}
+                <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                          Community Announcements
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          Broadcast bulletins synced with the Katipunan ng Kabataan Youth Portal
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowAnnouncementModal(true)}
+                        className="px-3 py-1.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Post Notice</span>
+                      </button>
+                    </div>
+
+                    {announcements.length === 0 ? (
+                      <div className="py-10 text-center space-y-2 flex flex-col items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-[#0A6B43]">
+                          <Megaphone className="w-5 h-5" />
+                        </div>
+                        <h4 className="text-xs font-bold text-gray-800">No Announcements Posted Yet</h4>
+                        <p className="text-[11px] text-gray-400 max-w-xs font-medium">
+                          Post training notices, scholarship caravans, or assembly dates for KK youth.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {announcements.slice(0, 3).map((a) => (
+                          <div
+                            key={a.id}
+                            className="p-3.5 rounded-xl border border-gray-200/80 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all space-y-1.5 shadow-2xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
+                                {a.title}
+                              </h4>
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                {a.datePosted || "Recent"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 line-clamp-2">
+                              {a.body}
+                            </p>
+                            <div className="flex items-center gap-2 pt-1 text-[10px] text-gray-400">
+                              <span>Audience: {a.audience || "All Youth"}</span>
+                              <span>•</span>
+                              <span className="text-emerald-700 font-bold">Active in Portal</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                    <span>Announcements appear instantly on youth mobile dashboards</span>
+                  </div>
+                </div>
+
+                {/* Right (5 cols): Quick Actions */}
+                <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="pb-3 border-b border-gray-100">
+                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                        Quick Actions
+                      </h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        Direct administrative shortcuts for SK Council operations
+                      </p>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {/* Action 1: Youth Profiles */}
+                      <button
+                        onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900">View Youth Directory</p>
+                            <p className="text-[10px] text-gray-400">Search profiles & match status</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
+                      </button>
+
+                      {/* Action 2: Review Pending Approvals */}
+                      <button
+                        onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-amber-200/90 hover:border-amber-400 hover:bg-amber-50/40 text-left transition-all group cursor-pointer shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:scale-105 transition-transform">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-gray-900">Review Pending Approvals</p>
+                              {pendingProfiles.length > 0 && (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                                  {pendingProfiles.length}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-400">Verify government IDs and accounts</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-amber-700 transition-colors" />
+                      </button>
+
+                      {/* Action 3: View Training Programs */}
+                      <button
+                        onClick={() => setCurrentScreen(SKOfficialScreen.TESDA_PROGRAMS)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900">View Training Listings</p>
+                            <p className="text-[10px] text-gray-400">{programs.length} active TESDA courses</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
+                      </button>
+
+                      {/* Action 4: View Skills Gap Analytics */}
+                      <button
+                        onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
+                            <BarChart2 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900">Skills Gap Diagnostics</p>
+                            <p className="text-[10px] text-gray-400">Export reports & analytics</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
+                      </button>
+
+                      {/* Action 5: Register Youth Profile */}
                       <button
                         onClick={() => {
                           resetRegForm();
                           setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
                         }}
-                        className="w-full flex items-center justify-between p-3.5 border border-emerald-100/80 hover:border-emerald-300 hover:bg-emerald-50/30 rounded-xl text-left transition-all shadow-2xs group cursor-pointer"
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="p-2.5 rounded-xl bg-emerald-100 text-[#0A6B43] group-hover:scale-105 transition-transform">
+                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
                             <Plus className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-[14px] font-bold text-gray-900">Register Youth Profile</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Generate matches using AI</p>
+                            <p className="text-xs font-bold text-gray-900">Register New Youth</p>
+                            <p className="text-[10px] text-gray-400">Manual KK profiling entry</p>
                           </div>
                         </div>
-                        <ArrowLeft className="w-3.5 h-3.5 rotate-180 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
-                      </button>
-
-                      <button
-                        onClick={() => setShowAnnouncementModal(true)}
-                        className="w-full flex items-center justify-between p-3.5 border border-amber-100/80 hover:border-amber-300 hover:bg-amber-50/30 rounded-xl text-left transition-all shadow-2xs group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 rounded-xl bg-amber-100 text-[#D97706] group-hover:scale-105 transition-transform">
-                            <Megaphone className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-bold text-gray-900">Post Announcement</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Sync with youth dashboards</p>
-                          </div>
-                        </div>
-                        <ArrowLeft className="w-3.5 h-3.5 rotate-180 text-gray-400 group-hover:text-[#D97706] transition-colors" />
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
                       </button>
                     </div>
                   </div>
+
+                  <div className="pt-3 border-t border-gray-100 text-[11px] text-gray-400 text-center">
+                    Authorized for SK Chairperson & Councilors
+                  </div>
                 </div>
               </div>
+
             </div>
           )}
 
@@ -3966,13 +4493,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               )}
 
               {(() => {
-                const isSameYouth = (rYouthName?: string, rYouthId?: string, youth?: YouthProfile) => {
+                const isSameYouth = (rYouthName?: string, rYouthId?: string, youth?: YouthProfile, rYouthEmail?: string) => {
                   if (!youth) return false;
-                  if (rYouthId && youth.id && rYouthId === youth.id) return true;
+                  if (rYouthId && youth.id) return rYouthId === youth.id;
+                  const cleanREmail = (rYouthEmail || "").toLowerCase().trim();
+                  const cleanYEmail = (youth.email || "").toLowerCase().trim();
+                  if (cleanREmail && cleanYEmail) return cleanREmail === cleanYEmail;
+                  if (youth.id || youth.email) return false;
                   if (!rYouthName) return false;
                   const a = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
                   const b = youth.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                  return a === b || a.includes(b) || b.includes(a);
+                  return a === b;
                 };
 
                 const isApplicationCompleted = (status?: string) => {
@@ -3980,7 +4511,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   return s === "archived" || s === "completed" || s === "done" || s === "graduated";
                 };
 
-                const memberReferrals = referrals.filter(r => isSameYouth(r.youthName, (r as any).youthId, selectedYouth));
+                const memberReferrals = referrals.filter(r => isSameYouth(r.youthName, (r as any).youthId, selectedYouth, r.youthEmail || (r as any).email));
                 let completedApplications = memberReferrals.filter(r => isApplicationCompleted(r.status));
 
                 // Ensure Glenn's completed Web Development NC III NC II qualification always reflects

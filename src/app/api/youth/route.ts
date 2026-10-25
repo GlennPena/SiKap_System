@@ -88,11 +88,17 @@ export async function GET(request: Request) {
     if (roleStr === "SK_OFFICIAL" || roleStr === "BARANGAY_CAPTAIN") {
       whereClause.barangayId = (session.user as any).barangayId;
     } else if (roleStr === "KK_YOUTH") {
-      whereClause.OR = [
-        { userId: (session.user as any).id },
-        { user: { email: (session.user as any).email } },
-        { name: (session.user as any).name }
-      ];
+      const userEmail = (session.user as any).email;
+      const userId = (session.user as any).id;
+      const orConditions: any[] = [];
+      if (userId) orConditions.push({ userId });
+      if (userEmail) orConditions.push({ user: { email: userEmail } });
+
+      if (orConditions.length > 0) {
+        whereClause.OR = orConditions;
+      } else if ((session.user as any).name) {
+        whereClause.name = (session.user as any).name;
+      }
     } else if (roleStr === "TESDA_PARTNER") {
       // Only see youth who have at least one active referral
       whereClause.referrals = { some: {} };
@@ -205,7 +211,7 @@ export async function POST(request: Request) {
         verificationIdNumberEnc: encryptedVerificationId,
         verificationIdImageEnc: encryptedImage
       },
-      include: { barangay: true }
+      include: { barangay: true, user: true }
     });
 
     return NextResponse.json({ success: true, data: mapToClientProfile(newProfile) }, { status: 201 });

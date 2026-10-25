@@ -8,7 +8,7 @@ import {
   BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
-  TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload
+  TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame
 } from "lucide-react";
 import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
@@ -430,6 +430,50 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [newExpInput, setNewExpInput] = useState("");
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
 
+  // Dashboard hover states
+  const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
+  const [barAnimationProgress, setBarAnimationProgress] = useState(0);
+  const [donutAnimationProgress, setDonutAnimationProgress] = useState(0);
+
+  // Smooth on-load animation controller: both start simultaneously at t=0, donut fills slower (3000ms)
+  useEffect(() => {
+    if (activeTab !== YouthScreen.HOME) return;
+    if (!programs || programs.length === 0) return;
+
+    // Both start at 0 simultaneously
+    setBarAnimationProgress(0);
+    setDonutAnimationProgress(0);
+
+    let startTime: number | null = null;
+    let animationFrameId: number;
+
+    const step = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+
+      // Both start at the exact same instant (t = 0)
+      // Horizontal bar graph: 1800ms smooth cubic ease-out
+      const barT = Math.min(1, elapsed / 1800);
+      const barP = 1 - Math.pow(1 - barT, 3);
+      setBarAnimationProgress(barP);
+
+      // Donut filling sweep: 3000ms (slower, graceful filling)
+      const donutT = Math.min(1, elapsed / 3000);
+      const donutP = 1 - Math.pow(1 - donutT, 3);
+      setDonutAnimationProgress(donutP);
+
+      if (barT < 1 || donutT < 1) {
+        animationFrameId = requestAnimationFrame(step);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [activeTab, programs.length]);
+
   // Re-synchronize edit states whenever youthProfile prop updates (e.g. async fetch from DB)
   useEffect(() => {
     if (youthProfile) {
@@ -832,18 +876,32 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
   }, [viewingProgramModal]);
 
-  // Helper to reliably match youth names regardless of accents or casing
-  const isSameYouth = (rYouthName?: string, currentYouthName?: string) => {
+  // Helper to reliably match youth referrals using unique ID, email, or exact normalized name
+  const isSameYouth = (rYouthName?: string, currentYouthName?: string, rYouthId?: string, rEmail?: string) => {
+    // 1. If youth IDs are available on both sides, rely on unique ID
+    if (rYouthId && youthProfile?.id) {
+      return rYouthId === youthProfile.id;
+    }
+    // 2. If emails are available, rely on unique email
+    const cleanREmail = (rEmail || "").toLowerCase().trim();
+    const cleanYEmail = (youthProfile?.email || currentUser?.email || "").toLowerCase().trim();
+    if (cleanREmail && cleanYEmail) {
+      return cleanREmail === cleanYEmail;
+    }
+    // 3. Fallback only when unique identifiers are completely absent on both sides
+    if (rYouthId || youthProfile?.id || cleanREmail || cleanYEmail) {
+      return false;
+    }
     if (!rYouthName || !currentYouthName) return false;
     const n1 = rYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const n2 = currentYouthName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+    return n1 === n2;
   };
 
   // Check if a youth has already completed this program or an identical/equivalent qualification
   const isProgramCompleted = (prog: TESDAProgram) => {
     return !!referrals?.some(r =>
-      isSameYouth(r.youthName, youthProfile.name) &&
+      isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail) &&
       r.status === "Archived" &&
       (
         r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim() ||
@@ -891,6 +949,34 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       }
       return b.matchScore - a.matchScore;
     });
+  }, [scoredPrograms]);
+
+  // Distribution of training matches across 3 categories (Highly Recommended >= 75, Recommended 50-74, Other < 50)
+  const matchDistribution = useMemo(() => {
+    let highlyRecommended = 0; // score >= 75
+    let recommended = 0;       // score >= 50 && score < 75
+    let otherMatches = 0;      // score < 50
+
+    scoredPrograms.forEach(sp => {
+      if (sp.matchScore >= 75) {
+        highlyRecommended++;
+      } else if (sp.matchScore >= 50) {
+        recommended++;
+      } else {
+        otherMatches++;
+      }
+    });
+
+    const total = scoredPrograms.length;
+    return {
+      highlyRecommended,
+      recommended,
+      otherMatches,
+      total,
+      pctHigh: total > 0 ? Math.round((highlyRecommended / total) * 100) : 0,
+      pctRec: total > 0 ? Math.round((recommended / total) * 100) : 0,
+      pctOther: total > 0 ? Math.max(0, 100 - Math.round((highlyRecommended / total) * 100) - Math.round((recommended / total) * 100)) : 0,
+    };
   }, [scoredPrograms]);
 
   useEffect(() => {
@@ -995,7 +1081,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   }, [youthProfile.barangay]);
 
   // Get enrolled referrals and match them with program details
-  const enrolledReferrals = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name) && r.status === "Enrolled") || [];
+  const enrolledReferrals = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail) && r.status === "Enrolled") || [];
   const enrolledPrograms = enrolledReferrals.map(ref => {
     const program = programs.find(p => p.title === ref.programTitle);
     return {
@@ -1645,11 +1731,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 space-y-0.5 min-w-0 shrink-0">
-                <span className="text-[10px] sm:text-[11px] font-black text-amber-400 uppercase tracking-widest block leading-none">Member</span>
-                <span className="text-[8.5px] sm:text-[9px] font-bold text-emerald-300 uppercase tracking-wider block truncate leading-none mt-1 max-w-[85px] sm:max-w-[95px] xl:max-w-[105px]" title={youthProfile.barangay || "San Luis"}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
+              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
+                <span className="text-xs sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight">Member</span>
+                <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px]" title={youthProfile.barangay || "San Luis"}>
                   {(youthProfile.barangay || "San Luis").replace(/^Barangay\s+/i, "")}
                 </span>
               </div>
@@ -1839,10 +1925,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 )}
               </div>
 
-              {/* Complete Name without truncation or hover effect */}
+              {/* Complete Name and Email without hover effect */}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white leading-snug break-words">
-                  {youthProfile?.name || "Youth Member"}
+                  {youthProfile?.name || currentUser?.name || "Youth Member"}
+                </p>
+                <p className="text-xs text-gray-400 truncate leading-tight mt-0.5" title={youthProfile?.email || currentUser?.email || "youth.member@sanluispampanga.gov.ph"}>
+                  {youthProfile?.email || currentUser?.email || "youth.member@sanluispampanga.gov.ph"}
                 </p>
               </div>
             </div>
@@ -1893,7 +1982,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             {/* Notification Bell (Enlarged) */}
             <div className="relative">
               {(() => {
-                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail)) || [];
                 const rawNotifications: Array<{ id: string; text: string; subtext: string; date: string; type: "pending" | "enrolled" | "declined" | "general"; targetTab: YouthScreen }> = [];
 
                 userApps.forEach(app => {
@@ -2107,7 +2196,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           {activeTab === YouthScreen.HOME && (
             <div className="space-y-5 sm:space-y-6">
 
-              {/* Full-Width Rectangular Greeting Card Banner with Circular Gradient Background & Botanical Plant Growth */}
+              {/* ROW 1 — GREETINGS CARD */}
               <div
                 className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
                 style={{
@@ -2128,18 +2217,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
               </div>
 
-              {/* ACTIVE ENROLLED CLASSES SECTION */}
+              {/* ACTIVE ENROLLED CLASSES SCHEDULE BANNER (When Officially Enrolled) */}
               {enrolledPrograms.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden" id="active-classes-schedule-container">
+                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden border border-emerald-100/80" id="active-classes-schedule-container">
                   <div className="bg-[#1C2B20] text-white p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2.5 text-white">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
-                        <GraduationCap className="w-5 h-5 text-emerald-300" />
-                      </div>
-                      <div>
-                        <h4 className="font-extrabold text-sm sm:text-base tracking-tight text-white">My Active Class & Training Schedule</h4>
-                        <p className="text-[10px] text-emerald-200 font-semibold uppercase tracking-wider">TESDA GPSAT Official Enrollment Card</p>
-                      </div>
+                    <div className="text-white">
+                      <h4 className="text-[18px] font-extrabold tracking-tight text-white">My Active Class & Training Schedule</h4>
+                      <p className="text-xs text-emerald-200/90 font-medium mt-0.5">Your official class schedule, training venue, and instructor details</p>
                     </div>
                     <span className="self-start sm:self-auto bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-3 py-1 rounded-full border border-emerald-400/30 uppercase animate-pulse">
                       Status: Officially Enrolled
@@ -2148,7 +2232,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                   <div className="p-4 sm:p-6 divide-y divide-gray-150">
                     {enrolledPrograms.map(({ ref, program }) => {
-                      // Fallback info if the program is custom-created without schedule defaults
                       const scheduleDays = formatTrainingDays(program?.trainingDays);
                       const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
                       const room = program?.room || "Main Training Facility";
@@ -2171,7 +2254,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             </span>
                           </div>
 
-                          {/* Grid details */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 bg-gray-50/70 p-3.5 sm:p-4 rounded-xl border border-gray-150">
                             <div className="space-y-1">
                               <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Class Schedule Days</span>
@@ -2227,7 +2309,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               </p>
                             )}
                           </div>
-
                         </div>
                       );
                     })}
@@ -2235,646 +2316,580 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
               )}
 
-              {/* Middle Grid: Best Match & Skills */}
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-
-                {/* Best Match Card (60%) */}
-                {programs.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-3 text-center lg:col-span-3 flex flex-col justify-center items-center">
-                    <div className="w-12 h-12 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mb-1">
-                      <Target className="w-6 h-6" />
+              {/* ROW 2 — TRAINING MATCHES (60%) AND ANNOUNCEMENTS (40%) */}
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 sm:gap-6 items-stretch">
+                
+                {/* Left: 60% width — Training Matches Donut Chart */}
+                <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-5">
+                    {/* Header */}
+                    <div className="pb-3 border-b border-gray-100">
+                      <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Your Training Matches</h4>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Programs matched to your skills, interests, and goals</p>
                     </div>
-                    <h4 className="font-extrabold text-gray-800 text-base">No Active TESDA Programs Published Yet</h4>
-                    <p className="text-xs text-gray-500 max-w-md leading-relaxed font-medium">
-                      There are currently no active training programs published in the system database. As soon as TESDA partners publish new training programs, our Content-Based Filtering (CBF) engine will automatically evaluate your registered skills and display your top match here.
-                    </p>
-                  </div>
-                ) : (
-                  (() => {
-                    // If member has already completed all available programs matching them
-                    if (uncompletedScoredPrograms.length === 0) {
-                      return (
-                        <div className="bg-linear-to-br from-[#112F24] via-[#164132] to-[#0A6B43] text-white rounded-2xl p-5 sm:p-7 shadow-[0_12px_36px_-6px_rgba(10,107,67,0.3)] space-y-4 sm:space-y-5 lg:col-span-3">
-                          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                            <div className="space-y-1.5 flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2.5 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
-                                  <Award className="w-3 h-3 text-amber-400" />
-                                  Milestone Achieved
-                                </span>
-                                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-700">
-                                  Step 3 Complete • Certified Graduate
-                                </span>
-                              </div>
-                              <h4 className="font-extrabold text-white text-lg sm:text-2xl tracking-tight">
-                                All Matching Qualifications Certified!
-                              </h4>
-                              <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-xl mt-1">
-                                Outstanding work, {youthProfile.name.split(" ")[0]}! You have successfully completed and attained official certification for all training programs currently aligned with your competencies.
-                              </p>
-                            </div>
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 shadow-inner self-start sm:self-auto">
-                              <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8" />
-                            </div>
-                          </div>
 
-                          {/* Placement & Roadmap Notice */}
-                          <div className="bg-white/10 backdrop-blur-xs p-3.5 sm:p-4 rounded-xl border border-white/15 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-amber-300 tracking-wider flex items-center gap-1.5">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                Active Next Step: Livelihood Placement & Career Launch
-                              </span>
-                            </div>
-                            <p className="text-xs text-emerald-50 leading-relaxed">
-                              Your certifications have unlocked <strong>Step 4: Livelihood Placement</strong>. Access your AI-generated 30-day employment roadmap, local micro-grant opportunities, and digital credentials.
-                            </p>
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 pt-2">
-                            <button
-                              onClick={() => setActiveTab(YouthScreen.PATHWAY)}
-                              className="text-xs font-black px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"
-                            >
-                              <Sparkles className="w-4 h-4 text-slate-950" />
-                              View Step 4 Career Plan
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                setActiveTab(YouthScreen.PROFILE);
-                                setProfileActiveTab("badge");
-                              }}
-                              className="text-xs font-bold px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white border border-white/20 transition-all flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"
-                            >
-                              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                              View KK Digital Credential
-                            </button>
-
-                            <button
-                              onClick={() => setActiveTab(YouthScreen.MATCHES)}
-                              className="text-xs font-semibold px-4 py-2.5 rounded-xl text-emerald-200 hover:text-white transition-colors cursor-pointer text-center sm:text-left"
-                            >
-                              Browse Full Program Directory →
-                            </button>
-                          </div>
+                    {/* Chart and Legend Layout */}
+                    {programs.length === 0 ? (
+                      <div className="py-10 text-center flex flex-col items-center justify-center space-y-2">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                          <Target className="w-6 h-6" />
                         </div>
-                      );
-                    }
-
-                    // If all matching programs have concluded (term ended) or remaining active programs have 0% match
-                    if (activeMatchingPrograms.length === 0) {
-                      return (
-                        <div className="bg-white rounded-2xl p-4 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] lg:col-span-3 border border-slate-100/80 flex flex-col justify-between h-full">
-                          <div className="space-y-3.5 sm:space-y-5">
-                            <div className="flex justify-between items-start gap-3 sm:gap-4">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
-                                  <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200 flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                    {featuredLang === "tl" ? "Nagtapos Na ang Pagsasanay" : "Training Cohorts Concluded"}
-                                  </span>
-
-                                  {/* Language Toggle for OSY */}
-                                  <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-250 text-[10px] font-bold">
-                                    <button
-                                      type="button"
-                                      onClick={() => setFeaturedLang("en")}
-                                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en"
-                                        ? "bg-white text-gray-900 shadow-2xs font-extrabold"
-                                        : "text-gray-500 hover:text-gray-800"
-                                        }`}
-                                      title="Basahin sa Ingles (English)"
-                                    >
-                                      English
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setFeaturedLang("tl")}
-                                      className={`px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer ${featuredLang === "tl"
-                                        ? "bg-[#0A6B43] text-white shadow-2xs font-extrabold"
-                                        : "text-gray-600 hover:text-gray-900"
-                                        }`}
-                                      title="Isalin sa Tagalog"
-                                    >
-                                      <span>🇵🇭</span>
-                                      <span>Tagalog</span>
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <h4 className="font-extrabold text-gray-900 text-sm sm:text-lg leading-snug">
-                                  {featuredLang === "tl"
-                                    ? "Nagtapos Na ang Kasalukuyang Pagsasanay para sa Iyong Kasanayan"
-                                    : "Current Cohorts for Your Registered Skills Have Concluded"}
-                                </h4>
-                              </div>
-
-                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0 shadow-2xs">
-                                <Calendar className="w-4 h-4 sm:w-6 sm:h-6" />
-                              </div>
-                            </div>
-
-                            <div className="bg-linear-to-br from-amber-50/70 to-orange-50/50 p-4 sm:p-5 rounded-xl border border-amber-200/80 space-y-3.5">
-                              <p className="text-xs text-amber-950 leading-relaxed font-medium">
-                                {featuredLang === "tl"
-                                  ? `Sa kasalukuyan ay walang aktibong kurso na tumutugma sa iyong profile sa ${youthProfile.sectorPreference || "iyong napiling larangan"}. Ang mga bagong iskedyul ng pagsasanay ay inilalathala bawat tatlong buwan ng TESDA.`
-                                  : `There are currently no open programs actively enrolling that match your profile in ${youthProfile.sectorPreference || "your chosen sector"}. New training schedules are published quarterly by TESDA.`}
-                              </p>
-
-                              {/* Profile Context Pill - cleanly separated with proper spacing */}
-                              <div className="pt-3.5 pb-1 border-t border-amber-200/80 space-y-2.5">
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-[11px] text-amber-900">
-                                  <span className="font-bold flex items-center gap-1 shrink-0 text-amber-950">
-                                    <Compass className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                                    {featuredLang === "tl" ? "Iyong Sektor:" : "Your Target Sector:"}
-                                  </span>
-                                  <span className="bg-white/90 px-2.5 py-1 rounded-md font-semibold border border-amber-200 text-amber-950 inline-block self-start sm:self-auto shadow-2xs">
-                                    {youthProfile.sectorPreference || "General Vocational Trades"}
-                                  </span>
-                                </div>
-                                {youthProfile.skills && youthProfile.skills.length > 0 && (
-                                  <div className="flex items-start gap-1.5 text-[11px] text-amber-900/90 pl-0.5 pt-0.5">
-                                    <Tag className="w-3.5 h-3.5 text-amber-700/80 shrink-0 mt-0.5" />
-                                    <span className="font-medium leading-relaxed">
-                                      <strong className="font-bold text-amber-950">{featuredLang === "tl" ? "Mga Kasanayan:" : "Skills:"}</strong>{" "}
-                                      {youthProfile.skills.slice(0, 4).join(", ")}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-7 sm:mt-8 lg:mt-auto pt-6 border-t border-slate-200/80 space-y-3">
-                            <p className="text-[11px] text-gray-500 font-medium text-center leading-normal">
-                              {featuredLang === "tl"
-                                ? "Maaari mong tingnan ang iba pang mga kurso o i-update ang iyong mga kasanayan."
-                                : "Explore other available programs or update your registered competencies."}
-                            </p>
-
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full">
-                              <button
-                                onClick={() => {
-                                  setActiveTab(YouthScreen.PROFILE);
-                                  setProfileActiveTab("skills");
-                                }}
-                                className="flex-1 w-full text-xs font-bold px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-800 border border-gray-250 transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer text-center"
-                              >
-                                <Edit className="w-3.5 h-3.5 text-gray-600 shrink-0" />
-                                <span>{featuredLang === "tl" ? "I-update ang Kasanayan" : "Update Skills & Preferences"}</span>
-                              </button>
-
-                              <button
-                                onClick={() => setActiveTab(YouthScreen.MATCHES)}
-                                className="flex-1 w-full text-xs font-bold px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer text-center"
-                              >
-                                <Compass className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
-                                <span>{featuredLang === "tl" ? "Tingnan ang Lahat ng Kurso" : "Browse All Available Programs"}</span>
-                                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Otherwise, pick the top active uncompleted matching program as the featured upskilling program
-                    const topMatchItem = activeMatchingPrograms[0];
-                    const featuredProg = topMatchItem.program;
-                    const featuredScore = topMatchItem.matchScore;
-                    const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === featuredProg.title);
-                    const isCompleted = false; // activeMatchingPrograms excludes completed programs
-                    const isEnded = false; // activeMatchingPrograms excludes ended programs
-                    const isFull = !app && (featuredProg.slotsRemaining !== undefined && featuredProg.slotsRemaining <= 0);
-
-                    const overlapWarning = getOverlapWarning(featuredProg);
-
-                    return (
-                      <div className="bg-white rounded-2xl p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 lg:col-span-3">
-                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider text-[#D97706] bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
-                                {featuredLang === "tl" ? "Tampok na AI Match para sa Iyo" : "Featured AI Match for You"}
-                              </span>
-
-                              {/* Language Toggle for OSY */}
-                              <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-250 text-[10px] font-bold">
-                                <button
-                                  type="button"
-                                  onClick={() => setFeaturedLang("en")}
-                                  className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en"
-                                    ? "bg-white text-gray-900 shadow-2xs font-extrabold"
-                                    : "text-gray-500 hover:text-gray-800"
-                                    }`}
-                                  title="Basahin sa Ingles (English)"
-                                >
-                                  English
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setFeaturedLang("tl")}
-                                  className={`px-2 py-0.5 rounded-md transition-all flex items-center gap-1 cursor-pointer ${featuredLang === "tl"
-                                    ? "bg-[#0A6B43] text-white shadow-2xs font-extrabold"
-                                    : "text-gray-600 hover:text-gray-900"
-                                    }`}
-                                  title="Isalin sa Tagalog"
-                                >
-                                  <span>🇵🇭</span>
-                                  <span>Tagalog</span>
-                                </button>
-                              </div>
-                            </div>
-                            <h4 className="font-extrabold text-gray-900 text-base sm:text-lg mt-1 leading-snug">{featuredProg.title}</h4>
-                            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                              <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-150 inline-block">
-                                {featuredProg.provider || "TESDA Partner Program"}
-                              </span>
-                              {isEnded && (
-                                <span className="text-[10px] font-extrabold uppercase text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 inline-flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-purple-600" />
-                                  Term Ended
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="shrink-0 self-start sm:self-auto">
-                            <FlameMatchScore score={featuredScore} />
-                          </div>
-                        </div>
-
-                        {isLoadingFeaturedAI ? (
-                          <div className="space-y-3.5 animate-in fade-in duration-300">
-                            {/* Loading Gemini Match Rationale Skeleton */}
-                            <div className="bg-emerald-50/70 p-3.5 sm:p-4 rounded-xl border border-emerald-200/80 space-y-2.5 shadow-2xs">
-                              <div className="flex items-center justify-between flex-wrap gap-1">
-                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-2">
-                                  <Loader2 className="w-3.5 h-3.5 text-[#0A6B43] animate-spin" />
-                                  <span>{featuredLang === "tl" ? "Sinusuri ang Iyong Profile at Kasanayan..." : "Analyzing Youth Profile & Competencies..."}</span>
-                                </span>
-                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1 animate-pulse">
-                                  <Sparkles className="w-3 h-3 text-amber-500" />
-                                  <span>Google Gemini AI Generating</span>
-                                </span>
-                              </div>
-                              <div className="space-y-2 animate-pulse pt-1">
-                                <div className="h-3 bg-emerald-200/70 rounded-full w-full"></div>
-                                <div className="h-3 bg-emerald-200/70 rounded-full w-11/12"></div>
-                                <div className="h-3 bg-emerald-200/50 rounded-full w-4/5"></div>
-                              </div>
-                              <p className="text-[11px] text-emerald-900 font-medium italic pt-0.5 flex items-center gap-1.5">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                                <span>{featuredLang === "tl"
-                                  ? `Bumubuo ang Google Gemini AI ng personalized na payo para sa iyo sa Barangay ${youthProfile.barangay || "San Luis"}...`
-                                  : `Google Gemini AI is formulating personalized match advice for your profile in Barangay ${youthProfile.barangay || "San Luis"}...`}</span>
-                              </p>
-                            </div>
-
-                            {/* Loading 3-Step Pathway Skeleton */}
-                            <div className="bg-linear-to-br from-[#F0FDF4] to-[#E8F5EF] p-3.5 sm:p-4 rounded-xl border border-[#9FE1CB]/70 space-y-2.5 shadow-2xs">
-                              <div className="flex items-center justify-between flex-wrap gap-1">
-                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-                                  <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
-                                  <span>{featuredLang === "tl" ? "Inihahanda ang 3 Hakbang na Plano..." : "Building 3-Step Action Plan..."}</span>
-                                </span>
-                                <span className="text-[10px] font-bold text-gray-400">
-                                  {featuredLang === "tl" ? "Saglit lamang..." : "Please wait..."}
-                                </span>
-                              </div>
-                              <div className="space-y-2">
-                                {[1, 2, 3].map((step) => (
-                                  <div key={step} className="flex items-center gap-2.5 bg-white/70 p-2.5 rounded-xl border border-emerald-100/70 animate-pulse">
-                                    <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-[10px] shrink-0">
-                                      {step}
-                                    </span>
-                                    <div className="h-3 bg-emerald-100/90 rounded-full w-3/4"></div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            {/* Gemini Match Rationale */}
-                            <div className="bg-emerald-50/90 p-3.5 sm:p-4 rounded-xl border border-emerald-200/80 space-y-2 shadow-2xs">
-                              <div className="flex items-center justify-between flex-wrap gap-1">
-                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-                                  <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                                  {featuredLang === "tl" ? "Paliwanag ng Gemini AI sa Kursong Ito" : "Gemini Match Rationale"}
-                                </span>
-                                <span className="text-[10px] font-bold text-emerald-700/80">
-                                  Powered by Google Gemini
-                                </span>
-                              </div>
-                              <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-                                &ldquo;{
-                                  featuredLang === "tl"
-                                    ? (featuredAdviceTl || `Bilang miyembro ng Katipunan ng Kabataan sa Barangay ${youthProfile.barangay || "San Luis"}, si ${youthProfile.name.split(' ')[0]} ay may praktikal na kasanayan sa ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "mga bokasyonal na gawain"}. Ang kursong ${featuredProg.title} ay magbibigay sa iyo ng opisyal na sertipiko mula sa TESDA upang makapasok sa trabaho sa ${youthProfile.sectorPreference || "napiling hanapbuhay"}.`)
-                                    : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} has practical background skills in ${youthProfile.skills.join(", ") || youthProfile.sectorPreference || "vocational trades"}. This ${featuredProg.title} program will officially certify their qualifications under TESDA and unlock formal job opportunities in ${youthProfile.sectorPreference || "their target industry"}.`)
-                                }&rdquo;
-                              </p>
-                            </div>
-
-                            {/* Personalized 3-Bullet Advice Pathway */}
-                            <div className="bg-linear-to-br from-[#F0FDF4] to-[#E8F5EF] p-3.5 sm:p-4 rounded-xl border border-[#9FE1CB]/70 space-y-2.5 shadow-2xs">
-                              <div className="flex items-center justify-between flex-wrap gap-1">
-                                <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-                                  <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
-                                  {featuredLang === "tl" ? "3 Hakbang na Plano para sa Iyo" : "Gemini Personalized 3-Step Pathway"}
-                                </span>
-                                <span className="text-[10px] font-extrabold text-[#D97706] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                  {featuredLang === "tl" ? "Plano ng AI" : "AI Action Plan"}
-                                </span>
-                              </div>
-                              <ul className="space-y-2 text-xs text-emerald-950 font-medium">
-                                {(featuredLang === "tl"
-                                  ? (featuredBulletsTl && featuredBulletsTl.length === 3
-                                    ? featuredBulletsTl
-                                    : [
-                                      `Gamitin ang iyong mga natutunang kasanayan sa ${youthProfile.skills.slice(0, 2).join(" at ") || youthProfile.sectorPreference || "bokasyonal na larangan"} sa simula ng kurso.`,
-                                      `Tapusin ang pagsasanay sa ${featuredProg.provider || "TESDA GPSAT"} para makakuha ng pambansang sertipikasyon (NC II).`,
-                                      `Gamitin ang tulong ng SK sa Barangay ${youthProfile.barangay || "San Luis"} para makapasok sa trabaho at maabot ang pangarap na "${youthProfile.livelihoodGoal || "matatag na hanapbuhay"}".`
-                                    ])
-                                  : (liveGeminiBullets && liveGeminiBullets.length === 3
-                                    ? liveGeminiBullets
-                                    : [
-                                      `Leverage your background skills in ${youthProfile.skills.slice(0, 2).join(" & ") || youthProfile.sectorPreference || "vocational trades"} during early program modules.`,
-                                      `Successfully complete the certified NC II training at ${featuredProg.provider || "TESDA GPSAT"} to obtain nationwide accredited credentials.`,
-                                      `Utilize the support and referrals of the SK in Barangay ${youthProfile.barangay || "San Luis"} to enter employment and achieve your dream of "${youthProfile.livelihoodGoal || "sustainable livelihood"}".`
-                                    ])
-                                ).map((bullet, bIdx) => (
-                                  <li key={bIdx} className="flex items-start gap-2.5 bg-white/80 p-2.5 sm:p-3 rounded-xl border border-emerald-100/80 shadow-2xs">
-                                    <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center font-extrabold text-[10px] shrink-0 mt-0.5 shadow-2xs">
-                                      {bIdx + 1}
-                                    </span>
-                                    <span className="leading-relaxed text-emerald-950 font-semibold">{bullet}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </>
-                        )}
-
-                        {featuredProg.requiredDocuments && featuredProg.requiredDocuments.length > 0 && (
-                          <div className="bg-amber-50/70 p-3 sm:p-3.5 rounded-xl border border-amber-200">
-                            <p className="text-xs font-bold text-amber-950 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                              <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              Physical Requirements Needed Beforehand
-                            </p>
-                            <ul className="list-disc pl-4 text-xs text-amber-800 space-y-0.5 font-medium">
-                              {featuredProg.requiredDocuments.map((doc, dIdx) => (
-                                <li key={dIdx}>{doc}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-xs text-gray-500 pt-3 border-t border-gray-150">
-                          <div className="space-y-1">
-                            <p className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                              <strong>Duration:</strong> {featuredProg.trainingHours} hours
-                            </p>
-                            <p className="flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                              <strong>Location:</strong> {featuredProg.location}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 w-full sm:w-auto">
-                            <button
-                              onClick={() => setViewingProgramModal({ program: featuredProg, matchScore: featuredScore })}
-                              className="w-full sm:w-auto text-xs font-bold px-5 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                            >
-                              <Eye className="w-4 h-4 text-emerald-200" />
-                              {isEnded ? "View Details (Ended)" : "View Details & Apply"}
-                            </button>
-                          </div>
-                        </div>
-                        {overlapWarning && (
-                          <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
-                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                            <div className="space-y-0.5">
-                              <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
-                              <span>{overlapWarning}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()
-                )}
-
-                {/* Right Column: Livelihood Status & Skills (40% on lg) */}
-                <div className="lg:col-span-2 space-y-4 sm:space-y-6 flex flex-col">
-
-                  {/* My Livelihood Status Card */}
-                  <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-center mb-3 sm:mb-4 gap-2">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">My Livelihood Status</span>
-                        <span className="bg-amber-50 text-amber-700 text-xs font-black px-3 py-1 border border-amber-200 rounded-full uppercase inline-block">
-                          {youthProfile.currentStatus}
-                        </span>
-                      </div>
-
-                      <div className="bg-gray-50/80 rounded-xl p-3.5 space-y-1">
-                        <span className="text-[10px] sm:text-xs text-gray-400 font-semibold uppercase tracking-wider block">
-                          Current active objective
-                        </span>
-                        <p className="text-xs sm:text-sm font-bold text-[#D97706] leading-snug">
-                          {(() => {
-                            const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
-                            const enrolledApp = userApps.find(r => r.status === "Enrolled");
-                            if (enrolledApp) return `Enrolled in ${enrolledApp.programTitle}`;
-
-                            const pendingApp = userApps.find(r => r.status === "Pending");
-                            if (pendingApp) return `Application Pending: ${pendingApp.programTitle}`;
-
-                            const declinedApp = userApps.find(r => r.status === "Declined");
-                            if (declinedApp && userApps.length === 1) return "Revise Profile & Explore Opportunities";
-
-                            // If all matching qualifications are certified/completed
-                            if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
-                              return "Step 4: Livelihood Placement & Career Launch";
-                            }
-
-                            // If there is an active matching program
-                            if (activeMatchingPrograms.length > 0) {
-                              return `Apply Directly for ${activeMatchingPrograms[0].program.title}`;
-                            }
-
-                            // If all matching cohorts have concluded / off-cycle
-                            return "Awaiting Upcoming TESDA Training Schedules";
-                          })()}
+                        <h5 className="text-sm font-bold text-gray-800">No Training Programs Available</h5>
+                        <p className="text-xs text-gray-400 max-w-sm font-medium">
+                          TESDA programs will appear automatically here once published by training partners.
                         </p>
                       </div>
-                    </div>
-
-                    <div className="pt-4 mt-4 border-t border-gray-100">
-                      <button
-                        onClick={() => {
-                          if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) {
-                            setActiveTab(YouthScreen.PATHWAY);
-                          } else if (activeMatchingPrograms.length === 0 && (!referrals || !referrals.some(r => isSameYouth(r.youthName, youthProfile.name) && (r.status === "Pending" || r.status === "Enrolled")))) {
-                            setActiveTab(YouthScreen.MATCHES);
-                          } else {
-                            setActiveTab(YouthScreen.PATHWAY);
-                          }
-                        }}
-                        className="w-full bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white text-xs font-bold py-2.5 px-4 rounded-xl text-center transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
-                      >
-                        <span>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-10 sm:gap-14 lg:gap-16 py-6 px-2">
+                        {/* Donut Chart SVG */}
+                        <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
                           {(() => {
-                            const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
-                            if (userApps.some(r => r.status === "Enrolled")) return "Track Class Schedule & Details";
-                            if (userApps.some(r => r.status === "Pending")) return "Track Application Status";
-                            if (uncompletedScoredPrograms.length === 0 && completedScoredPrograms.length > 0) return "View Step 4 Career Plan";
-                            if (activeMatchingPrograms.length === 0) return "Browse Available Programs";
-                            return "Track Pathway Progress";
+                            const R = 48;
+                            const C = 2 * Math.PI * R; // ~301.59
+                            const total = matchDistribution.total || 1;
+                            const slices = [
+                              { label: "Highly recommended", count: matchDistribution.highlyRecommended, color: "#176b4d" },
+                              { label: "Recommended", count: matchDistribution.recommended, color: "#79bd98" },
+                              { label: "Other matches", count: matchDistribution.otherMatches, color: "#f3b83f" },
+                            ];
+                            let accumulated = 0;
+
+                            return (
+                              <svg className="w-44 h-44 -rotate-90 transform" viewBox="0 0 130 130">
+                                {/* Base track ring */}
+                                <circle cx="65" cy="65" r={R} fill="none" stroke="#F1F5F9" strokeWidth="18" />
+                                {matchDistribution.total > 0 && slices.map((s, idx) => {
+                                  if (s.count <= 0) return null;
+                                  // Animate segment arc from 0 to full length on load using slower donut animation
+                                  const fullSliceLen = (s.count / total) * C;
+                                  const sliceLen = fullSliceLen * donutAnimationProgress;
+                                  const strokeDash = `${sliceLen} ${C - sliceLen}`;
+                                  const offset = -accumulated;
+                                  accumulated += sliceLen;
+                                  const isHovered = hoveredSlice === idx;
+
+                                  return (
+                                    <circle
+                                      key={idx}
+                                      cx="65"
+                                      cy="65"
+                                      r={R}
+                                      fill="none"
+                                      stroke={s.color}
+                                      strokeWidth={isHovered ? 21 : 18}
+                                      strokeDasharray={strokeDash}
+                                      strokeDashoffset={offset}
+                                      onMouseEnter={() => setHoveredSlice(idx)}
+                                      onMouseLeave={() => setHoveredSlice(null)}
+                                      className="cursor-pointer transition-[stroke-width] duration-150"
+                                    />
+                                  );
+                                })}
+                              </svg>
+                            );
                           })()}
-                        </span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* My Skills Segment */}
-                  <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between flex-1">
-                    <div>
-                      <div className="flex justify-between items-center mb-3 sm:mb-4 gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">My Registered Skills</span>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                            {youthProfile.skills?.length || 0}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => {
-                            if (isUnverified) {
-                              addToast("Cannot add skills while account is awaiting SK verification", "error");
-                              return;
-                            }
-                            setShowAddSkillModal(true);
-                          }}
-                          disabled={isUnverified}
-                          className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all ${isUnverified
-                            ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
-                            : "border-amber-200 text-[#D97706] hover:bg-amber-50 active:scale-95 cursor-pointer shadow-2xs"
-                            }`}
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add Skill
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        {youthProfile.skills && youthProfile.skills.length > 0 ? (
-                          youthProfile.skills.map((s) => (
-                            <span key={s} className="bg-amber-50 text-amber-900 text-xs font-semibold px-2.5 sm:px-3 py-1 rounded-xl border border-amber-200/80 flex items-center gap-1.5 shadow-2xs">
-                              <span>{s}</span>
-                              <button
-                                onClick={() => handleRemoveSkillLocal(s)}
-                                disabled={isUnverified}
-                                title={`Remove ${s}`}
-                                className={`w-4 h-4 flex items-center justify-center rounded-full text-xs font-black transition-colors ${isUnverified ? "text-amber-400 cursor-not-allowed" : "text-amber-700 hover:bg-red-100 hover:text-red-700 cursor-pointer"
-                                  }`}
+                          {/* Center Text inside Donut: Original count at rest, only percentage on hover with lessened font size */}
+                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                            {hoveredSlice !== null ? (
+                              <span
+                                className="text-lg sm:text-xl font-bold leading-none animate-in fade-in zoom-in-95 duration-150"
+                                style={{
+                                  color: [
+                                    "#176b4d",
+                                    "#79bd98",
+                                    "#f3b83f"
+                                  ][hoveredSlice]
+                                }}
                               >
-                                &times;
-                              </button>
-                            </span>
-                          ))
-                        ) : (
-                          <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-center w-full">
-                            <p className="text-xs text-gray-400 font-medium">No skills added yet.</p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">Tap &ldquo;Add Skill&rdquo; to register your vocational competencies.</p>
+                                {[
+                                  matchDistribution.pctHigh,
+                                  matchDistribution.pctRec,
+                                  matchDistribution.pctOther
+                                ][hoveredSlice]}%
+                              </span>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center animate-in fade-in duration-150">
+                                <span className="text-3xl sm:text-4xl font-black text-gray-900 leading-none">
+                                  {matchDistribution.total}
+                                </span>
+                                <span className="text-xs text-gray-500 font-normal mt-1.5">
+                                  Total records
+                                </span>
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
+
+                        {/* Clean Legend matching user screenshot with wide hover pill and staggered on-load animation */}
+                        <div className="w-full sm:w-auto min-w-[220px] sm:min-w-[250px] space-y-3">
+                          {[
+                            { label: "Highly recommended", count: matchDistribution.highlyRecommended, color: "#176b4d" },
+                            { label: "Recommended", count: matchDistribution.recommended, color: "#79bd98" },
+                            { label: "Other matches", count: matchDistribution.otherMatches, color: "#f3b83f" },
+                          ].map((s, idx) => {
+                            const isHovered = hoveredSlice === idx;
+                            return (
+                              <div
+                                key={idx}
+                                onMouseEnter={() => setHoveredSlice(idx)}
+                                onMouseLeave={() => setHoveredSlice(null)}
+                                style={{
+                                  animationDelay: `${idx * 120}ms`,
+                                  animationFillMode: "both"
+                                }}
+                                className={`animate-legend-pill flex items-center justify-between gap-6 sm:gap-10 py-2.5 px-6 -mx-4 rounded-full transition-all cursor-pointer ${
+                                  isHovered
+                                    ? "bg-gray-100 shadow-2xs scale-[1.02]"
+                                    : "hover:bg-gray-50/70"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className={`w-3.5 h-3.5 rounded-[3px] shrink-0 transition-transform ${isHovered ? "scale-125 shadow-xs" : ""}`}
+                                    style={{ backgroundColor: s.color }}
+                                  />
+                                  <span className={`text-sm ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-800"}`}>
+                                    {s.label}
+                                  </span>
+                                </div>
+                                <span className={`text-sm ${isHovered ? "font-extrabold text-gray-950 scale-110" : "font-semibold text-gray-900"}`}>
+                                  {s.count}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: 40% width — Announcements */}
+                <div className="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between" id="dashboard-announcements-container">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div>
+                        <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Announcements</h4>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">Latest community bulletins and training updates</p>
+                      </div>
+                      {localAnnouncements.length > 0 && (
+                        <span className="text-[10px] font-black text-[#D97706] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          {localAnnouncements.length}
+                        </span>
+                      )}
                     </div>
 
-                    <p className="text-[11px] text-gray-400 mt-4 sm:mt-6 italic leading-relaxed">
-                      Tip: Adding more technical or vocational skills updates your compatibility index in real-time.
-                    </p>
+                    {localAnnouncements.length === 0 ? (
+                      <div className="py-10 text-center flex flex-col items-center justify-center space-y-2">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                          <Megaphone className="w-6 h-6" />
+                        </div>
+                        <h5 className="text-sm font-bold text-gray-800">No Active Announcements</h5>
+                        <p className="text-xs text-gray-400 max-w-sm font-medium">
+                          There are currently no active bulletins published for Barangay {youthProfile.barangay || "San Luis"}.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                        {localAnnouncements.map((ann) => (
+                          <div key={ann.id} className="p-3 rounded-xl bg-gray-50/80 border border-gray-150/80 hover:bg-gray-50 transition-colors space-y-1.5">
+                            <div className="flex items-center justify-between gap-1 text-[10px] flex-wrap">
+                              <span className="font-extrabold text-[#D97706] uppercase tracking-wide bg-amber-100/60 px-1.5 py-0.5 rounded border border-amber-200">
+                                {ann.category}
+                              </span>
+                              <span className="text-gray-400 font-medium flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-gray-400" />
+                                {ann.datePosted}
+                              </span>
+                            </div>
+                            <h5 className="font-bold text-gray-900 text-xs leading-snug line-clamp-1">{ann.title}</h5>
+                            <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2">{ann.body}</p>
+                            {ann.eventDate && (
+                              <p className="text-[10px] font-bold text-[#0A6B43] flex items-center gap-1 pt-0.5">
+                                <Calendar className="w-3 h-3 text-[#0A6B43]" />
+                                Event: {ann.eventDate}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-
                 </div>
 
               </div>
 
-              {/* Barangay Announcements Segment */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Sangguniang Kabataan Announcements</span>
-                  {localAnnouncements.length > 0 && (
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
-                      {localAnnouncements.length} {localAnnouncements.length === 1 ? "Update" : "Updates"}
-                    </span>
-                  )}
+              {/* ROW 3 — RECOMMENDED PROGRAMS (50%) AND REGISTERED SKILLS (50%) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-stretch">
+                
+                {/* Left: 50% width — Recommended Programs Horizontal Bar Graph */}
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                      <div>
+                        <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Recommended Programs</h4>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">Top vocational courses curated for your profile</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                        className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span>View All</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {(() => {
+                      const candidates = uncompletedScoredPrograms.filter(p => p.matchScore > 0);
+                      const topMatches = (candidates.length > 0 ? candidates : scoredPrograms.filter(p => p.matchScore > 0))
+                        .slice(0, 3);
+
+                      if (topMatches.length === 0) {
+                        return (
+                          <div className="py-10 text-center flex flex-col items-center justify-center space-y-2">
+                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                              <Target className="w-6 h-6" />
+                            </div>
+                            <h5 className="text-sm font-bold text-gray-800">No Training Matches Found Yet</h5>
+                            <p className="text-xs text-gray-400 max-w-sm font-medium">
+                              Add skills or update your sector preferences in your profile to discover matched courses.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-4 py-2 animate-in fade-in duration-500">
+                          {topMatches.map(({ program: prog, matchScore: score }) => {
+                            const calculatedScore = Math.round(score * barAnimationProgress);
+                            const animatedBarWidth = Math.min(100, Math.max(4, score * barAnimationProgress));
+
+                            // Bar color based on match criteria: Highly recommended (>=75), Recommended (50-74), Other (<50)
+                            // On hover: turns to much darker green (#052e1d)
+                            const barColorClasses = score >= 75
+                              ? "bg-[#176b4d] group-hover:bg-[#052e1d]"
+                              : score >= 50
+                                ? "bg-[#79bd98] group-hover:bg-[#052e1d]"
+                                : "bg-[#f3b83f] group-hover:bg-[#052e1d]";
+
+                            return (
+                              <div
+                                key={prog.id}
+                                onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
+                                className="group cursor-pointer py-2 -mx-2 px-2.5 rounded-xl transition-all hover:bg-gray-50/70"
+                              >
+                                <div className="grid grid-cols-[135px_1fr_40px] sm:grid-cols-[190px_1fr_48px] items-center gap-3 sm:gap-6">
+                                  {/* Left: Program Title - turns green ONLY when hovered */}
+                                  <span
+                                    className="text-xs sm:text-sm font-semibold text-gray-900 group-hover:text-[#0A6B43] transition-colors break-words leading-snug pr-2"
+                                    title={prog.title}
+                                  >
+                                    {prog.title}
+                                  </span>
+
+                                  {/* Center: Criteria-based Progress Bar - turns to much darker green on hover */}
+                                  <div className="w-full h-2 sm:h-2.5 bg-gray-150 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-colors duration-200 ${barColorClasses}`}
+                                      style={{ width: `${animatedBarWidth}%` }}
+                                    />
+                                  </div>
+
+                                  {/* Right: Calculated Percentage Number Counting Up */}
+                                  <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-right shrink-0">
+                                    {calculatedScore}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
 
-                {localAnnouncements.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_6px_25px_rgb(0,0,0,0.05)] text-center flex flex-col items-center justify-center space-y-2">
-                    <div className="w-12 h-12 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-center text-[#D97706]">
-                      <Megaphone className="w-6 h-6" />
-                    </div>
-                    <h5 className="font-extrabold text-gray-800 text-sm">No Active SK Announcements</h5>
-                    <p className="text-xs text-gray-500 max-w-md font-medium leading-relaxed">
-                      There are currently no published announcements from Sangguniang Kabataan for Barangay {youthProfile.barangay}. Official youth updates and community notices will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                    {localAnnouncements.map((ann) => (
-                      <div key={ann.id} className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_6px_25px_rgb(0,0,0,0.05)] flex flex-col justify-between">
-                        <div>
-                          <div className="flex justify-between text-[10px] text-gray-400 mb-2.5 items-center flex-wrap gap-1.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-extrabold uppercase tracking-wide text-[#D97706] bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                                {ann.category}
-                              </span>
-                              {ann.eventDate && (
-                                <span className="font-bold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
-                                  <Calendar className="w-3 h-3 text-[#0A6B43]" />
-                                  {ann.eventDate}
-                                </span>
-                              )}
-                            </div>
-                            <span className="font-medium">{ann.datePosted}</span>
-                          </div>
-                          <h5 className="font-bold text-gray-900 text-sm sm:text-base leading-snug">{ann.title}</h5>
-                          <p className="text-xs text-gray-600 mt-2 leading-relaxed whitespace-pre-line">{ann.body}</p>
-
-                          {(ann.venue || ann.contactPerson) && (
-                            <div className="bg-emerald-50/50 p-2.5 sm:p-3 rounded-xl border border-emerald-100/60 mt-3 space-y-1.5 text-xs">
-                              {ann.venue && (
-                                <div className="flex items-start sm:items-center gap-1.5 text-gray-700 font-medium">
-                                  <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5 sm:mt-0" />
-                                  <span>Venue: <strong className="text-gray-900">{ann.venue}</strong></span>
-                                </div>
-                              )}
-                              {ann.contactPerson && (
-                                <div className="flex items-start sm:items-center gap-1.5 text-gray-700 font-medium">
-                                  <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5 sm:mt-0" />
-                                  <span>Contact: <strong className="text-gray-900">{ann.contactPerson}</strong></span>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                {/* Right: 50% width — Registered Skills */}
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                  <div className="flex flex-col h-full">
+                    {/* Header with number counter beside header title */}
+                    <div className="flex justify-between items-center pb-3 border-b border-gray-100 mb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Registered Skills</h4>
+                          <span className="min-w-[22px] h-5 px-1.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-xs font-black flex items-center justify-center leading-none">
+                            {youthProfile.skills?.length || 0}
+                          </span>
                         </div>
-                        <div className="text-[10px] text-gray-400 mt-4 pt-2.5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                          <span>Target Audience: <span className="font-semibold text-gray-700">{ann.audience}</span></span>
-                          {ann.barangay && (
-                            <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 w-fit">
-                              Barangay {ann.barangay.replace(/^Barangay\s+/i, "")}
-                            </span>
-                          )}
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">Your recorded technical abilities and qualifications</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (isUnverified) {
+                            addToast("Cannot add skills while account is awaiting SK verification", "error");
+                            return;
+                          }
+                          setShowAddSkillModal(true);
+                        }}
+                        disabled={isUnverified}
+                        className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all ${
+                          isUnverified
+                            ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
+                            : "border-emerald-200 text-[#0A6B43] bg-emerald-50/60 hover:bg-[#0A6B43] hover:text-white active:scale-95 cursor-pointer shadow-2xs"
+                        }`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Skill
+                      </button>
+                    </div>
+
+                    {/* Skills Badges Container - Pill size with staggered entrance animation */}
+                    <div className="flex flex-wrap gap-2 content-start flex-1 min-h-[90px]">
+                      {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                        youthProfile.skills.map((s, idx) => (
+                          <span
+                            key={s}
+                            style={{
+                              animationDelay: `${idx * 160}ms`,
+                              animationFillMode: "both"
+                            }}
+                            className="animate-pill-pop bg-amber-50/90 text-amber-950 text-xs font-semibold px-3.5 py-1 rounded-full border border-amber-200/90 flex items-center gap-1.5 shadow-2xs hover:bg-amber-100/70 hover:scale-105 transition-all"
+                          >
+                            <span>{s}</span>
+                            <button
+                              onClick={() => handleRemoveSkillLocal(s)}
+                              disabled={isUnverified}
+                              title={`Remove ${s}`}
+                              className={`w-3.5 h-3.5 flex items-center justify-center rounded-full text-xs font-black transition-colors ${
+                                isUnverified ? "text-amber-400 cursor-not-allowed" : "text-amber-700 hover:bg-red-100 hover:text-red-700 cursor-pointer"
+                              }`}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <div className="py-8 text-center flex flex-col items-center justify-center space-y-2 w-full">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                            <Wrench className="w-6 h-6" />
+                          </div>
+                          <h5 className="text-sm font-bold text-gray-800">No Skills Added Yet</h5>
+                          <p className="text-xs text-gray-400 max-w-sm font-medium">
+                            Tap &ldquo;Add Skill&rdquo; to register your vocational competencies.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tip & Guidance - Positioned to the bottom with line break */}
+                    <div className="mt-auto pt-3 border-t border-gray-100">
+                      <p className="text-[11px] text-gray-400 italic">
+                        Tip: Registering skills that align with TESDA standards increases your match accuracy automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ROW 4 — LIVELIHOOD PATHWAY (60%) AND QUICK ACTIONS (40%) */}
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 sm:gap-6 items-stretch">
+                
+                {/* Left: 60% width — My Livelihood Pathway */}
+                {(() => {
+                  const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail)) || [];
+                  const enrolledApp = userApps.find(r => r.status === "Enrolled");
+                  const pendingApp = userApps.find(r => r.status === "Pending");
+                  const archivedApp = userApps.find(r => r.status === "Archived");
+
+                  const steps = [
+                    {
+                      num: 1,
+                      label: "Register Profile",
+                      status: "done" as const,
+                    },
+                    {
+                      num: 2,
+                      label: "Apply / Enroll",
+                      status: (enrolledApp || archivedApp) ? ("done" as const) : ("current" as const),
+                    },
+                    {
+                      num: 3,
+                      label: "Training Course",
+                      status: archivedApp ? ("done" as const) : enrolledApp ? ("current" as const) : ("not_done" as const),
+                    },
+                    {
+                      num: 4,
+                      label: "Placement",
+                      status: archivedApp ? ("current" as const) : ("not_done" as const),
+                    }
+                  ];
+
+                  return (
+                    <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                      <div className="space-y-6">
+                        {/* Header */}
+                        <div className="pb-3 border-b border-gray-100">
+                          <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">My Livelihood Pathway</h4>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">Step-by-step roadmap from skills training to career placement</p>
+                        </div>
+
+                        {/* Modern Stepped Progress Stepper (Centered Layout) */}
+                        <div className="py-5 px-1 sm:px-2">
+                          <div className="flex w-full items-start">
+                            {steps.map((st, idx) => {
+                              const isDone = st.status === "done";
+                              const isCurrent = st.status === "current";
+
+                              // Connector state to next step
+                              const nextStep = steps[idx + 1];
+                              const connectorWidth = isDone && nextStep?.status === "done"
+                                ? "100%"
+                                : isDone && nextStep?.status === "current"
+                                ? "100%"
+                                : isCurrent
+                                ? "50%"
+                                : "0%";
+
+                              return (
+                                <div
+                                  key={st.num}
+                                  className="flex-1 relative flex flex-col items-center text-center px-1 sm:px-2 min-w-0"
+                                >
+                                  {/* Connecting Gray Line with Green Progress Fill (flows after circles & text) */}
+                                  {idx < steps.length - 1 && (
+                                    <div className="absolute top-4 sm:top-4.5 -translate-y-1/2 left-1/2 w-full h-[2.5px] sm:h-[3px] bg-gray-200 rounded-full z-0 overflow-hidden">
+                                      <div
+                                        className={`h-full bg-[#0A6B43] rounded-full ${
+                                          connectorWidth === "100%"
+                                            ? "animate-pathway-line-full"
+                                            : connectorWidth === "50%"
+                                            ? "animate-pathway-line-half"
+                                            : ""
+                                        }`}
+                                        style={{
+                                          width: connectorWidth === "0%" ? "0%" : undefined,
+                                          animationDelay: `${1900 + idx * 1000}ms`,
+                                          animationFillMode: "both"
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Node Circle Header - appears first */}
+                                  <div
+                                    style={{
+                                      animationDelay: `${200 + idx * 180}ms`,
+                                      animationFillMode: "both"
+                                    }}
+                                    className="animate-pathway-circle relative z-10 flex items-center justify-center"
+                                  >
+                                    {isDone ? (
+                                      /* Step Completed: Solid SiKap Green with White Checkmark */
+                                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform hover:scale-105">
+                                        <Check className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[3]" />
+                                      </div>
+                                    ) : isCurrent ? (
+                                      /* Step Current / In Progress: Concentric Bullseye Circle */
+                                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-[2.5px] border-[#0A6B43] p-1 flex items-center justify-center bg-white shadow-xs transition-transform hover:scale-105">
+                                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#0A6B43] animate-pulse" />
+                                      </div>
+                                    ) : (
+                                      /* Step Pending: Clean Gray Circle */
+                                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-200 border border-gray-300/70 flex items-center justify-center transition-transform hover:scale-105" />
+                                    )}
+                                  </div>
+
+                                  {/* Centered Text Content - appears after circles */}
+                                  <div
+                                    style={{
+                                      animationDelay: `${1100 + idx * 180}ms`,
+                                      animationFillMode: "both"
+                                    }}
+                                    className="animate-pathway-text pt-3 sm:pt-3.5 space-y-0.5 w-full flex flex-col items-center text-center">
+                                    <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+                                      STEP {st.num}
+                                    </span>
+                                    <h5 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-snug">
+                                      {st.label}
+                                    </h5>
+                                    <p
+                                      className={`text-[10px] sm:text-[11px] font-semibold pt-0.5 ${
+                                        isDone
+                                          ? "text-[#0A6B43]"
+                                          : isCurrent
+                                          ? "text-[#0A6B43]"
+                                          : "text-gray-400 font-medium"
+                                      }`}
+                                    >
+                                      {isDone ? "Completed" : isCurrent ? "In Progress" : "Pending"}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Right: 40% width — Quick Actions */}
+                <div className="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="pb-3 border-b border-gray-100">
+                      <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Quick Actions</h4>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Fast shortcuts to explore programs, matches, and profile settings</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {[
+                        {
+                          label: "Explore Training Programs",
+                          onClick: () => setActiveTab(YouthScreen.MATCHES),
+                        },
+                        {
+                          label: "View My Matches",
+                          onClick: () => setActiveTab(YouthScreen.MATCHES),
+                        },
+                        {
+                          label: "Update My Profile",
+                          onClick: () => {
+                            setActiveTab(YouthScreen.PROFILE);
+                            setProfileActiveTab("profile");
+                          },
+                        },
+                        {
+                          label: "View Announcements",
+                          onClick: () => {
+                            const el = document.getElementById("dashboard-announcements-container");
+                            if (el) {
+                              el.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }
+                          },
+                        },
+                      ].map((action, idx) => (
+                        <button
+                          key={action.label}
+                          onClick={action.onClick}
+                          style={{
+                            animationDelay: `${200 + idx * 200}ms`,
+                            animationFillMode: "both",
+                          }}
+                          className="animate-quick-action w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                        >
+                          <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] transition-colors">
+                            {action.label}
+                          </span>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                )}
+                </div>
+
               </div>
 
             </div>
@@ -2904,14 +2919,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
               </div>
 
-              {programs.length === 0 ? (
-                <div className="bg-white rounded-2xl p-10 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-center flex flex-col items-center justify-center space-y-3">
-                  <div className="w-12 h-12 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
-                    <Target className="w-6 h-6" />
-                  </div>
-                  <h4 className="font-extrabold text-gray-800 text-base">No Matching TESDA Programs Available Yet</h4>
-                  <p className="text-xs text-gray-500 max-w-md font-medium leading-relaxed">
-                    There are currently no active training programs published in the system. As soon as TESDA partners publish new programs, the Content-Based Filtering (CBF) system will automatically analyze your profile and display your personalized matches here.
+              {programs.length === 0 || matchesTabPrograms.length === 0 ? (
+                <div className="bg-white rounded-2xl p-10 sm:p-14 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 text-center flex flex-col items-center justify-center space-y-2">
+                  <GraduationCap className="w-12 h-12 text-gray-400 mb-1" strokeWidth={1.75} />
+                  <h4 className="font-extrabold text-gray-900 text-[18px] tracking-tight">More Opportunities Coming Soon</h4>
+                  <p className="text-[14px] text-gray-500 max-w-md font-medium leading-relaxed">
+                    Check back soon for training programs that match your skills and interests.
                   </p>
                 </div>
               ) : (
@@ -3169,23 +3182,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </div>
 
                         {(() => {
-                          const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name)) || [];
+                          const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail)) || [];
                           if (userApps.length === 0) {
                             return (
-                              <div className="bg-white p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-center space-y-4">
-                                <div className="max-w-md mx-auto py-8">
-                                  <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3 animate-bounce" />
-                                  <h4 className="font-extrabold text-gray-800 text-sm sm:text-base">No Active Pathways Yet</h4>
-                                  <p className="text-xs text-gray-500 mt-2 leading-relaxed font-medium">
-                                    You haven't applied for any programs yet. Browse our list of curated skills programs matching your profile, apply directly, and your custom tracking pathway will appear here.
-                                  </p>
-                                  <button
-                                    onClick={() => setActiveTab(YouthScreen.MATCHES)}
-                                    className="mt-5 text-xs font-extrabold px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-lg transition-colors shadow-xs"
-                                  >
-                                    Discover Matched Programs
-                                  </button>
-                                </div>
+                              <div className="bg-white rounded-2xl p-10 sm:p-14 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 text-center flex flex-col items-center justify-center space-y-2">
+                                <Compass className="w-12 h-12 text-gray-400 mb-1" strokeWidth={1.75} />
+                                <h4 className="font-extrabold text-gray-900 text-[18px] tracking-tight">No Active Pathways Yet</h4>
+                                <p className="text-[14px] text-gray-500 max-w-lg font-medium leading-relaxed">
+                                  Apply to a training program to track your applications and monitor your progress toward your skills development goals.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                                  className="group mt-3 text-xs sm:text-sm font-extrabold px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl transition-all duration-200 shadow-xs hover:shadow-md cursor-pointer inline-flex items-center gap-2"
+                                >
+                                  <span>Discover Matched Programs</span>
+                                  <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                                </button>
                               </div>
                             );
                           }
@@ -3820,13 +3833,53 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 );
               }) ()}
 
-{/* Goals segment */ }
-<div className="bg-white p-6 border border-gray-150 rounded-2xl shadow-xs">
-  <span className="text-xs uppercase font-bold text-gray-400 tracking-wider">Livelihood Landmark Goal</span>
-  <p className="text-sm font-semibold text-emerald-950 italic mt-2 bg-emerald-50/50 p-4 rounded-xl leading-relaxed">
-    "{youthProfile.livelihoodGoal}"
-  </p>
-</div>
+              {/* Goals segment - Livelihood Goal */}
+              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">
+                    Livelihood Goal
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(YouthScreen.PROFILE)}
+                    className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200/80 px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Update in Profile</span>
+                  </button>
+                </div>
+
+                {/* Content */}
+                {(() => {
+                  const rawGoal = youthProfile.goalRaw || youthProfile.livelihoodGoal || "";
+                  const isPlaceholder = !rawGoal || rawGoal.toLowerCase().includes("configure");
+
+                  return (
+                    <div className="p-4 sm:p-5 rounded-xl bg-gray-50/70 border border-gray-100 space-y-1.5 transition-all">
+                      <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                        Current Objective
+                      </div>
+                      <p className="text-sm sm:text-base font-bold text-gray-900 leading-relaxed">
+                        {isPlaceholder ? (
+                          <span className="text-gray-400 font-medium italic">
+                            &ldquo;Configure your career goals&rdquo;
+                          </span>
+                        ) : (
+                          <span>&ldquo;{rawGoal}&rdquo;</span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Footer */}
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                    Your training matches are regularly updated based on how well they fit your skills, interests, and goals.
+                  </p>
+                </div>
+              </div>
             </div >
           )}
 
@@ -5441,65 +5494,123 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
         </div >
 
-  {/* Floating Add Skill Modal */ }
-{
-  showAddSkillModal && (
+  {/* Floating Add Skill Modal */}
+  {showAddSkillModal && (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
       onClick={(e) => {
-        if (e.target === e.currentTarget) setShowAddSkillModal(false);
+        if (e.target === e.currentTarget) {
+          setNewSkillInput("");
+          setShowAddSkillModal(false);
+        }
       }}
     >
-      <div className="bg-white w-full max-w-md rounded-2xl p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 ease-out border border-emerald-100 shadow-2xl">
-        <div className="flex justify-between items-center pb-2.5 border-b border-gray-150">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center font-bold">
-              <Plus className="w-4 h-4" />
-            </div>
-            <h4 className="font-bold text-gray-900 text-base">Add Competency Skill</h4>
-          </div>
+      <div className="bg-white w-full max-w-md rounded-2xl sm:rounded-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)]">
+        {/* Green Card Header */}
+        <div className="bg-[#0A6B43] px-5 sm:px-6 py-4 sm:py-4.5 flex justify-between items-center text-white">
+          <h4 className="font-extrabold text-white text-xl sm:text-[22px] tracking-tight">Add Skill</h4>
           <button
-            onClick={() => setShowAddSkillModal(false)}
-            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+            type="button"
+            onClick={() => {
+              setNewSkillInput("");
+              setShowAddSkillModal(false);
+            }}
+            className="text-white/80 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             title="Close modal"
           >
-            <X className="w-4.5 h-4.5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleAddSkillSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase block">Skill or Trade Name</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Baking, Basic Computing, Carpentry"
-              value={newSkillInput}
-              onChange={(e) => setNewSkillInput(e.target.value)}
-              className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-            />
-            <p className="text-xs text-gray-400">Enter a technical skill, vocational trade, or practical knowledge.</p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-gray-150">
-            <button
-              type="button"
-              onClick={() => setShowAddSkillModal(false)}
-              className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-bold rounded-xl transition-colors cursor-pointer text-center"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="w-full sm:w-auto bg-[#D97706] hover:bg-amber-700 active:scale-95 text-white text-sm font-bold py-2.5 px-5 rounded-xl shadow-xs transition-colors cursor-pointer text-center"
-            >
-              Confirm & Refresh Matches
-            </button>
-          </div>
-        </form>
+        {/* Modal Body / Form */}
+        <div className="p-5 sm:p-6 pb-4 sm:pb-5">
+          <form onSubmit={handleAddSkillSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                Skill or Competency Name
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="e.g., Bread & Pastry, Basic Computing, Carpentry..."
+                  value={newSkillInput}
+                  onChange={(e) => setNewSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setNewSkillInput("");
+                      setShowAddSkillModal(false);
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:border-[#0A6B43] focus:ring-2 focus:ring-[#0A6B43]/15 transition-all"
+                />
+                {newSkillInput && (
+                  <button
+                    type="button"
+                    onClick={() => setNewSkillInput("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 rounded-full transition-colors cursor-pointer"
+                    title="Clear input"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Suggestions */}
+            <div className="space-y-1.5 pt-0.5">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                Quick suggestions
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Basic Computer",
+                  "Bread & Pastry",
+                  "Cookery",
+                  "Electrical Installation",
+                  "Automotive Servicing",
+                  "Welding"
+                ]
+                  .filter((sug) => !youthProfile.skills?.some(s => s.toLowerCase() === sug.toLowerCase()))
+                  .slice(0, 6)
+                  .map((sug) => {
+                    const isSelected = newSkillInput.trim().toLowerCase() === sug.toLowerCase();
+                    return (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setNewSkillInput(sug)}
+                        className={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-emerald-50 text-[#0A6B43] border-emerald-300 font-bold shadow-2xs"
+                            : "bg-gray-50/80 hover:bg-emerald-50/60 hover:text-[#0A6B43] hover:border-emerald-200 text-gray-600 border-gray-200/80 font-medium"
+                        }`}
+                      >
+                        + {sug}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Compact Footer without Cancel button */}
+            <div className="flex items-center justify-end pt-2.5 border-t border-gray-100">
+              <button
+                type="submit"
+                disabled={!newSkillInput.trim()}
+                className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Save Skill</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
-  )
-}
+  )}
 
 {/* Complete Program Details Modal Popup */ }
 {

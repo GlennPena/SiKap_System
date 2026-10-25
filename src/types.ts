@@ -372,6 +372,8 @@ export interface ProgramApplication {
   id: string;
   youthId?: string;
   youthName: string;
+  youthEmail?: string;
+  email?: string;
   purok: string;
   barangay: string;
   programTitle: string;

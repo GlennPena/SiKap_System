@@ -398,7 +398,9 @@ export default function App() {
   // Find dynamic logged-in youth's profile for the Youth Portal view
   const defaultEmptyYouthProfile: any = {
     id: "empty-youth-profile",
+    userId: (session?.user as any)?.id || "",
     name: session?.user?.name || "Youth Member",
+    email: session?.user?.email || "",
     age: 18,
     purok: "Purok 1",
     barangay: (session?.user as any)?.barangay || "",
@@ -419,14 +421,33 @@ export default function App() {
   };
 
   const activeYouthProfile = useMemo(() => {
-    const found = youthProfiles.find(y =>
-      (loggedInYouthId && y.id === loggedInYouthId) ||
-      (y.userId && (session?.user as any)?.id && y.userId === (session?.user as any)?.id) ||
-      (session?.user?.email && y.email && y.email.toLowerCase().trim() === session.user.email.toLowerCase().trim()) ||
-      (session?.user?.name && y.name && y.name.toLowerCase().trim() === session.user.name.toLowerCase().trim())
-    );
+    const sessionEmail = session?.user?.email?.toLowerCase().trim();
+    const sessionUserId = (session?.user as any)?.id;
 
-    if (found) return found;
+    // 1. Highest priority: Match by unique authenticated user ID
+    if (sessionUserId) {
+      const byUserId = youthProfiles.find(y => y.userId && y.userId === sessionUserId);
+      if (byUserId) return byUserId;
+    }
+
+    // 2. High priority: Match by unique email address
+    if (sessionEmail) {
+      const byEmail = youthProfiles.find(y => y.email && y.email.toLowerCase().trim() === sessionEmail);
+      if (byEmail) return byEmail;
+    }
+
+    // 3. Match by explicit loggedInYouthId if specified
+    if (loggedInYouthId) {
+      const byId = youthProfiles.find(y => y.id === loggedInYouthId);
+      if (byId) return byId;
+    }
+
+    // 4. Fallback ONLY if session has NO email and NO userId (mock testing without credentials):
+    if (!sessionEmail && !sessionUserId && session?.user?.name) {
+      const sessionName = session.user.name.toLowerCase().trim();
+      const byName = youthProfiles.find(y => y.name && y.name.toLowerCase().trim() === sessionName);
+      if (byName) return byName;
+    }
 
     if (!session?.user && youthProfiles.length > 0) {
       return youthProfiles[0];

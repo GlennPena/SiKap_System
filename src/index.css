@@ -1,5 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/* Leaflet DivIcon clean reset */
+.custom-barangay-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
@@ -387,4 +394,142 @@ button:focus:not(:focus-visible) {
 .animate-badge-bounce {
   animation: badge-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+
+/* ============================================================ */
+/* DASHBOARD ON-LOAD ANIMATIONS (PILLS & LIVELIHOOD PATHWAY)   */
+/* ============================================================ */
+@keyframes pill-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.88);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-pill-pop {
+  animation: pill-pop-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes legend-pill-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-legend-pill {
+  animation: legend-pill-slide 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes step-node-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.65) translateY(12px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-step-node {
+  animation: step-node-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Quick Actions Staggered Entrance */
+@keyframes quick-action-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.005);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-quick-action {
+  animation: quick-action-slide-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Livelihood Pathway Choreographed Animations */
+@keyframes pathway-circle-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) translateY(10px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.1) translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-pathway-circle {
+  animation: pathway-circle-pop 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pathway-text-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-pathway-text {
+  animation: pathway-text-slide-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pathway-line-fill-full {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes pathway-line-fill-half {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 50%;
+  }
+}
+
+.animate-pathway-line-full {
+  animation: pathway-line-fill-full 1.0s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+.animate-pathway-line-half {
+  animation: pathway-line-fill-half 0.7s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
 

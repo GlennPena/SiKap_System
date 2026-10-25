@@ -1592,10 +1592,10 @@ Please sign in at ${window.location.origin} and change your password immediately
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <SikapLogo size={28} logoSize={30} textSize={22} variant="white" showText={true} />
-              <div className="border-l border-white/20 pl-2 min-w-0 shrink-0">
-                <span className="text-xs font-black text-amber-400 uppercase tracking-widest block leading-none">Admin</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
+              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
+                <span className="text-[13px] sm:text-sm font-black text-amber-400 uppercase tracking-wider block leading-tight">Admin</span>
               </div>
             </div>
 
@@ -1840,10 +1840,13 @@ Please sign in at ${window.location.origin} and change your password immediately
                   : "SA"}
               </div>
 
-              {/* Complete Name without truncation or hover effect */}
+              {/* Complete Name and Email without hover effect */}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white leading-snug break-words">
                   {currentUser?.name || "Super Administrator"}
+                </p>
+                <p className="text-xs text-gray-400 truncate leading-tight mt-0.5" title={currentUser?.email || "bitwise6767@gmail.com"}>
+                  {currentUser?.email || "bitwise6767@gmail.com"}
                 </p>
               </div>
             </div>

@@ -8,10 +8,13 @@ export const dynamic = "force-dynamic";
 
 function mapToPipelineItem(r: any) {
   const formattedDate = r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const youthEmail = r.youth?.user?.email || r.youth?.email || "";
   return {
     id: r.id,
     youthId: r.youthId || r.youth?.id || "",
     youthName: r.youth?.name || "Youth Member",
+    youthEmail: youthEmail,
+    email: youthEmail,
     purok: r.youth?.purok || "",
     barangay: r.youth?.barangay?.name || "",
     programTitle: r.program?.title || "",
@@ -50,12 +53,17 @@ export async function GET(request: Request) {
     let whereClause: any = {};
 
     if (roleStr === "KK_YOUTH") {
-       whereClause.youth = {
-         OR: [
-           { userId: (session.user as any).id },
-           { name: (session.user as any).name }
-         ]
-       };
+       const userEmail = (session.user as any).email;
+       const userId = (session.user as any).id;
+       const orConditions: any[] = [];
+       if (userId) orConditions.push({ userId });
+       if (userEmail) orConditions.push({ user: { email: userEmail } });
+
+       if (orConditions.length > 0) {
+         whereClause.youth = { OR: orConditions };
+       } else if ((session.user as any).name) {
+         whereClause.youth = { name: (session.user as any).name };
+       }
     } else {
       if (roleStr === "SK_OFFICIAL" || roleStr === "BARANGAY_CAPTAIN") {
          whereClause.youth = { barangayId: (session.user as any).barangayId };
@@ -81,7 +89,7 @@ export async function GET(request: Request) {
     const referrals = await db.referral.findMany({
       where: whereClause,
       include: {
-        youth: { include: { barangay: true } },
+        youth: { include: { barangay: true, user: true } },
         program: true
       },
       orderBy: { referralDate: "desc" }
@@ -110,13 +118,14 @@ export async function POST(request: Request) {
     
     let youthId = body.youthId;
     if (!youthId && roleStr === "KK_YOUTH") {
+      const userEmail = (session.user as any).email;
+      const userId = (session.user as any).id;
+      const orConditions: any[] = [];
+      if (userId) orConditions.push({ userId });
+      if (userEmail) orConditions.push({ user: { email: userEmail } });
+
       const y = await db.youthProfile.findFirst({
-        where: {
-          OR: [
-            { userId: (session.user as any).id },
-            { name: (session.user as any).name }
-          ]
-        }
+        where: orConditions.length > 0 ? { OR: orConditions } : { name: (session.user as any).name }
       });
       if (y) youthId = y.id;
     }
@@ -142,7 +151,7 @@ export async function POST(request: Request) {
         programId
       },
       include: {
-        youth: { include: { barangay: true } },
+        youth: { include: { barangay: true, user: true } },
         program: true
       }
     });
@@ -181,7 +190,7 @@ export async function POST(request: Request) {
         status: "Pending"
       },
       include: {
-        youth: { include: { barangay: true } },
+        youth: { include: { barangay: true, user: true } },
         program: true
       }
     });
@@ -266,7 +275,7 @@ export async function PATCH(request: Request) {
       where: { id: body.id },
       data: { status: body.status },
       include: {
-        youth: { include: { barangay: true } },
+        youth: { include: { barangay: true, user: true } },
         program: true
       }
     });
