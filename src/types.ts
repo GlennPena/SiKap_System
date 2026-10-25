@@ -87,6 +87,17 @@ export interface CBFScoreBreakdown {
   totalResolvedSkills?: number;
 }
 
+export type CBFMatchCategory = 
+  | "Excellent Match"
+  | "Strong Match"
+  | "Moderate Match"
+  | "Low Match"
+  | "Highly Recommended" 
+  | "Good Match" 
+  | "Potential Match" 
+  | "Limited Match" 
+  | "Not Enough Matching Data";
+
 export interface SkillGapData {
   skill: string;
   count: number;

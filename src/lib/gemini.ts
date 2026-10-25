@@ -237,17 +237,17 @@ TARGET PROGRAM:
 
 REQUIREMENTS:
 - Exactly 3 actionable bullet points tailored specifically to ${firstName} from Barangay ${brgyName}.
-- Step 1: Action item focusing on leveraging their skills (${skillsStr}).
-- Step 2: Action item focusing on completing ${progTitle} at ${provider}.
-- Step 3: Action item focusing on connecting with local KK/SK referrals in Barangay ${brgyName} to achieve their goal ("${goalStr}").
-- Output ONLY the 3 lines starting each line with "• ". Do NOT include intro or outro headers.
+- Action item 1: Focusing on leveraging their skills (${skillsStr}).
+- Action item 2: Focusing on completing ${progTitle} at ${provider}.
+- Action item 3: Focusing on connecting with local KK/SK referrals in Barangay ${brgyName} to achieve their goal ("${goalStr}").
+- Output ONLY the 3 lines starting each line with "• ". Do NOT include "Step 1:", "Step 2:", numbers, intro, or outro headers.
 `;
 
     const text = await generateContentWithFallback(ai, prompt);
     if (text) {
       const parsed = text
         .split("\n")
-        .map(line => line.replace(/^[•\-\*\d\.\s]+/, "").trim())
+        .map(line => line.replace(/^[•\-\*\d\.\s]+/, "").replace(/^(?:Step|Hakbang)\s*\d+[:\-–—\.\s]*/i, "").trim())
         .filter(s => s.length > 10);
       if (parsed.length >= 3) {
         return parsed.slice(0, 3);
@@ -258,6 +258,65 @@ REQUIREMENTS:
     console.error("Gemini Bullets API Error:", err);
     return defaultBullets;
   }
+}
+
+/**
+ * Fallback personalized 2-3 sentence match rationale when Gemini API is loading or offline
+ */
+export function getFallbackPersonalizedRationale(
+  youth: YouthProfile,
+  program?: TESDAProgram | null,
+  lang: "en" | "tl" = "en"
+): string {
+  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const brgyName = youth.barangay?.trim() || "San Luis";
+  const userSkills = youth.skills && youth.skills.length > 0
+    ? youth.skills.slice(0, 3).join(", ")
+    : youth.interests && youth.interests.length > 0
+      ? youth.interests.slice(0, 3).join(", ")
+      : youth.sectorPreference || "vocational competencies";
+
+  const targetGoal = youth.livelihoodGoal || youth.sectorPreference || "sustainable employment";
+  const progTitle = program ? program.title : "Vocational Training Program";
+  const provider = program ? program.provider : "TESDA Partner Institution";
+
+  if (lang === "tl") {
+    return `Bilang miyembro ng Katipunan ng Kabataan mula sa Barangay ${brgyName}, San Luis, si ${firstName} ay may praktikal na kasanayan sa ${userSkills}. Ang pagpapatala sa ${progTitle} sa ${provider} ay direktang magpapatibay sa kanyang kakayahan upang maabot ang mithiing "${targetGoal}".`;
+  }
+
+  return `As a registered Katipunan ng Kabataan member from Barangay ${brgyName}, San Luis, ${firstName} possesses practical background skills in ${userSkills}. Enrolling in ${progTitle} at ${provider} directly bridges their technical competencies, certifying their qualifications under national standards to achieve their career ambition of "${targetGoal}".`;
+}
+
+/**
+ * Fallback personalized 3-step pathway when Gemini API is loading or offline
+ */
+export function getFallbackPersonalized3StepPathway(
+  youth: YouthProfile,
+  program?: TESDAProgram | null,
+  lang: "en" | "tl" = "en"
+): string[] {
+  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const brgyName = youth.barangay?.trim() || "San Luis";
+  const skillsStr = youth.skills && youth.skills.length > 0
+    ? youth.skills.slice(0, 2).join(" and ")
+    : youth.sectorPreference || "your background skills";
+  const goalStr = youth.livelihoodGoal || "sustainable livelihood";
+  const progTitle = program ? program.title : "TESDA Vocational Program";
+  const provider = program ? program.provider : "TESDA Partner Center";
+
+  if (lang === "tl") {
+    return [
+      `Gamitin ang iyong mga natutunang kasanayan sa ${skillsStr} sa unang mga aktwal na modyul ng ${progTitle}.`,
+      `Matagumpay na kumpletuhin ang sertipikadong kursong NC II sa ${provider} upang magkaroon ng opisyal na TESDA credentials.`,
+      `Gamitin ang lokal na tulong at referral ng Katipunan ng Kabataan (KK) sa Barangay ${brgyName} para sa mithiing "${goalStr}".`
+    ];
+  }
+
+  return [
+    `Leverage your existing foundational skills in ${skillsStr} during early practical modules of ${progTitle}.`,
+    `Successfully complete the certified NC II coursework at ${provider} to obtain nationwide accredited credentials.`,
+    `Utilize local Katipunan ng Kabataan (KK) referrals in Barangay ${brgyName} to secure placement matching "${goalStr}".`
+  ];
 }
 
 /**
@@ -335,7 +394,7 @@ STRICT TRANSLATION INSTRUCTIONS FOR ACCURACY & CONSISTENCY:
     if (text) {
       const parsed = text
         .split("\n")
-        .map(line => line.replace(/^[•\-\*\d\.\s]+/, "").trim())
+        .map(line => line.replace(/^[•\-\*\d\.\s]+/, "").replace(/^(?:Step|Hakbang)\s*\d+[:\-–—\.\s]*/i, "").trim())
         .filter(s => s.length > 5);
       if (parsed.length === englishBullets.length) {
         return parsed;

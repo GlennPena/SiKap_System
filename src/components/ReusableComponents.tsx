@@ -8,37 +8,53 @@ import { motion, AnimatePresence } from "motion/react";
 import { calculateAge } from "../lib/utils";
 
 // Flame match score component
-export const FlameMatchScore: React.FC<{ score: number; className?: string; hasPrograms?: boolean }> = ({ score, className = "", hasPrograms = true }) => {
-  if (!hasPrograms || score <= 0) {
+export const FlameMatchScore: React.FC<{
+  score: number;
+  className?: string;
+  hasPrograms?: boolean;
+  hasEnoughData?: boolean;
+  isTopMatch?: boolean;
+}> = ({ score, className = "", hasPrograms = true, hasEnoughData = true, isTopMatch = false }) => {
+  if (!hasPrograms) {
     return (
       <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 text-xs font-semibold text-gray-500 bg-gray-50/80 ${className}`}>
-        <span>N/A (No Programs)</span>
+        <span>Not Match</span>
       </div>
     );
   }
 
-  let flameColor = "text-gray-400 fill-gray-400";
-  let textColor = "text-gray-500 bg-gray-100 border-gray-200";
+  if (!hasEnoughData || score <= 0 || isNaN(score)) {
+    return (
+      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 text-xs font-semibold text-gray-500 bg-gray-50/80 ${className}`}>
+        <span>Not Match</span>
+      </div>
+    );
+  }
+
+  let flameColor = "text-amber-500 fill-amber-400";
+  let textColor = "text-slate-700 bg-slate-100 border-slate-200";
   let label = "Low Match";
 
   if (score >= 90) {
     flameColor = "text-amber-500 fill-amber-500 animate-pulse";
-    textColor = "text-emerald-700 bg-emerald-50 border-emerald-200";
+    textColor = "text-[#0A6B43] bg-emerald-50 border-emerald-300 font-extrabold";
     label = "Excellent Match";
   } else if (score >= 75) {
-    flameColor = "text-amber-400 fill-amber-400";
-    textColor = "text-teal-700 bg-teal-50 border-teal-200";
-    label = "Good Match";
+    flameColor = "text-amber-500 fill-amber-400";
+    textColor = "text-emerald-800 bg-emerald-50 border-emerald-200 font-bold";
+    label = "Strong Match";
   } else if (score >= 50) {
-    flameColor = "text-amber-400 fill-transparent";
-    textColor = "text-amber-700 bg-amber-50 border-amber-200";
-    label = "Fair Match";
+    flameColor = "text-amber-500 fill-amber-400";
+    textColor = "text-amber-800 bg-amber-50 border-amber-200 font-bold";
+    label = "Moderate Match";
+  } else {
+    flameColor = "text-amber-500/80 fill-amber-400/80";
   }
 
   return (
     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${textColor} ${className}`} id={`flame-match-${score}`}>
-      {score >= 50 && <Flame className={`w-3.5 h-3.5 ${flameColor}`} />}
-      <span>{score}% {label}</span>
+      <Flame className={`w-3.5 h-3.5 ${flameColor} shrink-0`} />
+      <span>{score}% Match</span>
     </div>
   );
 };

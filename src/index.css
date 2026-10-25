@@ -401,11 +401,11 @@ button:focus:not(:focus-visible) {
 @keyframes pill-pop-in {
   0% {
     opacity: 0;
-    transform: translateY(12px) scale(0.88);
+    transform: translateY(14px) scale(0.85);
   }
   65% {
     opacity: 1;
-    transform: translateY(-2px) scale(1.02);
+    transform: translateY(-2px) scale(1.04);
   }
   100% {
     opacity: 1;
@@ -414,13 +414,13 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-pill-pop {
-  animation: pill-pop-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: pill-pop-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes legend-pill-slide {
   0% {
     opacity: 0;
-    transform: translateX(14px);
+    transform: translateX(20px);
   }
   100% {
     opacity: 1;
@@ -429,7 +429,7 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-legend-pill {
-  animation: legend-pill-slide 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: legend-pill-slide 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes step-node-pop {
@@ -448,18 +448,18 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-step-node {
-  animation: step-node-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: step-node-pop 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Quick Actions Staggered Entrance */
 @keyframes quick-action-slide-in {
   0% {
     opacity: 0;
-    transform: translateY(16px) scale(0.97);
+    transform: translateY(20px) scale(0.96);
   }
   65% {
     opacity: 1;
-    transform: translateY(-1px) scale(1.005);
+    transform: translateY(-1px) scale(1.008);
   }
   100% {
     opacity: 1;
@@ -468,18 +468,18 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-quick-action {
-  animation: quick-action-slide-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: quick-action-slide-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Livelihood Pathway Choreographed Animations */
 @keyframes pathway-circle-pop {
   0% {
     opacity: 0;
-    transform: scale(0.35) translateY(10px);
+    transform: scale(0.3) translateY(12px);
   }
   65% {
     opacity: 1;
-    transform: scale(1.1) translateY(-1px);
+    transform: scale(1.12) translateY(-2px);
   }
   100% {
     opacity: 1;
@@ -488,13 +488,13 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-pathway-circle {
-  animation: pathway-circle-pop 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: pathway-circle-pop 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes pathway-text-slide-in {
   0% {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(14px);
   }
   100% {
     opacity: 1;
@@ -503,7 +503,7 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-pathway-text {
-  animation: pathway-text-slide-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: pathway-text-slide-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes pathway-line-fill-full {
@@ -525,11 +525,11 @@ button:focus:not(:focus-visible) {
 }
 
 .animate-pathway-line-full {
-  animation: pathway-line-fill-full 1.0s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: pathway-line-fill-full 1.2s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
 .animate-pathway-line-half {
-  animation: pathway-line-fill-half 0.7s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: pathway-line-fill-half 0.85s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
 

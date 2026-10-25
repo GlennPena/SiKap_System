@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
@@ -8,20 +8,659 @@ import {
   BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
-  TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame
+  TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame,
+  Search, Filter, Settings
 } from "lucide-react";
 import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo, NotificationBellButton, SiKapDatePicker } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useInView, useAnimation } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
-import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange } from "../lib/cbf-matcher";
+import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, getCBFMatchCategory, identifyTopMatchProgramIds, CBFMatchCategory } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
-import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan } from "../lib/gemini";
+import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan, getFallbackPersonalizedRationale, getFallbackPersonalized3StepPathway } from "../lib/gemini";
 import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { broadcastDataChange } from "../lib/realtime-sync";
+import { CATEGORIES } from "../lib/cbf-taxonomy-data";
+
+// --- KK PORTAL REAL-TIME SCROLL VELOCITY TRACKER ---
+let portalScrollVelocity = 0;
+let lastPortalScrollPos = 0;
+let lastPortalScrollTime = typeof performance !== "undefined" ? performance.now() : 0;
+
+export const updatePortalScrollVelocity = (currentPos: number) => {
+  const currentTime = performance.now();
+  const dt = currentTime - lastPortalScrollTime;
+  const dy = currentPos - lastPortalScrollPos;
+
+  if (dt > 0) {
+    const instantVelocity = Math.abs(dy / dt); // px per ms
+    portalScrollVelocity = Math.max(portalScrollVelocity * 0.6 + instantVelocity * 0.4, instantVelocity);
+  }
+
+  lastPortalScrollPos = currentPos;
+  lastPortalScrollTime = currentTime;
+};
+
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "scroll",
+    () => {
+      updatePortalScrollVelocity(window.scrollY);
+    },
+    { passive: true }
+  );
+
+  setInterval(() => {
+    portalScrollVelocity *= 0.75;
+    if (portalScrollVelocity < 0.05) portalScrollVelocity = 0;
+  }, 100);
+}
+
+export const getPortalSpeedFactor = () => {
+  const maxVelocity = 3.5; // High speed flick/scroll
+  const normalized = Math.min(portalScrollVelocity / maxVelocity, 1);
+  // High scroll velocity -> faster appearance (down to 0.35x duration)
+  // Normal / gentle scroll -> full smooth duration (1.0x duration)
+  const factor = 1.0 - normalized * 0.65;
+  return Math.max(0.35, Math.min(1.0, factor));
+};
+
+export const formatSkillTitleCase = (str: string): string => {
+  if (!str) return "";
+  return str
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return "";
+      if (/^(nc|i|ii|iii|iv|v|vi|tesda|ict|it|css|smaw)$/i.test(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+};
+
+export const ScrollRevealContext = React.createContext<boolean>(false);
+export const useScrollReveal = () => React.useContext(ScrollRevealContext);
+
+export const PortalScrollReveal: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+  duration?: number;
+  yOffset?: number;
+  scale?: boolean;
+}> = ({
+  children,
+  className = "",
+  delay = 0,
+  duration = 0.6,
+  yOffset = 24,
+  scale = false,
+}) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, {
+    once: true,
+    amount: 0.05,
+  });
+  const controls = useAnimation();
+  const [hasEntered, setHasEntered] = useState(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const triggerReveal = () => {
+      setHasEntered(true);
+      const speedFactor = getPortalSpeedFactor();
+      controls.start({
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: {
+          duration: Math.max(0.3, duration * speedFactor),
+          delay: Math.max(0, delay * speedFactor),
+          ease: [0.16, 1, 0.3, 1], // Smooth Apple-style cubic bezier ease-out
+        },
+      });
+    };
+
+    if (isInView) {
+      triggerReveal();
+    } else {
+      // Safety fallback: if element is in upper part of document or on refresh, reveal after short delay
+      timer = setTimeout(() => {
+        const el = ref.current;
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top < window.innerHeight + 100) {
+            triggerReveal();
+          }
+        }
+      }, 300);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isInView, controls, delay, duration]);
+
+  return (
+    <ScrollRevealContext.Provider value={hasEntered}>
+      <motion.div
+        ref={ref}
+        initial={{ opacity: 0, y: yOffset, scale: scale ? 0.97 : 1 }}
+        animate={controls}
+        className={className}
+      >
+        {children}
+      </motion.div>
+    </ScrollRevealContext.Provider>
+  );
+};
+
+/* --- SCROLL-REACTIVE DASHBOARD CARD COMPONENTS --- */
+
+export const DashboardDonutVisual: React.FC<{
+  matchDistribution: {
+    total: number;
+    excellent: number;
+    strong: number;
+    moderate: number;
+    low: number;
+    pctExcellent: number;
+    pctStrong: number;
+    pctModerate: number;
+    pctLow: number;
+  };
+  hoveredSlice: number | null;
+  setHoveredSlice: (idx: number | null) => void;
+}> = ({ matchDistribution, hoveredSlice, setHoveredSlice }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [donutProgress, setDonutProgress] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const hasAnimatedRef = useRef(false);
+
+  useEffect(() => {
+    // Wait until distribution data is calculated and ready
+    if (!matchDistribution || matchDistribution.total <= 0) return;
+    if (hasAnimatedRef.current) return;
+
+    let animationFrameId: number;
+    let observer: IntersectionObserver | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const startAnimation = () => {
+      if (hasAnimatedRef.current) return;
+      hasAnimatedRef.current = true;
+      setHasStarted(true);
+
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+
+      setDonutProgress(0);
+      let startTime: number | null = null;
+      const duration = 1600; // 1.6s smooth cubic ease-out
+
+      const step = (timestamp: number) => {
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const t = Math.min(1, elapsed / duration);
+        const p = 1 - Math.pow(1 - t, 3);
+        setDonutProgress(p);
+
+        if (t < 1) {
+          animationFrameId = requestAnimationFrame(step);
+        } else {
+          setDonutProgress(1);
+        }
+      };
+
+      animationFrameId = requestAnimationFrame(step);
+    };
+
+    // IntersectionObserver to start as soon as it enters viewport
+    const el = containerRef.current;
+    if (el && typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            startAnimation();
+          }
+        },
+        { threshold: 0.05 }
+      );
+      observer.observe(el);
+    }
+
+    // Safety fallback: Always trigger within 200ms on refresh/appearance so user ALWAYS sees it animate
+    timer = setTimeout(() => {
+      startAnimation();
+    }, 200);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (observer) observer.disconnect();
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [matchDistribution?.total]);
+
+  // Center text counting animation for total matches only
+  const animatedTotalMatches = Math.round((matchDistribution.total || 0) * donutProgress);
+
+  const donutSlices = [
+    { label: "Excellent Match", count: matchDistribution.excellent, pct: matchDistribution.pctExcellent, color: "#0A6B43" },
+    { label: "Strong Match", count: matchDistribution.strong, pct: matchDistribution.pctStrong, color: "#10b981" },
+    { label: "Moderate Match", count: matchDistribution.moderate, pct: matchDistribution.pctModerate, color: "#f59e0b" },
+    { label: "Low Match", count: matchDistribution.low, pct: matchDistribution.pctLow, color: "#94a3b8" },
+  ];
+  const R = 48;
+  const C = 2 * Math.PI * R; // ~301.59
+  const total = matchDistribution.total || 1;
+  let accumulated = 0;
+
+  return (
+    <div ref={containerRef} className="flex flex-col sm:flex-row items-center justify-center gap-10 sm:gap-14 lg:gap-16 py-6 px-2">
+      {/* Donut Chart SVG */}
+      <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+        <svg className="w-44 h-44 -rotate-90 transform" viewBox="0 0 130 130">
+          {/* Base track ring */}
+          <circle cx="65" cy="65" r={R} fill="none" stroke="#F1F5F9" strokeWidth="18" />
+          {matchDistribution.total > 0 && donutSlices.map((s, idx) => {
+            if (s.count <= 0) return null;
+            const fullSliceLen = (s.count / total) * C;
+            const sliceLen = fullSliceLen * donutProgress;
+            const strokeDash = `${sliceLen} ${C - sliceLen}`;
+            const offset = -accumulated;
+            accumulated += sliceLen;
+            const isHovered = hoveredSlice === idx;
+
+            return (
+              <circle
+                key={idx}
+                cx="65"
+                cy="65"
+                r={R}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={isHovered ? 21 : 18}
+                strokeDasharray={strokeDash}
+                strokeDashoffset={offset}
+                onMouseEnter={() => setHoveredSlice(idx)}
+                onMouseLeave={() => setHoveredSlice(null)}
+                className="cursor-pointer transition-[stroke-width] duration-150"
+              />
+            );
+          })}
+        </svg>
+
+        {/* Center Text inside Donut: Original count at rest (with counting animation for total matches only), only percentage on hover with lessened font size */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+          {hoveredSlice !== null && donutSlices[hoveredSlice] ? (
+            <span
+              className="text-lg sm:text-xl font-bold leading-none animate-in fade-in zoom-in-95 duration-150"
+              style={{
+                color: donutSlices[hoveredSlice].color
+              }}
+            >
+              {donutSlices[hoveredSlice].pct}%
+            </span>
+          ) : (
+            <div className="flex flex-col items-center justify-center animate-in fade-in duration-150">
+              <span className="text-3xl sm:text-4xl font-black text-gray-900 leading-none tabular-nums">
+                {animatedTotalMatches}
+              </span>
+              <span className="text-xs text-gray-500 font-normal mt-1.5">
+                Total matches
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Clean Legend */}
+      <div className="w-full sm:w-auto min-w-[220px] sm:min-w-[250px] space-y-2.5">
+        {donutSlices.map((s, idx) => {
+          const isHovered = hoveredSlice === idx;
+          return (
+            <div
+              key={s.label}
+              onMouseEnter={() => setHoveredSlice(idx)}
+              onMouseLeave={() => setHoveredSlice(null)}
+              style={{
+                animationDelay: hasStarted ? `${180 + idx * 120}ms` : "0ms",
+                animationFillMode: "both"
+              }}
+              className={`flex items-center justify-between gap-6 sm:gap-10 py-2.5 px-6 -mx-4 rounded-full transition-all cursor-pointer ${
+                hasStarted ? "animate-legend-pill" : "opacity-0"
+              } ${
+                isHovered
+                  ? "bg-gray-100 shadow-2xs scale-[1.02]"
+                  : "hover:bg-gray-50/70"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`w-3.5 h-3.5 rounded-[3px] shrink-0 transition-transform ${isHovered ? "scale-125 shadow-xs" : ""}`}
+                  style={{ backgroundColor: s.color }}
+                />
+                <span className={`text-sm ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-800"}`}>
+                  {s.label}
+                </span>
+              </div>
+              <span className={`text-sm ${isHovered ? "font-extrabold text-gray-950 scale-110" : "font-semibold text-gray-900"}`}>
+                {s.count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export const DashboardRecommendedProgramsList: React.FC<{
+  topMatches: Array<{ program: TESDAProgram; matchScore: number }>;
+  onProgramClick: (progId: string) => void;
+}> = ({ topMatches, onProgramClick }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [barProgress, setBarProgress] = useState(0);
+  const hasAnimatedRef = useRef(false);
+
+  useEffect(() => {
+    // Wait until topMatches has items
+    if (!topMatches || topMatches.length === 0) return;
+    if (hasAnimatedRef.current) return;
+
+    let animationFrameId: number;
+    let observer: IntersectionObserver | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const startAnimation = () => {
+      if (hasAnimatedRef.current) return;
+      hasAnimatedRef.current = true;
+
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+
+      setBarProgress(0);
+      let startTime: number | null = null;
+      const duration = 1600; // 1.6s smooth cubic ease-out
+
+      const step = (timestamp: number) => {
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const t = Math.min(1, elapsed / duration);
+        const p = 1 - Math.pow(1 - t, 3);
+        setBarProgress(p);
+
+        if (t < 1) {
+          animationFrameId = requestAnimationFrame(step);
+        } else {
+          setBarProgress(1);
+        }
+      };
+
+      animationFrameId = requestAnimationFrame(step);
+    };
+
+    const el = containerRef.current;
+    if (el && typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            startAnimation();
+          }
+        },
+        { threshold: 0.05 }
+      );
+      observer.observe(el);
+    }
+
+    // Safety fallback: Always trigger within 250ms on refresh/appearance so user ALWAYS sees the animation
+    timer = setTimeout(() => {
+      startAnimation();
+    }, 250);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (observer) observer.disconnect();
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [topMatches?.length]);
+
+  const getBarClasses = (s: number) => {
+    if (s >= 90) return "bg-[#0A6B43] group-hover:bg-[#075332]";
+    if (s >= 75) return "bg-emerald-500 group-hover:bg-emerald-600";
+    if (s >= 50) return "bg-amber-500 group-hover:bg-amber-600";
+    return "bg-slate-400 group-hover:bg-slate-500";
+  };
+
+  return (
+    <div ref={containerRef} className="space-y-4 py-2">
+      {topMatches.map(({ program: prog, matchScore: score }) => {
+        // Starts with the percentage counting up in sync with the bar width animation
+        const calculatedScore = Math.round(score * barProgress);
+        const animatedBarWidth = Math.min(100, Math.max(0, score * barProgress));
+
+        return (
+          <div
+            key={prog.id}
+            onClick={() => onProgramClick(prog.id)}
+            className="group cursor-pointer py-2 -mx-2 px-2.5 rounded-xl transition-all hover:bg-gray-50/70"
+            title="Click to view this program in Matched Programs"
+          >
+            <div className="grid grid-cols-[165px_1fr_40px] sm:grid-cols-[250px_1fr_44px] items-center gap-3 sm:gap-6">
+              {/* Left: Program Title */}
+              <span
+                className="text-xs sm:text-sm font-semibold text-gray-900 group-hover:text-[#0A6B43] transition-colors break-words leading-snug pr-2"
+                title={prog.title}
+              >
+                {prog.title}
+              </span>
+
+              {/* Center: Progress bar */}
+              <div className="w-full h-1.5 sm:h-2 bg-gray-200 rounded-full overflow-hidden border border-gray-200/60">
+                <div
+                  className={`h-full rounded-full transition-colors duration-200 ${getBarClasses(score)}`}
+                  style={{ width: `${animatedBarWidth}%` }}
+                />
+              </div>
+
+              {/* Right: Calculated Percentage Number Counting Up */}
+              <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-right shrink-0 tabular-nums">
+                {calculatedScore}%
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+export const DashboardRegisteredSkillsList: React.FC<{
+  skills: string[];
+  isUnverified: boolean;
+  onRemoveSkill: (skill: string) => void;
+}> = ({ skills, isUnverified, onRemoveSkill }) => {
+  const isRevealed = useScrollReveal();
+
+  return (
+    <div className="flex flex-wrap gap-2 content-start flex-1 min-h-[90px]">
+      {skills.map((s, idx) => (
+        <span
+          key={s}
+          style={{
+            animationDelay: isRevealed ? `${180 + idx * 120}ms` : "0ms",
+            animationFillMode: "both"
+          }}
+          className={`${
+            isRevealed ? "animate-pill-pop" : "opacity-0"
+          } bg-amber-50/90 text-amber-950 text-xs font-semibold px-3.5 py-1 rounded-full border border-amber-200/90 flex items-center gap-1.5 shadow-2xs hover:bg-amber-100/70 hover:scale-105 transition-all`}
+        >
+          <span>{formatSkillTitleCase(s)}</span>
+          <button
+            onClick={() => onRemoveSkill(s)}
+            disabled={isUnverified}
+            title={`Remove ${s}`}
+            className={`w-3.5 h-3.5 flex items-center justify-center rounded-full text-xs font-black transition-colors ${
+              isUnverified ? "text-amber-400 cursor-not-allowed" : "text-amber-700 hover:bg-red-100 hover:text-red-700 cursor-pointer"
+            }`}
+          >
+            &times;
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+};
+
+export const DashboardLivelihoodPathway: React.FC<{
+  steps: Array<{ num: number; label: string; status: "done" | "current" | "not_done" }>;
+}> = ({ steps }) => {
+  const isRevealed = useScrollReveal();
+
+  return (
+    <div className="py-5 px-1 sm:px-2">
+      <div className="flex w-full items-start">
+        {steps.map((st, idx) => {
+          const isDone = st.status === "done";
+          const isCurrent = st.status === "current";
+
+          const nextStep = steps[idx + 1];
+          const connectorWidth = isDone && nextStep?.status === "done"
+            ? "100%"
+            : isDone && nextStep?.status === "current"
+            ? "100%"
+            : isCurrent
+            ? "50%"
+            : "0%";
+
+          return (
+            <div
+              key={st.num}
+              className="flex-1 relative flex flex-col items-center text-center px-1 sm:px-2 min-w-0"
+            >
+              {/* Connecting Gray Line with Green Progress Fill */}
+              {idx < steps.length - 1 && (
+                <div className="absolute top-4 sm:top-4.5 -translate-y-1/2 left-1/2 w-full h-[2.5px] sm:h-[3px] bg-gray-200 rounded-full z-0 overflow-hidden">
+                  <div
+                    className={`h-full bg-[#0A6B43] rounded-full ${
+                      !isRevealed
+                        ? "w-0"
+                        : connectorWidth === "100%"
+                        ? "animate-pathway-line-full"
+                        : connectorWidth === "50%"
+                        ? "animate-pathway-line-half"
+                        : ""
+                    }`}
+                    style={{
+                      width: !isRevealed || connectorWidth === "0%" ? "0%" : undefined,
+                      animationDelay: isRevealed ? `${1200 + idx * 800}ms` : "0ms",
+                      animationFillMode: "both"
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Node Circle Header */}
+              <div
+                style={{
+                  animationDelay: isRevealed ? `${180 + idx * 160}ms` : "0ms",
+                  animationFillMode: "both"
+                }}
+                className={`${isRevealed ? "animate-pathway-circle" : "opacity-0"} relative z-10 flex items-center justify-center`}
+              >
+                {isDone ? (
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform hover:scale-105">
+                    <Check className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[3]" />
+                  </div>
+                ) : isCurrent ? (
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-[2.5px] border-[#0A6B43] p-1 flex items-center justify-center bg-white shadow-xs transition-transform hover:scale-105">
+                    <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#0A6B43] animate-pulse" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-200 border border-gray-300/70 flex items-center justify-center transition-transform hover:scale-105" />
+                )}
+              </div>
+
+              {/* Centered Text Content */}
+              <div
+                style={{
+                  animationDelay: isRevealed ? `${700 + idx * 160}ms` : "0ms",
+                  animationFillMode: "both"
+                }}
+                className={`${isRevealed ? "animate-pathway-text" : "opacity-0"} pt-3 sm:pt-3.5 space-y-0.5 w-full flex flex-col items-center text-center`}
+              >
+                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+                  STEP {st.num}
+                </span>
+                <h5 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-snug">
+                  {st.label}
+                </h5>
+                <p
+                  className={`text-[10px] sm:text-[11px] font-semibold pt-0.5 ${
+                    isDone
+                      ? "text-[#0A6B43]"
+                      : isCurrent
+                      ? "text-[#0A6B43]"
+                      : "text-gray-400 font-medium"
+                  }`}
+                >
+                  {isDone ? "Completed" : isCurrent ? "In Progress" : "Pending"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export const DashboardQuickActionsList: React.FC<{
+  actions: Array<{ label: string; onClick: () => void }>;
+}> = ({ actions }) => {
+  const isRevealed = useScrollReveal();
+
+  return (
+    <div className="grid grid-cols-1 gap-3">
+      {actions.map((action, idx) => (
+        <button
+          key={action.label}
+          onClick={action.onClick}
+          style={{
+            animationDelay: isRevealed ? `${180 + idx * 140}ms` : "0ms",
+            animationFillMode: "both",
+          }}
+          className={`${
+            isRevealed ? "animate-quick-action" : "opacity-0"
+          } w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left`}
+        >
+          <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+            {action.label}
+          </span>
+          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+        </button>
+      ))}
+    </div>
+  );
+};
 
 interface KKYouthPortalProps {
   youthProfile: YouthProfile;
@@ -432,47 +1071,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
   // Dashboard hover states
   const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
-  const [barAnimationProgress, setBarAnimationProgress] = useState(0);
-  const [donutAnimationProgress, setDonutAnimationProgress] = useState(0);
-
-  // Smooth on-load animation controller: both start simultaneously at t=0, donut fills slower (3000ms)
-  useEffect(() => {
-    if (activeTab !== YouthScreen.HOME) return;
-    if (!programs || programs.length === 0) return;
-
-    // Both start at 0 simultaneously
-    setBarAnimationProgress(0);
-    setDonutAnimationProgress(0);
-
-    let startTime: number | null = null;
-    let animationFrameId: number;
-
-    const step = (timestamp: number) => {
-      if (!startTime) startTime = timestamp;
-      const elapsed = timestamp - startTime;
-
-      // Both start at the exact same instant (t = 0)
-      // Horizontal bar graph: 1800ms smooth cubic ease-out
-      const barT = Math.min(1, elapsed / 1800);
-      const barP = 1 - Math.pow(1 - barT, 3);
-      setBarAnimationProgress(barP);
-
-      // Donut filling sweep: 3000ms (slower, graceful filling)
-      const donutT = Math.min(1, elapsed / 3000);
-      const donutP = 1 - Math.pow(1 - donutT, 3);
-      setDonutAnimationProgress(donutP);
-
-      if (barT < 1 || donutT < 1) {
-        animationFrameId = requestAnimationFrame(step);
-      }
-    };
-
-    animationFrameId = requestAnimationFrame(step);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, [activeTab, programs.length]);
 
   // Re-synchronize edit states whenever youthProfile prop updates (e.g. async fetch from DB)
   useEffect(() => {
@@ -501,6 +1099,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Real-time password criteria validation for Security Guide checklist
+  const isPassLengthValid = newPassword.length >= 6;
+  const isPassCaseValid = /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword);
+  const isPassCharTypeValid = /[0-9]/.test(newPassword) || /[^A-Za-z0-9]/.test(newPassword);
+  const isAllPasswordCriteriaMet = isPassLengthValid && isPassCaseValid && isPassCharTypeValid;
+  const doPasswordsMatch = Boolean(confirmPassword && newPassword === confirmPassword);
 
   // Helper to reliably parse career plan whether object or JSON string
   const parseCareerPlan = (plan: any): GeminiLongTermCareerPlan | null => {
@@ -865,6 +1470,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     matchScore?: number;
   } | null>(null);
 
+  // Matched Programs tab search & filter states
+  const [matchesSearchQuery, setMatchesSearchQuery] = useState("");
+  const [matchesPillFilter, setMatchesPillFilter] = useState<string>("ALL");
+  const [matchesSectorFilter, setMatchesSectorFilter] = useState<string>("ALL");
+  const [matchesCostFilter, setMatchesCostFilter] = useState<string>("ALL");
+  const [matchesAvailabilityFilter, setMatchesAvailabilityFilter] = useState<string>("ALL");
+
   // Lock background scroll when Program Details modal is open to keep scrollbars strictly inside modal
   useEffect(() => {
     if (viewingProgramModal) {
@@ -915,14 +1527,27 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     );
   };
 
-  // Scored programs with completed qualification indicator
+  // Check if youth has declared matching competencies or preferences
+  const hasEnoughMatchingData = useMemo(() => {
+    const hasSkills = Boolean(youthProfile.skills && youthProfile.skills.length > 0);
+    const hasSector = Boolean(youthProfile.sectorPreference && youthProfile.sectorPreference.trim().length > 0);
+    const hasInterests = Boolean(youthProfile.interests && youthProfile.interests.length > 0);
+    return hasSkills || hasSector || hasInterests;
+  }, [youthProfile.skills, youthProfile.sectorPreference, youthProfile.interests]);
+
+  // Scored programs with detailed CBF breakdown and completed qualification indicator
   const scoredPrograms = useMemo(() => {
     return programs
-      .map(p => ({
-        program: p,
-        matchScore: calculateContentBasedMatchScore(youthProfile, p),
-        isCompleted: isProgramCompleted(p)
-      }))
+      .map(p => {
+        const breakdown = calculateDetailedCBFMatch(youthProfile, p);
+        const matchScore = breakdown.excluded ? 0 : breakdown.finalScore;
+        return {
+          program: p,
+          matchScore,
+          breakdown,
+          isCompleted: isProgramCompleted(p)
+        };
+      })
       .sort((a, b) => b.matchScore - a.matchScore);
   }, [programs, youthProfile, referrals]);
 
@@ -951,37 +1576,265 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     });
   }, [scoredPrograms]);
 
-  // Distribution of training matches across 3 categories (Highly Recommended >= 75, Recommended 50-74, Other < 50)
-  const matchDistribution = useMemo(() => {
-    let highlyRecommended = 0; // score >= 75
-    let recommended = 0;       // score >= 50 && score < 75
-    let otherMatches = 0;      // score < 50
+  // Determine Top Match programs using consistent tie / near-tie rule (exact ties or within 2 percentage points of highest CBF score)
+  const topMatchProgramIds = useMemo(() => {
+    return identifyTopMatchProgramIds(scoredPrograms);
+  }, [scoredPrograms]);
 
-    scoredPrograms.forEach(sp => {
-      if (sp.matchScore >= 75) {
-        highlyRecommended++;
-      } else if (sp.matchScore >= 50) {
-        recommended++;
+  // Categorize training programs into mutually exclusive tiers with Top Matches having absolute priority
+  const categorizedMatchedPrograms = useMemo(() => {
+    // Order programs: uncompleted first, then completed, sorted descending by score
+    const sorted = [...scoredPrograms].sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+      return b.matchScore - a.matchScore;
+    });
+
+    return sorted.map(item => {
+      let categoryKey = "low-matches";
+      let categoryLabel = "Low Match";
+      let isTopMatch = false;
+
+      // 1. Top Matches must have score >= 50 (strictly never Low Match or 0%)
+      if (topMatchProgramIds.has(item.program.id) && item.matchScore >= 50) {
+        categoryKey = "top-matches";
+        categoryLabel = "Top Matches";
+        isTopMatch = true;
+      } else if (item.matchScore <= 0 || isNaN(item.matchScore)) {
+        // "others only are literal 0% match"
+        categoryKey = "not-enough-data";
+        categoryLabel = "Others";
+        isTopMatch = false;
+      } else if (item.matchScore >= 90) {
+        categoryKey = "excellent-matches";
+        categoryLabel = "Excellent Match";
+      } else if (item.matchScore >= 75) {
+        categoryKey = "strong-matches";
+        categoryLabel = "Strong Match";
+      } else if (item.matchScore >= 50) {
+        categoryKey = "moderate-matches";
+        categoryLabel = "Moderate Match";
       } else {
+        // Low Match: score > 0 && score < 50 (never Top Match)
+        categoryKey = "low-matches";
+        categoryLabel = "Low Match";
+        isTopMatch = false;
+      }
+
+      return {
+        ...item,
+        categoryKey,
+        categoryLabel,
+        isTopMatch,
+      };
+    });
+  }, [scoredPrograms, topMatchProgramIds]);
+
+  // Total count of programs within each match category
+  const matchCategoryCounts = useMemo(() => {
+    let topMatches = 0;
+    let otherMatches = 0;
+    let others = 0;
+
+    categorizedMatchedPrograms.forEach(item => {
+      if (item.isTopMatch) {
+        topMatches++;
+      } else if (item.matchScore > 0 && item.categoryKey !== "not-enough-data") {
         otherMatches++;
+      } else {
+        others++;
       }
     });
 
-    const total = scoredPrograms.length;
     return {
-      highlyRecommended,
-      recommended,
-      otherMatches,
+      "top-matches": topMatches,
+      "other-matches": otherMatches,
+      "not-enough-data": others,
+    };
+  }, [categorizedMatchedPrograms]);
+
+  // Programs included in "All Matches": all matches with score > 0 (Top Matches, Excellent, Strong, Moderate, Low Matches)
+  // "Others" (literal 0% matches) are excluded from All Matches
+  const allPositiveMatches = useMemo(() => {
+    return categorizedMatchedPrograms.filter(item =>
+      item.matchScore > 0 && item.categoryKey !== "not-enough-data"
+    );
+  }, [categorizedMatchedPrograms]);
+
+  const hasPositiveMatches = allPositiveMatches.length > 0;
+
+  // Clickable pill definitions: All Matches, Top Matches, Other Matches (and Others for literal 0%)
+  const availableMatchPills = useMemo(() => {
+    const allMatchesCount = hasPositiveMatches
+      ? allPositiveMatches.length
+      : categorizedMatchedPrograms.length;
+
+    const pills = [
+      {
+        key: "ALL",
+        label: "All Matches",
+        count: allMatchesCount,
+      },
+      {
+        key: "top-matches",
+        label: "Top Matches",
+        count: matchCategoryCounts["top-matches"] || 0,
+      },
+      {
+        key: "other-matches",
+        label: "Other Matches",
+        count: matchCategoryCounts["other-matches"] || 0,
+      },
+      {
+        key: "not-enough-data",
+        label: "Others",
+        count: matchCategoryCounts["not-enough-data"] || 0,
+      },
+    ];
+
+    // Only show a pill if its category has at least one matching program; hide categories with zero results
+    return pills.filter(p => p.count > 0);
+  }, [hasPositiveMatches, allPositiveMatches.length, categorizedMatchedPrograms.length, matchCategoryCounts]);
+
+  // Active pill filter with safe fallback if selected pill becomes empty
+  const activeMatchPill = useMemo(() => {
+    const exists = availableMatchPills.some(p => p.key === matchesPillFilter);
+    return exists ? matchesPillFilter : "ALL";
+  }, [availableMatchPills, matchesPillFilter]);
+
+  // Extract all categories and sectors we have in the system for dropdown filter
+  const availableProgramSectors = useMemo(() => {
+    const sectors = new Set<string>();
+    CATEGORIES.forEach(c => {
+      if (c.name && c.name.trim()) sectors.add(c.name.trim());
+    });
+    programs.forEach(prog => {
+      const sec = typeof prog.category === "string" ? prog.category : prog.category?.name;
+      if (sec && sec.trim()) sectors.add(sec.trim());
+    });
+    return Array.from(sectors).sort();
+  }, [programs]);
+
+  // Final filtered list of program cards for Grid display
+  const filteredMatchedPrograms = useMemo(() => {
+    return categorizedMatchedPrograms.filter(item => {
+      const prog = item.program;
+
+      // 1. Pill Filter:
+      // When "ALL" (All Matches): display all matches (score > 0). If none matches at all, fallback to showing all programs.
+      // When "top-matches": display Top Matches only
+      // When "other-matches": display all non-top positive matches (score > 0)
+      // When "not-enough-data": display literal 0% matches
+      if (activeMatchPill === "ALL") {
+        if (hasPositiveMatches) {
+          const isPositiveMatch =
+            item.categoryKey !== "not-enough-data" &&
+            item.matchScore > 0;
+          if (!isPositiveMatch) return false;
+        }
+      } else if (activeMatchPill === "top-matches") {
+        if (!item.isTopMatch) return false;
+      } else if (activeMatchPill === "other-matches") {
+        if (item.isTopMatch || item.matchScore <= 0 || item.categoryKey === "not-enough-data") return false;
+      } else if (activeMatchPill === "not-enough-data") {
+        if (item.matchScore > 0 && item.categoryKey !== "not-enough-data") return false;
+      }
+
+      // 2. Sector Dropdown Filter
+      if (matchesSectorFilter !== "ALL") {
+        const sec = typeof prog.category === "string" ? prog.category : prog.category?.name;
+        const cbfCat = item.breakdown?.categoryName;
+        const matchesSec =
+          (sec && sec.toLowerCase() === matchesSectorFilter.toLowerCase()) ||
+          (cbfCat && cbfCat.toLowerCase() === matchesSectorFilter.toLowerCase());
+        if (!matchesSec) return false;
+      }
+
+      // 3. Program Cost Dropdown Filter
+      if (matchesCostFilter !== "ALL") {
+        if (prog.cost !== matchesCostFilter) return false;
+      }
+
+      // 4. Availability / Status Dropdown Filter
+      if (matchesAvailabilityFilter !== "ALL") {
+        if (matchesAvailabilityFilter === "available" && prog.slotsRemaining <= 0) return false;
+        if (matchesAvailabilityFilter === "active" && isProgramEnded(prog)) return false;
+        if (matchesAvailabilityFilter === "completed" && !item.isCompleted) return false;
+      }
+
+      // 5. Search Bar Query
+      if (matchesSearchQuery.trim()) {
+        const q = matchesSearchQuery.toLowerCase().trim();
+        const sec = (typeof prog.category === "string" ? prog.category : prog.category?.name || "").toLowerCase();
+        const title = (prog.title || "").toLowerCase();
+        const provider = (prog.provider || "").toLowerCase();
+        const location = (prog.location || "").toLowerCase();
+        const eligibility = (prog.eligibility || "").toLowerCase();
+        const skills = (prog.requiredSkills || []).map(s => s.toLowerCase()).join(" ");
+        const matchedSkills = (item.breakdown.matchedSkills || []).map(s => s.toLowerCase()).join(" ");
+
+        const matches =
+          title.includes(q) ||
+          provider.includes(q) ||
+          sec.includes(q) ||
+          location.includes(q) ||
+          eligibility.includes(q) ||
+          skills.includes(q) ||
+          matchedSkills.includes(q);
+
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [
+    categorizedMatchedPrograms,
+    activeMatchPill,
+    hasPositiveMatches,
+    matchesSectorFilter,
+    matchesCostFilter,
+    matchesAvailabilityFilter,
+    matchesSearchQuery,
+  ]);
+
+  // Distribution of positive training matches across 4 categories:
+  // Excellent Match (>= 90), Strong Match (75-89), Moderate Match (50-74), Low Match (1-49)
+  // Unrated (<= 0) are excluded
+  const matchDistribution = useMemo(() => {
+    let excellent = 0; // score >= 90
+    let strong = 0;    // score >= 75 && score < 90
+    let moderate = 0;  // score >= 50 && score < 75
+    let low = 0;       // score > 0 && score < 50
+
+    scoredPrograms.forEach(sp => {
+      if (sp.matchScore >= 90) {
+        excellent++;
+      } else if (sp.matchScore >= 75) {
+        strong++;
+      } else if (sp.matchScore >= 50) {
+        moderate++;
+      } else if (sp.matchScore > 0) {
+        low++;
+      }
+    });
+
+    const total = excellent + strong + moderate + low;
+    return {
+      excellent,
+      strong,
+      moderate,
+      low,
       total,
-      pctHigh: total > 0 ? Math.round((highlyRecommended / total) * 100) : 0,
-      pctRec: total > 0 ? Math.round((recommended / total) * 100) : 0,
-      pctOther: total > 0 ? Math.max(0, 100 - Math.round((highlyRecommended / total) * 100) - Math.round((recommended / total) * 100)) : 0,
+      pctExcellent: total > 0 ? Math.round((excellent / total) * 100) : 0,
+      pctStrong: total > 0 ? Math.round((strong / total) * 100) : 0,
+      pctModerate: total > 0 ? Math.round((moderate / total) * 100) : 0,
+      pctLow: total > 0 ? Math.max(0, 100 - Math.round((excellent / total) * 100) - Math.round((strong / total) * 100) - Math.round((moderate / total) * 100)) : 0,
     };
   }, [scoredPrograms]);
 
-  // Pagination for Matched Programs Tab - 6 programs per page
-  const MATCHES_PER_PAGE = 6;
+  // Pagination for Matched Programs Tab - 8 programs per page (4 balanced pairs per page for 2-column layout)
+  const MATCHES_PER_PAGE = 8;
   const [matchesPage, setMatchesPage] = useState<number>(1);
+  const skipPageResetRef = useRef(false);
 
   // Pagination page numbers generator helper
   const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
@@ -997,17 +1850,69 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
   };
 
-  const totalMatchesPages = Math.ceil(matchesTabPrograms.length / MATCHES_PER_PAGE) || 1;
-  const currentMatchesPage = Math.min(matchesPage, totalMatchesPages);
-  const paginatedMatchesPrograms = useMemo(() => {
-    const start = (currentMatchesPage - 1) * MATCHES_PER_PAGE;
-    return matchesTabPrograms.slice(start, start + MATCHES_PER_PAGE);
-  }, [matchesTabPrograms, currentMatchesPage]);
+  const totalMatchesResults = filteredMatchedPrograms.length;
+  const totalMatchesPages = Math.ceil(totalMatchesResults / MATCHES_PER_PAGE) || 1;
+  const currentMatchesPage = Math.min(Math.max(1, matchesPage), totalMatchesPages);
 
-  // Reset to page 1 whenever skills or sector preferences change
+  const paginatedMatchedPrograms = useMemo(() => {
+    if (totalMatchesResults <= MATCHES_PER_PAGE) {
+      return filteredMatchedPrograms;
+    }
+    const start = (currentMatchesPage - 1) * MATCHES_PER_PAGE;
+    return filteredMatchedPrograms.slice(start, start + MATCHES_PER_PAGE);
+  }, [filteredMatchedPrograms, currentMatchesPage, totalMatchesResults]);
+
+  // Reset to page 1 whenever filters, search, or profile preferences change (unless program navigation explicitly requested a page)
   useEffect(() => {
+    if (skipPageResetRef.current) {
+      skipPageResetRef.current = false;
+      return;
+    }
     setMatchesPage(1);
-  }, [youthProfile?.skills, youthProfile?.sectorPreference]);
+  }, [
+    activeMatchPill,
+    matchesSearchQuery,
+    matchesSectorFilter,
+    matchesAvailabilityFilter,
+    matchesCostFilter,
+    youthProfile?.skills,
+    youthProfile?.sectorPreference,
+  ]);
+
+  // Navigate directly to a specific matched program card and its residing pagination page
+  const handleNavigateToMatchedProgram = (targetProgId: string) => {
+    skipPageResetRef.current = true;
+    setMatchesSearchQuery("");
+    setMatchesPillFilter("ALL");
+    setMatchesSectorFilter("ALL");
+    setMatchesCostFilter("ALL");
+    setMatchesAvailabilityFilter("ALL");
+
+    const targetList = hasPositiveMatches ? allPositiveMatches : categorizedMatchedPrograms;
+    const targetIndex = targetList.findIndex(item => item.program.id === targetProgId);
+
+    if (targetIndex >= 0) {
+      const targetPage = Math.floor(targetIndex / MATCHES_PER_PAGE) + 1;
+      setMatchesPage(targetPage);
+    } else {
+      setMatchesPage(1);
+    }
+
+    setActiveTab(YouthScreen.MATCHES);
+
+    setTimeout(() => {
+      const cardEl = document.getElementById(`matched-program-card-${targetProgId}`);
+      if (cardEl) {
+        cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        cardEl.classList.add("ring-2", "ring-[#0A6B43]", "ring-offset-2");
+        setTimeout(() => {
+          cardEl.classList.remove("ring-2", "ring-[#0A6B43]", "ring-offset-2");
+        }, 2500);
+      } else {
+        document.getElementById("matched-programs-card-container")?.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 250);
+  };
 
   useEffect(() => {
     // Only fetch AI match rationale once actual youth profile is resolved and has a registered barangay
@@ -1562,8 +2467,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       addToast("Please fill in all password fields", "error");
       return;
     }
-    if (newPassword.length < 6) {
+    if (!isPassLengthValid) {
       addToast("New password must be at least 6 characters long", "error");
+      return;
+    }
+    if (!isPassCaseValid) {
+      addToast("New password must combine uppercase and lowercase letters", "error");
+      return;
+    }
+    if (!isPassCharTypeValid) {
+      addToast("New password must include numbers or symbols", "error");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -1840,18 +2753,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               },
               {
                 id: YouthScreen.PROFILE,
-                label: "My Profile & Skills",
+                label: "Settings",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current text-emerald-400 shrink-0" viewBox="0 0 24 24">
-                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                    />
                   </svg>
                 ),
                 inactiveIcon: (
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
+                  <Settings className="w-5 h-5 shrink-0" />
                 )
               }
             ].map((tab) => {
@@ -1986,7 +2899,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       </aside>
 
       {/* Main viewport */}
-      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
+      <main
+        onScroll={(e) => updatePortalScrollVelocity(e.currentTarget.scrollTop)}
+        className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6"
+      >
         <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
             {/* Mobile Hamburger Button */}
@@ -2003,7 +2919,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 {activeTab === YouthScreen.HOME && "Dashboard"}
                 {activeTab === YouthScreen.MATCHES && "Matched Programs"}
                 {activeTab === YouthScreen.PATHWAY && "Livelihood Pathway"}
-                {activeTab === YouthScreen.PROFILE && "My Profile & Skills"}
+                {activeTab === YouthScreen.PROFILE && "Settings"}
               </h1>
             </div>
           </div>
@@ -2227,31 +3143,34 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             <div className="space-y-5 sm:space-y-6">
 
               {/* ROW 1 — GREETINGS CARD */}
-              <div
-                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
-                style={{
-                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
-                }}
-              >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
-                <GrowthPlantAnimation />
+              <PortalScrollReveal delay={0.05}>
+                <div
+                  className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                  style={{
+                    background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                  }}
+                >
+                  {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
+                  <GrowthPlantAnimation />
 
-                {/* Content - Header and Subheader Only */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
-                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Mabuhay, {youthProfile.name}!
-                  </h2>
-                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    {isUnverified
-                      ? "Explore your Content-Based Filtering (CBF) training matches below. Program applications will unlock once verified by your Barangay SK Chairman."
-                      : "Discover TESDA training opportunities that match your skills, interests, and career goals."}
-                  </p>
+                  {/* Content - Header and Subheader Only */}
+                  <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
+                    <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                      Mabuhay, {youthProfile.name}!
+                    </h2>
+                    <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                      {isUnverified
+                        ? "Explore your Content-Based Filtering (CBF) training matches below. Program applications will unlock once verified by your Barangay SK Chairman."
+                        : "Discover TESDA training opportunities that match your skills, interests, and career goals."}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </PortalScrollReveal>
 
               {/* ACTIVE ENROLLED CLASSES SCHEDULE BANNER (When Officially Enrolled) */}
               {enrolledPrograms.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden border border-emerald-100/80" id="active-classes-schedule-container">
+                <PortalScrollReveal delay={0.06}>
+                  <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden border border-emerald-100/80" id="active-classes-schedule-container">
                   <div className="bg-[#1C2B20] text-white p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="text-white">
                       <h4 className="text-[18px] font-extrabold tracking-tight text-white">My Active Class & Training Schedule</h4>
@@ -2346,13 +3265,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     })}
                   </div>
                 </div>
-              )}
+              </PortalScrollReveal>
+            )}
 
               {/* ROW 2 — TRAINING MATCHES (60%) AND ANNOUNCEMENTS (40%) */}
               <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 sm:gap-6 items-stretch">
                 
                 {/* Left: 60% width — Training Matches Donut Chart */}
-                <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                <PortalScrollReveal delay={0.08} className="lg:col-span-6 flex flex-col">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                   <div className="space-y-5">
                     {/* Header */}
                     <div className="pb-3 border-b border-gray-100">
@@ -2372,133 +3293,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </p>
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row items-center justify-center gap-10 sm:gap-14 lg:gap-16 py-6 px-2">
-                        {/* Donut Chart SVG */}
-                        <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
-                          {(() => {
-                            const R = 48;
-                            const C = 2 * Math.PI * R; // ~301.59
-                            const total = matchDistribution.total || 1;
-                            const slices = [
-                              { label: "Highly recommended", count: matchDistribution.highlyRecommended, color: "#176b4d" },
-                              { label: "Recommended", count: matchDistribution.recommended, color: "#79bd98" },
-                              { label: "Other matches", count: matchDistribution.otherMatches, color: "#f3b83f" },
-                            ];
-                            let accumulated = 0;
-
-                            return (
-                              <svg className="w-44 h-44 -rotate-90 transform" viewBox="0 0 130 130">
-                                {/* Base track ring */}
-                                <circle cx="65" cy="65" r={R} fill="none" stroke="#F1F5F9" strokeWidth="18" />
-                                {matchDistribution.total > 0 && slices.map((s, idx) => {
-                                  if (s.count <= 0) return null;
-                                  // Animate segment arc from 0 to full length on load using slower donut animation
-                                  const fullSliceLen = (s.count / total) * C;
-                                  const sliceLen = fullSliceLen * donutAnimationProgress;
-                                  const strokeDash = `${sliceLen} ${C - sliceLen}`;
-                                  const offset = -accumulated;
-                                  accumulated += sliceLen;
-                                  const isHovered = hoveredSlice === idx;
-
-                                  return (
-                                    <circle
-                                      key={idx}
-                                      cx="65"
-                                      cy="65"
-                                      r={R}
-                                      fill="none"
-                                      stroke={s.color}
-                                      strokeWidth={isHovered ? 21 : 18}
-                                      strokeDasharray={strokeDash}
-                                      strokeDashoffset={offset}
-                                      onMouseEnter={() => setHoveredSlice(idx)}
-                                      onMouseLeave={() => setHoveredSlice(null)}
-                                      className="cursor-pointer transition-[stroke-width] duration-150"
-                                    />
-                                  );
-                                })}
-                              </svg>
-                            );
-                          })()}
-
-                          {/* Center Text inside Donut: Original count at rest, only percentage on hover with lessened font size */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
-                            {hoveredSlice !== null ? (
-                              <span
-                                className="text-lg sm:text-xl font-bold leading-none animate-in fade-in zoom-in-95 duration-150"
-                                style={{
-                                  color: [
-                                    "#176b4d",
-                                    "#79bd98",
-                                    "#f3b83f"
-                                  ][hoveredSlice]
-                                }}
-                              >
-                                {[
-                                  matchDistribution.pctHigh,
-                                  matchDistribution.pctRec,
-                                  matchDistribution.pctOther
-                                ][hoveredSlice]}%
-                              </span>
-                            ) : (
-                              <div className="flex flex-col items-center justify-center animate-in fade-in duration-150">
-                                <span className="text-3xl sm:text-4xl font-black text-gray-900 leading-none">
-                                  {matchDistribution.total}
-                                </span>
-                                <span className="text-xs text-gray-500 font-normal mt-1.5">
-                                  Total records
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Clean Legend matching user screenshot with wide hover pill and staggered on-load animation */}
-                        <div className="w-full sm:w-auto min-w-[220px] sm:min-w-[250px] space-y-3">
-                          {[
-                            { label: "Highly recommended", count: matchDistribution.highlyRecommended, color: "#176b4d" },
-                            { label: "Recommended", count: matchDistribution.recommended, color: "#79bd98" },
-                            { label: "Other matches", count: matchDistribution.otherMatches, color: "#f3b83f" },
-                          ].map((s, idx) => {
-                            const isHovered = hoveredSlice === idx;
-                            return (
-                              <div
-                                key={idx}
-                                onMouseEnter={() => setHoveredSlice(idx)}
-                                onMouseLeave={() => setHoveredSlice(null)}
-                                style={{
-                                  animationDelay: `${idx * 120}ms`,
-                                  animationFillMode: "both"
-                                }}
-                                className={`animate-legend-pill flex items-center justify-between gap-6 sm:gap-10 py-2.5 px-6 -mx-4 rounded-full transition-all cursor-pointer ${
-                                  isHovered
-                                    ? "bg-gray-100 shadow-2xs scale-[1.02]"
-                                    : "hover:bg-gray-50/70"
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <span
-                                    className={`w-3.5 h-3.5 rounded-[3px] shrink-0 transition-transform ${isHovered ? "scale-125 shadow-xs" : ""}`}
-                                    style={{ backgroundColor: s.color }}
-                                  />
-                                  <span className={`text-sm ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-800"}`}>
-                                    {s.label}
-                                  </span>
-                                </div>
-                                <span className={`text-sm ${isHovered ? "font-extrabold text-gray-950 scale-110" : "font-semibold text-gray-900"}`}>
-                                  {s.count}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <DashboardDonutVisual
+                        matchDistribution={matchDistribution}
+                        hoveredSlice={hoveredSlice}
+                        setHoveredSlice={setHoveredSlice}
+                      />
                     )}
                   </div>
                 </div>
+              </PortalScrollReveal>
 
                 {/* Right: 40% width — Announcements */}
-                <div className="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between" id="dashboard-announcements-container">
+                <PortalScrollReveal delay={0.12} className="lg:col-span-4 flex flex-col">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full" id="dashboard-announcements-container">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                       <div>
@@ -2549,6 +3356,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     )}
                   </div>
                 </div>
+              </PortalScrollReveal>
 
               </div>
 
@@ -2556,7 +3364,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-stretch">
                 
                 {/* Left: 50% width — Recommended Programs Horizontal Bar Graph */}
-                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                <PortalScrollReveal delay={0.08} className="flex flex-col">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                       <div>
@@ -2592,58 +3401,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       }
 
                       return (
-                        <div className="space-y-4 py-2 animate-in fade-in duration-500">
-                          {topMatches.map(({ program: prog, matchScore: score }) => {
-                            const calculatedScore = Math.round(score * barAnimationProgress);
-                            const animatedBarWidth = Math.min(100, Math.max(4, score * barAnimationProgress));
-
-                            // Bar color based on match criteria: Highly recommended (>=75), Recommended (50-74), Other (<50)
-                            // On hover: turns to much darker green (#052e1d)
-                            const barColorClasses = score >= 75
-                              ? "bg-[#176b4d] group-hover:bg-[#052e1d]"
-                              : score >= 50
-                                ? "bg-[#79bd98] group-hover:bg-[#052e1d]"
-                                : "bg-[#f3b83f] group-hover:bg-[#052e1d]";
-
-                            return (
-                              <div
-                                key={prog.id}
-                                onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
-                                className="group cursor-pointer py-2 -mx-2 px-2.5 rounded-xl transition-all hover:bg-gray-50/70"
-                              >
-                                <div className="grid grid-cols-[135px_1fr_40px] sm:grid-cols-[190px_1fr_48px] items-center gap-3 sm:gap-6">
-                                  {/* Left: Program Title - turns green ONLY when hovered */}
-                                  <span
-                                    className="text-xs sm:text-sm font-semibold text-gray-900 group-hover:text-[#0A6B43] transition-colors break-words leading-snug pr-2"
-                                    title={prog.title}
-                                  >
-                                    {prog.title}
-                                  </span>
-
-                                  {/* Center: Criteria-based Progress Bar - turns to much darker green on hover */}
-                                  <div className="w-full h-2 sm:h-2.5 bg-gray-150 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full transition-colors duration-200 ${barColorClasses}`}
-                                      style={{ width: `${animatedBarWidth}%` }}
-                                    />
-                                  </div>
-
-                                  {/* Right: Calculated Percentage Number Counting Up */}
-                                  <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-right shrink-0">
-                                    {calculatedScore}%
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <DashboardRecommendedProgramsList
+                          topMatches={topMatches}
+                          onProgramClick={handleNavigateToMatchedProgram}
+                        />
                       );
                     })()}
                   </div>
                 </div>
+              </PortalScrollReveal>
 
                 {/* Right: 50% width — Registered Skills */}
-                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                <PortalScrollReveal delay={0.12} className="flex flex-col">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                   <div className="flex flex-col h-full">
                     {/* Header with number counter beside header title */}
                     <div className="flex justify-between items-center pb-3 border-b border-gray-100 mb-4">
@@ -2677,42 +3447,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
 
                     {/* Skills Badges Container - Pill size with staggered entrance animation */}
-                    <div className="flex flex-wrap gap-2 content-start flex-1 min-h-[90px]">
-                      {youthProfile.skills && youthProfile.skills.length > 0 ? (
-                        youthProfile.skills.map((s, idx) => (
-                          <span
-                            key={s}
-                            style={{
-                              animationDelay: `${idx * 160}ms`,
-                              animationFillMode: "both"
-                            }}
-                            className="animate-pill-pop bg-amber-50/90 text-amber-950 text-xs font-semibold px-3.5 py-1 rounded-full border border-amber-200/90 flex items-center gap-1.5 shadow-2xs hover:bg-amber-100/70 hover:scale-105 transition-all"
-                          >
-                            <span>{s}</span>
-                            <button
-                              onClick={() => handleRemoveSkillLocal(s)}
-                              disabled={isUnverified}
-                              title={`Remove ${s}`}
-                              className={`w-3.5 h-3.5 flex items-center justify-center rounded-full text-xs font-black transition-colors ${
-                                isUnverified ? "text-amber-400 cursor-not-allowed" : "text-amber-700 hover:bg-red-100 hover:text-red-700 cursor-pointer"
-                              }`}
-                            >
-                              &times;
-                            </button>
-                          </span>
-                        ))
-                      ) : (
-                        <div className="py-8 text-center flex flex-col items-center justify-center space-y-2 w-full">
-                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
-                            <Wrench className="w-6 h-6" />
-                          </div>
-                          <h5 className="text-sm font-bold text-gray-800">No Skills Added Yet</h5>
-                          <p className="text-xs text-gray-400 max-w-sm font-medium">
-                            Tap &ldquo;Add Skill&rdquo; to register your vocational competencies.
-                          </p>
+                    {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                      <DashboardRegisteredSkillsList
+                        skills={youthProfile.skills}
+                        isUnverified={isUnverified}
+                        onRemoveSkill={handleRemoveSkillLocal}
+                      />
+                    ) : (
+                      <div className="py-8 text-center flex flex-col items-center justify-center space-y-2 w-full">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                          <Wrench className="w-6 h-6" />
                         </div>
-                      )}
-                    </div>
+                        <h5 className="text-sm font-bold text-gray-800">No Skills Added Yet</h5>
+                        <p className="text-xs text-gray-400 max-w-sm font-medium">
+                          Tap &ldquo;Add Skill&rdquo; to register your vocational competencies.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Tip & Guidance - Positioned to the bottom with line break */}
                     <div className="mt-auto pt-3 border-t border-gray-100">
@@ -2722,6 +3473,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
                   </div>
                 </div>
+              </PortalScrollReveal>
 
               </div>
 
@@ -2759,7 +3511,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   ];
 
                   return (
-                    <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                    <PortalScrollReveal delay={0.08} className="lg:col-span-6 flex flex-col">
+                      <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                       <div className="space-y-6">
                         {/* Header */}
                         <div className="pb-3 border-b border-gray-100">
@@ -2768,116 +3521,24 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </div>
 
                         {/* Modern Stepped Progress Stepper (Centered Layout) */}
-                        <div className="py-5 px-1 sm:px-2">
-                          <div className="flex w-full items-start">
-                            {steps.map((st, idx) => {
-                              const isDone = st.status === "done";
-                              const isCurrent = st.status === "current";
-
-                              // Connector state to next step
-                              const nextStep = steps[idx + 1];
-                              const connectorWidth = isDone && nextStep?.status === "done"
-                                ? "100%"
-                                : isDone && nextStep?.status === "current"
-                                ? "100%"
-                                : isCurrent
-                                ? "50%"
-                                : "0%";
-
-                              return (
-                                <div
-                                  key={st.num}
-                                  className="flex-1 relative flex flex-col items-center text-center px-1 sm:px-2 min-w-0"
-                                >
-                                  {/* Connecting Gray Line with Green Progress Fill (flows after circles & text) */}
-                                  {idx < steps.length - 1 && (
-                                    <div className="absolute top-4 sm:top-4.5 -translate-y-1/2 left-1/2 w-full h-[2.5px] sm:h-[3px] bg-gray-200 rounded-full z-0 overflow-hidden">
-                                      <div
-                                        className={`h-full bg-[#0A6B43] rounded-full ${
-                                          connectorWidth === "100%"
-                                            ? "animate-pathway-line-full"
-                                            : connectorWidth === "50%"
-                                            ? "animate-pathway-line-half"
-                                            : ""
-                                        }`}
-                                        style={{
-                                          width: connectorWidth === "0%" ? "0%" : undefined,
-                                          animationDelay: `${1900 + idx * 1000}ms`,
-                                          animationFillMode: "both"
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-
-                                  {/* Node Circle Header - appears first */}
-                                  <div
-                                    style={{
-                                      animationDelay: `${200 + idx * 180}ms`,
-                                      animationFillMode: "both"
-                                    }}
-                                    className="animate-pathway-circle relative z-10 flex items-center justify-center"
-                                  >
-                                    {isDone ? (
-                                      /* Step Completed: Solid SiKap Green with White Checkmark */
-                                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform hover:scale-105">
-                                        <Check className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[3]" />
-                                      </div>
-                                    ) : isCurrent ? (
-                                      /* Step Current / In Progress: Concentric Bullseye Circle */
-                                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-[2.5px] border-[#0A6B43] p-1 flex items-center justify-center bg-white shadow-xs transition-transform hover:scale-105">
-                                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#0A6B43] animate-pulse" />
-                                      </div>
-                                    ) : (
-                                      /* Step Pending: Clean Gray Circle */
-                                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-200 border border-gray-300/70 flex items-center justify-center transition-transform hover:scale-105" />
-                                    )}
-                                  </div>
-
-                                  {/* Centered Text Content - appears after circles */}
-                                  <div
-                                    style={{
-                                      animationDelay: `${1100 + idx * 180}ms`,
-                                      animationFillMode: "both"
-                                    }}
-                                    className="animate-pathway-text pt-3 sm:pt-3.5 space-y-0.5 w-full flex flex-col items-center text-center">
-                                    <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
-                                      STEP {st.num}
-                                    </span>
-                                    <h5 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-snug">
-                                      {st.label}
-                                    </h5>
-                                    <p
-                                      className={`text-[10px] sm:text-[11px] font-semibold pt-0.5 ${
-                                        isDone
-                                          ? "text-[#0A6B43]"
-                                          : isCurrent
-                                          ? "text-[#0A6B43]"
-                                          : "text-gray-400 font-medium"
-                                      }`}
-                                    >
-                                      {isDone ? "Completed" : isCurrent ? "In Progress" : "Pending"}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        <DashboardLivelihoodPathway steps={steps} />
                       </div>
                     </div>
+                  </PortalScrollReveal>
                   );
                 })()}
 
                 {/* Right: 40% width — Quick Actions */}
-                <div className="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
+                <PortalScrollReveal delay={0.12} className="lg:col-span-4 flex flex-col">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                   <div className="space-y-4">
                     <div className="pb-3 border-b border-gray-100">
                       <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Quick Actions</h4>
                       <p className="text-xs text-gray-500 font-medium mt-0.5">Fast shortcuts to explore programs, matches, and profile settings</p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3">
-                      {[
+                    <DashboardQuickActionsList
+                      actions={[
                         {
                           label: "Explore Training Programs",
                           onClick: () => setActiveTab(YouthScreen.MATCHES),
@@ -2902,25 +3563,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             }
                           },
                         },
-                      ].map((action, idx) => (
-                        <button
-                          key={action.label}
-                          onClick={action.onClick}
-                          style={{
-                            animationDelay: `${200 + idx * 200}ms`,
-                            animationFillMode: "both",
-                          }}
-                          className="animate-quick-action w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
-                        >
-                          <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] transition-colors">
-                            {action.label}
-                          </span>
-                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
-                        </button>
-                      ))}
-                    </div>
+                      ]}
+                    />
                   </div>
                 </div>
+              </PortalScrollReveal>
 
               </div>
 
@@ -2929,7 +3576,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
           {/* MATCHES TAB SCREEN */}
           {activeTab === YouthScreen.MATCHES && (
-            <div className="space-y-6">
+            <motion.div
+              key="matches-screen"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-6"
+            >
               {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
               <div
                 className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
@@ -2951,7 +3605,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
               </div>
 
-              {programs.length === 0 || matchesTabPrograms.length === 0 ? (
+              {programs.length === 0 ? (
                 <div className="bg-white rounded-2xl p-10 sm:p-14 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 text-center flex flex-col items-center justify-center space-y-2">
                   <GraduationCap className="w-12 h-12 text-gray-400 mb-1" strokeWidth={1.75} />
                   <h4 className="font-extrabold text-gray-900 text-[18px] tracking-tight">More Opportunities Coming Soon</h4>
@@ -2960,313 +3614,673 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </p>
                 </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {paginatedMatchesPrograms.map(({ program: prog, matchScore: score }) => {
-
-                    return (
-                      <div
-                        key={prog.id}
-                        className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between hover:shadow-[0_12px_36px_rgb(0,0,0,0.08)] transition-all duration-200"
-                      >
-                        <div className="space-y-4">
-                          {/* Card Header: Provider, Term Ended Badge, Title & Match Score */}
-                          <div className="flex justify-between items-start gap-3 pb-3 border-b border-gray-100">
-                            <div className="space-y-1 flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block truncate">
-                                  {prog.provider}
-                                </span>
-                                {isProgramEnded(prog) && (
-                                  <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-purple-600" />
-                                    Term Ended
-                                  </span>
-                                )}
-                              </div>
-                              <h4 className="font-bold text-gray-900 text-base leading-snug tracking-tight">
-                                {prog.title}
-                              </h4>
-                            </div>
-                            <div className="shrink-0 pt-0.5">
-                              <FlameMatchScore score={score} />
-                            </div>
-                          </div>
-
-                          {/* CBF Compatibility Banner */}
-                          <div className="bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-100 space-y-1">
-                            <div className="flex items-center justify-between text-xs font-bold text-[#0A6B43]">
-                              <span className="flex items-center gap-1.5 uppercase tracking-wide text-[11px]">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                CBF Compatibility
-                              </span>
-                              <span className="font-extrabold text-xs">{score}% Match</span>
-                            </div>
-                            <p className="text-xs text-emerald-950/80 leading-relaxed font-medium">
-                              Content-Based Filtering identified strong alignment between your technical competencies and this local program.
-                            </p>
-                          </div>
-
-                          {/* Key Program Details: Clean Key-Value Rows like My Profile & Skills */}
-                          <div className="space-y-0.5 text-xs">
-                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
-                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                Location
-                              </span>
-                              <span className="font-bold text-gray-800 truncate max-w-[58%] text-right" title={prog.location}>
-                                {prog.location}
-                              </span>
-                            </div>
-
-                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
-                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                Duration
-                              </span>
-                              <span className="font-bold text-gray-800 text-right">
-                                {prog.trainingHours} hrs {(prog.startDate || prog.endDate) ? `(${formatProgramDateRange(prog.startDate, prog.endDate)})` : ""}
-                              </span>
-                            </div>
-
-                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
-                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
-                                <Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                Program Cost
-                              </span>
-                              <span className="font-extrabold text-[#0A6B43] text-right">
-                                {prog.cost || "Free"}
-                              </span>
-                            </div>
-
-                            <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
-                              <span className="text-gray-500 font-medium flex items-center gap-1.5">
-                                <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                Eligibility
-                              </span>
-                              <span className="font-bold text-gray-800 truncate max-w-[58%] text-right" title={prog.eligibility}>
-                                {prog.eligibility || "Open to all KK Youth"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Required Documents */}
-                          {prog.requiredDocuments && prog.requiredDocuments.length > 0 && (
-                            <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 space-y-1.5">
-                              <p className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                Required Documents
-                                  </p>
-                                  <ul className="list-disc pl-4 text-xs text-amber-800 space-y-0.5 font-medium">
-                                    {prog.requiredDocuments.map((doc, dIdx) => (
-                                      <li key={dIdx}>{doc}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                          )}
-
-                                {/* Overlap Warning */}
-                                {(() => {
-                                  const overlapWarning = getOverlapWarning(prog);
-                                  if (overlapWarning) {
-                                    return (
-                                      <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
-                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                                        <div className="space-y-0.5">
-                                          <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
-                                          <span>{overlapWarning}</span>
-                                        </div>
-                                        </div>
-                                        );
-                            }
-                                        return null;
-                          })()}
-                                      </div>
-
-                        {/* Card Footer: Slots and Action Button */ }
-                                    <div className="flex justify-between items-center text-xs pt-4 mt-5 border-t border-gray-100">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-gray-500 font-medium">Slots:</span>
-                                        <span className="font-bold text-gray-800 bg-gray-50 px-2.5 py-0.5 rounded-md border border-gray-200">
-                                          {prog.slotsRemaining} / {prog.slotsTotal} left
-                                        </span>
-                                      </div>
-                                      {(() => {
-                                        const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
-                                        const isCompleted = isProgramCompleted(prog);
-                                        const isEnrolled = app?.status === "Enrolled";
-                                        const isDeclined = app?.status === "Declined";
-                                        const isPending = app?.status === "Pending";
-
-                                        const isFull = !app && prog.slotsRemaining <= 0;
-                                        const overlapWarning = getOverlapWarning(prog);
-
-                                        if (isCompleted) {
-                                          return (
-                                            <button
-                                              disabled
-                                              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
-                                              title="You have already completed this program and earned your certification"
-                                            >
-                                              <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
-                                              Completed ✓
-                                            </button>
-                                          );
-                                        }
-
-                                        if (isEnrolled) {
-                                          return (
-                                            <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                                              <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
-                                              Enrolled
-                                            </span>
-                                          );
-                                        }
-
-                                        if (isPending) {
-                                          return (
-                                            <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
-                                              <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                                              Pending
-                                            </span>
-                                          );
-                                        }
-
-                                        if (isDeclined) {
-                                          return (
-                                            <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
-                                              <XCircle className="w-3.5 h-3.5 text-rose-500" />
-                                              Declined
-                                            </span>
-                                          );
-                                        }
-
-                                        if (isProgramEnded(prog)) {
-                                          return (
-                                            <button
-                                              disabled
-                                              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
-                                              title="This training program's term has ended or is closed"
-                                            >
-                                              <Clock className="w-3.5 h-3.5 text-purple-600" />
-                                              Term Ended
-                                            </button>
-                                          );
-                                        }
-
-                                        if (isFull) {
-                                          return (
-                                            <button
-                                              disabled
-                                              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                            >
-                                              Slots Full
-                                            </button>
-                                          );
-                                        }
-
-                                        return (
-                                          <button
-                                            onClick={() => handleDirectApply(prog)}
-                                            disabled={isUnverified || !!overlapWarning}
-                                            className={`text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${isUnverified || !!overlapWarning
-                                              ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                              : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
-                                              }`}
-                                            title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
-                                          >
-                                            <Send className="w-3.5 h-3.5" />
-                                            Apply Now
-                                          </button>
-                                        );
-                                      })()}
-                                    </div>
-                      </div>
-                          );
-                  })}
-                        </div>
-
-                  {/* Pagination Controls - 6 matched programs per page */}
-                  {totalMatchesPages > 1 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                      <p className="text-xs text-gray-500 font-medium order-2 sm:order-1">
-                        Showing{" "}
-                        <span className="font-bold text-gray-800">
-                          {Math.min((currentMatchesPage - 1) * MATCHES_PER_PAGE + 1, matchesTabPrograms.length)}
-                        </span>
-                        {" "}-{" "}
-                        <span className="font-bold text-gray-800">
-                          {Math.min(currentMatchesPage * MATCHES_PER_PAGE, matchesTabPrograms.length)}
-                        </span>
-                        {" "}of{" "}
-                        <span className="font-bold text-gray-800">{matchesTabPrograms.length}</span> matched programs
-                      </p>
-
-                      <div className="flex items-center gap-1.5 order-1 sm:order-2">
-                        <button
-                          type="button"
-                          disabled={currentMatchesPage === 1}
-                          onClick={() => {
-                            setMatchesPage(p => Math.max(1, p - 1));
-                            window.scrollTo({ top: 380, behavior: "smooth" });
-                          }}
-                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
-                        >
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Prev</span>
-                        </button>
-
-                        <div className="flex items-center gap-1">
-                          {getPaginationItems(currentMatchesPage, totalMatchesPages).map((item, idx) => {
-                            if (item === "...") {
-                              return (
-                                <span key={`matches-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
-                                  ...
-                                </span>
-                              );
-                            }
-                            const pageNum = Number(item);
-                            const isSelected = pageNum === currentMatchesPage;
-                            return (
-                              <button
-                                key={`matches-page-${pageNum}`}
-                                type="button"
-                                onClick={() => {
-                                  setMatchesPage(pageNum);
-                                  window.scrollTo({ top: 380, behavior: "smooth" });
-                                }}
-                                className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                  isSelected
-                                    ? "bg-[#0A6B43] text-white shadow-xs font-black"
-                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={currentMatchesPage === totalMatchesPages}
-                          onClick={() => {
-                            setMatchesPage(p => Math.min(totalMatchesPages, p + 1));
-                            window.scrollTo({ top: 380, behavior: "smooth" });
-                          }}
-                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
-                        >
-                          <span className="hidden sm:inline">Next</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                /* Card enclosure container matching the SiKap clean card aesthetics */
+                <div id="matched-programs-card-container" className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6">
+                  {/* Card Header Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-[26px] font-black text-gray-900 tracking-tight leading-none">
+                        Matched Programs
+                      </h3>
                     </div>
-                  )}
-                </>
-              )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-200">
+                        {filteredMatchedPrograms.length} of {scoredPrograms.length} {scoredPrograms.length === 1 ? "Program" : "Programs"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Search Bar & Filter Controls Row */}
+                  <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                    {/* Search Bar */}
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={matchesSearchQuery}
+                        onChange={(e) => setMatchesSearchQuery(e.target.value)}
+                        placeholder="Search by program title, skill, provider, or sector..."
+                        className="w-full pl-10 pr-9 py-2.5 bg-gray-50/80 hover:bg-gray-50 focus:bg-white border border-gray-200 focus:border-[#0A6B43] rounded-xl text-xs sm:text-sm text-gray-800 placeholder-gray-400 font-medium transition-all focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/15"
+                      />
+                      {matchesSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setMatchesSearchQuery("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer"
+                          title="Clear search"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Filter Dropdowns - exact size of labels */}
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      {/* Sector Filter */}
+                      <select
+                        value={matchesSectorFilter}
+                        onChange={(e) => setMatchesSectorFilter(e.target.value)}
+                        className="w-auto shrink-0 px-3 py-2.5 bg-gray-50/80 hover:bg-gray-50 border border-gray-200 focus:border-[#0A6B43] rounded-xl text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/15 transition-all"
+                      >
+                        <option value="ALL">All Sector</option>
+                        {availableProgramSectors.map(sec => (
+                          <option key={sec} value={sec}>{sec}</option>
+                        ))}
+                      </select>
+
+                      {/* Availability Filter */}
+                      <select
+                        value={matchesAvailabilityFilter}
+                        onChange={(e) => setMatchesAvailabilityFilter(e.target.value)}
+                        className="w-auto shrink-0 px-3 py-2.5 bg-gray-50/80 hover:bg-gray-50 border border-gray-200 focus:border-[#0A6B43] rounded-xl text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/15 transition-all"
+                      >
+                        <option value="ALL">All Availability</option>
+                        <option value="available">Has Open Slots</option>
+                        <option value="active">Active Term Only</option>
+                        <option value="completed">Completed Qualifications</option>
+                      </select>
+
+                      {/* Cost Filter */}
+                      <select
+                        value={matchesCostFilter}
+                        onChange={(e) => setMatchesCostFilter(e.target.value)}
+                        className="w-auto shrink-0 px-3 py-2.5 bg-gray-50/80 hover:bg-gray-50 border border-gray-200 focus:border-[#0A6B43] rounded-xl text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/15 transition-all"
+                      >
+                        <option value="ALL">All Cost</option>
+                        <option value="Free">Free</option>
+                        <option value="Subsidized">Subsidized</option>
+                        <option value="With Fee">With Fee</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Clickable Pill Filters: Top Matches, Highly Recommended, Good Matches, Potential Matches, Limited Matches, Others */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {availableMatchPills.map(pill => {
+                      const isSelected = activeMatchPill === pill.key;
+                      return (
+                        <button
+                          key={pill.key}
+                          type="button"
+                          onClick={() => setMatchesPillFilter(pill.key === activeMatchPill ? "ALL" : pill.key)}
+                          className={`relative inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer select-none active:scale-95 ${
+                            isSelected
+                              ? "text-white"
+                              : "bg-gray-100/90 hover:bg-gray-200/80 text-gray-700 border border-transparent hover:border-gray-200 hover:scale-105"
+                          }`}
+                        >
+                          {isSelected && (
+                            <motion.span
+                              layoutId="activeMatchedPillIndicator"
+                              className="absolute inset-0 bg-[#0A6B43] rounded-full shadow-xs ring-2 ring-[#0A6B43]/20"
+                              transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                            />
+                          )}
+                          <span className="relative z-10">{pill.label}</span>
+                          <span
+                            className={`relative z-10 text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
+                              isSelected ? "bg-white/25 text-white" : "bg-gray-200 text-gray-700"
+                            }`}
+                          >
+                            {pill.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Card Results: ONLY Grid View (No Table View) */}
+                  {filteredMatchedPrograms.length === 0 ? (
+                    <div className="py-12 px-4 text-center flex flex-col items-center justify-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                        <Search className="w-6 h-6" />
                       </div>
-                    )
-                  }
+                      <h4 className="font-bold text-gray-900 text-base">No matching programs found</h4>
+                      <p className="text-xs text-gray-500 max-w-sm">
+                        No training programs match your active filters or search terms. Try clearing your search or switching category pills.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMatchesSearchQuery("");
+                          setMatchesPillFilter("ALL");
+                          setMatchesSectorFilter("ALL");
+                          setMatchesCostFilter("ALL");
+                          setMatchesAvailabilityFilter("ALL");
+                        }}
+                        className="text-xs font-bold text-[#0A6B43] bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl border border-emerald-200 transition-all cursor-pointer"
+                      >
+                        Reset All Filters
+                      </button>
+                    </div>
+                  ) : (() => {
+                    const renderMatchedProgramCard = ({ program: prog, matchScore: score, breakdown: itemBreakdown, isTopMatch }: typeof categorizedMatchedPrograms[number]) => {
+                        const categoryMeta = getCBFMatchCategory(score, hasEnoughMatchingData);
+                        const cbfBreakdown = itemBreakdown || calculateDetailedCBFMatch(youthProfile, prog);
+
+                        const isPrimaryTopProg = isTopMatch && activeMatchingPrograms.length > 0 && activeMatchingPrograms[0].program.id === prog.id && score >= 50;
+                        const topRationale = isPrimaryTopProg && (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
+                          ? (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
+                          : getFallbackPersonalizedRationale(youthProfile, prog, featuredLang);
+
+                        const topBullets = isPrimaryTopProg && (featuredLang === "tl" ? (featuredBulletsTl?.length === 3 ? featuredBulletsTl : null) : (liveGeminiBullets?.length === 3 ? liveGeminiBullets : null))
+                          ? (featuredLang === "tl" ? featuredBulletsTl : liveGeminiBullets)
+                          : getFallbackPersonalized3StepPathway(youthProfile, prog, featuredLang);
+
+                        return (
+                          <motion.div
+                            layout="position"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            key={prog.id}
+                            id={`matched-program-card-${prog.id}`}
+                            className={`group bg-white rounded-2xl p-5 sm:p-6 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between hover:shadow-[0_16px_36px_rgb(0,0,0,0.1)] hover:-translate-y-1.5 transition-all duration-200 relative ${
+                              isTopMatch
+                                ? "shadow-[0_12px_36px_rgba(10,107,67,0.12)]"
+                                : ""
+                            }`}
+                          >
+                            <div className="space-y-4">
+                              {/* Top Match Designation Banner (only for Top Matches) */}
+                              {isTopMatch && (
+                                <div className="flex items-center justify-between pb-3 -mt-1 border-b border-emerald-100">
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-linear-to-r from-amber-500 via-amber-400 to-[#0A6B43] text-white text-[11px] font-black uppercase tracking-wider shadow-2xs">
+                                    <Sparkles className="w-3.5 h-3.5 text-white fill-white" />
+                                    Top Match Designation
+                                  </span>
+                                  <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-emerald-200 text-[11px] font-bold shadow-2xs">
+                                    <button
+                                      type="button"
+                                      onClick={() => setFeaturedLang("en")}
+                                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                                      title="Read in English"
+                                    >
+                                      English
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFeaturedLang("tl")}
+                                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "tl" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                                      title="Isalin sa Tagalog"
+                                    >
+                                      Tagalog
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Card Header: Term Ended Badge, Title & Match Score */}
+                              <div className="flex justify-between items-start gap-3 pb-3 border-b border-gray-100">
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  {isProgramEnded(prog) && (
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                      <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-purple-600" />
+                                        Term Ended
+                                      </span>
+                                    </div>
+                                  )}
+                                  <h4
+                                    onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
+                                    className="font-bold text-gray-900 text-[18px] leading-snug tracking-tight group-hover:text-[#0A6B43] cursor-pointer transition-colors duration-200"
+                                    title="Click to view full program specifications"
+                                  >
+                                    {prog.title}
+                                  </h4>
+                                </div>
+                                <div className="shrink-0 pt-0.5">
+                                  <FlameMatchScore score={score} hasEnoughData={hasEnoughMatchingData} isTopMatch={isTopMatch} />
+                                </div>
+                              </div>
+
+                              {/* CONDITIONAL AI RATIONALE & PATHWAY vs MATCH CATEGORY */}
+                              {isTopMatch ? (
+                                <div className="space-y-3">
+                                  {/* Gemini Match Rationale */}
+                                  <div className="bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-200/90 space-y-2 shadow-2xs">
+                                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                                      <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                        Gemini Match Rationale
+                                      </span>
+                                      <span className="text-[10px] font-bold text-gray-400">
+                                        Powered by Google Gemini
+                                      </span>
+                                    </div>
+                                    <p className="text-xs italic text-emerald-950 leading-relaxed font-medium text-justify">
+                                      &ldquo;{topRationale}&rdquo;
+                                    </p>
+                                  </div>
+
+                                  {/* Personalized 3-Step Pathway */}
+                                  <div className="bg-emerald-50/60 p-3 sm:p-3.5 rounded-xl border border-emerald-200/90 shadow-2xs space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                                        <TrendingUp className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                        Personalized 3-Step Pathway
+                                      </span>
+                                      <span className="text-[10px] font-bold text-gray-400">Action Plan</span>
+                                    </div>
+                                    <div className="space-y-2 pt-0.5">
+                                      {topBullets.map((rawStep, sIdx) => {
+                                        const step = rawStep.replace(/^(?:Step|Hakbang)\s*\d+[:\-–—\.\s]*/i, "").trim();
+                                        return (
+                                          <div
+                                            key={sIdx}
+                                            className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl bg-white border border-emerald-200/80 shadow-2xs"
+                                          >
+                                            <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                                              {sIdx + 1}
+                                            </span>
+                                            <span className="flex-1 break-words text-xs text-gray-800 font-medium leading-snug">
+                                              {step}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* Non-Top Match: Match Category + Relevant Matched Skills / Preferences ONLY */
+                                <div className="bg-gray-50/80 p-3.5 rounded-xl border border-gray-200/80 space-y-2.5">
+                                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                                    <span className="text-[10px] font-extrabold uppercase text-gray-600 tracking-wider flex items-center gap-1.5">
+                                      <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                      Match Category
+                                    </span>
+                                    {categoryMeta.label !== "Not Match" && categoryMeta.label !== "Not Enough Matching Data" && (
+                                      <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border ${categoryMeta.badgeBg} ${categoryMeta.badgeText} ${categoryMeta.badgeBorder}`}>
+                                        {categoryMeta.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                    {categoryMeta.description}
+                                  </p>
+
+                                  {/* Relevant Matched Skills or Preferences */}
+                                  {cbfBreakdown.matchedSkills && cbfBreakdown.matchedSkills.length > 0 && (
+                                    <div className="pt-2 border-t border-gray-200/60 space-y-1.5">
+                                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                                        Matching Competencies ({cbfBreakdown.matchedSkills.length})
+                                      </span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {cbfBreakdown.matchedSkills.map((sk, sIdx) => (
+                                          <span key={sIdx} className="text-[11px] font-semibold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-150 flex items-center gap-1 shadow-2xs">
+                                            <Check className="w-3 h-3 text-[#0A6B43]" />
+                                            {sk}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 4 Key Program Specifications with matching icon & aligned label/info */}
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-3 sm:px-4 pt-3 pb-3.5 border-y border-gray-100">
+                                {/* Hour */}
+                                <div className="min-w-0 flex items-start gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Hour
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">
+                                      {prog.trainingHours ? `${prog.trainingHours} Hours` : "Flexible"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Duration */}
+                                <div className="min-w-0 flex items-start gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Duration
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate" title={(prog.startDate && prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Self-Paced"}>
+                                      {(prog.startDate && prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Self-Paced"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Location (Two rows maximum, complete location without truncation) */}
+                                <div className="min-w-0 flex items-start gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Location
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2 break-words leading-snug" title={prog.location}>
+                                      {prog.location || "San Luis, Pampanga"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Cost */}
+                                <div className="min-w-0 flex items-start gap-1.5">
+                                  <Tag className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Cost
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-[#0A6B43] truncate">
+                                      {prog.cost || "Free"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Separate Container 1: Eligibility */}
+                              <div className="border border-gray-200/90 rounded-xl p-3 bg-gray-50/40 space-y-1.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                                  Eligibility
+                                </span>
+                                <ul className="space-y-1 text-xs text-gray-700 font-medium">
+                                  {(prog.eligibility || "Open to all Katipunan ng Kabataan (KK) Youth")
+                                    .split(";")
+                                    .map(item => item.trim())
+                                    .filter(Boolean)
+                                    .map((item, idx) => (
+                                      <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                                        <span>{item}</span>
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+
+                              {/* Separate Container 2: Required Requirements */}
+                              <div className="border border-gray-200/90 rounded-xl p-3 bg-gray-50/40 space-y-1.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+                                  Required Requirements
+                                </span>
+                                <ul className="space-y-1 text-xs text-gray-700 font-medium">
+                                  {(prog.requiredDocuments && prog.requiredDocuments.length > 0
+                                    ? prog.requiredDocuments
+                                    : ["Valid ID or Barangay Certificate", "2x2 ID Photo"]
+                                  ).map((doc, idx) => (
+                                    <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                                      <span>{doc}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              {/* Overlap Warning */}
+                              {(() => {
+                                const overlapWarning = getOverlapWarning(prog);
+                                if (overlapWarning) {
+                                  return (
+                                    <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
+                                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                      <div className="space-y-0.5">
+                                        <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
+                                        <span>{overlapWarning}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+
+                            {/* Card Footer: Slots and Action Buttons */}
+                            <div className="flex justify-between items-center text-xs pt-4 mt-5 border-t border-gray-100 gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-gray-500 font-medium hidden sm:inline">Slots:</span>
+                                <span className="font-bold text-gray-800 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-200 text-[11px] whitespace-nowrap">
+                                  {prog.slotsRemaining} / {prog.slotsTotal} left
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
+                                  className="group/details text-xs font-bold text-gray-700 hover:text-[#0A6B43] px-4 py-2 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                  title="View full specifications & breakdown"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-gray-500 group-hover/details:text-[#0A6B43] group-hover/details:scale-125 transition-all duration-200" />
+                                  <span>Details</span>
+                                </button>
+
+                                {(() => {
+                                  const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
+                                  const isCompleted = isProgramCompleted(prog);
+                                  const isEnrolled = app?.status === "Enrolled";
+                                  const isDeclined = app?.status === "Declined";
+                                  const isPending = app?.status === "Pending";
+
+                                  const isFull = !app && prog.slotsRemaining <= 0;
+                                  const overlapWarning = getOverlapWarning(prog);
+
+                                  if (isCompleted) {
+                                    return (
+                                      <button
+                                        disabled
+                                        className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                        title="You have already completed this program and earned your certification"
+                                      >
+                                        <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                                        Completed ✓
+                                      </button>
+                                    );
+                                  }
+
+                                  if (isEnrolled) {
+                                    return (
+                                      <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                                        <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                        Enrolled
+                                      </span>
+                                    );
+                                  }
+
+                                  if (isPending) {
+                                    return (
+                                      <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                                        <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                        Pending
+                                      </span>
+                                    );
+                                  }
+
+                                  if (isDeclined) {
+                                    return (
+                                      <span className="text-xs font-bold px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5 shadow-2xs">
+                                        <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                                        Declined
+                                      </span>
+                                    );
+                                  }
+
+                                  if (isProgramEnded(prog)) {
+                                    return (
+                                      <button
+                                        disabled
+                                        className="text-xs font-bold px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                        title="This training program's term has ended or is closed"
+                                      >
+                                        <Clock className="w-3.5 h-3.5 text-purple-600" />
+                                        Term Ended
+                                      </button>
+                                    );
+                                  }
+
+                                  if (isFull) {
+                                    return (
+                                      <button
+                                        disabled
+                                        className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                      >
+                                        Slots Full
+                                      </button>
+                                    );
+                                  }
+
+                                  return (
+                                    <button
+                                      onClick={() => handleDirectApply(prog)}
+                                      disabled={isUnverified || !!overlapWarning}
+                                      className={`group/apply text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-xs ${isUnverified || !!overlapWarning
+                                        ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
+                                        : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
+                                        }`}
+                                      title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
+                                    >
+                                      <Send className="w-3.5 h-3.5 transition-transform duration-200 group-hover/apply:translate-x-1 group-hover/apply:-translate-y-0.5 group-hover/apply:scale-110" />
+                                      <span>Apply Now</span>
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      };
+
+                      const topMatchesList = paginatedMatchedPrograms.filter(item => item.isTopMatch);
+                      const otherMatchesList = paginatedMatchedPrograms.filter(item => !item.isTopMatch && item.matchScore > 0 && item.categoryKey !== "not-enough-data");
+
+                      return (
+                        <>
+                          <AnimatePresence mode="wait">
+                            <motion.div
+                              key={activeMatchPill + "_" + currentMatchesPage + "_" + matchesSectorFilter + "_" + matchesCostFilter + "_" + matchesAvailabilityFilter + "_" + matchesSearchQuery}
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -12 }}
+                              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                            >
+                              {activeMatchPill === "ALL" ? (
+                                <div id="matched-programs-card-container" className="space-y-8">
+                                  {/* Top Matches Inline Category */}
+                                  {topMatchesList.length > 0 && (
+                                    <div className="space-y-4">
+                                      <div className="flex items-center justify-between pb-2.5 border-b border-gray-200">
+                                        <div className="flex items-center gap-2">
+                                          <h3 className="font-extrabold text-gray-800 text-xs sm:text-sm uppercase tracking-wider">Top Matches</h3>
+                                          <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 leading-none">
+                                            {matchCategoryCounts["top-matches"] || topMatchesList.length}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs text-gray-400 font-medium hidden sm:inline">Highest compatibility with your profile</span>
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {topMatchesList.map(renderMatchedProgramCard)}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Other Matches Inline Category */}
+                                  {otherMatchesList.length > 0 && (
+                                    <div className="space-y-4">
+                                      <div className="flex items-center justify-between pt-2 pb-2.5 border-b border-gray-200">
+                                        <div className="flex items-center gap-2">
+                                          <h3 className="font-extrabold text-gray-800 text-xs sm:text-sm uppercase tracking-wider">Other Matches</h3>
+                                          <span className="text-[10px] font-bold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded-full border border-gray-200 leading-none">
+                                            {matchCategoryCounts["other-matches"] || otherMatchesList.length}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs text-gray-400 font-medium hidden sm:inline">Additional viable programs for your skills</span>
+                                      </div>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {otherMatchesList.map(renderMatchedProgramCard)}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div id="matched-programs-card-container" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  {paginatedMatchedPrograms.map(renderMatchedProgramCard)}
+                                </div>
+                              )}
+                            </motion.div>
+                          </AnimatePresence>
+
+                    {/* Pagination Controls - only rendered if results > 9 */}
+                    {totalMatchesResults > MATCHES_PER_PAGE && (
+                      <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500 font-medium">
+                          Showing <span className="font-bold text-gray-900">{(currentMatchesPage - 1) * MATCHES_PER_PAGE + 1}</span> to{" "}
+                          <span className="font-bold text-gray-900">{Math.min(totalMatchesResults, currentMatchesPage * MATCHES_PER_PAGE)}</span> of{" "}
+                          <span className="font-bold text-gray-900">{totalMatchesResults}</span> programs
+                        </p>
+
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                          <button
+                            type="button"
+                            disabled={currentMatchesPage === 1}
+                            onClick={() => {
+                              setMatchesPage(p => Math.max(1, p - 1));
+                              document.getElementById("matched-programs-card-container")?.scrollIntoView({ behavior: "smooth" });
+                            }}
+                            className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Prev</span>
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            {getPaginationItems(currentMatchesPage, totalMatchesPages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span key={`matches-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                    ...
+                                  </span>
+                                );
+                              }
+                              const pageNum = Number(item);
+                              const isSelected = pageNum === currentMatchesPage;
+                              return (
+                                <button
+                                  key={`matches-page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setMatchesPage(pageNum);
+                                    document.getElementById("matched-programs-card-container")?.scrollIntoView({ behavior: "smooth" });
+                                  }}
+                                  className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    isSelected
+                                      ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                      : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={currentMatchesPage === totalMatchesPages}
+                            onClick={() => {
+                              setMatchesPage(p => Math.min(totalMatchesPages, p + 1));
+                              document.getElementById("matched-programs-card-container")?.scrollIntoView({ behavior: "smooth" });
+                            }}
+                            className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                          >
+                            <span className="hidden sm:inline">Next</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+                </div>
+              )}
+
+            </motion.div>
+          )}
 
           {/* PATHWAY TAB SCREEN */ }
           { activeTab === YouthScreen.PATHWAY && (
@@ -3998,219 +5012,267 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 {
   activeTab === YouthScreen.PROFILE && (
     <div className="space-y-6">
-      {/* Profile Hero & Identity Card */}
+      {/* Settings Header Banner with Circular Gradient Background & Botanical Plant Growth */}
       <div
-        className="w-full text-white p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+        className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
         style={{
-          background: "radial-gradient(circle at 80% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+          background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
         }}
       >
-        {/* Botanical Plant Leaves */}
+        {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
         <GrowthPlantAnimation />
 
-        {/* Identity Header Content */}
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-          <div className="flex flex-row items-start sm:items-center gap-3.5 sm:gap-5 min-w-0 flex-1">
-            {/* Avatar Initials Badge with Verification Indicator & Profile Picture Upload */}
-            <div className="relative shrink-0 group">
-              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-[#0A6B43] flex items-center justify-center text-white font-black text-xl sm:text-3xl shadow-lg border-2 border-emerald-300/40 relative overflow-hidden">
-                {profilePictureUrl ? (
-                  <img
-                    src={profilePictureUrl}
-                    alt={youthProfile.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : youthProfile.name ? (
-                  youthProfile.name
-                    .split(" ")
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((n) => n[0]?.toUpperCase())
-                    .join("")
-                ) : (
-                  "KK"
-                )}
-
-                {/* Hover / Active Change Photo Overlay */}
-                <label
-                  htmlFor="hero-profile-pic-input"
-                  className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white"
-                  title="Change Profile Picture"
-                >
-                  {isUploadingPic ? (
-                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-spin" />
-                  ) : (
-                    <>
-                      <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />
-                      <span className="text-[8px] sm:text-[9px] font-black tracking-wider uppercase mt-0.5 text-white">Change</span>
-                    </>
-                  )}
-                </label>
-                <input
-                  id="hero-profile-pic-input"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleProfilePictureUpload}
-                  disabled={isUploadingPic}
-                />
-              </div>
-
-              {/* Verification Badge */}
-              <div
-                className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white flex items-center justify-center shadow-md z-10"
-                title={youthProfile.approvalStatus === "Approved" ? "Verified KK Member" : "Verification Pending"}
-              >
-                {youthProfile.approvalStatus === "Approved" ? (
-                  <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43]" />
-                ) : (
-                  <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
-                )}
-              </div>
-            </div>
-
-            {/* Member Details */}
-            <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <h2 className="font-black text-base sm:text-2xl lg:text-3xl text-white tracking-tight leading-tight">
-                  {youthProfile.name}
-                </h2>
-                <span
-                  className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-extrabold px-2 sm:px-2.5 py-0.5 rounded-full border shadow-2xs shrink-0 ${youthProfile.approvalStatus === "Approved"
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
-                    : youthProfile.approvalStatus === "Rejected"
-                      ? "bg-red-500/20 text-red-300 border-red-400/40"
-                      : "bg-amber-500/20 text-amber-300 border-amber-400/40"
-                    }`}
-                >
-                  <ShieldCheck className="w-3 h-3 shrink-0" />
-                  <span>
-                    {youthProfile.approvalStatus === "Approved"
-                      ? "Verified KK Member"
-                      : youthProfile.approvalStatus === "Rejected"
-                        ? "Declined"
-                        : "Pending Verification"}
-                  </span>
-                </span>
-              </div>
-
-              {/* Location & Status Badges */}
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-emerald-100/90 font-medium">
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2 sm:px-2.5 py-0.5 rounded-md backdrop-blur-xs">
-                  <MapPin className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span>Barangay {youthProfile.barangay || "San Luis"} • {youthProfile.purok || "Purok 1"}</span>
-                </span>
-                <span className="inline-flex items-center gap-1 bg-white/10 px-2 sm:px-2.5 py-0.5 rounded-md backdrop-blur-xs">
-                  <GraduationCap className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span>{youthProfile.currentStatus || "Youth Resident"}</span>
-                </span>
-              </div>
-
-              {/* Quick Contact & Demographics Strip */}
-              <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-[11px] sm:text-xs text-emerald-100/80 pt-0.5 sm:pt-1">
-                <span className="flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span>{youthProfile.contactNumber || "No phone"}</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <Mail className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span className="truncate max-w-[180px] sm:max-w-none">{currentUser?.email || youthProfile.email || "No email"}</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span>Age: {youthProfile.age} yrs</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Digital ID Action */}
-          <div className="flex sm:flex-col items-stretch sm:items-end justify-between sm:justify-center gap-1.5 sm:gap-2 shrink-0 pt-2.5 sm:pt-0 border-t border-white/10 sm:border-0 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setProfileActiveTab("badge")}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#0A6B43] hover:bg-emerald-50 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
-              <span>View Official Digital ID</span>
-            </button>
-            <span className="text-[10px] text-emerald-200/70 font-semibold hidden sm:inline">
-              Official SK LGU Credential
-            </span>
-          </div>
+        {/* Content */}
+        <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
+          <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+            Settings
+          </h2>
+          <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+            Manage your personal profile, competencies, security, and notification preferences.
+          </p>
         </div>
       </div>
 
-      {/* Sub-Tab Navigation Bar */}
-      <div className="flex items-center justify-start sm:justify-center overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-        <div
-          className="inline-flex items-center gap-1.5 sm:gap-2 bg-white p-1.5 sm:p-2 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] shrink-0"
-        >
-          {[
-            { id: "profile", label: "Personal Details", icon: User },
-            { id: "skills", label: "Skills & Competencies", icon: Award },
-            { id: "security", label: "Security & Password", icon: Lock },
-            { id: "notifications", label: "Alerts & Notifications", icon: Bell },
-            { id: "badge", label: "Digital ID Card", icon: ShieldCheck },
-          ].map((tab) => {
-            const isActive = profileActiveTab === tab.id;
-            const IconComponent = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setProfileActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap shrink-0 transition-all duration-200 ease-out select-none ${isActive
-                  ? "bg-[#0A6B43] text-white shadow-xs"
-                  : "bg-transparent text-gray-600 hover:text-[#0A6B43] hover:bg-emerald-50/70"
+      {/* 2-Column Settings Layout: Left Vertical Sidebar + Right Main Content Area */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+        {/* Left Vertical Sidebar Navigation */}
+        <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4">
+          {/* Vertical Navigation Items List - Rectangular cards with rounded circular corners, separated */}
+          <nav className="flex flex-row overflow-x-auto no-scrollbar gap-[5.6px] lg:flex-col lg:space-y-[5.6px] w-full lg:w-fit" aria-label="Settings navigation">
+            {[
+              { id: "profile", label: "Personal Details", icon: User },
+              { id: "skills", label: "Skills & Competencies", icon: Award },
+              { id: "security", label: "Security & Password", icon: Lock },
+              { id: "notifications", label: "Alerts & Notifications", icon: Bell },
+              { id: "badge", label: "Digital ID Card", icon: ShieldCheck },
+            ].map((tab) => {
+              const isActive = profileActiveTab === tab.id;
+              const IconComponent = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setProfileActiveTab(tab.id as any)}
+                  className={`group/pill w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none shrink-0 border ${
+                    isActive
+                      ? "bg-[#0A6B43] text-white shadow-xs border-transparent"
+                      : "bg-white text-gray-700 border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs hover:translate-x-0.5"
                   }`}
-              >
-                <IconComponent
-                  fill={isActive ? "currentColor" : "none"}
-                  className={`w-4 h-4 shrink-0 transition-all duration-200 ease-out ${isActive
-                    ? `text-white ${tab.id === "security"
-                      ? "[&>path]:fill-none"
-                      : tab.id === "badge"
-                        ? "[&>path:last-child]:stroke-[#0A6B43] [&>path:last-child]:fill-none"
-                        : ""
-                    }`
-                    : "text-gray-500 hover:text-[#0A6B43]"
+                >
+                  <IconComponent
+                    fill={isActive ? "currentColor" : "none"}
+                    className={`w-4.5 h-4.5 shrink-0 transition-transform duration-200 ${
+                      isActive ? "text-white" : "text-gray-400 group-hover/pill:text-[#0A6B43] group-hover/pill:scale-110"
                     }`}
-                />
-                <span className="transition-colors duration-200 ease-out">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                  />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-      <div className="max-w-6xl xl:max-w-7xl mx-auto w-full px-2 sm:px-4">
-        <AnimatePresence mode="wait">
-        {/* Sub-Tab 1: Personal Details Dossier */}
-        {profileActiveTab === "profile" && (
-          <motion.div
-            key="profile"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start pb-24 w-full"
-          >
-            {/* Left Column: Personal Dossier Info or Active Edit Form */}
-            <div className="lg:col-span-3 bg-white rounded-2xl p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+        {/* Right Main Content Area */}
+        <main className="flex-1 min-w-0 w-full">
+          <AnimatePresence mode="wait">
+          {/* Sub-Tab 1: Personal Details Dossier */}
+          {profileActiveTab === "profile" && (
+            <motion.div
+              key="profile"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-6 w-full"
+            >
+              {/* Left Column: Personal Dossier Info or Active Edit Form */}
+              <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
               {!isEditingProfile ? (
                 /* Read-Only Dossier Mode */
                 <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                    <div>
-                      <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
-                        <User className="w-4.5 h-4.5 text-[#0A6B43]" />
-                        Personal Demographics & Profile
-                      </h3>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">
-                        Official member record registered with Katipunan ng Kabataan
-                      </p>
+                  {/* Header: matching Edit Mode height and alignment */}
+                  <div className="border-b border-gray-100 pb-3">
+                    <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                      <User className="w-4.5 h-4.5 text-[#0A6B43]" />
+                      Personal Profile Details
+                    </h3>
+                  </div>
+
+                  {/* Section 1: Basic Information */}
+                  <div className="space-y-3.5">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Basic Information
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                      {/* Full Name */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Full Name</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{youthProfile.name}</p>
+                        </div>
+                      </div>
+
+                      {/* Account Login Email */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Account Login Email</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={currentUser?.email || youthProfile.email || "Registered Email"}>
+                            {currentUser?.email || youthProfile.email || "Registered Email"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Date of Birth */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Date of Birth *</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">
+                            {youthProfile.birthdate
+                              ? (() => {
+                                try {
+                                  const d = new Date(youthProfile.birthdate);
+                                  return isNaN(d.getTime()) ? String(youthProfile.birthdate) : d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+                                } catch {
+                                  return String(youthProfile.birthdate);
+                                }
+                              })()
+                              : "Not recorded"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Age (Years Old) */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Age (Years Old)</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">{youthProfile.age}</p>
+                        </div>
+                      </div>
+
+                      {/* Sex / Gender */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Sex / Gender *</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">{spellOutGender(youthProfile.gender) || "Male"}</p>
+                        </div>
+                      </div>
+
+                      {/* Contact Phone Number */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number *</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">{youthProfile.contactNumber || "Not recorded"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Residence & Location */}
+                  <div className="space-y-3.5 pt-1">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Residence & Location
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                      {/* Registered Barangay */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Registered Barangay</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">Barangay {youthProfile.barangay || "San Luis"}</p>
+                        </div>
+                      </div>
+
+                      {/* Purok / Zone */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">
+                          {getBarangayZoneTypeLabel(youthProfile.barangay)} / Zone *
+                        </span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">
+                            {youthProfile.purok || (getBarangayZoneTypeLabel(youthProfile.barangay) === "Street" ? "Street 1" : "Purok 1")}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Education & Employment Profile */}
+                  <div className="space-y-3.5 pt-1">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Education & Employment Profile
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                      {/* Educational Attainment */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Educational Attainment *</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">
+                            {normalizeEducationalAttainment(youthProfile.educationalAttainment) || "College Level (Undergraduate)"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Current Youth Status */}
+                      <div className="space-y-0.5">
+                        <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Current Youth Status *</span>
+                        <div className="h-[42px] flex items-center">
+                          <p className="text-[16px] font-semibold text-gray-900 leading-tight">
+                            {youthProfile.currentStatus || "Out-of-School Youth (OSY)"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Special Inclusivity & Priority Classifications */}
+                  <div className="space-y-3.5 pt-1">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                      <Heart className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      Special Inclusivity & Priority Classifications
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-3 sm:px-4">
+                      {/* Solo Parent */}
+                      <div className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all h-[42px] ${
+                        youthProfile.soloParent ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
+                      }`}>
+                        <div className={`w-4.5 h-4.5 rounded-xs border flex items-center justify-center shrink-0 ${
+                          youthProfile.soloParent ? "bg-[#0A6B43] border-[#0A6B43] text-white" : "border-gray-300 bg-white"
+                        }`}>
+                          {youthProfile.soloParent && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                        </div>
+                        <span className="text-sm font-medium">Solo Parent</span>
+                      </div>
+
+                      {/* PWD (Disability) */}
+                      <div className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all h-[42px] ${
+                        youthProfile.pwd ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
+                      }`}>
+                        <div className={`w-4.5 h-4.5 rounded-xs border flex items-center justify-center shrink-0 ${
+                          youthProfile.pwd ? "bg-[#0A6B43] border-[#0A6B43] text-white" : "border-gray-300 bg-white"
+                        }`}>
+                          {youthProfile.pwd && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                        </div>
+                        <span className="text-sm font-medium">PWD (Disability)</span>
+                      </div>
+
+                      {/* Indigenous (IP) */}
+                      <div className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all h-[42px] ${
+                        youthProfile.indigenous ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
+                      }`}>
+                        <div className={`w-4.5 h-4.5 rounded-xs border flex items-center justify-center shrink-0 ${
+                          youthProfile.indigenous ? "bg-[#0A6B43] border-[#0A6B43] text-white" : "border-gray-300 bg-white"
+                        }`}>
+                          {youthProfile.indigenous && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                        </div>
+                        <span className="text-sm font-medium">Indigenous (IP)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action: Edit Details Button with Hover Animation */}
+                  <div className="pt-2 flex justify-end">
                     <button
                       type="button"
                       onClick={() => {
@@ -4221,140 +5283,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         setIsEditingProfile(true);
                       }}
                       disabled={isUnverified}
-                      className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-white shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
-                        }`}
+                      className={`group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-98 ${
+                        isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
+                      }`}
                     >
-                      <Edit className="w-3.5 h-3.5" />
+                      <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
                       <span>Edit Details</span>
                     </button>
-                  </div>
-
-                  {/* Basic Information Dossier */}
-                  <div className="space-y-2.5">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-                      Basic Demographics
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Full Name</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.name}</p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Login Email</span>
-                        <p className="text-sm font-bold text-slate-800 truncate" title={currentUser?.email || youthProfile.email || "Registered Email"}>
-                          {currentUser?.email || youthProfile.email || "Registered Email"}
-                        </p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Contact Phone</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.contactNumber || "Not recorded"}</p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Date of Birth</span>
-                        <p className="text-sm font-bold text-slate-800">
-                          {youthProfile.birthdate
-                            ? (() => {
-                              try {
-                                const d = new Date(youthProfile.birthdate);
-                                return isNaN(d.getTime()) ? String(youthProfile.birthdate) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                              } catch {
-                                return String(youthProfile.birthdate);
-                              }
-                            })()
-                            : "Not recorded"}
-                        </p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Age</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.age} years old</p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Sex / Gender</span>
-                        <p className="text-sm font-bold text-slate-800">{spellOutGender(youthProfile.gender) || "Not recorded"}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Residence & Location */}
-                  <div className="space-y-2.5 pt-1">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-                      Residence & Location
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Barangay</span>
-                        <p className="text-sm font-bold text-slate-800">Barangay {youthProfile.barangay || "San Luis"}</p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{getBarangayZoneTypeLabel(youthProfile.barangay)} / Zone</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.purok || (getBarangayZoneTypeLabel(youthProfile.barangay) === "Street" ? "Street 1" : "Purok 1")}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Education & Employment Profile */}
-                  <div className="space-y-2.5 pt-1">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-                      Education & Employment Profile
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Educational Attainment</span>
-                        <p className="text-sm font-bold text-slate-800">{normalizeEducationalAttainment(youthProfile.educationalAttainment) || "Junior High School Graduate"}</p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Current Status</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.currentStatus || "Out-of-School Youth"}</p>
-                      </div>
-                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 space-y-1 sm:col-span-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Preferred Vocational Sector</span>
-                        <p className="text-sm font-bold text-slate-800">{youthProfile.sectorPreference || "General / Multi-Sector"}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Special Inclusivity Badges */}
-                  <div className="space-y-2.5 pt-1">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-                      Special Inclusivity & Priority Classifications
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className={`p-3 rounded-xl border flex items-center justify-between ${youthProfile.soloParent ? "bg-purple-50/80 border-purple-200 text-purple-900" : "bg-slate-50/60 border-slate-200/60 text-slate-400"}`}>
-                        <span className="text-xs font-bold">Solo Parent</span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${youthProfile.soloParent ? "bg-purple-200/70 text-purple-800" : "bg-slate-200/60 text-slate-500"}`}>
-                          {youthProfile.soloParent ? "Yes" : "No"}
-                        </span>
-                      </div>
-                      <div className={`p-3 rounded-xl border flex items-center justify-between ${youthProfile.pwd ? "bg-blue-50/80 border-blue-200 text-blue-900" : "bg-slate-50/60 border-slate-200/60 text-slate-400"}`}>
-                        <span className="text-xs font-bold">PWD (Disability)</span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${youthProfile.pwd ? "bg-blue-200/70 text-blue-800" : "bg-slate-200/60 text-slate-500"}`}>
-                          {youthProfile.pwd ? "Yes" : "No"}
-                        </span>
-                      </div>
-                      <div className={`p-3 rounded-xl border flex items-center justify-between ${youthProfile.indigenous ? "bg-amber-50/80 border-amber-200 text-amber-900" : "bg-slate-50/60 border-slate-200/60 text-slate-400"}`}>
-                        <span className="text-xs font-bold">Indigenous (IP)</span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${youthProfile.indigenous ? "bg-amber-200/70 text-amber-800" : "bg-slate-200/60 text-slate-500"}`}>
-                          {youthProfile.indigenous ? "Yes" : "No"}
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 </div>
               ) : (
                 /* Edit Form Mode */
                 <form onSubmit={handleSaveProfileDetails} className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div className="border-b border-gray-100 pb-3">
                     <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
                       <Edit className="w-4.5 h-4.5 text-[#0A6B43]" />
                       Edit Profile Details
                     </h3>
-                    <button
-                      type="button"
-                      onClick={handleCancelEdit}
-                      className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      Discard
-                    </button>
                   </div>
 
                   {/* Section 1: Basic Information */}
@@ -4363,17 +5308,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <User className="w-3.5 h-3.5 text-[#0A6B43]" />
                       Basic Information
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Full Name</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Full Name</label>
                         <input type="text" disabled value={youthProfile.name} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Account Login Email</label>
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Account Login Email</label>
                         <input type="email" disabled value={currentUser?.email || youthProfile.email || "Registered Email"} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Date of Birth *</label>
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Date of Birth *</label>
                         <SiKapDatePicker
                           value={editBirthdate}
                           onChange={handleDOBChange}
@@ -4386,8 +5331,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Age (Years Old)</label>
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Age (Years Old)</label>
                         <input
                           type="number"
                           disabled
@@ -4397,8 +5342,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           title="Age is automatically determined from your Date of Birth"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Sex / Gender *</label>
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Sex / Gender *</label>
                         <CustomSelect
                           disabled={!isEditingProfile || isUnverified}
                           value={editGender}
@@ -4412,8 +5357,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number *</label>
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact Phone Number *</label>
                         <input
                           type="text"
                           required
@@ -4435,13 +5380,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
                       Residence & Location
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Registered Barangay</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Registered Barangay</label>
                         <input type="text" disabled value={`Barangay ${youthProfile.barangay || "San Luis"}`} className="w-full p-2.5 border border-gray-200 bg-gray-50 text-gray-500 font-medium rounded-lg text-sm cursor-default" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">
                           {getBarangayZoneTypeLabel(youthProfile.barangay)} / Zone *
                         </label>
                         <CustomSelect
@@ -4463,9 +5408,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43]" />
                       Education & Employment Profile
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Educational Attainment *</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Educational Attainment *</label>
                         <CustomSelect
                           disabled={!isEditingProfile || isUnverified}
                           value={normalizeEducationalAttainment(editEdu)}
@@ -4476,8 +5421,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Youth Status *</label>
+                      <div className="space-y-0.5">
+                        <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Current Youth Status *</label>
                         <CustomSelect
                           disabled={!isEditingProfile || isUnverified}
                           value={editStatus}
@@ -4496,41 +5441,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
                         />
                       </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Preferred Vocational Sector *</label>
-                        <CustomSelect
-                          disabled={!isEditingProfile || isUnverified}
-                          value={editSector}
-                          onChange={(val) => setEditSector(val)}
-                          options={[
-                            "Information & Communications Technology (ICT)",
-                            "IT & Digital",
-                            "Agriculture, Forestry and Fishery",
-                            "Automotive and Land Transportation",
-                            "Construction",
-                            "Electrical and Electronics",
-                            "Heating, Ventilation, Airconditioning and Refrigeration (HVAC/R)",
-                            "Heavy Equipment Operation",
-                            "Metals and Engineering / Welding",
-                            "Process Food and Beverages / Culinary",
-                            "Tourism / Hotel and Restaurant Services",
-                            "Social, Community Development and other Services / Caregiving",
-                            "Human Health / Health Care",
-                            "Visual and Performing Arts / Creative",
-                            "Garments and Textiles",
-                            "Wholesale and Retail / Sales",
-                            "Logistics and Warehousing",
-                            "Maritime",
-                            "Utilities / Solar Power",
-                            "Language and Culture",
-                            "Entrepreneurship & Management",
-                            "General / Multi-Sector"
-                          ]}
-                          size="md"
-                          placeholder="Select Vocational Sector"
-                          buttonClassName={isEditingProfile ? "!bg-white !text-gray-900 !border-gray-300" : ""}
-                        />
-                      </div>
                     </div>
                   </div>
 
@@ -4540,7 +5450,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <Heart className="w-3.5 h-3.5 text-[#0A6B43]" />
                       Special Inclusivity & Priority Classifications
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-3 sm:px-4">
                       <label className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${!isEditingProfile || isUnverified ? "cursor-default" : "cursor-pointer"
                         } ${editSoloParent ? "bg-emerald-50/80 border-emerald-300 text-emerald-950 font-medium" : "bg-gray-50/80 border-gray-200 text-gray-500 font-medium"
                         }`}>
@@ -4594,11 +5504,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     <button
                       type="submit"
                       disabled={isSavingProfile || isUnverified}
-                      className={`px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
+                      className={`group/save px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-98 ${isUnverified ? "bg-gray-300 cursor-not-allowed" : "bg-[#0A6B43] hover:bg-[#075332]"
                         }`}
                     >
-                      {isSavingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                      Save Profile Changes
+                      {isSavingProfile ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4 transition-transform duration-200 group-hover/save:scale-125 group-hover/save:rotate-6" />
+                      )}
+                      <span>Save Profile Changes</span>
                     </button>
                   </div>
                 </form>
@@ -4606,7 +5520,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
 
             {/* Right Column: Summary & Verification Card */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="xl:col-span-5 space-y-4">
               {/* Profile Photo Management Card */}
               <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm space-y-4">
                 <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
@@ -4622,12 +5536,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
+                  <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
                     {profilePictureUrl ? (
                       <img
                         src={profilePictureUrl}
                         alt={youthProfile.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-full"
                       />
                     ) : youthProfile.name ? (
                       youthProfile.name
@@ -4640,7 +5554,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       "KK"
                     )}
                     {isUploadingPic && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-full">
                         <Loader2 className="w-6 h-6 text-white animate-spin" />
                       </div>
                     )}
@@ -4650,9 +5564,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <label
                         htmlFor="tab-profile-pic-input"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0A6B43] text-white hover:bg-[#075332] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                        className="group/upload inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0A6B43] text-white hover:bg-[#075332] active:scale-98 transition-all cursor-pointer shadow-xs disabled:opacity-50"
                       >
-                        <Upload className="w-3.5 h-3.5" />
+                        <Upload className="w-3.5 h-3.5 transition-transform duration-200 group-hover/upload:-translate-y-0.5 group-hover/upload:scale-115" />
                         <span>{profilePictureUrl ? "Change Photo" : "Upload Photo"}</span>
                       </label>
                       <input
@@ -4669,9 +5583,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           type="button"
                           onClick={handleRemoveProfilePicture}
                           disabled={isUploadingPic}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors border border-red-200 cursor-pointer disabled:opacity-50"
+                          className="group/remove inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 active:scale-98 transition-all border border-red-200 cursor-pointer disabled:opacity-50"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5 transition-transform duration-200 group-hover/remove:scale-115 group-hover/remove:rotate-12" />
                           <span>Remove</span>
                         </button>
                       )}
@@ -4778,7 +5692,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       {youthProfile.verificationIdNumber && (
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-gray-500 font-medium">ID Number:</span>
-                          <span className="font-medium text-gray-800 text-right font-mono text-xs">
+                          <span className="font-medium text-gray-800 text-right font-mono text-sm">
                             {youthProfile.verificationIdNumber}
                           </span>
                         </div>
@@ -4805,18 +5719,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
                   )}
                 </div>
-
-                {/* Fast Link to Digital ID Card */}
-                <div className="pt-3 border-t border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setProfileActiveTab("badge")}
-                    className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                    <span>View Official Digital ID Card</span>
-                  </button>
-                </div>
               </div>
             </div>
           </motion.div>
@@ -4830,7 +5732,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="space-y-6 pb-24"
+            className="space-y-6 pb-6 w-full"
           >
             {/* Top: Livelihood & Career Goal Card */}
             <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-3.5 sm:space-y-4">
@@ -4841,11 +5743,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <Target className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#0A6B43] shrink-0" />
                       <span>Livelihood & Career Goal</span>
                     </h3>
-                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
-                      15% Match Weight
-                    </span>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-400 font-medium mt-0.5 leading-snug">
+                  <p className="text-[14px] text-gray-400 font-medium mt-0.5 leading-snug">
                     Your overarching career aspiration or livelihood ambition
                   </p>
                 </div>
@@ -4913,181 +5812,169 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
             </div>
 
-            {/* Middle: 2-Column Balanced Grid: Skills + Interests */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 1. Competency Skills & Qualifications Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div className="border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                        <Award className="w-4.5 h-4.5 text-amber-500" />
-                        Competency Skills
-                      </h3>
-                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                        50% Match Weight
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-400 font-medium mt-0.5">Scored directly by the CBF AI matching engine</p>
+            {/* 1. Competency Skills & Qualifications Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 w-full">
+              <div className="space-y-4">
+                <div className="border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                      <Award className="w-4.5 h-4.5 text-amber-500" />
+                      Competency Skills
+                    </h3>
                   </div>
+                  <p className="text-[14px] text-gray-400 font-medium mt-0.5">Scored directly by the CBF AI matching engine</p>
+                </div>
 
-                  {/* Add Skill Inline Input */}
-                  <div className="flex items-center gap-2 w-full">
-                    <input
-                      type="text"
-                      disabled={isUnverified}
-                      placeholder={isUnverified ? "Awaiting verification..." : "e.g. Baking, Basic Computing..."}
-                      value={newSkillInput}
-                      onChange={(e) => setNewSkillInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          if (isUnverified) {
-                            addToast("Cannot add skills while account is awaiting SK verification", "error");
-                            return;
-                          }
-                          handleAddSkillSubmit();
-                        }
-                      }}
-                      className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
-                    />
-                    <button
-                      type="button"
-                      disabled={isUnverified}
-                      onClick={() => {
+                {/* Add Skill Inline Input */}
+                <div className="flex items-center gap-2 w-full">
+                  <input
+                    type="text"
+                    disabled={isUnverified}
+                    placeholder={isUnverified ? "Awaiting verification..." : "e.g. Baking, Basic Computing..."}
+                    value={newSkillInput}
+                    onChange={(e) => setNewSkillInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
                         if (isUnverified) {
                           addToast("Cannot add skills while account is awaiting SK verification", "error");
                           return;
                         }
                         handleAddSkillSubmit();
-                      }}
-                      className={`px-4 py-2 h-10 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add
-                    </button>
-                  </div>
+                      }
+                    }}
+                    className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    disabled={isUnverified}
+                    onClick={() => {
+                      if (isUnverified) {
+                        addToast("Cannot add skills while account is awaiting SK verification", "error");
+                        return;
+                      }
+                      handleAddSkillSubmit();
+                    }}
+                    className={`px-4 py-2 h-10 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add
+                  </button>
+                </div>
 
-                  {/* Active Registered Skills Tags */}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {youthProfile.skills && youthProfile.skills.length > 0 ? (
-                      youthProfile.skills.map((s) => (
-                        <span key={s} className="bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5 shadow-2xs">
-                          <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          {s}
-                          <button
-                            onClick={() => {
-                              if (isUnverified) {
-                                addToast("Cannot remove skills in View-Only Mode", "error");
-                                return;
-                              }
-                              handleRemoveSkillLocal(s);
-                            }}
-                            disabled={isUnverified}
-                            className="font-bold text-xs text-amber-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
-                            title="Remove skill"
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-xs text-gray-400 italic font-medium py-1">No competency skills added yet.</p>
-                    )}
-                  </div>
+                {/* Active Registered Skills Tags */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {youthProfile.skills && youthProfile.skills.length > 0 ? (
+                    youthProfile.skills.map((s) => (
+                      <span key={s} className="bg-amber-50 text-amber-900 text-xs font-bold px-3 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5 shadow-2xs">
+                        <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        {formatSkillTitleCase(s)}
+                        <button
+                          onClick={() => {
+                            if (isUnverified) {
+                              addToast("Cannot remove skills in View-Only Mode", "error");
+                              return;
+                            }
+                            handleRemoveSkillLocal(s);
+                          }}
+                          disabled={isUnverified}
+                          className="font-bold text-xs text-amber-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
+                          title="Remove skill"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-400 italic font-medium py-1">No competency skills added yet.</p>
+                  )}
                 </div>
               </div>
+            </div>
 
-              {/* 2. Vocational Interests & Sector Preferences Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div className="border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                        <Compass className="w-4.5 h-4.5 text-[#0A6B43]" />
-                        Vocational Interests
-                      </h3>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        20% Match Weight
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-400 font-medium mt-0.5">Fields and industries you are passionate about</p>
+            {/* 2. Preferred Vocational Interests Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 w-full">
+              <div className="space-y-4">
+                <div className="border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                      <Compass className="w-4.5 h-4.5 text-[#0A6B43]" />
+                      Preferred Vocational Interests
+                    </h3>
                   </div>
+                  <p className="text-[14px] text-gray-400 font-medium mt-0.5">Fields and industries you are passionate about</p>
+                </div>
 
-                  {/* Add Preference Inline Input */}
-                  <div className="flex items-center gap-2 w-full">
-                    <input
-                      type="text"
-                      disabled={isUnverified}
-                      placeholder={isUnverified ? "Awaiting verification..." : "e.g. Graphic Design, Web Dev..."}
-                      value={newPrefInput}
-                      onChange={(e) => setNewPrefInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          if (isUnverified) {
-                            addToast("Cannot add interests while account is awaiting SK verification", "error");
-                            return;
-                          }
-                          handleAddPreference(newPrefInput);
-                        }
-                      }}
-                      className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
-                    />
-                    <button
-                      type="button"
-                      disabled={isUnverified}
-                      onClick={() => {
+                {/* Add Preference Inline Input */}
+                <div className="flex items-center gap-2 w-full">
+                  <input
+                    type="text"
+                    disabled={isUnverified}
+                    placeholder={isUnverified ? "Awaiting verification..." : "e.g. Graphic Design, Web Dev..."}
+                    value={newPrefInput}
+                    onChange={(e) => setNewPrefInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
                         if (isUnverified) {
                           addToast("Cannot add interests while account is awaiting SK verification", "error");
                           return;
                         }
                         handleAddPreference(newPrefInput);
-                      }}
-                      className={`px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add
-                    </button>
-                  </div>
+                      }
+                    }}
+                    className={`flex-1 px-3 py-2 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${isUnverified ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    disabled={isUnverified}
+                    onClick={() => {
+                      if (isUnverified) {
+                        addToast("Cannot add interests while account is awaiting SK verification", "error");
+                        return;
+                      }
+                      handleAddPreference(newPrefInput);
+                    }}
+                    className={`px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5 ${isUnverified ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add
+                  </button>
+                </div>
 
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {(youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).length > 0 ? (
-                      (youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).map((pref) => (
-                        <span key={pref} className="bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-1 rounded-lg border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
-                          <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          {pref}
-                          <button
-                            onClick={() => handleRemovePreference(pref)}
-                            disabled={isUnverified}
-                            className="font-bold text-xs text-emerald-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
-                            title="Remove interest"
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-xs text-gray-400 italic font-medium py-1">No vocational interests listed.</p>
-                    )}
-                  </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {(youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).length > 0 ? (
+                    (youthProfile.preferencesRaw && youthProfile.preferencesRaw.length > 0 ? youthProfile.preferencesRaw : (youthProfile.interests || [])).map((pref) => (
+                      <span key={pref} className="bg-emerald-50 text-emerald-950 text-xs font-bold px-3 py-1 rounded-lg border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                        <Compass className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        {pref}
+                        <button
+                          onClick={() => handleRemovePreference(pref)}
+                          disabled={isUnverified}
+                          className="font-bold text-xs text-emerald-600 hover:text-red-600 transition-colors p-0.5 cursor-pointer leading-none"
+                          title="Remove interest"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-400 italic font-medium py-1">No preferred vocational interests listed.</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Bottom: 3. Prior Work & Practical Experiences Card - Inverted Pyramid Center */}
-            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 w-full max-w-xl sm:max-w-2xl mx-auto">
+            {/* Bottom: 3. Prior Work & Practical Experiences Card - Full Width Row */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 w-full">
               <div className="border-b border-gray-100 pb-3">
                 <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between">
                   <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
                     <Briefcase className="w-4.5 h-4.5 text-blue-600 shrink-0" />
                     <span>Prior Work & Practical Experiences</span>
                   </h3>
-                  <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 shrink-0">
-                    15% Match Weight
-                  </span>
                 </div>
-                <p className="text-sm text-gray-400 font-medium mt-0.5">Informal gigs, past employment, hands-on hobbies, or volunteer work</p>
+                <p className="text-[14px] text-gray-400 font-medium mt-0.5">Informal gigs, past employment, hands-on hobbies, or volunteer work</p>
               </div>
 
               {/* Add Experience Inline Input */}
@@ -5159,9 +6046,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-5 gap-6 w-full max-w-5xl mx-auto pb-24"
+            className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
           >
-            <div className="lg:col-span-3 bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+            <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
               <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
                 <div className="border-b border-gray-100 pb-3">
                   <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
@@ -5213,7 +6100,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
+                    {confirmPassword.length > 0 && (
+                      <span className={`text-[11px] font-bold ${doPasswordsMatch ? "text-[#0A6B43]" : "text-rose-500"}`}>
+                        {doPasswordsMatch ? "Passwords match ✓" : "Passwords do not match"}
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <input
                       type={showConfirmPass ? "text" : "password"}
@@ -5221,7 +6115,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Re-type new password..."
-                      className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                      className={`w-full px-3 py-2 pr-10 h-10 border rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${
+                        confirmPassword.length > 0 && !doPasswordsMatch ? "border-rose-300 bg-rose-50/20" : "border-gray-200"
+                      }`}
                     />
                     <button
                       type="button"
@@ -5236,45 +6132,167 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    disabled={isChangingPassword}
-                    className="px-4 py-2 h-10 bg-[#0A6B43] hover:bg-[#075332] text-white text-sm font-bold rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    disabled={isChangingPassword || !isAllPasswordCriteriaMet || !doPasswordsMatch || !currentPassword}
+                    className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      isChangingPassword || !isAllPasswordCriteriaMet || !doPasswordsMatch || !currentPassword
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                        : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                    }`}
                   >
-                    {isChangingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                    Update Password
+                    {isChangingPassword ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Lock className="w-4 h-4 transition-transform duration-200 group-hover/pwd:rotate-12 group-hover/pwd:scale-115" />
+                    )}
+                    <span>Update Password</span>
                   </button>
                 </div>
               </form>
             </div>
 
-            {/* Security Overview & Guidelines Card */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 text-xs">
-                <div className="border-b border-gray-100 pb-2.5">
-                  <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                    Security Best Practices
-                  </h4>
+            {/* Security Guide & Best Practices Companion Card - Solid #0A6B43 Background, Simple Icon (No Container), White Fonts & Dividers, No Subheader */}
+            <div className="xl:col-span-5">
+              <div className="bg-[#0A6B43] rounded-2xl p-5 sm:p-6 shadow-md space-y-4 text-xs text-white">
+                {/* Guide Card Header: Simple icon without container, no subheader, white divider */}
+                <div className="flex items-center gap-2.5 border-b border-white/20 pb-3">
+                  <ShieldCheck className="w-5 h-5 text-white shrink-0" />
+                  <h4 className="font-bold text-white text-base leading-tight">Security Guide</h4>
                 </div>
-                <ul className="space-y-2 text-gray-600 font-medium">
-                  <li className="flex items-start gap-2">
-                    <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
-                    <span>At least 6 characters long</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
-                    <span>Use uppercase and lowercase letters</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
-                    <span>Include numbers or symbols</span>
-                  </li>
-                </ul>
 
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80 text-emerald-950">
-                    <p className="font-bold text-[11px] uppercase tracking-wider text-[#0A6B43]">LGU Verified Credentials</p>
-                    <p className="text-[11px] text-emerald-800 mt-0.5">
-                      Your SiKap account is linked to your Katipunan ng Kabataan profile and TESDA TVET placements. Keep your password confidential.
+                {/* Guide Checklist with dynamic visual appearance and check animation */}
+                <div className="space-y-2.5">
+                  <span className="text-[11px] font-bold text-white uppercase tracking-wider block">
+                    Password Checklist
+                  </span>
+                  <div className="space-y-2.5">
+                    {/* Item 1: Length */}
+                    <div
+                      className={`flex items-center justify-between gap-2.5 p-3 rounded-xl border transition-all duration-300 ${
+                        isPassLengthValid
+                          ? "bg-white text-[#0A6B43] border-white shadow-sm font-bold scale-[1.01]"
+                          : "bg-white/10 border-white/15 text-white font-medium"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {isPassLengthValid ? (
+                          <motion.div
+                            key="check-len"
+                            initial={{ scale: 0, rotate: -45 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                            className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0 shadow-2xs"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </motion.div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border border-white/30 bg-white/10 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
+                          </div>
+                        )}
+                        <span className="text-xs">
+                          At least <strong>6 characters long</strong>
+                        </span>
+                      </div>
+                      {isPassLengthValid && (
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="text-[10px] font-black text-[#0A6B43] bg-emerald-100/90 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                        >
+                          ✓ Passed
+                        </motion.span>
+                      )}
+                    </div>
+
+                    {/* Item 2: Uppercase & Lowercase */}
+                    <div
+                      className={`flex items-center justify-between gap-2.5 p-3 rounded-xl border transition-all duration-300 ${
+                        isPassCaseValid
+                          ? "bg-white text-[#0A6B43] border-white shadow-sm font-bold scale-[1.01]"
+                          : "bg-white/10 border-white/15 text-white font-medium"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {isPassCaseValid ? (
+                          <motion.div
+                            key="check-case"
+                            initial={{ scale: 0, rotate: -45 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                            className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0 shadow-2xs"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </motion.div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border border-white/30 bg-white/10 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
+                          </div>
+                        )}
+                        <span className="text-xs">
+                          Combine <strong>uppercase & lowercase letters</strong>
+                        </span>
+                      </div>
+                      {isPassCaseValid && (
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="text-[10px] font-black text-[#0A6B43] bg-emerald-100/90 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                        >
+                          ✓ Passed
+                        </motion.span>
+                      )}
+                    </div>
+
+                    {/* Item 3: Numbers or Symbols */}
+                    <div
+                      className={`flex items-center justify-between gap-2.5 p-3 rounded-xl border transition-all duration-300 ${
+                        isPassCharTypeValid
+                          ? "bg-white text-[#0A6B43] border-white shadow-sm font-bold scale-[1.01]"
+                          : "bg-white/10 border-white/15 text-white font-medium"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {isPassCharTypeValid ? (
+                          <motion.div
+                            key="check-char"
+                            initial={{ scale: 0, rotate: -45 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                            className="w-5 h-5 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shrink-0 shadow-2xs"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </motion.div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border border-white/30 bg-white/10 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
+                          </div>
+                        )}
+                        <span className="text-xs">
+                          Include <strong>numbers or symbols</strong> (0-9, @, #)
+                        </span>
+                      </div>
+                      {isPassCharTypeValid && (
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="text-[10px] font-black text-[#0A6B43] bg-emerald-100/90 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                        >
+                          ✓ Passed
+                        </motion.span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Guide Callout Tip */}
+                <div className="pt-2 border-t border-white/20">
+                  <div className="p-3.5 rounded-xl bg-white/5 border border-white/15 text-white space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-white">
+                      <Shield className="w-3.5 h-3.5 text-white" />
+                      <span>Official LGU Account</span>
+                    </div>
+                    <p className="text-[11px] text-white/90 leading-relaxed font-medium">
+                      Your SiKap account is tied to your official Katipunan ng Kabataan profile and TESDA scholarship records. Keep your credentials private and never share your password.
                     </p>
                   </div>
                 </div>
@@ -5291,9 +6309,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-5 gap-6 w-full max-w-5xl mx-auto pb-24"
+            className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
           >
-            <div className="lg:col-span-3">
+            <div className="xl:col-span-7">
               <NotificationSettingsCard
                 userRole="KK_YOUTH"
                 userEmail={currentUser?.email}
@@ -5301,24 +6319,24 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
               />
             </div>
-            <div className="lg:col-span-2 space-y-4">
+            <div className="xl:col-span-5 space-y-4">
               <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 text-xs">
                 <div className="border-b border-gray-100 pb-2.5">
-                  <h4 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#0A6B43]" />
+                  <h4 className="font-bold text-gray-800 text-[16px] flex items-center gap-2">
+                    <Bell className="w-4.5 h-4.5 text-[#0A6B43]" />
                     Official Notification Channels
                   </h4>
                 </div>
                 <div className="space-y-3 text-gray-600 font-medium">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                    <span className="font-bold text-slate-800 text-xs block">Web Push Alerts</span>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <span className="font-bold text-slate-800 text-[14px] block">Web Push Alerts</span>
+                    <p className="text-[12px] text-slate-500 leading-relaxed font-medium">
                       Real-time browser notifications for application updates, enrollment approvals, and newly announced scholarships.
                     </p>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                    <span className="font-bold text-slate-800 text-xs block">Official Email Dispatch</span>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                    <span className="font-bold text-slate-800 text-[14px] block">Official Email Dispatch</span>
+                    <p className="text-[12px] text-slate-500 leading-relaxed font-medium">
                       Important administrative documents, training commencement notices, and verification codes sent directly to your registered inbox.
                     </p>
                   </div>
@@ -5354,7 +6372,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="space-y-6 w-full max-w-3xl mx-auto pb-24"
+              className="space-y-6 w-full pb-6"
             >
               <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
                 <div className="border-b border-gray-100 pb-3">
@@ -5623,10 +6641,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </motion.div>
           );
         })()}
-      </AnimatePresence>
-      </div>
+        </AnimatePresence>
+      </main>
     </div>
-  )
+  </div>
+)
 }
 
         </div >
@@ -5749,72 +6768,95 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     </div>
   )}
 
-{/* Complete Program Details Modal Popup */ }
-{
-  viewingProgramModal && (
-    <div
-      className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
-      style={{ zIndex: 50 }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) setViewingProgramModal(null);
-      }}
-    >
-      <div className="relative bg-white w-full max-w-2xl rounded-2xl sm:rounded-3xl border border-emerald-100 shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Modal Top Header (Pinned at Top) */}
-        <div className="p-4 sm:p-5 sm:px-6 border-b border-gray-150 shrink-0 bg-white">
-          <div className="flex items-start justify-between gap-3">
-            {/* Badges / Provider Row */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0 flex-1">
-              <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 tracking-wider">
-                {viewingProgramModal.program.provider || "TESDA Accredited Program"}
-              </span>
-              {isProgramEnded(viewingProgramModal.program) && (
-                <span className="text-[10px] font-extrabold uppercase text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200 tracking-wider inline-flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-purple-600" />
-                  Training Term Concluded
-                </span>
-              )}
-            </div>
+{/* Complete Program Details Modal Popup */}
+{viewingProgramModal && (() => {
+    const modalProg = viewingProgramModal.program;
+    const modalScore = viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, modalProg);
+    const isModalTopMatch = topMatchProgramIds.has(modalProg.id) && modalScore >= 50;
+    const modalCategoryMeta = getCBFMatchCategory(modalScore, hasEnoughMatchingData);
+    const modalProgSector = (() => {
+      const c = modalProg.category;
+      if (typeof c === "string" && c.trim()) {
+        const found = CATEGORIES.find(cat => cat.id === c || cat.slug === c || cat.name.toLowerCase() === c.toLowerCase());
+        if (found) return found.name;
+        return c;
+      }
+      if (c && typeof c === "object" && c.name) {
+        return c.name;
+      }
+      if (modalProg.categoryId) {
+        const found = CATEGORIES.find(cat => cat.id === String(modalProg.categoryId));
+        if (found) return found.name;
+      }
+      const detailed = calculateDetailedCBFMatch(youthProfile, modalProg);
+      if (detailed && detailed.categoryName) {
+        return detailed.categoryName;
+      }
+      return modalProg.type ? `${modalProg.type} Training` : "Technical-Vocational Training";
+    })();
 
-            {/* Actions & Close Button */}
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="hidden sm:block">
-                <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
+    return (
+      <div
+        className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
+        style={{ zIndex: 50 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setViewingProgramModal(null);
+        }}
+      >
+        <div className="relative bg-white w-full max-w-2xl rounded-2xl sm:rounded-3xl border border-gray-200 shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200">
+          {/* Modal Top Header (Pinned at Top) */}
+          <div className="p-4 sm:p-5 sm:px-6 border-b border-gray-200 shrink-0 bg-white">
+            <div className="flex items-center justify-between gap-3">
+              {/* Upper Top: Top Match Badge or Category Match Badge */}
+              <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+                {isModalTopMatch ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-linear-to-r from-amber-500 via-amber-400 to-[#0A6B43] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-wider shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5 text-white fill-white" />
+                    Top Match
+                  </span>
+                ) : (
+                  <span className={`text-[10px] sm:text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-md border tracking-wider ${modalCategoryMeta.badgeBg} ${modalCategoryMeta.badgeText} ${modalCategoryMeta.badgeBorder}`}>
+                    {modalCategoryMeta.label}
+                  </span>
+                )}
+                {isProgramEnded(modalProg) && (
+                  <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-200 tracking-wider inline-flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-purple-600" />
+                    Training Term Concluded
+                  </span>
+                )}
               </div>
+
+              {/* Close Button */}
               <button
                 onClick={() => setViewingProgramModal(null)}
-                className="text-gray-400 hover:text-gray-700 p-2 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-gray-700 p-2 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
                 aria-label="Close modal"
                 title="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-          </div>
 
-          {/* Title and Mobile Match Score */}
-          <div className="mt-2.5 flex items-start justify-between gap-3">
-            <h3 className="font-extrabold text-gray-900 text-base sm:text-xl leading-snug flex-1 min-w-0 break-words">
-              {viewingProgramModal.program.title}
-            </h3>
-                  <div className="sm:hidden block shrink-0 pt-0.5">
-            <FlameMatchScore score={viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)} />
-          </div>
-        </div>
+            {/* Main Header: Title and % Match in Top Right */}
+            <div className="mt-2.5 flex items-start justify-between gap-3">
+              <h3 className="font-extrabold text-gray-900 text-base sm:text-xl leading-snug flex-1 min-w-0 break-words">
+                {modalProg.title}
+              </h3>
+              <div className="shrink-0 pt-0.5">
+                <FlameMatchScore
+                  score={modalScore}
+                  hasEnoughData={hasEnoughMatchingData}
+                  isTopMatch={isModalTopMatch}
+                />
+              </div>
+            </div>
 
-        {/* Location and Duration Row */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-600 font-medium">
-          <span className="inline-flex items-center gap-1.5 min-w-0">
-            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="truncate max-w-[220px] sm:max-w-none">{viewingProgramModal.program.location}</span>
-          </span>
-          <span className="hidden sm:inline text-gray-300">•</span>
-          <span className="inline-flex items-center gap-1.5 shrink-0">
-            <Timer className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span>{viewingProgramModal.program.trainingHours} hours</span>
-          </span>
-        </div>
-      </div>
+            {/* Subheader: Sector of the Program */}
+            <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-500">
+              {modalProgSector}
+            </p>
+          </div>
 
               {/* Modal Scrollable Body */ }
     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollbar p-4 sm:p-6 space-y-4 sm:space-y-5">
@@ -5871,23 +6913,137 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         );
       })()}
 
-      {/* Gemini AI Match Rationale */}
-      <div className="bg-emerald-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-emerald-200/80 space-y-2 shadow-2xs">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
-            Gemini AI Match Rationale
-          </span>
-          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
-            {viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program)}% CBF Match Fit
-          </span>
-        </div>
-        <p className="text-xs italic text-emerald-950 leading-relaxed font-medium">
-          &ldquo;{featuredLang === "tl" && featuredAdviceTl
-            ? featuredAdviceTl
-            : (liveGeminiAdvice || `As a Katipunan ng Kabataan member from Barangay ${youthProfile.barangay || "San Luis"}, ${youthProfile.name.split(' ')[0]} possesses background competencies matching ${viewingProgramModal.program.title}. Enrolling in this program will officially certify their qualifications under TESDA.`)}&rdquo;
-        </p>
-      </div>
+      {/* CONDITIONAL: Gemini AI Match Rationale & 3-Step Pathway ONLY for Top Match programs */}
+      {(() => {
+        const modalScore = viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program);
+        const isModalTopMatch = topMatchProgramIds.has(viewingProgramModal.program.id) && modalScore >= 50;
+        const modalCategoryMeta = getCBFMatchCategory(modalScore, hasEnoughMatchingData);
+        const modalBreakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
+        const isPrimaryTopProg = activeMatchingPrograms.length > 0 && activeMatchingPrograms[0].program.id === viewingProgramModal.program.id;
+
+        const modalRationale = isPrimaryTopProg && (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
+          ? (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
+          : getFallbackPersonalizedRationale(youthProfile, viewingProgramModal.program, featuredLang);
+
+        const modalBullets = isPrimaryTopProg && (featuredLang === "tl" ? (featuredBulletsTl?.length === 3 ? featuredBulletsTl : null) : (liveGeminiBullets?.length === 3 ? liveGeminiBullets : null))
+          ? (featuredLang === "tl" ? featuredBulletsTl : liveGeminiBullets)
+          : getFallbackPersonalized3StepPathway(youthProfile, viewingProgramModal.program, featuredLang);
+
+        if (isModalTopMatch) {
+          return (
+            <div className="space-y-3">
+              {/* Top Match Designation Banner in Modal */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-linear-to-r from-amber-500/10 via-emerald-50 to-emerald-100/50 border border-emerald-200">
+                <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0A6B43]">
+                  <Sparkles className="w-4 h-4 text-amber-500 fill-amber-400" />
+                  Top Match Designation
+                </span>
+                <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-emerald-200 text-[11px] font-bold shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setFeaturedLang("en")}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                    title="Read in English"
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeaturedLang("tl")}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "tl" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                    title="Isalin sa Tagalog"
+                  >
+                    Tagalog
+                  </button>
+                </div>
+              </div>
+
+              {/* Gemini AI Match Rationale */}
+              <div className="bg-emerald-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-emerald-200/80 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                    Gemini Match Rationale
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-400">
+                    Powered by Google Gemini
+                  </span>
+                </div>
+                <p className="text-xs italic text-emerald-950 leading-relaxed font-medium text-justify">
+                  &ldquo;{modalRationale}&rdquo;
+                </p>
+              </div>
+
+              {/* Personalized 3-Step Pathway */}
+              <div className="bg-emerald-50/60 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-emerald-200/90 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase text-[#0A6B43] tracking-wider flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-[#0A6B43]" />
+                    Personalized 3-Step Pathway
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-400">Action Plan</span>
+                </div>
+                <div className="space-y-2">
+                  {modalBullets.map((rawStep, sIdx) => {
+                    const step = rawStep.replace(/^(?:Step|Hakbang)\s*\d+[:\-–—\.\s]*/i, "").trim();
+                    return (
+                      <div
+                        key={sIdx}
+                        className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl bg-white border border-emerald-200/80 shadow-2xs"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-[#0A6B43] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          {sIdx + 1}
+                        </span>
+                        <span className="flex-1 break-words text-xs text-gray-800 font-medium leading-snug">
+                          {step}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Non-Top Match: Match Category + Relevant Matched Skills / Preferences without Gemini Rationale or Pathway
+        return (
+          <div className="bg-gray-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-200/80 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-[10px] font-extrabold uppercase text-gray-700 tracking-wider flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
+                Match Category
+              </span>
+              {modalCategoryMeta.label !== "Not Match" && modalCategoryMeta.label !== "Not Enough Matching Data" && (
+                <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border ${modalCategoryMeta.badgeBg} ${modalCategoryMeta.badgeText} ${modalCategoryMeta.badgeBorder}`}>
+                  {modalCategoryMeta.label} ({modalScore}%)
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+              {modalCategoryMeta.description}
+            </p>
+
+            {/* Relevant matched skills or preferences */}
+            {modalBreakdown.matchedSkills && modalBreakdown.matchedSkills.length > 0 && (
+              <div className="pt-2 border-t border-gray-200/60 space-y-1.5">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+                  Relevant Matched Competencies ({modalBreakdown.matchedSkills.length})
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {modalBreakdown.matchedSkills.map((sk, sIdx) => (
+                    <span key={sIdx} className="text-xs font-semibold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-150 flex items-center gap-1 shadow-2xs">
+                      <Check className="w-3 h-3 text-[#0A6B43]" />
+                      {sk}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
 
       {/* Complete Program Details Grid */}
       <div className="bg-gray-50/80 rounded-xl sm:rounded-2xl border border-gray-200/80 p-3.5 sm:p-4.5 space-y-3">
@@ -6085,11 +7241,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         const isDisabled = isCompleted || !!app || isFull || isEnded || !!overlapWarning || isUnverified;
 
         return (
-          <div className="p-3.5 sm:p-5 border-t border-gray-150 shrink-0 bg-gray-50/95 rounded-b-2xl sm:rounded-b-3xl">
+          <div className="p-3.5 sm:p-5 border-t border-gray-200 shrink-0 bg-gray-50/95 rounded-b-2xl sm:rounded-b-3xl">
             <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3">
               <button
                 onClick={() => setViewingProgramModal(null)}
-                className="w-full sm:w-auto px-5 py-2.5 sm:py-3 border border-gray-250 text-gray-700 bg-white hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer text-center shadow-2xs active:scale-98"
+                className="w-full sm:w-auto px-5 py-2.5 sm:py-3 border border-gray-200 text-gray-700 bg-white hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer text-center shadow-2xs active:scale-98"
               >
                 Close Details
               </button>
@@ -6165,12 +7321,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
           </div>
         );
-      })()
-    }
-            </div >
-          </div >
-        )
-  }
+      })()}
+        </div>
+      </div>
+    );
+  })()}
 
   {/* Direct Application Confirmation Modal (Centered Desktop style) */ }
   {

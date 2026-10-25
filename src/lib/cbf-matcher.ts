@@ -1,4 +1,5 @@
-import { YouthProfile, TESDAProgram, CBFScoreBreakdown, NormalizedInputs, NormalizedGoal } from "../types";
+import { YouthProfile, TESDAProgram, CBFScoreBreakdown, NormalizedInputs, NormalizedGoal, CBFMatchCategory } from "../types";
+export type { CBFMatchCategory } from "../types";
 import { CATEGORIES, CATEGORY_MAP } from "./cbf-taxonomy-data";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "./cbf-normalization";
 
@@ -641,5 +642,124 @@ export function computeProgramTrainingHours(params: {
     dailyHours,
     deductedLunch
   };
+}
+
+/**
+ * CBF Match Categories:
+ * - 90% and above: Excellent Match
+ * - 75–89%: Strong Match
+ * - 50–74%: Moderate Match
+ * - Below 50%: Low Match
+ * - 0% or N/A: Others / Not Match
+ */
+export interface CBFMatchCategoryDetails {
+  category: CBFMatchCategory;
+  label: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  dotColor: string;
+  flameColor: string;
+  hasScore: boolean;
+  description: string;
+}
+
+export function getCBFMatchCategory(score: number, hasEnoughData: boolean = true): CBFMatchCategoryDetails {
+  if (!hasEnoughData || score <= 0 || isNaN(score)) {
+    return {
+      category: "Not Enough Matching Data",
+      label: "Others",
+      badgeBg: "bg-gray-100",
+      badgeText: "text-gray-600",
+      badgeBorder: "border-gray-250",
+      dotColor: "bg-gray-400",
+      flameColor: "text-gray-400 fill-gray-400",
+      hasScore: false,
+      description: "Additional competencies or sector preferences are needed to calculate alignment."
+    };
+  }
+
+  if (score >= 90) {
+    return {
+      category: "Excellent Match",
+      label: "Excellent Match",
+      badgeBg: "bg-emerald-50",
+      badgeText: "text-[#0A6B43]",
+      badgeBorder: "border-emerald-300",
+      dotColor: "bg-[#0A6B43]",
+      flameColor: "text-amber-500 fill-amber-500 animate-pulse",
+      hasScore: true,
+      description: "Exceptional alignment with your registered technical skills and primary career goals."
+    };
+  }
+
+  if (score >= 75) {
+    return {
+      category: "Strong Match",
+      label: "Strong Match",
+      badgeBg: "bg-teal-50",
+      badgeText: "text-teal-800",
+      badgeBorder: "border-teal-200",
+      dotColor: "bg-teal-600",
+      flameColor: "text-teal-600 fill-teal-500",
+      hasScore: true,
+      description: "Strong compatibility based on your technical competencies and declared sector."
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      category: "Moderate Match",
+      label: "Moderate Match",
+      badgeBg: "bg-amber-50",
+      badgeText: "text-amber-800",
+      badgeBorder: "border-amber-200",
+      dotColor: "bg-amber-500",
+      flameColor: "text-amber-500 fill-transparent",
+      hasScore: true,
+      description: "Good cross-functional match that can help broaden your vocational skill set."
+    };
+  }
+
+  return {
+    category: "Low Match",
+    label: "Low Match",
+    badgeBg: "bg-slate-100",
+    badgeText: "text-slate-700",
+    badgeBorder: "border-slate-250",
+    dotColor: "bg-slate-400",
+    flameColor: "text-slate-400 fill-transparent",
+    hasScore: true,
+    description: "Lower direct overlap with your current competencies, but open for enrollment."
+  };
+}
+
+/**
+ * Determines whether programs qualify for the distinct "Top Match" designation.
+ * A program is designated as Top Match if:
+ * 1. It is among actionable/valid programs with score >= 50.
+ * 2. It has the maximum CBF score (exact tie) OR is nearly identical (within 2 percentage points of max score).
+ */
+export function identifyTopMatchProgramIds(
+  scoredPrograms: { program: TESDAProgram; matchScore: number; isCompleted?: boolean }[],
+  nearTieDelta: number = 2
+): Set<string> {
+  if (!scoredPrograms || scoredPrograms.length === 0) return new Set();
+
+  // Prefer uncompleted programs for Top Match designation
+  const uncompleted = scoredPrograms.filter(sp => !sp.isCompleted);
+  const pool = uncompleted.length > 0 ? uncompleted : scoredPrograms;
+  const validScores = pool.map(p => p.matchScore).filter(s => s > 0);
+  if (validScores.length === 0) return new Set();
+
+  const maxScore = Math.max(...validScores);
+  if (maxScore < 50) return new Set(); // Must be at least Potential Match (>=50%) to receive Top Match
+
+  const topIds = pool
+    .filter(p => p.matchScore >= maxScore - nearTieDelta && p.matchScore >= 50)
+    .slice(0, 3) // At most top 3 in case of broad ties
+    .map(p => p.program.id);
+
+  return new Set(topIds);
 }
 
