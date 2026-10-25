@@ -5,7 +5,7 @@ import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
-  BookmarkCheck, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
+  BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
   TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame
@@ -978,6 +978,36 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       pctOther: total > 0 ? Math.max(0, 100 - Math.round((highlyRecommended / total) * 100) - Math.round((recommended / total) * 100)) : 0,
     };
   }, [scoredPrograms]);
+
+  // Pagination for Matched Programs Tab - 6 programs per page
+  const MATCHES_PER_PAGE = 6;
+  const [matchesPage, setMatchesPage] = useState<number>(1);
+
+  // Pagination page numbers generator helper
+  const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, "...", totalPages];
+    }
+    if (currentPage >= totalPages - 2) {
+      return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+  };
+
+  const totalMatchesPages = Math.ceil(matchesTabPrograms.length / MATCHES_PER_PAGE) || 1;
+  const currentMatchesPage = Math.min(matchesPage, totalMatchesPages);
+  const paginatedMatchesPrograms = useMemo(() => {
+    const start = (currentMatchesPage - 1) * MATCHES_PER_PAGE;
+    return matchesTabPrograms.slice(start, start + MATCHES_PER_PAGE);
+  }, [matchesTabPrograms, currentMatchesPage]);
+
+  // Reset to page 1 whenever skills or sector preferences change
+  useEffect(() => {
+    setMatchesPage(1);
+  }, [youthProfile?.skills, youthProfile?.sectorPreference]);
 
   useEffect(() => {
     // Only fetch AI match rationale once actual youth profile is resolved and has a registered barangay
@@ -2212,7 +2242,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     Mabuhay, {youthProfile.name}!
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Discover TESDA training opportunities that match your skills, interests, and career goals.
+                    {isUnverified
+                      ? "Explore your Content-Based Filtering (CBF) training matches below. Program applications will unlock once verified by your Barangay SK Chairman."
+                      : "Discover TESDA training opportunities that match your skills, interests, and career goals."}
                   </p>
                 </div>
               </div>
@@ -2928,8 +2960,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {matchesTabPrograms.map(({ program: prog, matchScore: score }) => {
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {paginatedMatchesPrograms.map(({ program: prog, matchScore: score }) => {
 
                     return (
                       <div
@@ -3152,6 +3185,84 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           );
                   })}
                         </div>
+
+                  {/* Pagination Controls - 6 matched programs per page */}
+                  {totalMatchesPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                      <p className="text-xs text-gray-500 font-medium order-2 sm:order-1">
+                        Showing{" "}
+                        <span className="font-bold text-gray-800">
+                          {Math.min((currentMatchesPage - 1) * MATCHES_PER_PAGE + 1, matchesTabPrograms.length)}
+                        </span>
+                        {" "}-{" "}
+                        <span className="font-bold text-gray-800">
+                          {Math.min(currentMatchesPage * MATCHES_PER_PAGE, matchesTabPrograms.length)}
+                        </span>
+                        {" "}of{" "}
+                        <span className="font-bold text-gray-800">{matchesTabPrograms.length}</span> matched programs
+                      </p>
+
+                      <div className="flex items-center gap-1.5 order-1 sm:order-2">
+                        <button
+                          type="button"
+                          disabled={currentMatchesPage === 1}
+                          onClick={() => {
+                            setMatchesPage(p => Math.max(1, p - 1));
+                            window.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Prev</span>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {getPaginationItems(currentMatchesPage, totalMatchesPages).map((item, idx) => {
+                            if (item === "...") {
+                              return (
+                                <span key={`matches-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                  ...
+                                </span>
+                              );
+                            }
+                            const pageNum = Number(item);
+                            const isSelected = pageNum === currentMatchesPage;
+                            return (
+                              <button
+                                key={`matches-page-${pageNum}`}
+                                type="button"
+                                onClick={() => {
+                                  setMatchesPage(pageNum);
+                                  window.scrollTo({ top: 380, behavior: "smooth" });
+                                }}
+                                className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={currentMatchesPage === totalMatchesPages}
+                          onClick={() => {
+                            setMatchesPage(p => Math.min(totalMatchesPages, p + 1));
+                            window.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
                       </div>
                     )
@@ -4630,43 +4741,69 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </div>
                 )}
 
-                {/* Submitted Government ID Details */}
+                {/* Submitted Government ID / In-Person Verification Details */}
                 <div className="pt-3.5 space-y-2.5">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Submitted Verification ID</span>
-                  <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">ID Type:</span>
-                      <span className="font-medium text-gray-800 text-right">{youthProfile.verificationIdType || "Government / Student ID"}</span>
-                    </div>
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                    {youthProfile.verificationIdType?.toLowerCase().includes("in-person") || youthProfile.verificationIdType?.toLowerCase().includes("sk") || (!youthProfile.verificationIdImage && youthProfile.approvalStatus === "Approved")
+                      ? "Official Verification Status"
+                      : "Submitted Verification ID"}
+                  </span>
 
-                    {youthProfile.verificationIdNumber && (
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-500 font-medium">ID Number:</span>
-                        <span className="font-medium text-gray-800 text-right font-mono text-xs">
-                          {youthProfile.verificationIdNumber}
+                  {youthProfile.verificationIdType?.toLowerCase().includes("in-person") || youthProfile.verificationIdType?.toLowerCase().includes("sk") || (!youthProfile.verificationIdImage && youthProfile.approvalStatus === "Approved") ? (
+                    <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200 space-y-2.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-emerald-900 font-medium">Registration Mode:</span>
+                        <span className="font-bold text-[#0A6B43] flex items-center gap-1.5 text-xs sm:text-sm">
+                          <ShieldCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                          SK Chairman Registered (In-Person)
                         </span>
                       </div>
-                    )}
-
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-medium">ID Photo Attached:</span>
-                      {youthProfile.verificationIdImage ? (
-                        <div
-                          className="w-16 h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
-                          onClick={() => setShowIdPhotoModal(true)}
-                          title="Click to view full ID photo"
-                        >
-                          <img
-                            src={youthProfile.verificationIdImage}
-                            alt="ID Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">No image submitted</span>
-                      )}
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-emerald-900 font-medium">Verification Status:</span>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-[#0A6B43] border border-emerald-300 font-extrabold text-xs">
+                          Face-to-Face Verified
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-800/90 leading-relaxed pt-1 border-t border-emerald-200/60 font-medium">
+                        Physical identity and barangay residency verified face-to-face during on-site Katipunan ng Kabataan registration with the SK Chairperson. No digital ID upload required.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200 space-y-3">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 font-medium">ID Type:</span>
+                        <span className="font-medium text-gray-800 text-right">{youthProfile.verificationIdType || "Government / Student ID"}</span>
+                      </div>
+
+                      {youthProfile.verificationIdNumber && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-500 font-medium">ID Number:</span>
+                          <span className="font-medium text-gray-800 text-right font-mono text-xs">
+                            {youthProfile.verificationIdNumber}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500 font-medium">ID Photo Attached:</span>
+                        {youthProfile.verificationIdImage ? (
+                          <div
+                            className="w-16 h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
+                            onClick={() => setShowIdPhotoModal(true)}
+                            title="Click to view full ID photo"
+                          >
+                            <img
+                              src={youthProfile.verificationIdImage}
+                              alt="ID Preview"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">No image submitted</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Fast Link to Digital ID Card */}
@@ -5681,6 +5818,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
               {/* Modal Scrollable Body */ }
     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollbar p-4 sm:p-6 space-y-4 sm:space-y-5">
+      {isUnverified && (
+        <div className="bg-amber-50 border border-amber-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 flex items-center gap-2.5 text-xs text-amber-900 font-medium shadow-2xs">
+          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>You are previewing this program in <strong>View-Only mode</strong>. Direct enrollment will unlock once your account is verified by your Barangay SK Chairman.</span>
+        </div>
+      )}
       {/* 4-Factor Transparent CBF Score Breakdown */}
       {(() => {
         const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
@@ -6010,7 +6153,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   ) : overlapWarning ? (
                     "Schedule Overlap Detected"
                   ) : isUnverified ? (
-                    "Pending SK Verification"
+                    "Pending SK Verification (View-Only)"
                   ) : (
                     <>
                       <Send className="w-4 h-4 text-white" />

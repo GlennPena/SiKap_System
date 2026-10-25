@@ -230,31 +230,27 @@ export default function App() {
     return unsubscribe;
   }, [status, syncAllData]);
 
-  // 2. Real-time background sync loop (polls every 3.5s while active) & instant focus revalidation
+  // 2. Initial data sync and throttled focus revalidation (event-driven, no polling)
   useEffect(() => {
     if (status !== "authenticated") return;
 
-    // Immediate initial sync
+    // Immediate initial sync on login/mount
     syncAllData();
 
-    // Continuous real-time polling every 3.5 seconds
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        syncAllData();
-      }
-    }, 3500);
-
-    // Instant revalidation when user switches back to tab
+    // Revalidate when user returns to tab, throttled to at most once every 30 seconds
+    let lastSync = Date.now();
     const handleRevalidate = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        syncAllData();
+        if (Date.now() - lastSync > 30000) {
+          lastSync = Date.now();
+          syncAllData();
+        }
       }
     };
     window.addEventListener("focus", handleRevalidate);
     document.addEventListener("visibilitychange", handleRevalidate);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener("focus", handleRevalidate);
       document.removeEventListener("visibilitychange", handleRevalidate);
     };

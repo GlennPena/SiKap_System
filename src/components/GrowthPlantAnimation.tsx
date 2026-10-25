@@ -212,7 +212,7 @@ export const GrowthPlantAnimation: React.FC<GrowthPlantAnimationProps> = ({
           r="2.5"
           fill="#A7F3D0"
           animate={{
-            cy: [75, 60, 75],
+            y: [0, -15, 0],
             opacity: [0.2, 0.7, 0.2],
             scale: [0.8, 1.2, 0.8],
           }}
@@ -224,7 +224,7 @@ export const GrowthPlantAnimation: React.FC<GrowthPlantAnimationProps> = ({
           r="2"
           fill="#6EE7B7"
           animate={{
-            cy: [120, 105, 120],
+            y: [0, -15, 0],
             opacity: [0.3, 0.8, 0.3],
             scale: [0.9, 1.3, 0.9],
           }}
@@ -236,7 +236,7 @@ export const GrowthPlantAnimation: React.FC<GrowthPlantAnimationProps> = ({
           r="3"
           fill="#34D399"
           animate={{
-            cy: [130, 115, 130],
+            y: [0, -15, 0],
             opacity: [0.2, 0.6, 0.2],
             scale: [0.7, 1.1, 0.7],
           }}

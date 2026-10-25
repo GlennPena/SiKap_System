@@ -476,6 +476,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   const [progCategoryFilter, setProgCategoryFilter] = useState("All");
   const [progStatusFilter, setProgStatusFilter] = useState("All");
   const [progCostFilter, setProgCostFilter] = useState("All");
+  const [tesdaProgramPage, setTesdaProgramPage] = useState(1);
+  const TESDA_PROGRAMS_PER_PAGE = 6;
 
   // Search & Filter state for SK Council Oversight
   const [councilSearch, setCouncilSearch] = useState("");
@@ -942,6 +944,19 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       return matchesSearch && matchesCategory && matchesStatus && matchesCost;
     });
   }, [programs, progSearchQuery, progCategoryFilter, progStatusFilter, progCostFilter]);
+
+  // Pagination for TESDA Programs Catalog - 6 programs per page
+  const totalTesdaProgramPages = Math.ceil(filteredProgramsForSK.length / TESDA_PROGRAMS_PER_PAGE) || 1;
+  const currentTesdaProgramPage = Math.min(tesdaProgramPage, totalTesdaProgramPages);
+  const paginatedProgramsForSK = useMemo(() => {
+    const start = (currentTesdaProgramPage - 1) * TESDA_PROGRAMS_PER_PAGE;
+    return filteredProgramsForSK.slice(start, start + TESDA_PROGRAMS_PER_PAGE);
+  }, [filteredProgramsForSK, currentTesdaProgramPage]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setTesdaProgramPage(1);
+  }, [progSearchQuery, progCategoryFilter, progStatusFilter, progCostFilter]);
 
   // KK Members Census statistics
   const kkMembersSummary = useMemo(() => {
@@ -3595,7 +3610,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
                 {/* Content Area: Empty State or Table */}
                 {localReferrals.length === 0 ? (
-                  <div className="border border-gray-200/90 rounded-2xl p-10 sm:p-12 text-center max-w-md mx-auto space-y-4 bg-gray-50/50">
+                  <div className="py-12 sm:py-16 px-4 text-center max-w-md mx-auto space-y-4">
                     <div className="w-14 h-14 bg-emerald-50 text-[#0A6B43] rounded-2xl border border-emerald-200 flex items-center justify-center mx-auto">
                       <FileText className="w-7 h-7" />
                     </div>
@@ -4003,8 +4018,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-                    {filteredProgramsForSK.map((prog) => {
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+                    {paginatedProgramsForSK.map((prog) => {
                       const isFull = (prog.slotsRemaining || 0) <= 0;
                       const isEnded = isProgramEnded(prog);
                       // Count how many verified KK members in this local barangay match this program
@@ -4133,7 +4149,86 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       );
                     })}
                   </div>
-                )}
+
+                  {/* Pagination Controls - 6 programs per page */}
+                  {totalTesdaProgramPages > 1 && (
+                    <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500 font-medium order-2 sm:order-1">
+                        Showing{" "}
+                        <span className="font-semibold text-gray-800">
+                          {(currentTesdaProgramPage - 1) * TESDA_PROGRAMS_PER_PAGE + 1}
+                        </span>
+                        {" "}to{" "}
+                        <span className="font-semibold text-gray-800">
+                          {Math.min(filteredProgramsForSK.length, currentTesdaProgramPage * TESDA_PROGRAMS_PER_PAGE)}
+                        </span>
+                        {" "}of{" "}
+                        <span className="font-semibold text-gray-800">{filteredProgramsForSK.length}</span> programs
+                      </p>
+
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center order-1 sm:order-2">
+                        <button
+                          type="button"
+                          disabled={currentTesdaProgramPage === 1}
+                          onClick={() => {
+                            setTesdaProgramPage(p => Math.max(1, p - 1));
+                            window.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                          <span className="hidden sm:inline">Previous</span>
+                        </button>
+
+                        {getPaginationItems(currentTesdaProgramPage, totalTesdaProgramPages).map((item, idx) => {
+                          if (item === "...") {
+                            return (
+                              <span
+                                key={`ellipsis-tesda-${idx}`}
+                                className="min-w-[32px] h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-400 shadow-2xs flex items-center justify-center select-none"
+                              >
+                                ...
+                              </span>
+                            );
+                          }
+                          const pageNum = Number(item);
+                          const isActive = currentTesdaProgramPage === pageNum;
+                          return (
+                            <button
+                              key={`tesda-page-${pageNum}`}
+                              type="button"
+                              onClick={() => {
+                                setTesdaProgramPage(pageNum);
+                                window.scrollTo({ top: 380, behavior: "smooth" });
+                              }}
+                              className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 outline-none focus:outline-none ${
+                                isActive
+                                  ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
+                                  : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        <button
+                          type="button"
+                          disabled={currentTesdaProgramPage === totalTesdaProgramPages}
+                          onClick={() => {
+                            setTesdaProgramPage(p => Math.min(totalTesdaProgramPages, p + 1));
+                            window.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-gray-200 flex items-center gap-1 transition-all cursor-pointer active:scale-95 outline-none focus:outline-none"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
               </div>
             </div>
           )}

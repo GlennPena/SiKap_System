@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Briefcase, Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
   Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
-  Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, CheckCircle2,
+  Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, ChevronLeft, CheckCircle2,
   Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2,
   Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck,
   LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw
@@ -468,6 +468,25 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [pipelineBarangayFilter, setPipelineBarangayFilter] = useState<string>("All");
   const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
 
+  // Dashboard Program Pagination:
+  // Pipeline referrals list (Tabs 1-3) displays max 3 programs per page
+  const DASHBOARD_PROGRAMS_PER_PAGE = 3;
+  const [dashboardProgramPage, setDashboardProgramPage] = useState(1);
+
+  // Program Roster Grid (Tab 4) displays max 6 programs per page
+  const DASHBOARD_ROSTER_PER_PAGE = 6;
+  const [dashboardRosterPage, setDashboardRosterPage] = useState(1);
+
+  // Programs Screen Catalog displays max 6 programs per page
+  const PROGRAMS_CATALOG_PER_PAGE = 6;
+  const [programsCatalogPage, setProgramsCatalogPage] = useState(1);
+
+  // Reset dashboard program pagination when filters or tab change
+  useEffect(() => {
+    setDashboardProgramPage(1);
+    setDashboardRosterPage(1);
+  }, [pipelineSearch, pipelineStatusFilter, pipelineProgramFilter, pipelineBarangayFilter, dashboardTab]);
+
   // Programs Screen Search & Filter
   const [programSearchQuery, setProgramSearchQuery] = useState("");
   const [programLevelFilter, setProgramLevelFilter] = useState("All");
@@ -475,6 +494,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [programStatusFilter, setProgramStatusFilter] = useState("All");
   const [programCostFilter, setProgramCostFilter] = useState("All");
   const [programViewMode, setProgramViewMode] = useState<"grid" | "table">("grid");
+
+  // Reset programs catalog pagination when search or filters change
+  useEffect(() => {
+    setProgramsCatalogPage(1);
+  }, [programSearchQuery, programLevelFilter, programCategoryFilter, programStatusFilter, programCostFilter, viewingArchivedPrograms]);
 
   const toggleProgramExpand = (title: string) => {
     setExpandedPrograms(prev => ({
@@ -1218,6 +1242,36 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     });
   }, [allProgramTitles, groupedReferrals, isSearchActive]);
 
+  // Pagination calculations for Grouped Pipeline Lists (Tab 1, 2, 3)
+  const totalPipelineProgramPages = Math.ceil(programTitlesToDisplay.length / DASHBOARD_PROGRAMS_PER_PAGE) || 1;
+  const currentPipelineProgramPage = Math.min(dashboardProgramPage, totalPipelineProgramPages);
+  const paginatedProgramTitles = useMemo(() => {
+    const start = (currentPipelineProgramPage - 1) * DASHBOARD_PROGRAMS_PER_PAGE;
+    return programTitlesToDisplay.slice(start, start + DASHBOARD_PROGRAMS_PER_PAGE);
+  }, [programTitlesToDisplay, currentPipelineProgramPage]);
+
+  // Pagination calculations for Program Roster Grid (Tab 4) - 6 programs per page
+  const totalRosterProgramPages = Math.ceil(activePrograms.length / DASHBOARD_ROSTER_PER_PAGE) || 1;
+  const currentRosterProgramPage = Math.min(dashboardRosterPage, totalRosterProgramPages);
+  const paginatedRosterPrograms = useMemo(() => {
+    const start = (currentRosterProgramPage - 1) * DASHBOARD_ROSTER_PER_PAGE;
+    return activePrograms.slice(start, start + DASHBOARD_ROSTER_PER_PAGE);
+  }, [activePrograms, currentRosterProgramPage]);
+
+  // Pagination page numbers generator helper
+  const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, "...", totalPages];
+    }
+    if (currentPage >= totalPages - 2) {
+      return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+  };
+
   // Unique TESDA categories for filtering (derived from taxonomy CATEGORIES and existing programs)
   const tesdaCategoryOptions = useMemo(() => {
     const catSet = new Set<string>();
@@ -1267,6 +1321,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       return matchesSearch && matchesLevel && matchesCategory && matchesStatus && matchesCost;
     });
   }, [viewingArchivedPrograms, archivedProgramsList, activePrograms, programSearchQuery, programLevelFilter, programCategoryFilter, programStatusFilter, programCostFilter]);
+
+  // Pagination calculations for Published Programs Catalog Screen - 6 programs per page
+  const totalProgramsCatalogPages = Math.ceil(filteredProgramsList.length / PROGRAMS_CATALOG_PER_PAGE) || 1;
+  const currentProgramsCatalogPage = Math.min(programsCatalogPage, totalProgramsCatalogPages);
+  const paginatedCatalogPrograms = useMemo(() => {
+    const start = (currentProgramsCatalogPage - 1) * PROGRAMS_CATALOG_PER_PAGE;
+    return filteredProgramsList.slice(start, start + PROGRAMS_CATALOG_PER_PAGE);
+  }, [filteredProgramsList, currentProgramsCatalogPage]);
 
   // Helper to open applicant modal
   const openApplicantModal = (item: ReferralPipelineItem) => {
@@ -1984,7 +2046,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {dashboardTab !== "programs" && dashboardTab !== "archived" && (
                 <div className="space-y-4">
                   {programTitlesToDisplay.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] py-12 sm:py-16 px-4 text-center max-w-lg mx-auto space-y-4">
+                    <div className="w-full bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] py-12 sm:py-16 px-6 text-center space-y-4">
                       <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                         <Users className="w-7 h-7" />
                       </div>
@@ -2011,7 +2073,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       )}
                     </div>
                   ) : (
-                    programTitlesToDisplay.map((title) => {
+                    paginatedProgramTitles.map((title) => {
                       const programApplicants = groupedReferrals[title] || [];
                       const isExpanded = expandedPrograms[title] !== false;
                       const originalProgram = activePrograms.find(p => p.title === title);
@@ -2262,6 +2324,76 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       );
                     })
                   )}
+
+                  {/* Pagination Controls for Grouped Pipeline Programs */}
+                  {totalPipelineProgramPages > 1 && (
+                    <div className="bg-white rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Showing <span className="font-bold text-gray-900">{(currentPipelineProgramPage - 1) * DASHBOARD_PROGRAMS_PER_PAGE + 1}</span> to{" "}
+                        <span className="font-bold text-gray-900">{Math.min(programTitlesToDisplay.length, currentPipelineProgramPage * DASHBOARD_PROGRAMS_PER_PAGE)}</span> of{" "}
+                        <span className="font-bold text-gray-900">{programTitlesToDisplay.length}</span> programs
+                      </p>
+
+                      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                        <button
+                          type="button"
+                          disabled={currentPipelineProgramPage === 1}
+                          onClick={() => {
+                            setDashboardProgramPage(p => Math.max(1, p - 1));
+                            document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Prev</span>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {getPaginationItems(currentPipelineProgramPage, totalPipelineProgramPages).map((item, idx) => {
+                            if (item === "...") {
+                              return (
+                                <span key={`pipeline-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                  ...
+                                </span>
+                              );
+                            }
+                            const pageNum = Number(item);
+                            const isSelected = pageNum === currentPipelineProgramPage;
+                            return (
+                              <button
+                                key={`pipeline-page-${pageNum}`}
+                                type="button"
+                                onClick={() => {
+                                  setDashboardProgramPage(pageNum);
+                                  document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                                }}
+                                className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={currentPipelineProgramPage === totalPipelineProgramPages}
+                          onClick={() => {
+                            setDashboardProgramPage(p => Math.min(totalPipelineProgramPages, p + 1));
+                            document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                          }}
+                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2269,8 +2401,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {/* TAB 4: Program Roster Grid */}
               {/* ============================================================ */}
               {dashboardTab === "programs" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-                  {activePrograms.map((prog) => (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+                    {paginatedRosterPrograms.map((prog) => (
                     <div key={prog.id} className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between h-full group">
                       <div>
                         {/* Header: Cost/Hours & Status Badge */}
@@ -2425,7 +2558,78 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
                   ))}
                 </div>
-              )}
+
+                {/* Pagination Controls for Program Roster Grid */}
+                {totalRosterProgramPages > 1 && (
+                  <div className="bg-white rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Showing <span className="font-bold text-gray-900">{(currentRosterProgramPage - 1) * DASHBOARD_ROSTER_PER_PAGE + 1}</span> to{" "}
+                      <span className="font-bold text-gray-900">{Math.min(activePrograms.length, currentRosterProgramPage * DASHBOARD_ROSTER_PER_PAGE)}</span> of{" "}
+                      <span className="font-bold text-gray-900">{activePrograms.length}</span> programs
+                    </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                      <button
+                        type="button"
+                        disabled={currentRosterProgramPage === 1}
+                        onClick={() => {
+                          setDashboardRosterPage(p => Math.max(1, p - 1));
+                          document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                        }}
+                        className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Prev</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {getPaginationItems(currentRosterProgramPage, totalRosterProgramPages).map((item, idx) => {
+                          if (item === "...") {
+                            return (
+                              <span key={`roster-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                ...
+                              </span>
+                            );
+                          }
+                          const pageNum = Number(item);
+                          const isSelected = pageNum === currentRosterProgramPage;
+                          return (
+                            <button
+                              key={`roster-page-${pageNum}`}
+                              type="button"
+                              onClick={() => {
+                                setDashboardRosterPage(pageNum);
+                                document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                              }}
+                              className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={currentRosterProgramPage === totalRosterProgramPages}
+                        onClick={() => {
+                          setDashboardRosterPage(p => Math.min(totalRosterProgramPages, p + 1));
+                          document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                        }}
+                        className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                      >
+                        <span className="hidden sm:inline">Next</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
               {/* ============================================================ */}
               {/* TAB 5: Archived History (Closed/Concluded Programs & Trainees) */}
@@ -2457,7 +2661,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <p className="text-xs text-gray-500 font-bold">Loading archived records from database...</p>
                     </div>
                   ) : archivedProgramsList.length === 0 && archivedReferralsList.length === 0 ? (
-                    <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center max-w-lg mx-auto space-y-3">
+                    <div className="w-full bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center space-y-3">
                       <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
                         <Archive className="w-7 h-7" />
                       </div>
@@ -2870,7 +3074,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 ) : programViewMode === "grid" ? (
                   /* Grid Cards View */
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-5 items-stretch">
-                    {filteredProgramsList.map((prog) => {
+                    {paginatedCatalogPrograms.map((prog) => {
                       const isEnded = isProgramEnded(prog) || isProgramDurationDone(prog);
                       const isFull = (prog.slotsRemaining || 0) <= 0;
 
@@ -3010,7 +3214,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {filteredProgramsList.map((prog) => {
+                          {paginatedCatalogPrograms.map((prog) => {
                             const isEnded = isProgramEnded(prog) || isProgramDurationDone(prog);
                             const isFull = (prog.slotsRemaining || 0) <= 0;
 
@@ -3108,6 +3312,76 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Pagination Controls for Published Programs Catalog */}
+                {totalProgramsCatalogPages > 1 && (
+                  <div className="bg-white rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Showing <span className="font-bold text-gray-900">{(currentProgramsCatalogPage - 1) * PROGRAMS_CATALOG_PER_PAGE + 1}</span> to{" "}
+                      <span className="font-bold text-gray-900">{Math.min(filteredProgramsList.length, currentProgramsCatalogPage * PROGRAMS_CATALOG_PER_PAGE)}</span> of{" "}
+                      <span className="font-bold text-gray-900">{filteredProgramsList.length}</span> programs
+                    </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                      <button
+                        type="button"
+                        disabled={currentProgramsCatalogPage === 1}
+                        onClick={() => {
+                          setProgramsCatalogPage(p => Math.max(1, p - 1));
+                          document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                        }}
+                        className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Prev</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {getPaginationItems(currentProgramsCatalogPage, totalProgramsCatalogPages).map((item, idx) => {
+                          if (item === "...") {
+                            return (
+                              <span key={`catalog-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                ...
+                              </span>
+                            );
+                          }
+                          const pageNum = Number(item);
+                          const isSelected = pageNum === currentProgramsCatalogPage;
+                          return (
+                            <button
+                              key={`catalog-page-${pageNum}`}
+                              type="button"
+                              onClick={() => {
+                                setProgramsCatalogPage(pageNum);
+                                document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                              }}
+                              className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={currentProgramsCatalogPage === totalProgramsCatalogPages}
+                        onClick={() => {
+                          setProgramsCatalogPage(p => Math.min(totalProgramsCatalogPages, p + 1));
+                          document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
+                        }}
+                        className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
+                      >
+                        <span className="hidden sm:inline">Next</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -3150,9 +3424,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </button>
               </div>
 
-              {/* Form Layout: Expanded Form */}
-              <div className="max-w-4xl mx-auto w-full">
-                <div className="bg-white border border-gray-200/90 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-7 md:p-8">
+              {/* Form Layout: Expanded Form - Full width matching header banner and portal cards */}
+              <div className="w-full">
+                <div className="bg-white border border-gray-200/90 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-6 sm:p-8 lg:p-10">
                   <form onSubmit={handleAddProgramSubmit} className="space-y-6">
 
                     {/* Section 1: Program Info */}
