@@ -57,13 +57,37 @@ const getSpeedFactor = () => {
 };
 // ----------------------------------------
 
-const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction = "up", amount = "some", margin = "-50px" }: { children: React.ReactNode, delay?: number, duration?: number, className?: string, direction?: "up" | "left" | "right", amount?: number | "some" | "all", margin?: string }) => {
+const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction = "up", amount = "some", margin = "-50px" }: { children: React.ReactNode, delay?: number, duration?: number, className?: string, direction?: "up" | "left" | "right" | "hero-adaptive", amount?: number | "some" | "all", margin?: string }) => {
   const ref = React.useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: margin as any, amount });
   const controls = useAnimation();
 
-  const initial = direction === "up" ? { opacity: 0, y: 24 } : direction === "left" ? { opacity: 0, x: -12 } : { opacity: 0, x: 12 };
-  const target = direction === "up" ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 };
+  // Track viewport responsiveness: widescreen desktop (>=1280px) retains left entrance, centered mobile/tablet/iPad (<1280px) fades appear from bottom
+  const [isDesktop, setIsDesktop] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 1280;
+    }
+    return true;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(min-width: 1280px)");
+    const update = () => setIsDesktop(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const resolvedDirection = direction === "hero-adaptive" ? (isDesktop ? "left" : "up") : direction;
+
+  const initial =
+    resolvedDirection === "up"
+      ? { opacity: 0, y: 24, x: 0 }
+      : resolvedDirection === "left"
+      ? { opacity: 0, x: -12, y: 0 }
+      : { opacity: 0, x: 12, y: 0 };
+
+  const target = { opacity: 1, x: 0, y: 0 };
 
   useEffect(() => {
     if (isInView) {
@@ -78,7 +102,7 @@ const FadeIn = ({ children, delay = 0, duration = 0.6, className = "", direction
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInView]);
+  }, [isInView, resolvedDirection]);
 
   return (
     <motion.div
@@ -117,76 +141,6 @@ const NumberCounter = ({ value, suffix = "", duration = 1, delay = 0, className 
   return <span ref={ref} className={className}>{displayValue}{suffix}</span>;
 };
 
-// --- CHRONOLOGICAL ON-SCROLL VELOCITY HOOK & WRAPPER ---
-const useScrollSpeedSection = (amount: number = 0.2) => {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, amount });
-  const [speedState, setSpeedState] = useState<{ isVisible: boolean; speed: number }>({
-    isVisible: false,
-    speed: 1,
-  });
-
-  useEffect(() => {
-    if (isInView && !speedState.isVisible) {
-      setSpeedState({
-        isVisible: true,
-        speed: getSpeedFactor(),
-      });
-    }
-  }, [isInView, speedState.isVisible]);
-
-  return { ref, isVisible: speedState.isVisible, speed: speedState.speed };
-};
-
-const ChronoItem = ({
-  isVisible,
-  speed,
-  delay,
-  duration = 0.4,
-  y = 16,
-  className = "",
-  children,
-  as = "div",
-}: {
-  isVisible: boolean;
-  speed: number;
-  delay: number;
-  duration?: number;
-  y?: number;
-  className?: string;
-  children: React.ReactNode;
-  as?: "div" | "h2" | "p";
-}) => {
-  const controls = useAnimation();
-  const Component = as === "h2" ? motion.h2 : as === "p" ? motion.p : motion.div;
-
-  useEffect(() => {
-    if (isVisible) {
-      controls.start({
-        opacity: 1,
-        y: 0,
-        transition: {
-          duration: duration * speed,
-          delay: delay * speed,
-          ease: "easeOut",
-        },
-      });
-    }
-  }, [isVisible, speed, delay, duration, controls]);
-
-  return (
-    <Component
-      initial={{ opacity: 0, y }}
-      animate={controls}
-      className={className}
-    >
-      {children}
-    </Component>
-  );
-};
-// -------------------------------------------------------
-
-
 interface LandingPageProps {
   programs: TESDAProgram[];
   onEnterLogin: () => void;
@@ -203,9 +157,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   addToast
 }) => {
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
-  const workflowScroll = useScrollSpeedSection(0.2);
-  const faqScroll = useScrollSpeedSection(0.2);
-  const ctaScroll = useScrollSpeedSection(0.25);
 
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -394,45 +345,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         {/* Hero Content centered within the first 80vh */}
         <div className="min-h-[80vh] flex items-center justify-center w-full relative z-10 pt-7 sm:pt-8 md:pt-10 lg:pt-4 pb-6 sm:pb-8">
           <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 xl:gap-14 items-center">
 
               {/* Hero Left Content */}
-              <div className="lg:col-span-7 space-y-4 sm:space-y-6 lg:space-y-8 text-center lg:text-left">
-                <FadeIn direction="left" delay={0.1}>
-                  <div className="inline-flex items-center gap-1.5 bg-emerald-100/80 border border-emerald-200/90 text-[#075332] text-[11px] sm:text-xs lg:text-sm font-black px-3.5 py-1 sm:px-4.5 sm:py-1.5 rounded-full uppercase tracking-wider shadow-2xs mt-1.5 sm:mt-0">
-                    <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] shrink-0" />
+              <div className="w-full xl:col-span-7 space-y-5 sm:space-y-8 md:space-y-10 xl:space-y-8 flex flex-col items-center text-center xl:items-start xl:text-left max-w-3xl md:max-w-4xl lg:max-w-5xl mx-auto xl:max-w-none xl:mx-0">
+                <FadeIn direction="hero-adaptive" delay={0.1}>
+                  <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-emerald-100/80 border border-emerald-200/90 text-[#075332] text-[11px] sm:text-sm md:text-base font-black px-3.5 py-1 sm:px-5 sm:py-2 md:px-6 md:py-2.5 rounded-full uppercase tracking-wider shadow-2xs mt-1.5 sm:mt-0">
+                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 text-[#0A6B43] shrink-0" />
                     <span>San Luis, Pampanga</span>
                   </div>
                 </FadeIn>
 
-                <FadeIn direction="left" delay={0.2}>
-                  <h1 className="text-3xl sm:text-5xl lg:text-6xl xl:text-[76px] font-black text-gray-900 leading-[1.08] sm:leading-[1.05] tracking-tight">
+                <FadeIn direction="hero-adaptive" delay={0.2}>
+                  <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-[80px] xl:text-[76px] font-black text-gray-900 leading-[1.08] sm:leading-[1.05] tracking-tight">
                     <span className="block">Find the Right Path.</span>
                     <span className="block text-[#0A6B43] relative inline-block mt-1 sm:mt-2.5">
                       Build Your Future.
-                      <span className="absolute left-0 -bottom-0.5 sm:-bottom-0.5 lg:-bottom-0.5 w-full h-2.5 sm:h-3.5 lg:h-4 bg-emerald-100/90 -z-10 rounded-full"></span>
+                      <span className="absolute left-0 -bottom-0.5 sm:-bottom-1 md:-bottom-1.5 w-full h-3 sm:h-4 md:h-5 lg:h-6 xl:h-4 bg-emerald-100/90 -z-10 rounded-full"></span>
                     </span>
                   </h1>
                 </FadeIn>
 
-                <FadeIn direction="left" delay={0.3}>
-                  <p className="text-sm sm:text-lg lg:text-2xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-medium">
+                <FadeIn direction="hero-adaptive" delay={0.3}>
+                  <p className="text-sm sm:text-xl md:text-2xl lg:text-3xl xl:text-2xl text-gray-600 max-w-2xl sm:max-w-3xl md:max-w-4xl xl:max-w-2xl mx-auto xl:mx-0 leading-relaxed font-medium">
                     Find opportunities that turn your potential into possibilities.
                   </p>
                 </FadeIn>
 
-                <FadeIn direction="left" delay={0.4}>
-                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-2.5 sm:gap-4 pt-1 sm:pt-1.5">
+                <FadeIn direction="hero-adaptive" delay={0.4} className="w-full sm:w-auto">
+                  <div className="flex flex-row items-center justify-center xl:justify-start gap-2.5 sm:gap-4 md:gap-5 pt-1 sm:pt-2 md:pt-4 w-full sm:w-auto">
                     <button
                       onClick={onEnterLogin}
-                      className="w-full sm:w-auto bg-[#0A6B43] hover:bg-[#075332] text-white text-sm sm:text-base lg:text-lg font-black px-6 sm:px-9 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-3 group cursor-pointer"
+                      className="bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-lg md:text-xl xl:text-lg font-black px-4 sm:px-8 md:px-10 xl:px-9 py-2.5 sm:py-4 md:py-4.5 xl:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-3.5 group cursor-pointer shrink-0 whitespace-nowrap"
                     >
                       <span>Sign In</span>
-                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                      <ArrowRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-6 md:h-6 xl:w-5 xl:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
                     </button>
                     <button
                       onClick={() => handleScrollToSection("workflow")}
-                      className="w-full sm:w-auto bg-white hover:bg-gray-50 text-gray-800 hover:text-[#0A6B43] border border-gray-200 sm:border-2 hover:border-[#0A6B43] text-sm sm:text-base lg:text-lg font-bold px-5 sm:px-8 py-2.5 sm:py-3.5 lg:py-4 rounded-xl sm:rounded-2xl shadow-2xs hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
+                      className="bg-white hover:bg-gray-50 text-gray-800 hover:text-[#0A6B43] border border-gray-200 sm:border-2 hover:border-[#0A6B43] text-xs sm:text-lg md:text-xl xl:text-lg font-bold px-3.5 sm:px-8 md:px-10 xl:px-8 py-2.5 sm:py-4 md:py-4.5 xl:py-4 rounded-xl sm:rounded-2xl shadow-2xs hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-3 cursor-pointer shrink-0 whitespace-nowrap"
                     >
                       How SiKap Works
                     </button>
@@ -440,8 +391,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </FadeIn>
               </div>
 
-              {/* Hero Right Visual Column */}
-              <FadeIn direction="right" delay={0.6} className="lg:col-span-5 relative mt-6 lg:mt-0">
+              {/* Hero Right Visual Column (Hidden on mobile, iPad & tablet where hero is centered, visible on widescreen desktop xl+) */}
+              <FadeIn direction="right" delay={0.6} className="hidden xl:block xl:col-span-5 relative mt-6 xl:mt-0">
                 <div className="absolute inset-0 sm:-inset-2 bg-emerald-400/20 rounded-3xl blur-xl -z-10"></div>
 
                 {/* Interactive Demo Matching Mockup Card */}
@@ -551,19 +502,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <FadeIn duration={0.3} className="relative rounded-3xl overflow-hidden bg-white shadow-xl transition-all duration-300">
 
             {/* Top Header inside Container */}
-            <div className="pt-8 sm:pt-12 px-6 sm:px-12 pb-4 space-y-3">
+            <div className="pt-5 sm:pt-12 px-4.5 sm:px-12 pb-1 sm:pb-4 space-y-2 sm:space-y-4">
               <FadeIn direction="left" delay={0.3}>
-                <div className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs sm:text-sm font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+                <div className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-[10px] sm:text-base md:text-lg lg:text-base xl:text-sm font-black px-3 py-1 sm:px-5 sm:py-2 md:px-6 md:py-2.5 xl:px-4 xl:py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
                   Bridging the gap to opportunity
                 </div>
               </FadeIn>
               <FadeIn direction="left" delay={0.5}>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-900 tracking-tight leading-tight max-w-4xl">
-                  The <span className="text-[#0A6B43]">opportunity gap</span> starts with finding the <span className="text-[#0A6B43] relative inline-block">right path<span className="absolute left-0 bottom-1.5 w-full h-3 bg-emerald-100/90 -z-10 rounded-full"></span></span>.
+                <h2 className="text-xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-5xl font-black text-gray-900 tracking-tight leading-snug sm:leading-tight md:leading-tight max-w-4xl">
+                  The <span className="text-[#0A6B43]">opportunity gap</span> starts with finding the <span className="text-[#0A6B43] relative inline-block">right path<span className="absolute left-0 bottom-1 sm:bottom-2 md:bottom-2.5 w-full h-2 sm:h-3 md:h-4 bg-emerald-100/90 -z-10 rounded-full"></span></span>.
                 </h2>
               </FadeIn>
               <FadeIn direction="left" delay={0.7}>
-                <p className="text-sm sm:text-base lg:text-lg text-gray-600 font-medium leading-relaxed max-w-3xl">
+                <p className="text-xs sm:text-lg md:text-xl lg:text-2xl xl:text-lg text-gray-600 font-medium leading-relaxed max-w-3xl md:max-w-4xl">
                   Across the Philippines, millions of young people are outside formal education and face barriers to building the skills they need for their future.
                 </p>
               </FadeIn>
@@ -571,10 +522,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Map Vector Graphic Area (Enlarged Philippines SVG Map) */}
             <FadeIn delay={0.8} amount={0.2} margin="0px">
-              <div className="relative min-h-[500px] sm:min-h-[620px] lg:min-h-[720px] py-4 sm:py-8 w-full overflow-hidden bg-white flex items-center justify-center">
+              <div className="relative min-h-[300px] sm:min-h-[620px] lg:min-h-[720px] pt-0 pb-2 sm:py-8 w-full overflow-hidden bg-white flex items-center justify-center -mt-2 sm:mt-0">
 
                 {/* Philippines SVG Map Container */}
-                <div className="relative aspect-square w-auto h-[480px] sm:h-[580px] lg:h-[680px] max-w-[95%] flex items-center justify-center">
+                <div className="relative aspect-square w-auto h-[320px] sm:h-[580px] lg:h-[680px] max-w-[95%] flex items-center justify-center">
                   <img
                     src="/country.svg"
                     alt="Philippines Vector Map"
@@ -608,8 +559,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </div>
 
                       {/* Floating Mini Card: Scales up in place when dot is hovered */}
-                      <div className="absolute left-9 sm:left-11 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-emerald-200/90 py-2 px-4 rounded-xl shadow-xl flex items-center whitespace-nowrap pointer-events-none transform origin-left transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-emerald-400">
-                        <span className="text-xs sm:text-sm font-black text-gray-900 tracking-tight">
+                      <div className="absolute left-9 sm:left-12 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-emerald-200/90 py-1.5 px-3 sm:py-2.5 sm:px-5 md:py-3 md:px-6 xl:py-2 xl:px-4 rounded-xl sm:rounded-2xl shadow-xl flex items-center whitespace-nowrap pointer-events-none transform origin-left transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-emerald-400">
+                        <span className="text-[11px] sm:text-base md:text-lg xl:text-sm font-black text-gray-900 tracking-tight">
                           San Luis, Pampanga
                         </span>
                       </div>
@@ -622,62 +573,62 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </FadeIn>
 
             {/* Bottom Storytelling Statistics Grid (Clean & Borderless) */}
-            <div className="bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 relative pt-2 pb-6 px-6 sm:px-12 gap-6">
+            <div className="bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 relative pt-1 sm:pt-2 pb-5 sm:pb-6 px-4.5 sm:px-12 gap-3 sm:gap-6">
               {/* Stat 1 */}
-              <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+              <div className="p-3.5 sm:p-6 md:p-8 xl:p-6 space-y-1 sm:space-y-2 md:space-y-3 xl:space-y-2 rounded-xl sm:rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
                 <FadeIn delay={0.2}>
-                  <NumberCounter value={10.7} suffix="M" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
+                  <NumberCounter value={10.7} suffix="M" duration={0.5} delay={0.4} className="text-2xl sm:text-5xl md:text-6xl lg:text-5xl xl:text-5xl font-black text-gray-900 tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Out-of-School Youth</h4>
+                  <h4 className="text-sm sm:text-xl md:text-2xl lg:text-xl xl:text-lg font-extrabold text-gray-900">Out-of-School Youth</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-xs sm:text-base md:text-lg lg:text-base xl:text-sm text-gray-500 font-medium leading-relaxed mt-0.5 sm:mt-1.5">
                     Young Filipinos facing barriers to education, skills development, and employment.
                   </p>
                 </FadeIn>
               </div>
 
               {/* Stat 2 */}
-              <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+              <div className="p-3.5 sm:p-6 md:p-8 xl:p-6 space-y-1 sm:space-y-2 md:space-y-3 xl:space-y-2 rounded-xl sm:rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
                 <FadeIn delay={0.2}>
-                  <NumberCounter value={49} suffix="%" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
+                  <NumberCounter value={49} suffix="%" duration={0.5} delay={0.4} className="text-2xl sm:text-5xl md:text-6xl lg:text-5xl xl:text-5xl font-black text-gray-900 tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Want to Return to Education</h4>
+                  <h4 className="text-sm sm:text-xl md:text-2xl lg:text-xl xl:text-lg font-extrabold text-gray-900">Want to Return to Education</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-xs sm:text-base md:text-lg lg:text-base xl:text-sm text-gray-500 font-medium leading-relaxed mt-0.5 sm:mt-1.5">
                     Nearly half of interviewed out-of-school youth expressed interest in returning to formal education.
                   </p>
                 </FadeIn>
               </div>
 
               {/* Stat 3 */}
-              <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+              <div className="p-3.5 sm:p-6 md:p-8 xl:p-6 space-y-1 sm:space-y-2 md:space-y-3 xl:space-y-2 rounded-xl sm:rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
                 <FadeIn delay={0.2}>
-                  <NumberCounter value={21} suffix="%" duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-gray-900 tracking-tight block" />
+                  <NumberCounter value={21} suffix="%" duration={0.5} delay={0.4} className="text-2xl sm:text-5xl md:text-6xl lg:text-5xl xl:text-5xl font-black text-gray-900 tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">Plan to Pursue Employment</h4>
+                  <h4 className="text-sm sm:text-xl md:text-2xl lg:text-xl xl:text-lg font-extrabold text-gray-900">Plan to Pursue Employment</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-xs sm:text-base md:text-lg lg:text-base xl:text-sm text-gray-500 font-medium leading-relaxed mt-0.5 sm:mt-1.5">
                     Many young people are looking for pathways toward work and greater economic participation.
                   </p>
                 </FadeIn>
               </div>
 
               {/* Stat 4 */}
-              <div className="p-4 sm:p-6 space-y-2 rounded-2xl bg-emerald-50/40 hover:bg-emerald-50/60 transition-colors border border-emerald-100/60">
+              <div className="p-3.5 sm:p-6 md:p-8 xl:p-6 space-y-1 sm:space-y-2 md:space-y-3 xl:space-y-2 rounded-xl sm:rounded-2xl bg-emerald-50/40 hover:bg-emerald-50/60 transition-colors border border-emerald-100/60">
                 <FadeIn delay={0.2}>
-                  <NumberCounter value={17} duration={0.5} delay={0.4} className="text-4xl sm:text-5xl font-black text-[#0A6B43] tracking-tight block" />
+                  <NumberCounter value={17} duration={0.5} delay={0.4} className="text-2xl sm:text-5xl md:text-6xl lg:text-5xl xl:text-5xl font-black text-[#0A6B43] tracking-tight block" />
                 </FadeIn>
                 <FadeIn delay={0.8}>
-                  <h4 className="text-base sm:text-lg font-extrabold text-gray-900">San Luis Barangays</h4>
+                  <h4 className="text-sm sm:text-xl md:text-2xl lg:text-xl xl:text-lg font-extrabold text-gray-900">San Luis Barangays</h4>
                 </FadeIn>
                 <FadeIn delay={0.9}>
-                  <p className="text-base text-gray-500 font-medium leading-relaxed mt-1">
+                  <p className="text-xs sm:text-base md:text-lg lg:text-base xl:text-sm text-gray-500 font-medium leading-relaxed mt-0.5 sm:mt-1.5">
                     Bridging local youth directly to verified TESDA institute cohorts and sustainable careers.
                   </p>
                 </FadeIn>
@@ -690,7 +641,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Where Potential Meets Opportunity Section */}
-      <section id="opportunity" className="py-24 lg:py-32 bg-[#0A4D30] text-white relative overflow-hidden">
+      <section id="opportunity" className="py-14 sm:py-24 lg:py-32 bg-[#0A4D30] text-white relative overflow-hidden">
         {/* Animated 3D Grid Tiles Background */}
         <AnimatedGridBackground />
 
@@ -699,25 +650,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="absolute bottom-0 left-0 -ml-40 -mb-40 w-[600px] h-[600px] bg-amber-400/5 rounded-full blur-3xl pointer-events-none z-0"></div>
 
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 md:gap-12 lg:gap-16 items-start">
 
             {/* Left Part: Header */}
             <FadeIn direction="left" amount={0.3} className="lg:col-span-5 space-y-4">
-              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.08]">
+              <h2 className="text-xl sm:text-5xl md:text-6xl lg:text-6xl xl:text-6xl font-black text-white tracking-tight leading-snug sm:leading-tight md:leading-[1.08]">
                 Where <span className="text-[#F5A623]">potential</span> meets <span className="text-[#F5A623]">opportunity</span>
               </h2>
             </FadeIn>
 
             {/* Right Part: Description Narrative (Matching Font Sizes, No Underlines) */}
-            <FadeIn direction="right" delay={0.6} amount={0.3} className="lg:col-span-7 space-y-6 lg:pt-2">
-              <p className="text-lg sm:text-xl lg:text-2xl text-emerald-100/90 font-medium leading-relaxed">
+            <FadeIn direction="right" delay={0.6} amount={0.3} className="lg:col-span-7 space-y-4 sm:space-y-6 md:space-y-8 lg:pt-2">
+              <p className="text-xs sm:text-xl md:text-2xl lg:text-2xl xl:text-2xl text-emerald-100/90 font-medium leading-relaxed">
                 SiKap connects young people in San Luis, Pampanga with verified <span className="text-white font-bold">TESDA training opportunities</span> based on{" "}
                 <strong className="text-white font-black">who they are</strong>,{" "}
                 <strong className="text-white font-black">what they can do</strong>, and{" "}
                 <strong className="text-white font-black">where they want to go</strong>.
               </p>
 
-              <p className="text-lg sm:text-xl lg:text-2xl text-emerald-100/90 font-medium leading-relaxed">
+              <p className="text-xs sm:text-xl md:text-2xl lg:text-2xl xl:text-2xl text-emerald-100/90 font-medium leading-relaxed">
                 By bringing <span className="text-white font-bold">youth profiles</span> and <span className="text-white font-bold">training opportunities</span> together, SiKap makes it easier to discover programs that fit their skills, interests, education, and goals — and take the next step toward their future.
               </p>
             </FadeIn>
@@ -727,78 +678,56 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Dynamic Workflow / Road map Section */}
-      <section id="workflow" className="py-20 sm:py-28 bg-white border-b border-gray-100 overflow-hidden">
-        <div
-          ref={workflowScroll.ref}
-          className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8"
-        >
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
+      <section id="workflow" className="py-12 sm:py-20 lg:py-28 bg-white border-b border-gray-100 overflow-hidden">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-16 items-start">
 
             {/* Left Column: Editorial Header aligned with top of right side */}
-            <div className="lg:col-span-5 space-y-6 pt-0">
-              <ChronoItem
-                isVisible={workflowScroll.isVisible}
-                speed={workflowScroll.speed}
-                delay={0.08}
-                duration={0.4}
-              >
-                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+            <div className="lg:col-span-5 space-y-3 sm:space-y-6 pt-0">
+              <FadeIn direction="left" delay={0.1}>
+                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-[10px] sm:text-base md:text-lg lg:text-sm font-black px-3 py-1 sm:px-5 sm:py-2 md:px-6 md:py-2.5 lg:px-4 lg:py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
                   HOW SIKAP WORKS
                 </span>
-              </ChronoItem>
+              </FadeIn>
 
-              <ChronoItem
-                as="h2"
-                isVisible={workflowScroll.isVisible}
-                speed={workflowScroll.speed}
-                delay={0.50}
-                duration={0.45}
-                y={18}
-                className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]"
-              >
-                From <span className="text-[#0A6B43]">profile</span> to <span className="text-[#0A6B43]">opportunity</span>
-              </ChronoItem>
+              <FadeIn direction="left" delay={0.2}>
+                <h2 className="text-xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-5xl font-extrabold text-gray-900 tracking-tight leading-snug sm:leading-tight md:leading-[1.12]">
+                  From <span className="text-[#0A6B43]">profile</span> to <span className="text-[#0A6B43]">opportunity</span>
+                </h2>
+              </FadeIn>
 
-              <ChronoItem
-                as="p"
-                isVisible={workflowScroll.isVisible}
-                speed={workflowScroll.speed}
-                delay={0.98}
-                duration={0.45}
-                className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-md"
-              >
-                A simple path from discovering your strengths to finding the right training opportunity.
-              </ChronoItem>
+              <FadeIn direction="left" delay={0.3}>
+                <p className="text-xs sm:text-xl md:text-2xl lg:text-xl xl:text-lg text-gray-500 font-normal leading-relaxed max-w-md md:max-w-xl">
+                  A simple path from discovering your strengths to finding the right training opportunity.
+                </p>
+              </FadeIn>
             </div>
 
-            {/* Right Column: Numbered Process Rows - ONLY appears after left side completes */}
+            {/* Right Column: Numbered Process Rows */}
             <div className="lg:col-span-7 divide-y divide-gray-200/70 border-t border-gray-200/70">
               {workflowSteps.map((step, i) => (
-                <ChronoItem
+                <FadeIn
                   key={step.num}
-                  isVisible={workflowScroll.isVisible}
-                  speed={workflowScroll.speed}
-                  delay={1.48 + (i * 0.22)}
-                  duration={0.38}
-                  y={18}
-                  className="py-6 sm:py-8 group"
+                  direction="up"
+                  delay={0.1 + (i * 0.08)}
+                  className="py-4 sm:py-6 md:py-8 lg:py-8 group"
                 >
-                  <div className="flex items-start gap-4 sm:gap-6">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
-                      <span className="text-xs sm:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                  <div className="flex items-start gap-3.5 sm:gap-6 md:gap-7">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-11 lg:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                      <span className="text-[11px] sm:text-base md:text-lg lg:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
                         {step.num}
                       </span>
                     </div>
-                    <div className="space-y-1.5 sm:space-y-2">
-                      <h3 className="text-base sm:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                    <div className="space-y-1 sm:space-y-2">
+                      <h3 className="text-sm sm:text-xl md:text-2xl lg:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
                         {step.title}
                       </h3>
-                      <p className="text-sm sm:text-base text-gray-500 font-normal leading-relaxed">
+                      <p className="text-xs sm:text-base md:text-lg lg:text-base text-gray-500 font-normal leading-relaxed">
                         {step.desc}
                       </p>
                     </div>
                   </div>
-                </ChronoItem>
+                </FadeIn>
               ))}
             </div>
 
@@ -807,7 +736,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="py-20 sm:py-28 bg-[#FAFBF9] relative overflow-hidden">
+      <section id="faq" className="py-12 sm:py-20 lg:py-28 bg-[#FAFBF9] relative overflow-hidden">
         {/* Redox Texture Overlay */}
         <div
           className="absolute inset-0 pointer-events-none z-0 opacity-40 mix-blend-multiply"
@@ -817,80 +746,59 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             backgroundSize: "200px 200px",
           }}
         />
-        <div
-          ref={faqScroll.ref}
-          className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10"
-        >
-          <div className="flex flex-col items-center text-center space-y-12 lg:space-y-16">
+        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="flex flex-col items-center text-center space-y-8 sm:space-y-12 lg:space-y-16">
 
-            {/* Header: Top part appears first completely */}
-            <div className="space-y-6 flex flex-col items-center w-full">
-              <ChronoItem
-                isVisible={faqScroll.isVisible}
-                speed={faqScroll.speed}
-                delay={0.08}
-                duration={0.4}
-              >
-                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+            {/* Header */}
+            <div className="space-y-3 sm:space-y-6 flex flex-col items-center w-full">
+              <FadeIn direction="up" delay={0.1}>
+                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-[10px] sm:text-base md:text-lg lg:text-sm font-black px-3 py-1 sm:px-5 sm:py-2 md:px-6 md:py-2.5 lg:px-4 lg:py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
                   FREQUENTLY ASKED QUESTIONS
                 </span>
-              </ChronoItem>
+              </FadeIn>
 
-              <ChronoItem
-                as="h2"
-                isVisible={faqScroll.isVisible}
-                speed={faqScroll.speed}
-                delay={0.50}
-                duration={0.45}
-                y={18}
-                className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.12]"
-              >
-                Have <span className="text-[#0A6B43]">questions</span> about <span className="text-[#0A6B43]">SiKap</span>?
-              </ChronoItem>
+              <FadeIn direction="up" delay={0.2}>
+                <h2 className="text-xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-5xl font-extrabold text-gray-900 tracking-tight leading-snug sm:leading-tight md:leading-[1.12]">
+                  Have <span className="text-[#0A6B43]">questions</span> about <span className="text-[#0A6B43]">SiKap</span>?
+                </h2>
+              </FadeIn>
 
-              <ChronoItem
-                as="p"
-                isVisible={faqScroll.isVisible}
-                speed={faqScroll.speed}
-                delay={0.98}
-                duration={0.45}
-                className="text-base sm:text-lg text-gray-500 font-normal leading-relaxed max-w-2xl mx-auto"
-              >
-                Find clear answers regarding program eligibility, AI matchmaking, free TESDA certifications, and direct enrollment in San Luis, Pampanga.
-              </ChronoItem>
+              <FadeIn direction="up" delay={0.3}>
+                <p className="text-xs sm:text-xl md:text-2xl lg:text-xl xl:text-lg text-gray-500 font-normal leading-relaxed max-w-2xl md:max-w-3xl mx-auto">
+                  Find clear answers regarding program eligibility, AI matchmaking, free TESDA certifications, and direct enrollment in San Luis, Pampanga.
+                </p>
+              </FadeIn>
             </div>
 
-            {/* Minimalist Editorial Accordion Rows: Only appear AFTER header completes */}
+            {/* Minimalist Editorial Accordion Rows */}
             <div className="w-full divide-y divide-gray-200/70 border-t border-gray-200/70 text-left">
               {faqs.map((faq, i) => {
                 const isOpen = activeFaqIndex === i;
                 return (
-                  <ChronoItem
+                  <FadeIn
                     key={i}
-                    isVisible={faqScroll.isVisible}
-                    speed={faqScroll.speed}
-                    delay={1.48 + (i * 0.18)}
-                    duration={0.38}
-                    className="py-5 sm:py-7 group transition-colors duration-200"
+                    direction="up"
+                    delay={0.1 + (i * 0.06)}
+                    className="py-3.5 sm:py-6 md:py-7 lg:py-7 group transition-colors duration-200"
                   >
                     <button
                       type="button"
                       onClick={() => toggleFaq(i)}
-                      className="w-full text-left flex items-start justify-between gap-4 sm:gap-6 cursor-pointer"
+                      className="w-full text-left flex items-start justify-between gap-3 sm:gap-6 cursor-pointer"
                       aria-expanded={isOpen}
                     >
-                      <h3 className={`text-base sm:text-xl font-bold tracking-tight transition-colors duration-200 pr-2 ${isOpen ? "text-[#0A6B43]" : "text-gray-900 group-hover:text-[#0A6B43]"}`}>
+                      <h3 className={`text-sm sm:text-xl md:text-2xl lg:text-xl font-bold tracking-tight transition-colors duration-200 pr-2 ${isOpen ? "text-[#0A6B43]" : "text-gray-900 group-hover:text-[#0A6B43]"}`}>
                         {faq.q}
                       </h3>
                       <motion.div
                         animate={{ rotate: isOpen ? 45 : 0 }}
                         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${isOpen
+                        className={`w-7 h-7 sm:w-11 sm:h-11 md:w-12 md:h-12 lg:w-9 lg:h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${isOpen
                           ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-xs"
                           : "bg-white border-gray-200 text-gray-500 group-hover:border-[#0A6B43] group-hover:text-[#0A6B43]"
                           }`}
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-4 lg:h-4" />
                       </motion.div>
                     </button>
 
@@ -917,13 +825,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                           }}
                           className="overflow-hidden"
                         >
-                          <div className="pt-3.5 sm:pt-4 pr-6 sm:pr-12 text-sm sm:text-base text-gray-600 font-normal leading-relaxed">
+                          <div className="pt-2 sm:pt-4 md:pt-5 pr-4 sm:pr-12 text-xs sm:text-base md:text-lg lg:text-base text-gray-600 font-normal leading-relaxed">
                             {faq.a}
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </ChronoItem>
+                  </FadeIn>
                 );
               })}
             </div>
@@ -933,7 +841,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </section>
 
       {/* Call To Action Banner */}
-      <section className="pt-10 pb-20 lg:pt-14 lg:pb-32 bg-[#FAFBF9] relative overflow-hidden">
+      <section className="pt-6 pb-12 sm:pt-10 sm:pb-20 lg:pt-14 lg:pb-32 bg-[#FAFBF9] relative overflow-hidden">
         {/* Redox Texture Overlay */}
         <div
           className="absolute inset-0 pointer-events-none z-0 opacity-40 mix-blend-multiply"
@@ -944,9 +852,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           }}
         />
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div
-            ref={ctaScroll.ref}
-            className="relative rounded-3xl overflow-hidden bg-[#0A4D30] border border-emerald-800/60 shadow-2xl px-6 py-10 sm:px-8 sm:py-12 lg:px-10 lg:py-12 text-left"
+          <FadeIn
+            duration={0.4}
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#0A4D30] border border-emerald-800/60 shadow-2xl px-5 py-7 sm:px-8 sm:py-12 md:px-12 md:py-16 lg:px-10 lg:py-12 text-left"
           >
             {/* Animated 3D Grid Overlay */}
             <AnimatedGridBackground />
@@ -954,60 +862,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Subtle Lighting behind text to ensure readability */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.15),transparent_70%)] pointer-events-none z-0"></div>
 
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-              <div className="space-y-6 lg:space-y-30 max-w-2xl">
-                {/* 1. Header appears FIRST */}
-                <ChronoItem
-                  as="h2"
-                  isVisible={ctaScroll.isVisible}
-                  speed={ctaScroll.speed}
-                  delay={0.08}
-                  duration={0.48}
-                  y={20}
-                  className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]"
-                >
-                  Ready to Take the <span className="text-[#F5A623]">Next Step</span> Toward <span className="text-[#F5A623]">Your Future</span>?
-                </ChronoItem>
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-6 sm:gap-8">
+              <div className="space-y-3 sm:space-y-6 lg:space-y-30 max-w-2xl">
+                {/* 1. Header */}
+                <FadeIn direction="left" delay={0.1}>
+                  <h2 className="text-xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-5xl font-extrabold text-white tracking-tight leading-snug sm:leading-tight md:leading-[1.15]">
+                    Ready to Take the <span className="text-[#F5A623]">Next Step</span> Toward <span className="text-[#F5A623]">Your Future</span>?
+                  </h2>
+                </FadeIn>
 
-                {/* 2. Subheader appears SECOND - only after header completes */}
-                <ChronoItem
-                  as="p"
-                  isVisible={ctaScroll.isVisible}
-                  speed={ctaScroll.speed}
-                  delay={0.60}
-                  duration={0.48}
-                  className="text-base sm:text-lg text-emerald-100/80 font-normal leading-relaxed"
-                >
-                  Start your journey with SiKap and explore training opportunities that can help you develop new skills.
-                </ChronoItem>
+                {/* 2. Subheader */}
+                <FadeIn direction="left" delay={0.2}>
+                  <p className="text-xs sm:text-xl md:text-2xl lg:text-xl xl:text-lg text-emerald-100/80 font-normal leading-relaxed">
+                    Start your journey with SiKap and explore training opportunities that can help you develop new skills.
+                  </p>
+                </FadeIn>
               </div>
 
-              {/* 3. Buttons appear THIRD - only after subheader completes */}
-              <ChronoItem
-                isVisible={ctaScroll.isVisible}
-                speed={ctaScroll.speed}
-                delay={1.12}
-                duration={0.42}
-                className="flex flex-col sm:flex-row items-center justify-start lg:justify-end gap-3 sm:gap-4 shrink-0"
-              >
+              {/* 3. Buttons */}
+              <FadeIn direction="right" delay={0.3} className="flex flex-row items-center justify-start lg:justify-end gap-2.5 sm:gap-4 shrink-0">
                 <button
                   type="button"
                   onClick={onEnterSignUp || onEnterLogin}
-                  className="w-full sm:w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2 sm:gap-2.5 group cursor-pointer"
+                  className="w-auto bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-xs sm:text-lg md:text-xl xl:text-lg px-4 sm:px-8 md:px-10 xl:px-8 py-2.5 sm:py-4 md:py-4.5 xl:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2 sm:gap-3 group cursor-pointer shrink-0 whitespace-nowrap"
                 >
                   <span>Register</span>
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                  <ArrowRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-6 md:h-6 xl:w-5 xl:h-5 text-amber-100 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleScrollToSection("workflow")}
-                  className="w-full sm:w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 hover:border-emerald-500/50 font-bold text-sm sm:text-base lg:text-lg px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+                  className="w-auto bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 hover:border-emerald-500/50 font-bold text-xs sm:text-lg md:text-xl xl:text-lg px-3.5 sm:px-8 md:px-10 xl:px-8 py-2.5 sm:py-4 md:py-4.5 xl:py-3.5 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer inline-flex items-center justify-center gap-2 shrink-0 whitespace-nowrap"
                 >
                   How It Works
                 </button>
-              </ChronoItem>
+              </FadeIn>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
@@ -1028,7 +919,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <SikapLogo size={58} logoSize={58} textSize={42} variant="white" showText={true} showSubtext={false} gap="gap-1" textClassName="translate-y-[1.5px]" disableHover={true} />
                 </div>
               </div>
-              <p className="text-sm text-gray-400 font-medium text-center md:text-left max-w-xl leading-relaxed">
+              <p className="text-xs sm:text-sm text-gray-400 font-medium text-center md:text-left max-w-xl leading-relaxed">
                 SiKap helps young people in San Luis, Pampanga discover opportunities that fit their strengths and aspirations. By connecting youth profiles with relevant training programs, SiKap turns skills, interests, and goals into clearer pathways for learning, growth, and opportunity.
               </p>
             </div>
@@ -1036,11 +927,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Links - Three Columns (Left: Account, Middle: Legal, Right: Navigation) */}
             <div className="flex flex-row flex-wrap items-start justify-center md:justify-end gap-8 sm:gap-10 lg:gap-16 pt-2 shrink-0">
               {/* Column 1 (Left): Account */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Account
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={onEnterSignUp || onEnterLogin}
@@ -1059,11 +950,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               {/* Column 2 (Middle): Legal */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Legal
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={() => handleOpenPolicy("terms")}
@@ -1082,11 +973,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               {/* Column 3 (Right): Navigation */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Navigation
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={() => handleScrollToSection("hero")}

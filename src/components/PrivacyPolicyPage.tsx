@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRight, ChevronUp } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
+import { FadeIn } from "./FadeIn";
 
 interface PrivacyPolicyPageProps {
   onBack?: () => void;
@@ -96,132 +97,152 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onBack, on
 
       {/* Main Content: Green header, thin gray line, ~20% horizontal padding/margin on desktop */}
       <main className="flex-1 w-full mx-auto px-4 sm:px-8 md:px-[12%] lg:px-[20%] py-8 sm:py-12">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#0A6B43] tracking-tight mb-4">
-          Privacy Policy
-        </h1>
-        <hr className="border-t border-gray-200 mb-8" />
+        <FadeIn direction="up">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#0A6B43] tracking-tight mb-3">
+            Privacy Policy
+          </h1>
+          <hr className="border-t border-gray-200 mb-8" />
+        </FadeIn>
 
-        <div className="space-y-8 text-gray-700 text-sm sm:text-base leading-relaxed">
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              1. Statement of Policy
-            </h2>
-            <p>
-              The Municipal Government of San Luis, Pampanga, in partnership with the Sangguniang Kabataan (SK) and TESDA, is committed to safeguarding personal information in strict adherence to Republic Act No. 10173 (Data Privacy Act of 2012), its Implementing Rules and Regulations, and National Privacy Commission (NPC) issuances. This Privacy Policy details our practices concerning the collection, use, protection, and disclosure of personal data collected through the SiKap platform.
-            </p>
-          </section>
+        <div className="space-y-7 sm:space-y-8 text-gray-700 text-xs sm:text-sm leading-relaxed text-justify">
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                1. Statement of Policy
+              </h2>
+              <p className="text-justify">
+                The Municipal Government of San Luis, Pampanga, in partnership with the Sangguniang Kabataan (SK) and TESDA, is committed to safeguarding personal information in strict adherence to Republic Act No. 10173 (Data Privacy Act of 2012), its Implementing Rules and Regulations, and National Privacy Commission (NPC) issuances. This Privacy Policy details our practices concerning the collection, use, protection, and disclosure of personal data collected through the SiKap platform.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              2. Information We Collect
-            </h2>
-            <p>
-              We collect only the personal information necessary to facilitate Katipunan ng Kabataan demographic profiling and technical-vocational program endorsements:
-            </p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li>
-                <strong>Personal Identity:</strong> Full legal name, date of birth, age, gender/sex, civil status, and residential address/purok within the 17 barangays of San Luis, Pampanga.
-              </li>
-              <li>
-                <strong>Contact Information:</strong> Verified personal email address and 11-digit mobile contact number.
-              </li>
-              <li>
-                <strong>Socio-Demographic Profile:</strong> Educational attainment, current youth classification (In-School Youth, Out-of-School Youth / OSY, Working Youth, Unemployed), special sector designations, hobbies, and career interests.
-              </li>
-              <li>
-                <strong>Verification Artifacts:</strong> Identification document type, ID number, and digital image file upload for official identity validation.
-              </li>
-              <li>
-                <strong>Program Data:</strong> Enrolled TESDA courses, training attendance, completion records, certificates attained, and referral history.
-              </li>
-            </ul>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                2. Information We Collect
+              </h2>
+              <p className="text-justify">
+                We collect only the personal information necessary to facilitate Katipunan ng Kabataan demographic profiling and technical-vocational program endorsements:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 pl-2 text-justify">
+                <li>
+                  <strong>Personal Identity:</strong> Full legal name, date of birth, age, gender/sex, civil status, and residential address/purok within the 17 barangays of San Luis, Pampanga.
+                </li>
+                <li>
+                  <strong>Contact Information:</strong> Verified personal email address and 11-digit mobile contact number.
+                </li>
+                <li>
+                  <strong>Socio-Demographic Profile:</strong> Educational attainment, current youth classification (In-School Youth, Out-of-School Youth / OSY, Working Youth, Unemployed), special sector designations, hobbies, and career interests.
+                </li>
+                <li>
+                  <strong>Verification Artifacts:</strong> Identification document type, ID number, and digital image file upload for official identity validation.
+                </li>
+                <li>
+                  <strong>Program Data:</strong> Enrolled TESDA courses, training attendance, completion records, certificates attained, and referral history.
+                </li>
+              </ul>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              3. Purpose &amp; Legal Basis of Processing
-            </h2>
-            <p>
-              Your personal data is processed under the lawful bases of Explicit Consent (Sections 12.a and 13.a of RA 10173) and the statutory performance of a mandated public task under RA 10742 (Sangguniang Kabataan Reform Act of 2015):
-            </p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li>Compiling and maintaining the official directory of Katipunan ng Kabataan members across all 17 barangays of San Luis;</li>
-              <li>Verifying youth age eligibility (18–30) and local barangay residency requirements;</li>
-              <li>Matching youth profiles with accredited TESDA technical-vocational courses;</li>
-              <li>Facilitating official municipal training endorsements and class enrollments;</li>
-              <li>Generating anonymized statistical reports for youth development planning and local governance; and</li>
-              <li>Disseminating community announcements, youth training caravans, and disaster relief notices.</li>
-            </ul>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                3. Purpose &amp; Legal Basis of Processing
+              </h2>
+              <p className="text-justify">
+                Your personal data is processed under the lawful bases of Explicit Consent (Sections 12.a and 13.a of RA 10173) and the statutory performance of a mandated public task under RA 10742 (Sangguniang Kabataan Reform Act of 2015):
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 pl-2 text-justify">
+                <li>Compiling and maintaining the official directory of Katipunan ng Kabataan members across all 17 barangays of San Luis;</li>
+                <li>Verifying youth age eligibility (18–30) and local barangay residency requirements;</li>
+                <li>Matching youth profiles with accredited TESDA technical-vocational courses;</li>
+                <li>Facilitating official municipal training endorsements and class enrollments;</li>
+                <li>Generating anonymized statistical reports for youth development planning and local governance; and</li>
+                <li>Disseminating community announcements, youth training caravans, and disaster relief notices.</li>
+              </ul>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              4. Data Sharing &amp; Disclosure
-            </h2>
-            <p>
-              SiKap strictly does not sell, rent, monetize, or disclose your personal data to commercial advertisers. Information is shared strictly with authorized personnel:
-            </p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li>
-                <strong>Local SK Chairpersons &amp; Council Officers:</strong> Authorized solely to verify member credentials and manage barangay training allocations.
-              </li>
-              <li>
-                <strong>Accredited TESDA Partner Centers:</strong> Provided candidate contact details and educational background solely to facilitate class admission and assessment certification.
-              </li>
-              <li>
-                <strong>National Oversight Bodies (NYC, DILG):</strong> Receive strictly anonymized, aggregated demographic summaries for policy evaluation and statutory compliance.
-              </li>
-            </ul>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                4. Data Sharing &amp; Disclosure
+              </h2>
+              <p className="text-justify">
+                SiKap strictly does not sell, rent, monetize, or disclose your personal data to commercial advertisers. Information is shared strictly with authorized personnel:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 pl-2 text-justify">
+                <li>
+                  <strong>Local SK Chairpersons &amp; Council Officers:</strong> Authorized solely to verify member credentials and manage barangay training allocations.
+                </li>
+                <li>
+                  <strong>Accredited TESDA Partner Centers:</strong> Provided candidate contact details and educational background solely to facilitate class admission and assessment certification.
+                </li>
+                <li>
+                  <strong>National Oversight Bodies (NYC, DILG):</strong> Receive strictly anonymized, aggregated demographic summaries for policy evaluation and statutory compliance.
+                </li>
+              </ul>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              5. AI Recommendations
-            </h2>
-            <p>
-              SiKap employs Content-Based Filtering and Google Gemini AI assistance to evaluate vocational interests and suggest personalized learning pathways based on declared skills and goals. AI-generated outputs serve as advisory recommendations and do not restrict applicants from exploring alternative programs.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                5. AI Recommendations
+              </h2>
+              <p className="text-justify">
+                SiKap employs Content-Based Filtering and Google Gemini AI assistance to evaluate vocational interests and suggest personalized learning pathways based on declared skills and goals. AI-generated outputs serve as advisory recommendations and do not restrict applicants from exploring alternative programs.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              6. Information Security &amp; Storage
-            </h2>
-            <p>
-              We implement industry-standard technical, physical, and organizational security measures, including HTTPS encryption in transit, bcrypt password hashing, session tokens, and strict role-based access control. Uploaded ID documents are stored in protected directories accessible solely to verified administrators during the validation phase.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                6. Information Security &amp; Storage
+              </h2>
+              <p className="text-justify">
+                We implement industry-standard technical, physical, and organizational security measures, including HTTPS encryption in transit, bcrypt password hashing, session tokens, and strict role-based access control. Uploaded ID documents are stored in protected directories accessible solely to verified administrators during the validation phase.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              7. Data Retention &amp; Disposal
-            </h2>
-            <p>
-              Personal data is maintained in the active Katipunan ng Kabataan registry for as long as a member remains an eligible youth resident (ages 18 to 30) of San Luis, Pampanga. Upon reaching age thirty-one (31) or upon permanent relocation outside the municipality, accounts are transitioned to an archived status and subsequently disposed of or anonymized in compliance with National Archives and NPC guidelines.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                7. Data Retention &amp; Disposal
+              </h2>
+              <p className="text-justify">
+                Personal data is maintained in the active Katipunan ng Kabataan registry for as long as a member remains an eligible youth resident (ages 18 to 30) of San Luis, Pampanga. Upon reaching age thirty-one (31) or upon permanent relocation outside the municipality, accounts are transitioned to an archived status and subsequently disposed of or anonymized in compliance with National Archives and NPC guidelines.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              8. Your Rights as a Data Subject
-            </h2>
-            <p>
-              Under the Data Privacy Act of 2012, registered youth possess the right to be informed, right to access, right to rectification, right to erasure or blocking, and the right to lodge a complaint with the National Privacy Commission (NPC).
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                8. Your Rights as a Data Subject
+              </h2>
+              <p className="text-justify">
+                Under the Data Privacy Act of 2012, registered youth possess the right to be informed, right to access, right to rectification, right to erasure or blocking, and the right to lodge a complaint with the National Privacy Commission (NPC).
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              9. Contact &amp; Inquiries
-            </h2>
-            <p>
-              For privacy-related inquiries, data access requests, or official communications, you may contact the Sangguniang Kabataan Council and Municipal Administration at:
-            </p>
-            <p className="text-sm">
-              <strong>Email:</strong> sikap.system@gmail.com<br />
-              <strong>Office:</strong> Sangguniang Kabataan Office, Municipal Hall, San Luis, Pampanga, Region III, Philippines
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                9. Contact &amp; Inquiries
+              </h2>
+              <p className="text-justify">
+                For privacy-related inquiries, data access requests, or official communications, you may contact the Sangguniang Kabataan Council and Municipal Administration at:
+              </p>
+              <p className="text-xs sm:text-sm text-left">
+                <strong>Email:</strong> sikap.system@gmail.com<br />
+                <strong>Office:</strong> Sangguniang Kabataan Office, Municipal Hall, San Luis, Pampanga, Region III, Philippines
+              </p>
+            </section>
+          </FadeIn>
         </div>
 
         {/* Bottom Return to Previous Page Link */}
@@ -292,11 +313,11 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onBack, on
             {/* Links - Three Columns (Account, Legal, Navigation) */}
             <div className="flex flex-row flex-wrap items-start justify-center md:justify-end gap-8 sm:gap-10 lg:gap-16 pt-2 shrink-0">
               {/* Column 1: Account */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Account
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={() => {
@@ -321,11 +342,11 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onBack, on
               </div>
 
               {/* Column 2: Legal */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Legal
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={() => {
@@ -350,11 +371,11 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onBack, on
               </div>
 
               {/* Column 3: Navigation */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Navigation
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={handleBack}

@@ -67,9 +67,9 @@ export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
 }) => {
   return (
     <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4">
-      {/* Vertical Navigation Items List - Rectangular cards with rounded circular corners, separated */}
+      {/* Settings Navigation: Responsive Pills that hug text on mobile & vertical cards on desktop */}
       <nav
-        className="flex flex-row overflow-x-auto no-scrollbar gap-[5.6px] lg:flex-col lg:space-y-[5.6px] w-full lg:w-fit"
+        className="flex flex-wrap gap-1.5 sm:gap-2 lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit"
         aria-label={ariaLabel}
       >
         {tabs.map((tab) => {
@@ -80,15 +80,15 @@ export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`group/pill w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none shrink-0 border ${
+              className={`group/pill w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-2.5 sm:px-3 lg:px-3.5 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
                 isActive
                   ? "bg-[#0A6B43] text-white shadow-xs border-transparent"
-                  : "bg-white text-gray-700 border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs hover:translate-x-0.5"
+                  : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs hover:translate-x-0.5"
               }`}
             >
               <IconComponent
                 fill={isActive ? "currentColor" : "none"}
-                className={`w-4.5 h-4.5 shrink-0 transition-transform duration-200 ${
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0 transition-transform duration-200 ${
                   isActive
                     ? "text-white"
                     : "text-gray-400 group-hover/pill:text-[#0A6B43] group-hover/pill:scale-110"
@@ -126,12 +126,12 @@ export const SettingsSecurityGuideCard: React.FC<SettingsSecurityGuideCardProps>
       {/* Guide Card Header: Simple icon without container, no subheader, white divider */}
       <div className="flex items-center gap-2.5 border-b border-white/20 pb-3">
         <ShieldCheck className="w-5 h-5 text-white shrink-0" />
-        <h4 className="font-bold text-white text-base leading-tight">Security Guide</h4>
+        <h4 className="font-bold text-white text-sm sm:text-base leading-tight">Security Guide</h4>
       </div>
 
       {/* Guide Checklist with dynamic visual appearance and check animation */}
       <div className="space-y-2.5">
-        <span className="text-[11px] font-bold text-white uppercase tracking-wider block">
+        <span className="text-[10px] sm:text-[11px] font-bold text-white uppercase tracking-wider block">
           Password Checklist
         </span>
         <div className="space-y-2.5">
@@ -159,7 +159,7 @@ export const SettingsSecurityGuideCard: React.FC<SettingsSecurityGuideCardProps>
                   <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
                 </div>
               )}
-              <span className="text-xs">
+              <span className="text-[11px] sm:text-xs">
                 At least <strong>6 characters long</strong>
               </span>
             </div>
@@ -198,7 +198,7 @@ export const SettingsSecurityGuideCard: React.FC<SettingsSecurityGuideCardProps>
                   <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
                 </div>
               )}
-              <span className="text-xs">
+              <span className="text-[11px] sm:text-xs">
                 Combine <strong>uppercase & lowercase letters</strong>
               </span>
             </div>
@@ -237,7 +237,7 @@ export const SettingsSecurityGuideCard: React.FC<SettingsSecurityGuideCardProps>
                   <div className="w-1.5 h-1.5 rounded-full bg-white/50" />
                 </div>
               )}
-              <span className="text-xs">
+              <span className="text-[11px] sm:text-xs">
                 Include <strong>numbers or symbols</strong> (0-9, @, #)
               </span>
             </div>
@@ -285,21 +285,21 @@ export const SettingsNotificationChannelsCard: React.FC<SettingsNotificationChan
   return (
     <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 text-xs">
       <div className="border-b border-gray-100 pb-2.5">
-        <h4 className="font-bold text-gray-800 text-[16px] flex items-center gap-2">
+        <h4 className="font-bold text-gray-800 text-sm sm:text-[16px] flex items-center gap-2">
           <Bell className="w-4.5 h-4.5 text-[#0A6B43]" />
           Official Notification Channels
         </h4>
       </div>
       <div className="space-y-3 text-gray-600 font-medium">
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-          <span className="font-bold text-slate-800 text-[14px] block">Web Push Alerts</span>
-          <p className="text-[12px] text-slate-500 leading-relaxed font-medium">
+          <span className="font-bold text-slate-800 text-xs sm:text-[14px] block">Web Push Alerts</span>
+          <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed font-medium">
             {pushDescription}
           </p>
         </div>
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-          <span className="font-bold text-slate-800 text-[14px] block">Official Email Dispatch</span>
-          <p className="text-[12px] text-slate-500 leading-relaxed font-medium">
+          <span className="font-bold text-slate-800 text-xs sm:text-[14px] block">Official Email Dispatch</span>
+          <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed font-medium">
             {emailDescription}
           </p>
         </div>

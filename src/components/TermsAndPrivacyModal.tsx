@@ -115,7 +115,7 @@ export const TermsAndPrivacyModal: React.FC<TermsAndPrivacyModalProps> = ({
                 </p>
               </div>
 
-              <div className="space-y-4 text-xs sm:text-[13px] leading-relaxed text-gray-700">
+              <div className="space-y-4 text-xs sm:text-[13px] leading-relaxed text-gray-700 text-justify">
                 <div>
                   <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide text-[#0A6B43] mb-1">
                     1. Statement of Policy
@@ -205,7 +205,7 @@ export const TermsAndPrivacyModal: React.FC<TermsAndPrivacyModalProps> = ({
                 </p>
               </div>
 
-              <div className="space-y-4 text-xs sm:text-[13px] leading-relaxed text-gray-700">
+              <div className="space-y-4 text-xs sm:text-[13px] leading-relaxed text-gray-700 text-justify">
                 <div>
                   <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide text-[#0A6B43] mb-1">
                     1. Acceptance of Terms

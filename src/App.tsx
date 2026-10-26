@@ -510,10 +510,10 @@ export default function App() {
           )}
 
           {!viewingLanding && (
-            <div className={`min-h-screen md:h-screen flex flex-col md:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto md:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
+            <div className={`min-h-screen xl:h-screen flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto xl:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
 
-            {/* Left panel as a card (Hidden on small mobile screens to maximize form focus and prevent vertical cutoff) */}
-            <div className="hidden md:flex md:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 md:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
+            {/* Left panel as a card (Hidden on mobile, tablets & iPads <1280px to maximize form focus and prevent vertical cutoff) */}
+            <div className="hidden xl:flex xl:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 xl:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
 
               {/* Redox Texture Overlay (Identical to Landing Page CTA) */}
               <div
@@ -601,7 +601,7 @@ export default function App() {
             </div>
 
             {/* Right panel */}
-            <div className="flex-1 bg-white relative min-h-[520px] md:min-h-[600px] w-full flex flex-col items-center justify-start md:justify-center p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 pt-3 sm:pt-6 md:py-8 overflow-y-auto md:overflow-hidden">
+            <div className="flex-1 bg-white relative min-h-[520px] md:min-h-[600px] w-full flex flex-col items-center justify-start md:justify-center p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 pt-3 sm:pt-6 md:py-8 overflow-y-auto xl:overflow-hidden">
 
               {/* Logo centered at top - sliding down from above (desktop, or mobile when registering) */}
               <motion.div

@@ -1574,21 +1574,21 @@ Please sign in at ${window.location.origin} and change your password immediately
   return (
     <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex font-sans antialiased text-slate-800 w-full" id="super-admin-portal-root">
       
-      {/* Mobile Navigation Backdrop Overlay */}
+      {/* Mobile & Tablet Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 xl:hidden transition-opacity"
           onClick={() => setIsMobileNavOpen(false)}
           aria-hidden="true"
         />
       )}
 
       {/* ============================================================ */}
-      {/* SIDEBAR - Signature SiKap Emerald Theme (Responsive Drawer on Mobile) */}
+      {/* SIDEBAR - Signature SiKap Emerald Theme (Responsive Drawer on Mobile & Tablet) */}
       {/* ============================================================ */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-[17%] lg:min-w-[250px] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl lg:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
-          isMobileNavOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
+          isMobileNavOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
         }`}
       >
         <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
@@ -1601,11 +1601,11 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
             </div>
 
-            {/* Mobile Close Button */}
+            {/* Mobile/Tablet Close Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(false)}
-              className="lg:hidden p-1 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
+              className="xl:hidden p-1 text-emerald-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
               aria-label="Close navigation"
             >
               <X className="w-5 h-5" />
@@ -1880,17 +1880,17 @@ Please sign in at ${window.location.origin} and change your password immediately
         {/* Sticky Top Header */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
-            {/* Mobile Hamburger Button */}
+            {/* Mobile & Tablet Hamburger Button */}
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(true)}
-              className="lg:hidden p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="xl:hidden p-2 -ml-1 text-gray-700 hover:text-[#0A6B43] hover:bg-emerald-50 rounded-xl transition-colors shrink-0 cursor-pointer"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="text-base sm:text-lg lg:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
+              <h1 className="text-[24px] xl:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
                 {activeTab === "dashboard" && "Infrastructure Dashboard"}
                 {activeTab === "youth_masterlist" && "Youth Masterlist"}
                 {activeTab === "barangays" && "Barangay Directory"}
@@ -1905,7 +1905,7 @@ Please sign in at ${window.location.origin} and change your password immediately
 
           <div className="flex items-center gap-2 sm:gap-3 relative shrink-0" id="notification-bell-container">
             {/* Live Status Pill */}
-            <span className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-xs font-extrabold rounded-full shadow-2xs">
+            <span className="hidden xl:flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-xs font-extrabold rounded-full shadow-2xs">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               Live Infrastructure
             </span>

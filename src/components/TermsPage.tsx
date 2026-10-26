@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRight, ChevronUp } from "lucide-react";
 import { SikapLogo } from "./ReusableComponents";
+import { FadeIn } from "./FadeIn";
 
 interface TermsPageProps {
   onBack?: () => void;
@@ -96,120 +97,140 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack, onNavigate, backLa
 
       {/* Main Content: Green header, thin gray line, ~20% horizontal padding/margin on desktop */}
       <main className="flex-1 w-full mx-auto px-4 sm:px-8 md:px-[12%] lg:px-[20%] py-8 sm:py-12">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#0A6B43] tracking-tight mb-4">
-          Terms and Conditions
-        </h1>
-        <hr className="border-t border-gray-200 mb-8" />
+        <FadeIn direction="up">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#0A6B43] tracking-tight mb-3">
+            Terms and Conditions
+          </h1>
+          <hr className="border-t border-gray-200 mb-8" />
+        </FadeIn>
 
-        <div className="space-y-8 text-gray-700 text-sm sm:text-base leading-relaxed">
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              1. Acceptance of Terms
-            </h2>
-            <p>
-              By accessing the SiKap portal, creating an account, or participating in municipal training programs, you agree to comply with these Terms and Conditions, the Sangguniang Kabataan Reform Act of 2015 (Republic Act No. 10742, as amended by Republic Act No. 11768), the Local Government Code of 1991 (Republic Act No. 7160), and all applicable municipal ordinances of San Luis, Pampanga. If you do not agree to these terms, you must not proceed with registration or use of the platform.
-            </p>
-          </section>
+        <div className="space-y-7 sm:space-y-8 text-gray-700 text-xs sm:text-sm leading-relaxed text-justify">
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                1. Acceptance of Terms
+              </h2>
+              <p className="text-justify">
+                By accessing the SiKap portal, creating an account, or participating in municipal training programs, you agree to comply with these Terms and Conditions, the Sangguniang Kabataan Reform Act of 2015 (Republic Act No. 10742, as amended by Republic Act No. 11768), the Local Government Code of 1991 (Republic Act No. 7160), and all applicable municipal ordinances of San Luis, Pampanga. If you do not agree to these terms, you must not proceed with registration or use of the platform.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              2. Eligibility &amp; Katipunan ng Kabataan Membership
-            </h2>
-            <p>
-              Registration and participation in subsidized training pathways are restricted to eligible youth members under Philippine law:
-            </p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li>
-                <strong>Age Requirement:</strong> You must be between eighteen (18) and thirty (30) years of age at the time of registration.
-              </li>
-              <li>
-                <strong>Residency Requirement:</strong> You must be a bona fide resident of one of the 17 barangays of San Luis, Pampanga for at least six (6) consecutive months.
-              </li>
-              <li>
-                <strong>Single Account:</strong> Each eligible youth is entitled to only one (1) validated account. Impersonation, falsified information, or multiple registrations will result in immediate termination of portal privileges.
-              </li>
-            </ul>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                2. Eligibility &amp; Katipunan ng Kabataan Membership
+              </h2>
+              <p className="text-justify">
+                Registration and participation in subsidized training pathways are restricted to eligible youth members under Philippine law:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 pl-2 text-justify">
+                <li>
+                  <strong>Age Requirement:</strong> You must be between eighteen (18) and thirty (30) years of age at the time of registration.
+                </li>
+                <li>
+                  <strong>Residency Requirement:</strong> You must be a bona fide resident of one of the 17 barangays of San Luis, Pampanga for at least six (6) consecutive months.
+                </li>
+                <li>
+                  <strong>Single Account:</strong> Each eligible youth is entitled to only one (1) validated account. Impersonation, falsified information, or multiple registrations will result in immediate termination of portal privileges.
+                </li>
+              </ul>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              3. Identity Verification &amp; Document Submission
-            </h2>
-            <p>
-              Applicants are required to submit an authentic, legible government-recognized identity document (such as a PhilSys National ID, Student ID with Enrollment Receipt, Voter's ID or Stub, Driver's License, or Barangay Clearance) for residency and age validation.
-            </p>
-            <p>
-              Falsification of documents, deliberate submission of altered files, or providing fraudulent claims constitutes grounds for account disqualification and potential legal liability under Article 172 of the Revised Penal Code (Falsification by Private Individuals).
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                3. Identity Verification &amp; Document Submission
+              </h2>
+              <p className="text-justify">
+                Applicants are required to submit an authentic, legible government-recognized identity document (such as a PhilSys National ID, Student ID with Enrollment Receipt, Voter's ID or Stub, Driver's License, or Barangay Clearance) for residency and age validation.
+              </p>
+              <p className="text-justify">
+                Falsification of documents, deliberate submission of altered files, or providing fraudulent claims constitutes grounds for account disqualification and potential legal liability under Article 172 of the Revised Penal Code (Falsification by Private Individuals).
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              4. Account Review &amp; Official Approval
-            </h2>
-            <p>
-              Upon registration, accounts enter a Pending Review status while the Sangguniang Kabataan Chairperson and authorized Council Officers of your respective barangay verify your residency and age.
-            </p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li>
-                <strong>Pending Status:</strong> You may view your profile in read-only mode during the review period.
-              </li>
-              <li>
-                <strong>Active Status:</strong> Once approved, official endorsements, subsidized TESDA course slots, and youth welfare benefits are enabled.
-              </li>
-              <li>
-                <strong>Aging Out:</strong> Accounts automatically transition to archival status upon reaching age thirty-one (31) or upon permanent relocation outside San Luis, Pampanga.
-              </li>
-            </ul>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                4. Account Review &amp; Official Approval
+              </h2>
+              <p className="text-justify">
+                Upon registration, accounts enter a Pending Review status while the Sangguniang Kabataan Chairperson and authorized Council Officers of your respective barangay verify your residency and age.
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 pl-2 text-justify">
+                <li>
+                  <strong>Pending Status:</strong> You may view your profile in read-only mode during the review period.
+                </li>
+                <li>
+                  <strong>Active Status:</strong> Once approved, official endorsements, subsidized TESDA course slots, and youth welfare benefits are enabled.
+                </li>
+                <li>
+                  <strong>Aging Out:</strong> Accounts automatically transition to archival status upon reaching age thirty-one (31) or upon permanent relocation outside San Luis, Pampanga.
+                </li>
+              </ul>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              5. Training Programs &amp; Referrals
-            </h2>
-            <p>
-              SiKap provides digital application endorsements to accredited TESDA partner institutions. Acceptance into training programs is governed by course prerequisites, slot availability, and partner center screening guidelines.
-            </p>
-            <p>
-              Because subsidized training slots are funded through public resources, enrolled youth scholars are expected to maintain regular attendance and complete their enrolled courses diligently.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                5. Training Programs &amp; Referrals
+              </h2>
+              <p className="text-justify">
+                SiKap provides digital application endorsements to accredited TESDA partner institutions. Acceptance into training programs is governed by course prerequisites, slot availability, and partner center screening guidelines.
+              </p>
+              <p className="text-justify">
+                Because subsidized training slots are funded through public resources, enrolled youth scholars are expected to maintain regular attendance and complete their enrolled courses diligently.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              6. AI-Assisted Recommendations
-            </h2>
-            <p>
-              SiKap employs Content-Based Filtering and Google Gemini AI assistance to analyze training alignments and suggest personalized vocational pathways based on declared skills and career goals. AI-generated suggestions serve solely as educational guidance and do not restrict applicants from manually applying for alternative programs.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                6. AI-Assisted Recommendations
+              </h2>
+              <p className="text-justify">
+                SiKap employs Content-Based Filtering and Google Gemini AI assistance to analyze training alignments and suggest personalized vocational pathways based on declared skills and career goals. AI-generated suggestions serve solely as educational guidance and do not restrict applicants from manually applying for alternative programs.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              7. Acceptable Platform Use
-            </h2>
-            <p>
-              Users must use SiKap exclusively for lawful educational, vocational, and civic development purposes. Users shall not attempt to breach system security, harvest unauthorized records, reverse-engineer code, inject malicious content, or share official credentials with unauthorized third parties.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                7. Acceptable Platform Use
+              </h2>
+              <p className="text-justify">
+                Users must use SiKap exclusively for lawful educational, vocational, and civic development purposes. Users shall not attempt to breach system security, harvest unauthorized records, reverse-engineer code, inject malicious content, or share official credentials with unauthorized third parties.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              8. System Availability &amp; Disclaimers
-            </h2>
-            <p>
-              SiKap is provided on an "as-is, as-available" public service basis. The Municipal Government of San Luis and the Sangguniang Kabataan Federation shall not be held liable for temporary telecommunications interruptions, scheduled server maintenance, or schedule alterations made by external private partner centers.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                8. System Availability &amp; Disclaimers
+              </h2>
+              <p className="text-justify">
+                SiKap is provided on an "as-is, as-available" public service basis. The Municipal Government of San Luis and the Sangguniang Kabataan Federation shall not be held liable for temporary telecommunications interruptions, scheduled server maintenance, or schedule alterations made by external private partner centers.
+              </p>
+            </section>
+          </FadeIn>
 
-          <section className="space-y-2">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              9. Amendments to Terms
-            </h2>
-            <p>
-              The Municipal Administration and the Sangguniang Kabataan Federation reserve the right to revise these Terms to align with updated national policies or municipal youth codes. Continued portal usage constitutes acceptance of revised guidelines.
-            </p>
-          </section>
+          <FadeIn direction="up" delay={0.05} margin="-30px">
+            <section className="space-y-2">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
+                9. Amendments to Terms
+              </h2>
+              <p className="text-justify">
+                The Municipal Administration and the Sangguniang Kabataan Federation reserve the right to revise these Terms to align with updated national policies or municipal youth codes. Continued portal usage constitutes acceptance of revised guidelines.
+              </p>
+            </section>
+          </FadeIn>
         </div>
 
         {/* Bottom Return to Previous Page Link */}
@@ -280,11 +301,11 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack, onNavigate, backLa
             {/* Links - Three Columns (Account, Legal, Navigation) */}
             <div className="flex flex-row flex-wrap items-start justify-center md:justify-end gap-8 sm:gap-10 lg:gap-16 pt-2 shrink-0">
               {/* Column 1: Account */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Account
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={() => {
@@ -309,11 +330,11 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack, onNavigate, backLa
               </div>
 
               {/* Column 2: Legal */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Legal
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={() => {
@@ -338,11 +359,11 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack, onNavigate, backLa
               </div>
 
               {/* Column 3: Navigation */}
-              <div className="flex flex-col items-start gap-3 text-left">
-                <span className="text-sm font-bold uppercase tracking-wider text-white">
+              <div className="flex flex-col items-start gap-2 sm:gap-2.5 text-left">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
                   Navigation
                 </span>
-                <div className="flex flex-col items-start gap-2.5 text-sm font-semibold text-gray-400">
+                <div className="flex flex-col items-start gap-2 text-xs font-medium text-gray-400">
                   <button
                     type="button"
                     onClick={handleBack}
