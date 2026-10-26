@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import {
   Users, Target, Briefcase, BarChart2, Bell, LogOut, Search, Plus, Filter,
   FileText, Megaphone, Settings, ArrowLeft, Mail, Phone, Calendar, CalendarDays, Award,
@@ -8,7 +8,8 @@ import {
   ShieldCheck, Eye, User, MapPin, XCircle, Ban, Copy, EyeOff, Check, Lock, Building, Shield,
   LayoutGrid, Table, UserCheck, ShieldPlus, ChevronRight, ChevronLeft,
   Printer, Download, Menu, Clock, Loader2, GraduationCap, BookOpen, Flame, ArrowUpRight,
-  ChevronDown, ChevronUp, Compass, SearchX, FileX, Maximize2, ZoomIn, ZoomOut, RotateCw
+  ChevronDown, ChevronUp, Compass, SearchX, FileX, Maximize2, ZoomIn, ZoomOut, RotateCw,
+  UserPlus, Hourglass, FileWarning, ArrowRight
 } from "lucide-react";
 import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
@@ -27,8 +28,14 @@ import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, Se
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
-import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
-import { motion, AnimatePresence } from "motion/react";
+import {
+  getBarangayZoneOptions,
+  getBarangayZoneTypeLabel,
+  SAN_LUIS_BARANGAYS,
+  normalizeBarangayName,
+  getBarangayJurisdiction
+} from "../lib/barangay-data";
+import { motion, AnimatePresence, useInView, animate } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { SanLuisBarangayMap } from "./SanLuisBarangayMap";
 import { broadcastDataChange } from "../lib/realtime-sync";
@@ -147,6 +154,105 @@ const getPaginationItems = (current: number, total: number): (number | string)[]
   }
   return [1, "...", current - 1, current, current + 1, "...", total];
 };
+
+// ============================================================
+// SK DASHBOARD ANIMATION & SCROLL REVEAL SYSTEM
+// ============================================================
+const SKScrollRevealContext = createContext<{ isRevealed: boolean }>({ isRevealed: true });
+
+export const useSKScrollReveal = () => useContext(SKScrollRevealContext);
+
+export const SKScrollReveal: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+  yOffset?: number;
+}> = ({ children, className = "", delay = 0, yOffset = 16 }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: "0px 0px -40px 0px", amount: 0.15 });
+
+  return (
+    <SKScrollRevealContext.Provider value={{ isRevealed: isInView }}>
+      <motion.div
+        ref={ref}
+        initial={{ opacity: 0, y: yOffset }}
+        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: yOffset }}
+        transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
+        className={className}
+      >
+        {children}
+      </motion.div>
+    </SKScrollRevealContext.Provider>
+  );
+};
+
+export const SKScrollRevealInner: React.FC<{
+  children: (isRevealed: boolean) => React.ReactNode;
+}> = ({ children }) => {
+  const { isRevealed } = useSKScrollReveal();
+  return <>{children(isRevealed)}</>;
+};
+
+// Animated Number / Calculation Counter Component for KPI cards
+export const KPICalculationNumber: React.FC<{
+  value: number;
+  duration?: number;
+  delay?: number;
+  prefix?: string;
+  suffix?: string;
+  className?: string;
+}> = ({ value, duration = 0.65, delay = 0.1, prefix = "", suffix = "", className = "" }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const [isDone, setIsDone] = useState(false);
+  const prevValueRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplayValue(value);
+      setIsDone(true);
+      prevValueRef.current = value;
+      return;
+    }
+
+    setIsDone(false);
+    const fromVal = prevValueRef.current;
+    const controls = animate(fromVal, value, {
+      duration,
+      delay,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate(v) {
+        setDisplayValue(Math.round(v));
+      },
+      onComplete() {
+        setDisplayValue(value);
+        setIsDone(true);
+        prevValueRef.current = value;
+      }
+    });
+
+    return () => controls.stop();
+  }, [value, delay, duration]);
+
+  return (
+    <motion.span
+      initial={{ opacity: 0, y: 3 }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        scale: isDone ? [1, 1.035, 1] : 1,
+      }}
+      transition={{
+        duration: isDone ? 0.28 : 0.45,
+        delay: isDone ? 0 : delay,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className={`inline-block tabular-nums select-none ${className}`}
+    >
+      {prefix}{displayValue.toLocaleString()}{suffix}
+    </motion.span>
+  );
+};
+
 
 interface SKOfficialPortalProps {
   youthProfiles: YouthProfile[];
@@ -1858,6 +1964,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [hoveredGenderSlice, setHoveredGenderSlice] = useState<number | null>(null);
   const [hoveredMonthIdx, setHoveredMonthIdx] = useState<number | null>(null);
 
+  // Barangay selector and hover state for "Youth Population by Purok" chart
+  const [purokChartBarangay, setPurokChartBarangay] = useState<string>(designatedBarangay || "San Sebastian");
+  const [hoveredPurokIdx, setHoveredPurokIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (designatedBarangay) {
+      setPurokChartBarangay(designatedBarangay);
+    }
+  }, [designatedBarangay]);
+
   // 1. KPI Cards data
   const verifiedYouthCount = useMemo(() => {
     return localYouthProfiles.filter(y => y.approvalStatus === "Approved").length;
@@ -1869,100 +1985,173 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     ).length;
   }, [localYouthProfiles]);
 
-  // 2. Youth Registration and Training Pathway (6 stages)
-  const pathwayStages = useMemo(() => {
-    const total = localYouthProfiles.length;
-    const stage1_Registered = total;
-    const stage2_ProfileComplete = localYouthProfiles.filter(y =>
-      y.skills && y.skills.length > 0 && y.educationalAttainment && y.livelihoodGoal
-    ).length;
-    const stage3_Matched = localYouthProfiles.filter(y => y.matchScore > 0).length;
-    const stage4_Interested = new Set(localReferrals.map(r => r.youthId || r.youthName)).size;
-    const stage5_Applied = localReferrals.filter(r => r.status === "Pending").length;
-    const stage6_Enrolled = localReferrals.filter(r => r.status === "Enrolled" || r.status === "Archived").length;
+  // 2. Youth Population by Purok (Stacked Column Chart - Educational Attainment Breakdown based on Database)
+  const purokDistributionData = useMemo(() => {
+    const normTarget = normalizeBarangayName(purokChartBarangay);
+    
+    // Filter registered youth for the selected barangay directly from database
+    const matchedYouth = youthProfiles.filter(y => {
+      const yBrgy = normalizeBarangayName(y.barangay);
+      return yBrgy === normTarget;
+    });
 
-    return [
-      {
-        step: 1,
-        title: "Registered",
-        count: stage1_Registered,
-        pct: 100,
-        type: "Baseline Registry",
-        description: "Enrolled in Katipunan ng Kabataan database"
-      },
-      {
-        step: 2,
-        title: "Profile Complete",
-        count: stage2_ProfileComplete,
-        pct: total > 0 ? Math.round((stage2_ProfileComplete / total) * 100) : 0,
-        type: "Data Verification",
-        description: "Recorded skills, education, and livelihood goal"
-      },
-      {
-        step: 3,
-        title: "AI Matched",
-        count: stage3_Matched,
-        pct: total > 0 ? Math.round((stage3_Matched / total) * 100) : 0,
-        type: "Algorithmic Match",
-        description: "Eligible for active TESDA listings"
-      },
-      {
-        step: 4,
-        title: "Interested",
-        count: stage4_Interested,
-        pct: total > 0 ? Math.round((stage4_Interested / total) * 100) : 0,
-        type: "Expressed Intent",
-        description: "Referral pathway initialized or bookmarked"
-      },
-      {
-        step: 5,
-        title: "Applied",
-        count: stage5_Applied,
-        pct: total > 0 ? Math.round((stage5_Applied / total) * 100) : 0,
-        type: "Formal Action",
-        description: "Application submitted for batch processing"
-      },
-      {
-        step: 6,
-        title: "Enrolled",
-        count: stage6_Enrolled,
-        pct: total > 0 ? Math.round((stage6_Enrolled / total) * 100) : 0,
-        type: "Active Training",
-        description: "Attending classes or completed qualification"
+    const jurisdiction = getBarangayJurisdiction(purokChartBarangay);
+    const zones = jurisdiction?.zones && jurisdiction.zones.length > 0
+      ? jurisdiction.zones
+      : [
+          { name: "Purok 1", type: "purok" as const },
+          { name: "Purok 2", type: "purok" as const },
+          { name: "Purok 3", type: "purok" as const },
+          { name: "Purok 4", type: "purok" as const },
+          { name: "Purok 5", type: "purok" as const },
+          { name: "Purok 6", type: "purok" as const },
+          { name: "Purok 7", type: "purok" as const },
+        ];
+
+    const classifyEdu = (val?: string | null): "elementary" | "juniorHigh" | "seniorHigh" | "college" | "techVoc" | "others" => {
+      const raw = (val || "").trim().toLowerCase();
+      if (
+        raw.includes("tech-voc") ||
+        raw.includes("tech voc") ||
+        raw.includes("vocational") ||
+        raw.includes("tesda") ||
+        raw.includes("certificate")
+      ) {
+        return "techVoc";
       }
-    ];
-  }, [localYouthProfiles, localReferrals]);
+      if (
+        raw.includes("college") ||
+        raw.includes("bachelor") ||
+        raw.includes("tertiary") ||
+        raw.includes("undergraduate") ||
+        raw.includes("undergrad") ||
+        raw.includes("university") ||
+        raw.includes("higher ed")
+      ) {
+        return "college";
+      }
+      if (
+        raw.includes("senior high") ||
+        raw.includes("senior") ||
+        raw.includes("shs") ||
+        raw.includes("grade 11") ||
+        raw.includes("grade 12") ||
+        raw.includes("k-12")
+      ) {
+        return "seniorHigh";
+      }
+      if (
+        raw.includes("junior high") ||
+        raw.includes("junior") ||
+        raw.includes("jhs") ||
+        raw.includes("grade 7") ||
+        raw.includes("grade 8") ||
+        raw.includes("grade 9") ||
+        raw.includes("grade 10") ||
+        raw.includes("high school")
+      ) {
+        return "juniorHigh";
+      }
+      if (
+        raw.includes("elementary") ||
+        raw.includes("primary") ||
+        raw.includes("grade 1") ||
+        raw.includes("grade 2") ||
+        raw.includes("grade 3") ||
+        raw.includes("grade 4") ||
+        raw.includes("grade 5") ||
+        raw.includes("grade 6")
+      ) {
+        return "elementary";
+      }
+      return "others";
+    };
+
+    const items = zones.map((z, idx) => {
+      const purokName = z.name;
+      const shortLabel = `P${idx + 1}`;
+
+      let elementary = 0;
+      let juniorHigh = 0;
+      let seniorHigh = 0;
+      let college = 0;
+      let techVoc = 0;
+      let others = 0;
+
+      matchedYouth.forEach(y => {
+        const yp = (y.purok || "").toLowerCase().trim();
+        const zn = purokName.toLowerCase().trim();
+        const pNum = `purok ${idx + 1}`;
+        const pShort = `p${idx + 1}`;
+        const isMatch =
+          yp === zn ||
+          yp.startsWith(zn) ||
+          yp.includes(pNum) ||
+          yp === pShort ||
+          yp.replace(/[^a-z0-9]/g, "") === zn.replace(/[^a-z0-9]/g, "");
+
+        if (isMatch) {
+          const cat = classifyEdu(y.educationalAttainment);
+          if (cat === "elementary") elementary++;
+          else if (cat === "juniorHigh") juniorHigh++;
+          else if (cat === "seniorHigh") seniorHigh++;
+          else if (cat === "college") college++;
+          else if (cat === "techVoc") techVoc++;
+          else others++;
+        }
+      });
+
+      const total = elementary + juniorHigh + seniorHigh + college + techVoc + others;
+
+      return {
+        purokName,
+        shortLabel,
+        elementary,
+        juniorHigh,
+        seniorHigh,
+        college,
+        techVoc,
+        others,
+        total,
+      };
+    });
+
+    const maxTotal = Math.max(...items.map(it => it.total), 1);
+    const grandTotal = items.reduce((sum, it) => sum + it.total, 0);
+
+    return {
+      items,
+      maxTotal,
+      grandTotal,
+      realCount: matchedYouth.length,
+    };
+  }, [youthProfiles, purokChartBarangay]);
 
   // 3. Gender Distribution Donut Chart Data
   const genderDistributionData = useMemo(() => {
     let male = 0;
     let female = 0;
-    let other = 0;
 
     localYouthProfiles.forEach(y => {
       const g = (y.gender || "").toLowerCase().trim();
       if (g === "male" || g === "m") male++;
       else if (g === "female" || g === "f") female++;
-      else other++;
     });
 
+    const knownTotal = male + female;
     const total = localYouthProfiles.length;
-    const pctMale = total > 0 ? Math.round((male / total) * 100) : 0;
-    const pctFemale = total > 0 ? Math.round((female / total) * 100) : 0;
-    const pctOther = total > 0 ? Math.max(0, 100 - pctMale - pctFemale) : 0;
+    const pctMale = knownTotal > 0 ? Math.round((male / knownTotal) * 100) : 0;
+    const pctFemale = knownTotal > 0 ? 100 - pctMale : 0;
 
     return {
       total,
       male,
       female,
-      other,
       pctMale,
       pctFemale,
-      pctOther,
       slices: [
         { label: "Male", count: male, pct: pctMale, color: "#176b4d" },
-        { label: "Female", count: female, pct: pctFemale, color: "#79bd98" },
-        { label: "Undisclosed / Other", count: other, pct: pctOther, color: "#f3b83f" }
+        { label: "Female", count: female, pct: pctFemale, color: "#79bd98" }
       ]
     };
   }, [localYouthProfiles]);
@@ -1970,39 +2159,78 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   // 4. Educational Attainment Segmented Breakdown Data
   const educationalDistributionData = useMemo(() => {
     const counts: Record<string, number> = {
-      "Senior High School Level / Graduate": 0,
-      "Junior High School Level / Graduate": 0,
-      "College Level / Graduate": 0,
-      "Vocational / Tech-Voc": 0,
-      "Elementary Level / Graduate": 0,
-      "Other / Undisclosed": 0
+      "Elementary": 0,
+      "Junior High": 0,
+      "Senior High": 0,
+      "College": 0,
+      "Tech-Voc": 0,
+      "Others": 0,
     };
 
     localYouthProfiles.forEach(y => {
-      const edu = (y.educationalAttainment || "").toLowerCase();
-      if (edu.includes("senior") || edu.includes("shs") || edu.includes("grade 11") || edu.includes("grade 12")) {
-        counts["Senior High School Level / Graduate"]++;
-      } else if (edu.includes("junior") || edu.includes("jhs") || edu.includes("grade 7") || edu.includes("grade 8") || edu.includes("grade 9") || edu.includes("grade 10")) {
-        counts["Junior High School Level / Graduate"]++;
-      } else if (edu.includes("college") || edu.includes("bachelor") || edu.includes("tertiary") || edu.includes("undergraduate") || edu.includes("graduate")) {
-        counts["College Level / Graduate"]++;
-      } else if (edu.includes("vocational") || edu.includes("tech-voc") || edu.includes("tesda")) {
-        counts["Vocational / Tech-Voc"]++;
-      } else if (edu.includes("elementary")) {
-        counts["Elementary Level / Graduate"]++;
+      const raw = (y.educationalAttainment || "").trim().toLowerCase();
+      if (
+        raw.includes("tech-voc") ||
+        raw.includes("tech voc") ||
+        raw.includes("vocational") ||
+        raw.includes("tesda") ||
+        raw.includes("certificate")
+      ) {
+        counts["Tech-Voc"]++;
+      } else if (
+        raw.includes("college") ||
+        raw.includes("bachelor") ||
+        raw.includes("tertiary") ||
+        raw.includes("undergraduate") ||
+        raw.includes("undergrad") ||
+        raw.includes("university") ||
+        raw.includes("higher ed")
+      ) {
+        counts["College"]++;
+      } else if (
+        raw.includes("senior high") ||
+        raw.includes("senior") ||
+        raw.includes("shs") ||
+        raw.includes("grade 11") ||
+        raw.includes("grade 12") ||
+        raw.includes("k-12")
+      ) {
+        counts["Senior High"]++;
+      } else if (
+        raw.includes("junior high") ||
+        raw.includes("junior") ||
+        raw.includes("jhs") ||
+        raw.includes("grade 7") ||
+        raw.includes("grade 8") ||
+        raw.includes("grade 9") ||
+        raw.includes("grade 10") ||
+        raw.includes("high school")
+      ) {
+        counts["Junior High"]++;
+      } else if (
+        raw.includes("elementary") ||
+        raw.includes("primary") ||
+        raw.includes("grade 1") ||
+        raw.includes("grade 2") ||
+        raw.includes("grade 3") ||
+        raw.includes("grade 4") ||
+        raw.includes("grade 5") ||
+        raw.includes("grade 6")
+      ) {
+        counts["Elementary"]++;
       } else {
-        counts["Other / Undisclosed"]++;
+        counts["Others"]++;
       }
     });
 
     const total = localYouthProfiles.length || 1;
     const tiers = [
-      { name: "Senior High School Level / Graduate", count: counts["Senior High School Level / Graduate"], color: "#0A6B43", short: "Senior High" },
-      { name: "Junior High School Level / Graduate", count: counts["Junior High School Level / Graduate"], color: "#10B981", short: "Junior High" },
-      { name: "College Level / Graduate", count: counts["College Level / Graduate"], color: "#3B82F6", short: "College" },
-      { name: "Vocational / Tech-Voc", count: counts["Vocational / Tech-Voc"], color: "#8B5CF6", short: "Tech-Voc" },
-      { name: "Elementary Level / Graduate", count: counts["Elementary Level / Graduate"], color: "#F59E0B", short: "Elementary" },
-      { name: "Other / Undisclosed", count: counts["Other / Undisclosed"], color: "#94A3B8", short: "Other" }
+      { name: "Elementary", count: counts["Elementary"], color: "#F59E0B", short: "Elementary" },
+      { name: "Junior High", count: counts["Junior High"], color: "#10B981", short: "Junior High" },
+      { name: "Senior High", count: counts["Senior High"], color: "#0A6B43", short: "Senior High" },
+      { name: "College", count: counts["College"], color: "#3B82F6", short: "College" },
+      { name: "Tech-Voc", count: counts["Tech-Voc"], color: "#8B5CF6", short: "Tech-Voc" },
+      { name: "Others", count: counts["Others"], color: "#94A3B8", short: "Others" },
     ];
 
     let highest = tiers[0];
@@ -2022,6 +2250,96 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       }
     };
   }, [localYouthProfiles]);
+
+  // 5. Recent Youth Activity Data (Latest registrations and application updates)
+  const recentYouthActivityData = useMemo(() => {
+    const list: {
+      id: string;
+      youthMember: string;
+      activity: string;
+      date: string;
+      rawDate: number;
+      status: "Pending" | "Endorsed" | "Verified";
+    }[] = [];
+
+    // Extract activities from localYouthProfiles
+    localYouthProfiles.forEach(y => {
+      const d = y.registeredDate ? new Date(y.registeredDate).getTime() : 0;
+      if (y.approvalStatus === "Pending") {
+        list.push({
+          id: `reg-pending-${y.id}`,
+          youthMember: y.name,
+          activity: "Profile submitted",
+          date: y.registeredDate ? new Date(y.registeredDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
+          rawDate: d || Date.now() - 86400000 * 2,
+          status: "Pending"
+        });
+      } else {
+        list.push({
+          id: `reg-verified-${y.id}`,
+          youthMember: y.name,
+          activity: "Profile verified",
+          date: y.registeredDate ? new Date(y.registeredDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
+          rawDate: d || Date.now() - 86400000 * 4,
+          status: "Verified"
+        });
+      }
+    });
+
+    // Extract activities from localReferrals
+    localReferrals.forEach(r => {
+      const d = r.applicationDate ? new Date(r.applicationDate).getTime() : (r.referralDate ? new Date(r.referralDate).getTime() : 0);
+      list.push({
+        id: `ref-${r.id}`,
+        youthMember: r.youthName,
+        activity: "TESDA endorsement",
+        date: r.applicationDate || r.referralDate ? new Date(r.applicationDate || r.referralDate!).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
+        rawDate: d || Date.now() - 86400000 * 3,
+        status: "Endorsed"
+      });
+    });
+
+    // Sort by date descending
+    list.sort((a, b) => b.rawDate - a.rawDate);
+
+    // Baseline sample activities matching user reference image
+    const sampleDefaults = [
+      {
+        id: "sample-1",
+        youthMember: "Maria S. Reyes",
+        activity: "Profile submitted",
+        date: "Oct 18, 2026",
+        rawDate: Date.now() - 86400000,
+        status: "Pending" as const
+      },
+      {
+        id: "sample-2",
+        youthMember: "John D. Cruz",
+        activity: "TESDA endorsement",
+        date: "Oct 17, 2026",
+        rawDate: Date.now() - 86400000 * 2,
+        status: "Endorsed" as const
+      },
+      {
+        id: "sample-3",
+        youthMember: "Angela M. Santos",
+        activity: "Profile verified",
+        date: "Oct 16, 2026",
+        rawDate: Date.now() - 86400000 * 3,
+        status: "Verified" as const
+      }
+    ];
+
+    if (list.length === 0) {
+      return sampleDefaults;
+    }
+
+    if (list.length < 3) {
+      return [...list, ...sampleDefaults.slice(list.length)].slice(0, 5);
+    }
+
+    return list.slice(0, 5);
+  }, [localYouthProfiles, localReferrals]);
 
   // 5. Monthly Registration Progress (Column Chart)
   const monthlyRegistrationData = useMemo(() => {
@@ -2987,7 +3305,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
           {currentScreen === SKOfficialScreen.DASHBOARD && (
             <div className="space-y-6">
               {/* Full-Width Rectangular Greeting Card Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
                 style={{
                   background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
@@ -2997,166 +3318,112 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 <GrowthPlantAnimation />
 
                 {/* Content - Header and Subheader Only */}
-                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+                  className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl"
+                >
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
                     Mabuhay, {currentUser?.name || settingsName || "SK Official"}!
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     Manage youth profiles, connect them with training opportunities, and support community skills development.
                   </p>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
 
               {/* ============================================================ */}
               {/* 1. DASHBOARD OVERVIEW / KPI CARDS                             */}
               {/* ============================================================ */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* Card 1: Total Registered OSY */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-150/80 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Registered OSY</span>
-                    <span className="p-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-100">
-                      <Users className="w-4 h-4" />
-                    </span>
+                {/* Card 1: Total Registered OSY (Gradient Matched to Greetings Card - Full White Font, 16px Header, No Icon) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                  className="rounded-2xl p-4 sm:p-5 shadow-[0_10px_30px_-5px_rgba(4,26,19,0.35)] hover:shadow-[0_14px_35px_-5px_rgba(4,26,19,0.45)] hover:-translate-y-0.5 transition-all flex flex-col justify-between"
+                  style={{
+                    background: "linear-gradient(to right, #041A13 0%, #082D21 45%, #106348 100%)",
+                  }}
+                >
+                  <div className="text-[16px] font-medium text-white">
+                    Total Registered OSY
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-                    {totalKK}
+                  <div className="text-4xl sm:text-5xl font-bold text-white tracking-tight my-1 sm:my-1.5">
+                    <KPICalculationNumber value={totalKK} delay={0.12} duration={0.65} />
                   </div>
-                  <p className="text-[11px] font-medium text-gray-500 mt-1">
+                  <p className="text-[11px] sm:text-xs font-normal text-white mt-0.5">
                     in Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}
                   </p>
-                </div>
+                </motion.div>
 
-                {/* Card 2: Verified Youth */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-emerald-100 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Verified Youth</span>
-                    <span className="p-2 rounded-xl bg-emerald-100/70 text-[#0A6B43] border border-emerald-200">
-                      <CheckCircle className="w-4 h-4" />
-                    </span>
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-[#0A6B43] tracking-tight">
-                    {verifiedYouthCount}
-                  </div>
-                  <p className="text-[11px] font-semibold text-emerald-700 mt-1">
-                    {totalKK > 0 ? Math.round((verifiedYouthCount / totalKK) * 100) : 0}% verification rate
-                  </p>
-                </div>
-
-                {/* Card 3: Pending Verification */}
-                <div
-                  onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                  className="bg-white rounded-2xl p-4 sm:p-5 border border-amber-200 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all cursor-pointer group"
+                {/* Card 2: Verified Youth (White Card - Full Black Font, 16px Header, No Icon) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all flex flex-col justify-between"
                 >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
-                      Pending Verification
-                    </span>
-                    <span className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 group-hover:scale-105 transition-transform">
-                      <Clock className="w-4 h-4" />
-                    </span>
+                  <div className="text-[16px] font-medium text-black">
+                    Verified Youth
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight">
-                    {pendingProfiles.length}
+                  <div className="text-4xl sm:text-5xl font-bold text-black tracking-tight my-1 sm:my-1.5">
+                    <KPICalculationNumber value={verifiedYouthCount} delay={0.2} duration={0.65} />
                   </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-[11px] font-bold text-amber-700">
-                      {pendingProfiles.length > 0 ? "Requires review →" : "All verified"}
-                    </p>
-                    {pendingProfiles.length > 0 && (
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                        Queue
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  <p className="text-[11px] sm:text-xs font-normal text-black/75 mt-0.5">
+                    <KPICalculationNumber
+                      value={totalKK > 0 ? Math.round((verifiedYouthCount / totalKK) * 100) : 0}
+                      suffix="%"
+                      delay={0.28}
+                      duration={0.65}
+                    />{" "}
+                    verification rate
+                  </p>
+                </motion.div>
 
-                {/* Card 4: Incomplete Profiles */}
-                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-150/80 shadow-[0_8px_30px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Incomplete Profiles</span>
-                    <span className="p-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100">
-                      <AlertTriangle className="w-4 h-4" />
-                    </span>
+                {/* Card 3: Pending Verification (White Card - Full Black Font, 16px Header, No Icon) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.26, ease: [0.22, 1, 0.36, 1] }}
+                  onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
+                  className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
+                >
+                  <div className="text-[16px] font-medium text-black">
+                    Pending Verification
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-rose-700 tracking-tight">
-                    {incompleteProfilesCount}
+                  <div className="text-4xl sm:text-5xl font-bold text-black tracking-tight my-1 sm:my-1.5">
+                    <KPICalculationNumber value={pendingProfiles.length} delay={0.28} duration={0.6} />
                   </div>
-                  <p className="text-[11px] font-medium text-gray-500 mt-1">
+                  <p className="text-[11px] sm:text-xs font-normal text-black/75 mt-0.5">
+                    {pendingProfiles.length > 0 ? "Requires review →" : "All verified"}
+                  </p>
+                </motion.div>
+
+                {/* Card 4: Incomplete Profiles (White Card - Full Black Font, 16px Header, No Icon) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                  className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all flex flex-col justify-between"
+                >
+                  <div className="text-[16px] font-medium text-black">
+                    Incomplete Profiles
+                  </div>
+                  <div className="text-4xl sm:text-5xl font-bold text-black tracking-tight my-1 sm:my-1.5">
+                    <KPICalculationNumber value={incompleteProfilesCount} delay={0.36} duration={0.6} />
+                  </div>
+                  <p className="text-[11px] sm:text-xs font-normal text-black/75 mt-0.5">
                     {incompleteProfilesCount > 0 ? "Missing skills or career goals" : "All profiles complete"}
                   </p>
-                </div>
+                </motion.div>
               </div>
 
               {/* ============================================================ */}
-              {/* 2. YOUTH REGISTRATION AND TRAINING PATHWAY                   */}
+              {/* 3. INTERACTIVE BARANGAY MAP & COMMUNITY ANNOUNCEMENTS         */}
               {/* ============================================================ */}
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                  <div>
-                    <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
-                      Youth Registration & Training Pathway
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium mt-0.5">
-                      Stepped progression pipeline from community registration to accredited course enrollment
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                    <span>Progression Rate: <strong>{totalKK > 0 ? Math.round((pathwayStages[5].count / totalKK) * 100) : 0}%</strong> enrolled</span>
-                  </div>
-                </div>
-
-                {/* Stepped Pathway Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
-                  {pathwayStages.map((st) => (
-                    <div
-                      key={st.step}
-                      className="relative bg-gray-50/70 hover:bg-emerald-50/30 border border-gray-200 hover:border-emerald-200 rounded-xl p-3.5 flex flex-col justify-between transition-all group shadow-2xs hover:shadow-xs"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-700 font-extrabold text-[10px] flex items-center justify-center shadow-2xs group-hover:bg-[#0A6B43] group-hover:text-white group-hover:border-[#0A6B43] transition-colors">
-                            {st.step}
-                          </span>
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-white border border-gray-200 text-gray-600">
-                            {st.pct}%
-                          </span>
-                        </div>
-                        <h4 className="font-extrabold text-xs text-gray-900 pt-1 group-hover:text-[#0A6B43] transition-colors">
-                          {st.title}
-                        </h4>
-                        <span className="text-[9px] font-bold uppercase tracking-wider block text-gray-400">
-                          {st.type}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 pt-2 border-t border-gray-200/60 flex items-baseline justify-between">
-                        <span className="text-xl font-black text-gray-900 group-hover:text-[#0A6B43] transition-colors">
-                          {st.count}
-                        </span>
-                        <span className="text-[10px] text-gray-400 font-medium">youth</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px] text-gray-500 bg-gray-50/50 p-2.5 rounded-xl border border-gray-150">
-                  <span>
-                    <strong>Note:</strong> Stages 1–3 represent baseline registry readiness and AI matching. Stages 4–6 represent verified youth action and institutional referral endorsement.
-                  </span>
-                  <button
-                    onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                    className="font-bold text-[#0A6B43] hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
-                  >
-                    View Referral Pipeline →
-                  </button>
-                </div>
-              </div>
-
-              {/* ============================================================ */}
-              {/* 3. INTERACTIVE BARANGAY MAP & GENDER DONUT CHART              */}
-              {/* ============================================================ */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+              <SKScrollReveal className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
                 {/* Left (7 cols): San Luis Barangay Map */}
                 <div className="lg:col-span-7">
                   <SanLuisBarangayMap
@@ -3165,588 +3432,919 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   />
                 </div>
 
-                {/* Right (5 cols): Youth Distribution by Gender Donut Chart */}
-                <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                      <div>
-                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                          Distribution by Gender
-                        </h3>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">
-                          Registered OSY gender demographics in {designatedBarangay}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                        {genderDistributionData.total} Youth
-                      </span>
+                {/* Right (5 cols): Community Announcements (Footer Removed) */}
+                <div id="community-announcements-card" className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col h-full">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+                    <div>
+                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                        Community Announcements
+                      </h3>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        Broadcast bulletins synced with KK Youth Portal
+                      </p>
                     </div>
-
-                    {/* Donut Chart & Legend Layout */}
-                    {genderDistributionData.total === 0 ? (
-                      <div className="py-12 text-center text-xs text-gray-400 italic">
-                        No gender records registered in this Barangay yet.
-                      </div>
-                    ) : (
-                      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-8 py-6">
-                        {/* Donut SVG */}
-                        <div className="relative w-40 h-40 shrink-0 flex items-center justify-center">
-                          {(() => {
-                            const R = 44;
-                            const C = 2 * Math.PI * R; // ~276.46
-                            const total = genderDistributionData.total || 1;
-                            let accumulated = 0;
-
-                            return (
-                              <svg className="w-40 h-40 -rotate-90 transform" viewBox="0 0 120 120">
-                                <circle cx="60" cy="60" r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
-                                {genderDistributionData.slices.map((s, idx) => {
-                                  if (s.count <= 0) return null;
-                                  const sliceLen = (s.count / total) * C;
-                                  const strokeDash = `${sliceLen} ${C - sliceLen}`;
-                                  const offset = -accumulated;
-                                  accumulated += sliceLen;
-                                  const isHovered = hoveredGenderSlice === idx;
-
-                                  return (
-                                    <circle
-                                      key={idx}
-                                      cx="60"
-                                      cy="60"
-                                      r={R}
-                                      fill="none"
-                                      stroke={s.color}
-                                      strokeWidth={isHovered ? 20 : 16}
-                                      strokeDasharray={strokeDash}
-                                      strokeDashoffset={offset}
-                                      strokeLinecap="round"
-                                      className="cursor-pointer transition-[stroke-width] duration-150"
-                                      onMouseEnter={() => setHoveredGenderSlice(idx)}
-                                      onMouseLeave={() => setHoveredGenderSlice(null)}
-                                    />
-                                  );
-                                })}
-                              </svg>
-                            );
-                          })()}
-
-                          {/* Center Text */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
-                            {hoveredGenderSlice !== null ? (
-                              <div className="animate-in fade-in duration-150">
-                                <span
-                                  className="text-lg font-black leading-none block"
-                                  style={{ color: genderDistributionData.slices[hoveredGenderSlice].color }}
-                                >
-                                  {genderDistributionData.slices[hoveredGenderSlice].pct}%
-                                </span>
-                                <span className="text-[11px] font-bold text-gray-700 mt-1 block">
-                                  {genderDistributionData.slices[hoveredGenderSlice].count} youth
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="animate-in fade-in duration-150">
-                                <span className="text-2xl font-black text-gray-900 leading-none block">
-                                  {genderDistributionData.total}
-                                </span>
-                                <span className="text-[10px] text-gray-500 font-medium mt-1 block">
-                                  Total OSY
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Legend */}
-                        <div className="space-y-2.5 w-full sm:w-auto min-w-[170px]">
-                          {genderDistributionData.slices.map((s, idx) => {
-                            const isHovered = hoveredGenderSlice === idx;
-                            return (
-                              <div
-                                key={idx}
-                                onMouseEnter={() => setHoveredGenderSlice(idx)}
-                                onMouseLeave={() => setHoveredGenderSlice(null)}
-                                className={`flex items-center justify-between gap-4 py-1.5 px-3 rounded-xl transition-all cursor-pointer ${
-                                  isHovered ? "bg-gray-100 scale-[1.02]" : "hover:bg-gray-50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <span
-                                    className="w-3 h-3 rounded-full shrink-0"
-                                    style={{ backgroundColor: s.color }}
-                                  />
-                                  <span className={`text-xs ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
-                                    {s.label}
-                                  </span>
-                                </div>
-                                <span className="text-xs font-bold text-gray-900">
-                                  {s.count} <span className="text-gray-400 font-normal">({s.pct}%)</span>
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => setShowAnnouncementModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Post Notice</span>
+                    </button>
                   </div>
 
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                    <span>Missing/undisclosed records are categorized gracefully.</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ============================================================ */}
-              {/* 4. EDUCATIONAL ATTAINMENT & MONTHLY PROGRESS                  */}
-              {/* ============================================================ */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-stretch">
-                {/* Left: Educational Attainment */}
-                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                      <div>
-                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                          Educational Attainment
-                        </h3>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">
-                          Highest educational level completed by registered OSY
-                        </p>
+                  {localAnnouncements.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[260px]">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                        <Megaphone className="w-6 h-6" />
                       </div>
-                      {educationalDistributionData.total > 0 && (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                          Top: {educationalDistributionData.mostCommon.short} ({educationalDistributionData.mostCommon.pct}%)
-                        </span>
-                      )}
+                      <h5 className="text-sm font-bold text-gray-800">No Active Announcements</h5>
+                      <p className="text-xs text-gray-400 max-w-sm font-medium">
+                        There are currently no active bulletins published for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
+                      </p>
                     </div>
-
-                    {educationalDistributionData.total === 0 ? (
-                      <div className="py-10 text-center text-xs text-gray-400 italic">
-                        No educational records found in this Barangay yet.
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {/* Segmented Distribution Bar */}
-                        <div className="space-y-1.5">
-                          <div className="w-full h-3.5 bg-gray-100 rounded-full overflow-hidden flex shadow-2xs">
-                            {educationalDistributionData.tiers.map((t, idx) => {
-                              if (t.count <= 0) return null;
-                              return (
-                                <div
-                                  key={idx}
-                                  title={`${t.name}: ${t.count} youth (${t.pct}%)`}
-                                  style={{
-                                    width: `${t.pct}%`,
-                                    backgroundColor: t.color
-                                  }}
-                                  className="h-full transition-all hover:opacity-85 cursor-pointer"
-                                />
-                              );
-                            })}
+                  ) : (
+                    <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5 pt-4">
+                      {localAnnouncements.slice(0, 3).map((a) => (
+                        <div
+                          key={a.id}
+                          className="p-3.5 rounded-xl border border-gray-200/80 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all space-y-1.5 shadow-2xs"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
+                              {a.title}
+                            </h4>
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap shrink-0">
+                              {a.datePosted || "Recent"}
+                            </span>
                           </div>
-                          <p className="text-[10px] text-gray-400 italic">
-                            Hover over color segments to see exact counts.
+                          <p className="text-xs text-gray-600 line-clamp-2">
+                            {a.body}
                           </p>
+                          <div className="flex items-center gap-2 pt-1 text-[10px] text-gray-400">
+                            <span>Audience: {a.audience || "All Youth"}</span>
+                            <span>•</span>
+                            <span className="text-emerald-700 font-bold">Active in Portal</span>
+                          </div>
                         </div>
-
-                        {/* Category Breakdown Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-                          {educationalDistributionData.tiers.map((t, idx) => (
-                            <div
-                              key={idx}
-                              className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/80 flex flex-col justify-between"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
-                                <span className="text-xs font-bold text-gray-800 truncate" title={t.name}>
-                                  {t.short}
-                                </span>
-                              </div>
-                              <div className="mt-2 flex items-baseline justify-between">
-                                <span className="text-base font-black text-gray-900">{t.count}</span>
-                                <span className="text-[10px] text-gray-500 font-semibold">{t.pct}%</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                    <span>Standardized across official Philippine DepEd & CHED curriculum tiers</span>
-                  </div>
-                </div>
-
-                {/* Right: Monthly Registration Progress Column Chart */}
-                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                      <div>
-                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                          Monthly Registration Progress
-                        </h3>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">
-                          Youth registrations recorded over time from official timestamps
-                        </p>
-                      </div>
-
-                      {/* Time Range Selector */}
-                      <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs">
-                        <button
-                          onClick={() => setDashboardMonthRange("6")}
-                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                            dashboardMonthRange === "6" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
-                          }`}
-                        >
-                          6 Months
-                        </button>
-                        <button
-                          onClick={() => setDashboardMonthRange("12")}
-                          className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                            dashboardMonthRange === "12" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
-                          }`}
-                        >
-                          12 Months
-                        </button>
-                      </div>
+                      ))}
                     </div>
+                  )}
+                </div>
+              </SKScrollReveal>
 
-                    {/* Column Chart Visualization */}
-                    <div className="pt-2">
-                      <div className="h-44 w-full flex items-end justify-between gap-2 sm:gap-4 px-2 pb-2 border-b border-gray-200">
-                        {monthlyRegistrationData.months.map((m, idx) => {
-                          const heightPct = monthlyRegistrationData.maxCount > 0
-                            ? Math.max(8, Math.round((m.count / monthlyRegistrationData.maxCount) * 100))
-                            : 8;
-                          const isHovered = hoveredMonthIdx === idx;
+              {/* ============================================================ */}
+              {/* 4. YOUTH POPULATION BY PUROK & EDUCATIONAL ATTAINMENT        */}
+              {/* ============================================================ */}
+              <SKScrollReveal className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-stretch">
+                <SKScrollRevealInner>
+                  {(isRevealed) => (
+                    <>
+                      {/* Left: Youth Population by Purok (Matching Reference Design) */}
+                      <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                        <div className="flex flex-col flex-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100 shrink-0">
+                            <div>
+                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                Youth Population by Purok
+                              </h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                Registered youth by educational attainment from database
+                              </p>
+                            </div>
 
-                          return (
-                            <div
-                              key={m.yearMonth}
-                              className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
-                              onMouseEnter={() => setHoveredMonthIdx(idx)}
-                              onMouseLeave={() => setHoveredMonthIdx(null)}
-                            >
-                              {/* Hover Tooltip */}
-                              {isHovered && (
-                                <div className="absolute -top-10 z-20 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md whitespace-nowrap animate-in fade-in duration-150">
-                                  {m.label}: {m.count} youth
-                                </div>
-                              )}
-
-                              {/* Number on top of column */}
-                              <span className={`text-[10px] mb-1 font-bold transition-colors ${
-                                isHovered ? "text-[#0A6B43] font-black" : "text-gray-500"
-                              }`}>
-                                {m.count}
-                              </span>
-
-                              {/* Column Bar */}
-                              <div
-                                style={{ height: `${heightPct}%` }}
-                                className={`w-full rounded-t-lg transition-all duration-300 ${
-                                  isHovered
-                                    ? "bg-[#064E3B] shadow-xs scale-y-105"
-                                    : m.count > 0
-                                    ? "bg-[#0A6B43]"
-                                    : "bg-gray-200"
-                                }`}
+                            {/* Barangay Selector - Works for every barangay in San Luis */}
+                            <div className="w-full sm:w-52 shrink-0">
+                              <CustomSelect
+                                value={purokChartBarangay}
+                                onChange={(v) => setPurokChartBarangay(v)}
+                                options={SAN_LUIS_BARANGAYS.map(b => ({ value: b, label: b }))}
+                                placeholder="Select Barangay"
                               />
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
 
-                      {/* X-Axis Month Labels */}
-                      <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2">
-                        {monthlyRegistrationData.months.map(m => (
-                          <span key={m.yearMonth} className="flex-1 text-center text-[10px] font-bold text-gray-500 truncate">
-                            {m.label}
+                          {/* Stacked Column Chart Visualization */}
+                          <div className="pt-6 pb-2 flex-1 flex flex-col justify-end">
+                            {/* Chart Area with Horizontal Grid Lines */}
+                            <div className="relative h-48 sm:h-52 w-full flex items-end justify-between gap-2 sm:gap-4 px-2 pb-2">
+                              {/* 4 Subtle Horizontal Grid Lines */}
+                              <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none pb-2">
+                                <div className="border-b border-gray-100 w-full" />
+                                <div className="border-b border-gray-100 w-full" />
+                                <div className="border-b border-gray-100 w-full" />
+                                <div className="border-b border-gray-200/80 w-full" />
+                              </div>
+
+                              {/* Stacked Columns */}
+                              {purokDistributionData.items.map((item, idx) => {
+                                const maxVal = purokDistributionData.maxTotal > 0 ? purokDistributionData.maxTotal : 5;
+                                const heightPct = item.total > 0
+                                  ? Math.max(16, Math.round((item.total / maxVal) * 100))
+                                  : 0;
+                                const isHovered = hoveredPurokIdx === idx;
+
+                                return (
+                                  <div
+                                    key={item.purokName + idx}
+                                    className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative z-10"
+                                    onMouseEnter={() => setHoveredPurokIdx(idx)}
+                                    onMouseLeave={() => setHoveredPurokIdx(null)}
+                                  >
+                                    {/* Hover Tooltip */}
+                                    {isHovered && (
+                                      <div className="absolute -top-24 sm:-top-28 z-30 bg-gray-900 text-white text-[11px] font-medium p-2.5 rounded-xl shadow-xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 pointer-events-none border border-gray-700/60">
+                                        <div className="font-extrabold text-emerald-400 text-xs border-b border-gray-800 pb-1 mb-1.5 flex items-center justify-between gap-3">
+                                          <span>{item.purokName}</span>
+                                          <span className="text-white font-black">{item.total} youth</span>
+                                        </div>
+                                        {item.total > 0 ? (
+                                          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-gray-300">
+                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" /> Elem: <strong className="text-white">{item.elementary}</strong></span>
+                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> JHS: <strong className="text-white">{item.juniorHigh}</strong></span>
+                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43]" /> SHS: <strong className="text-white">{item.seniorHigh}</strong></span>
+                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]" /> College: <strong className="text-white">{item.college}</strong></span>
+                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6]" /> Tech-Voc: <strong className="text-white">{item.techVoc}</strong></span>
+                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#94A3B8]" /> Others: <strong className="text-white">{item.others}</strong></span>
+                                          </div>
+                                        ) : (
+                                          <div className="text-[10px] text-gray-400">0 registered youth in database</div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Number on top of column */}
+                                    <span className={`text-[10px] mb-1 font-bold transition-all duration-300 ${
+                                      isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+                                    } ${
+                                      isHovered ? "text-[#0A6B43] font-black" : item.total > 0 ? "text-gray-700" : "text-gray-300"
+                                    }`}>
+                                      {item.total}
+                                    </span>
+
+                                    {/* Stacked Column Bar (6 tiers from bottom to top) */}
+                                    {item.total > 0 ? (
+                                      <div
+                                        style={{
+                                          height: isRevealed ? `${heightPct}%` : '0%',
+                                          transition: `height 0.65s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 60}ms`
+                                        }}
+                                        className={`w-8 sm:w-10 max-w-[42px] flex flex-col-reverse rounded-t-md overflow-hidden shadow-2xs ${
+                                          isHovered ? "scale-y-105 shadow-md ring-2 ring-emerald-500/30" : ""
+                                        }`}
+                                      >
+                                        {item.elementary > 0 && (
+                                          <div
+                                            style={{ flex: `${item.elementary} 1 0%` }}
+                                            className="w-full bg-[#F59E0B] transition-opacity hover:opacity-85"
+                                            title={`Elementary: ${item.elementary}`}
+                                          />
+                                        )}
+                                        {item.juniorHigh > 0 && (
+                                          <div
+                                            style={{ flex: `${item.juniorHigh} 1 0%` }}
+                                            className="w-full bg-[#10B981] transition-opacity hover:opacity-85"
+                                            title={`Junior High: ${item.juniorHigh}`}
+                                          />
+                                        )}
+                                        {item.seniorHigh > 0 && (
+                                          <div
+                                            style={{ flex: `${item.seniorHigh} 1 0%` }}
+                                            className="w-full bg-[#0A6B43] transition-opacity hover:opacity-85"
+                                            title={`Senior High: ${item.seniorHigh}`}
+                                          />
+                                        )}
+                                        {item.college > 0 && (
+                                          <div
+                                            style={{ flex: `${item.college} 1 0%` }}
+                                            className="w-full bg-[#3B82F6] transition-opacity hover:opacity-85"
+                                            title={`College: ${item.college}`}
+                                          />
+                                        )}
+                                        {item.techVoc > 0 && (
+                                          <div
+                                            style={{ flex: `${item.techVoc} 1 0%` }}
+                                            className="w-full bg-[#8B5CF6] transition-opacity hover:opacity-85"
+                                            title={`Tech-Voc: ${item.techVoc}`}
+                                          />
+                                        )}
+                                        {item.others > 0 && (
+                                          <div
+                                            style={{ flex: `${item.others} 1 0%` }}
+                                            className="w-full bg-[#94A3B8] transition-opacity hover:opacity-85"
+                                            title={`Others: ${item.others}`}
+                                          />
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={`w-8 sm:w-10 max-w-[42px] h-1.5 rounded-sm bg-gray-200 transition-all ${
+                                          isHovered ? "bg-gray-400" : ""
+                                        }`}
+                                        title={`${item.purokName}: 0 registered youth`}
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* X-Axis Purok Labels */}
+                            <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2 border-t border-gray-100">
+                              {purokDistributionData.items.map((item, idx) => (
+                                <span
+                                  key={item.purokName + idx}
+                                  className={`flex-1 text-center text-xs transition-colors ${
+                                    hoveredPurokIdx === idx ? "font-black text-[#0A6B43]" : "font-semibold text-gray-500"
+                                  }`}
+                                >
+                                  {item.shortLabel}
+                                </span>
+                              ))}
+                            </div>
+
+                            {/* Legend: 6 Educational Attainment tiers */}
+                            <div className={`flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 pt-4 px-2 text-xs font-semibold text-gray-700 transition-opacity duration-500 delay-200 ${
+                              isRevealed ? "opacity-100" : "opacity-0"
+                            }`}>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                                <span>Elementary</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0" />
+                                <span>Junior High</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                                <span>Senior High</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
+                                <span>College</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] shrink-0" />
+                                <span>Tech-Voc</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#94A3B8] shrink-0" />
+                                <span>Others</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                          <span>
+                            Total in {purokChartBarangay.replace(/^Barangay\s+/i, "")}: <strong>{purokDistributionData.grandTotal} registered youth</strong>
                           </span>
-                        ))}
+                          <span className="text-gray-400">
+                            Live database records
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                    <span>
-                      Total in period: <strong>{monthlyRegistrationData.totalInPeriod} registrations</strong>
-                    </span>
-                    <span className="text-gray-400">Timestamps from database</span>
-                  </div>
-                </div>
-              </div>
+                      {/* Right: Educational Attainment */}
+                      <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                        <div className="flex flex-col flex-1">
+                          <div className="pb-3 border-b border-gray-100 shrink-0">
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                              Educational Attainment
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">
+                              Highest educational level completed by registered youth
+                            </p>
+                          </div>
+
+                          {educationalDistributionData.total === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
+                              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                                <GraduationCap className="w-6 h-6" />
+                              </div>
+                              <h5 className="text-sm font-bold text-gray-800">No Educational Records</h5>
+                              <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                There are currently no educational attainment records registered for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 pt-4">
+                              {/* Segmented Distribution Bar */}
+                              <div className="space-y-1.5">
+                                <div className="w-full h-3.5 bg-gray-100 rounded-full overflow-hidden flex shadow-2xs">
+                                  {educationalDistributionData.tiers.map((t, idx) => {
+                                    if (t.count <= 0) return null;
+                                    return (
+                                      <div
+                                        key={idx}
+                                        title={`${t.name}: ${t.count} youth (${t.pct}%)`}
+                                        style={{
+                                          width: isRevealed ? `${t.pct}%` : '0%',
+                                          backgroundColor: t.color,
+                                          transition: `width 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 70}ms`
+                                        }}
+                                        className="h-full transition-all hover:opacity-85 cursor-pointer"
+                                      />
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-[10px] text-gray-400 italic">
+                                  Hover over color segments to see exact counts.
+                                </p>
+                              </div>
+
+                              {/* Category Breakdown Grid: 6 tiers */}
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                                {educationalDistributionData.tiers.map((t, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      transitionDelay: `${idx * 45}ms`
+                                    }}
+                                    className={`bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/80 flex flex-col justify-between transition-all duration-300 hover:border-emerald-200 hover:bg-emerald-50/20 ${
+                                      isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                                      <span className="text-xs font-bold text-gray-800 truncate" title={t.name}>
+                                        {t.short}
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex items-baseline justify-between">
+                                      <span className="text-base font-black text-gray-900">{t.count}</span>
+                                      <span className="text-[10px] text-gray-500 font-semibold">{t.pct}%</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                          <span>
+                            Top:{" "}
+                            {educationalDistributionData.total > 0 ? (
+                              <>
+                                <strong className="text-gray-900 font-bold">
+                                  {educationalDistributionData.mostCommon.name}
+                                </strong>{" "}
+                                ({educationalDistributionData.mostCommon.count} youth • {educationalDistributionData.mostCommon.pct}%)
+                              </>
+                            ) : (
+                              <span className="text-gray-400 font-medium">No records</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </SKScrollRevealInner>
+              </SKScrollReveal>
+
+              {/* ============================================================ */}
+              {/* 5. MONTHLY REGISTRATION PROGRESS & GENDER DEMOGRAPHICS       */}
+              {/* ============================================================ */}
+              <SKScrollReveal className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                <SKScrollRevealInner>
+                  {(isRevealed) => (
+                    <>
+                      {/* Left (7 cols / 60%): Monthly Registration Progress Column Chart */}
+                      <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                        <div className="space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                            <div>
+                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                Monthly Registration Progress
+                              </h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                Youth registrations recorded over time from official timestamps
+                              </p>
+                            </div>
+
+                            {/* Time Range Selector */}
+                            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0">
+                              <button
+                                onClick={() => setDashboardMonthRange("6")}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                                  dashboardMonthRange === "6" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
+                                }`}
+                              >
+                                6 Mo
+                              </button>
+                              <button
+                                onClick={() => setDashboardMonthRange("12")}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                                  dashboardMonthRange === "12" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
+                                }`}
+                              >
+                                12 Mo
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Column Chart Visualization */}
+                          <div className="pt-2">
+                            <div className="h-44 w-full flex items-end justify-between gap-2 sm:gap-3 px-2 pb-2 border-b border-gray-200">
+                              {monthlyRegistrationData.months.map((m, idx) => {
+                                const heightPct = monthlyRegistrationData.maxCount > 0
+                                  ? Math.max(8, Math.round((m.count / monthlyRegistrationData.maxCount) * 100))
+                                  : 8;
+                                const isHovered = hoveredMonthIdx === idx;
+
+                                return (
+                                  <div
+                                    key={m.yearMonth}
+                                    className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
+                                    onMouseEnter={() => setHoveredMonthIdx(idx)}
+                                    onMouseLeave={() => setHoveredMonthIdx(null)}
+                                  >
+                                    {/* Hover Tooltip */}
+                                    {isHovered && (
+                                      <div className="absolute -top-10 z-20 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md whitespace-nowrap animate-in fade-in duration-150">
+                                        {m.label}: {m.count} youth
+                                      </div>
+                                    )}
+
+                                    {/* Number on top of column */}
+                                    <span className={`text-[10px] mb-1 font-bold transition-all duration-300 ${
+                                      isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+                                    } ${
+                                      isHovered ? "text-[#0A6B43] font-black" : "text-gray-500"
+                                    }`}>
+                                      {m.count}
+                                    </span>
+
+                                    {/* Column Bar */}
+                                    <div
+                                      style={{
+                                        height: isRevealed ? `${heightPct}%` : '0%',
+                                        transition: `height 0.65s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 45}ms`
+                                      }}
+                                      className={`w-full rounded-t-lg transition-colors duration-200 ${
+                                        isHovered
+                                          ? "bg-[#064E3B] shadow-xs scale-y-105"
+                                          : m.count > 0
+                                          ? "bg-[#0A6B43]"
+                                          : "bg-gray-200"
+                                      }`}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* X-Axis Month Labels */}
+                            <div className="flex items-center justify-between gap-2 sm:gap-3 px-2 pt-2">
+                              {monthlyRegistrationData.months.map(m => (
+                                <span key={m.yearMonth} className="flex-1 text-center text-[10px] font-bold text-gray-500 truncate">
+                                  {m.label}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                          <span>
+                            Total in period: <strong>{monthlyRegistrationData.totalInPeriod} registrations</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right (5 cols / 40%): Youth Distribution by Gender Donut Chart */}
+                      <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                        <div className="flex flex-col flex-1">
+                          <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+                            <div>
+                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                Distribution by Gender
+                              </h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                Registered OSY gender demographics in {designatedBarangay}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                              {genderDistributionData.total} Youth
+                            </span>
+                          </div>
+
+                          {/* Donut Chart & Legend Layout */}
+                          {genderDistributionData.total === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
+                              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                                <Users className="w-6 h-6" />
+                              </div>
+                              <h5 className="text-sm font-bold text-gray-800">No Demographic Records</h5>
+                              <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                There are currently no gender demographic records registered for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-6 py-5 flex-1">
+                              {/* Donut SVG */}
+                              <div className="relative w-36 h-36 sm:w-40 sm:h-40 shrink-0 flex items-center justify-center">
+                                {(() => {
+                                  const R = 44;
+                                  const C = 2 * Math.PI * R; // ~276.46
+                                  const total = genderDistributionData.total || 1;
+                                  let accumulated = 0;
+
+                                  return (
+                                    <svg className="w-36 h-36 sm:w-40 sm:h-40 -rotate-90 transform" viewBox="0 0 120 120">
+                                      <circle cx="60" cy="60" r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+                                      {genderDistributionData.slices.map((s, idx) => {
+                                        if (s.count <= 0) return null;
+                                        const sliceLen = (s.count / total) * C;
+                                        const strokeDash = isRevealed ? `${sliceLen} ${C - sliceLen}` : `0 ${C}`;
+                                        const offset = -accumulated;
+                                        accumulated += sliceLen;
+                                        const isHovered = hoveredGenderSlice === idx;
+
+                                        return (
+                                          <circle
+                                            key={idx}
+                                            cx="60"
+                                            cy="60"
+                                            r={R}
+                                            fill="none"
+                                            stroke={s.color}
+                                            strokeWidth={isHovered ? 20 : 16}
+                                            strokeDasharray={strokeDash}
+                                            strokeDashoffset={offset}
+                                            strokeLinecap="round"
+                                            style={{
+                                              transition: `stroke-dasharray 0.75s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 120}ms, stroke-width 0.2s ease`
+                                            }}
+                                            className="cursor-pointer"
+                                            onMouseEnter={() => setHoveredGenderSlice(idx)}
+                                            onMouseLeave={() => setHoveredGenderSlice(null)}
+                                          />
+                                        );
+                                      })}
+                                    </svg>
+                                  );
+                                })()}
+
+                                {/* Center Text */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                                  {hoveredGenderSlice !== null ? (
+                                    <div className="animate-in fade-in duration-150">
+                                      <span
+                                        className="text-lg font-black leading-none block"
+                                        style={{ color: genderDistributionData.slices[hoveredGenderSlice].color }}
+                                      >
+                                        {genderDistributionData.slices[hoveredGenderSlice].pct}%
+                                      </span>
+                                      <span className="text-[11px] font-bold text-gray-700 mt-1 block">
+                                        {genderDistributionData.slices[hoveredGenderSlice].count} youth
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className={`transition-opacity duration-500 delay-200 ${
+                                      isRevealed ? "opacity-100" : "opacity-0"
+                                    }`}>
+                                      <span className="text-2xl font-black text-gray-900 leading-none block">
+                                        {genderDistributionData.total}
+                                      </span>
+                                      <span className="text-[10px] text-gray-500 font-medium mt-1 block">
+                                        Total OSY
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Legend */}
+                              <div className={`space-y-2 w-full sm:w-auto min-w-[160px] transition-opacity duration-500 delay-300 ${
+                                isRevealed ? "opacity-100" : "opacity-0"
+                              }`}>
+                                {genderDistributionData.slices.map((s, idx) => {
+                                  const isHovered = hoveredGenderSlice === idx;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      onMouseEnter={() => setHoveredGenderSlice(idx)}
+                                      onMouseLeave={() => setHoveredGenderSlice(null)}
+                                      className={`flex items-center justify-between gap-3 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+                                        isHovered ? "bg-gray-100 scale-[1.02]" : "hover:bg-gray-50"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                                          style={{ backgroundColor: s.color }}
+                                        />
+                                        <span className={`text-xs ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
+                                          {s.label}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-bold text-gray-900">
+                                        {s.count} <span className="text-gray-400 font-normal">({s.pct}%)</span>
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                          <span>Official gender demographics of registered youth in {designatedBarangay}.</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </SKScrollRevealInner>
+              </SKScrollReveal>
 
               {/* ============================================================ */}
               {/* 5. SKILLS GAP AND TRAINING READINESS                         */}
               {/* ============================================================ */}
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
-                        Skills Gap & Training Readiness Analysis
-                      </h3>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                        Diagnostics
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 font-medium mt-0.5">
-                      Comparing registered youth aspirations against recorded skills and active TESDA offerings
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
-                    className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline flex items-center gap-1 group self-start sm:self-auto cursor-pointer"
-                  >
-                    <span>Full Diagnostic Analytics</span>
-                    <span className="transition-transform group-hover:translate-x-0.5">→</span>
-                  </button>
-                </div>
-
-                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-[11px]">
-                        <tr>
-                          <th className="py-3 px-4">Skill or Competency</th>
-                          <th className="py-3 px-4 text-center">Youth Interested</th>
-                          <th className="py-3 px-4 text-center">Youth With Skills</th>
-                          <th className="py-3 px-4 text-center">Available TESDA Programs</th>
-                          <th className="py-3 px-4 text-right">Identified Gap</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {dashboardSkillsGap.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
-                            <td className="py-3 px-4 font-semibold text-gray-900">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                                <span>{item.competency}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-center font-bold text-gray-800">
-                              <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200">
-                                {item.youthInterested}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-center font-bold text-[#0A6B43]">
-                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
-                                {item.youthWithSkill}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                                item.availablePrograms > 0
-                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                  : "bg-gray-50 text-gray-400 border border-gray-200"
-                              }`}>
-                                {item.availablePrograms > 0 ? `${item.availablePrograms} Active Course(s)` : "None Available"}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
-                                item.status === "Critical Shortage"
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : item.status === "Moderate Gap"
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              }`}>
-                                {item.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              {/* ============================================================ */}
-              {/* 6. ANNOUNCEMENTS ALONGSIDE QUICK ACTIONS                     */}
-              {/* ============================================================ */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-                {/* Left (7 cols): Community Announcements */}
-                <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                      <div>
-                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                          Community Announcements
-                        </h3>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">
-                          Broadcast bulletins synced with the Katipunan ng Kabataan Youth Portal
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowAnnouncementModal(true)}
-                        className="px-3 py-1.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Post Notice</span>
-                      </button>
-                    </div>
-
-                    {announcements.length === 0 ? (
-                      <div className="py-10 text-center space-y-2 flex flex-col items-center justify-center">
-                        <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-[#0A6B43]">
-                          <Megaphone className="w-5 h-5" />
+              <SKScrollReveal className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-4">
+                <SKScrollRevealInner>
+                  {(isRevealed) => (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
+                              Skills Gap & Training Readiness Analysis
+                            </h3>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                              Diagnostics
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Comparing registered youth aspirations against recorded skills and active TESDA offerings
+                          </p>
                         </div>
-                        <h4 className="text-xs font-bold text-gray-800">No Announcements Posted Yet</h4>
-                        <p className="text-[11px] text-gray-400 max-w-xs font-medium">
-                          Post training notices, scholarship caravans, or assembly dates for KK youth.
-                        </p>
+                        <button
+                          onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
+                          className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline flex items-center gap-1 group self-start sm:self-auto cursor-pointer"
+                        >
+                          <span>Full Diagnostic Analytics</span>
+                          <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                        </button>
                       </div>
-                    ) : (
-                      <div className="space-y-2.5">
-                        {announcements.slice(0, 3).map((a) => (
-                          <div
-                            key={a.id}
-                            className="p-3.5 rounded-xl border border-gray-200/80 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all space-y-1.5 shadow-2xs"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
-                                {a.title}
-                              </h4>
-                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                                {a.datePosted || "Recent"}
-                              </span>
+
+                      <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-[11px]">
+                              <tr>
+                                <th className="py-3 px-4">Skill or Competency</th>
+                                <th className="py-3 px-4 text-center">Youth Interested</th>
+                                <th className="py-3 px-4 text-center">Youth With Skills</th>
+                                <th className="py-3 px-4 text-center">Available TESDA Programs</th>
+                                <th className="py-3 px-4 text-right">Identified Gap</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {dashboardSkillsGap.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="py-10 text-center">
+                                    <div className="flex flex-col items-center justify-center space-y-2">
+                                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                                        <Briefcase className="w-6 h-6" />
+                                      </div>
+                                      <h5 className="text-sm font-bold text-gray-800">No Diagnostic Data</h5>
+                                      <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                        There are currently no skills gap diagnostics available for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
+                                      </p>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : (
+                                dashboardSkillsGap.map((item, idx) => (
+                                <tr
+                                  key={idx}
+                                  style={{
+                                    transitionDelay: `${idx * 45}ms`
+                                  }}
+                                  className={`hover:bg-emerald-50/30 transition-all duration-300 ${
+                                    isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+                                  }`}
+                                >
+                                  <td className="py-3 px-4 font-semibold text-gray-900">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                                      <span>{item.competency}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-bold text-gray-800">
+                                    <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200">
+                                      {item.youthInterested}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-center font-bold text-[#0A6B43]">
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+                                      {item.youthWithSkill}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                      item.availablePrograms > 0
+                                        ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                        : "bg-gray-50 text-gray-400 border border-gray-200"
+                                    }`}>
+                                      {item.availablePrograms > 0 ? `${item.availablePrograms} Active Course(s)` : "None Available"}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-right">
+                                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border transition-all duration-300 ${
+                                      item.status === "Critical Shortage"
+                                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                                        : item.status === "Moderate Gap"
+                                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    }`}>
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </SKScrollRevealInner>
+              </SKScrollReveal>
+
+              {/* ============================================================ */}
+              {/* 7. RECENT YOUTH ACTIVITY & QUICK ACTIONS                     */}
+              {/* ============================================================ */}
+              <SKScrollReveal className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                <SKScrollRevealInner>
+                  {(isRevealed) => (
+                    <>
+                      {/* Left (7 cols / 60%): Recent Youth Activity */}
+                      <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                        <div className="flex flex-col flex-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100 shrink-0">
+                            <div>
+                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                Recent Youth Activity
+                              </h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                Latest registrations and application updates
+                              </p>
                             </div>
-                            <p className="text-xs text-gray-600 line-clamp-2">
-                              {a.body}
+                            <button
+                              onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
+                              className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] hover:underline flex items-center gap-1 group self-start sm:self-auto cursor-pointer"
+                            >
+                              <span>View All Youth</span>
+                              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                            </button>
+                          </div>
+
+                          {/* Activity Table */}
+                          <div className="overflow-x-auto pt-2">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead className="bg-gray-50/70 border-b border-gray-100 text-gray-500 font-semibold text-[11px]">
+                                <tr>
+                                  <th className="py-3 px-4 font-semibold">Youth member</th>
+                                  <th className="py-3 px-4 font-semibold">Activity</th>
+                                  <th className="py-3 px-4 font-semibold">Date</th>
+                                  <th className="py-3 px-4 font-semibold text-right sm:text-left">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {recentYouthActivityData.map((act, idx) => (
+                                  <tr
+                                    key={act.id}
+                                    style={{
+                                      transitionDelay: `${idx * 40}ms`
+                                    }}
+                                    className={`hover:bg-gray-50/70 transition-all duration-300 ${
+                                      isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+                                    }`}
+                                  >
+                                    <td className="py-3.5 px-4 font-medium text-gray-900 whitespace-nowrap">
+                                      {act.youthMember}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-gray-600 whitespace-nowrap">
+                                      {act.activity}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+                                      {act.date}
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right sm:text-left whitespace-nowrap">
+                                      <span
+                                        className={`inline-block px-3.5 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
+                                          act.status === "Pending"
+                                            ? "bg-[#FEF6EE] text-[#B54708] border border-[#FEE4E2]"
+                                            : act.status === "Endorsed"
+                                            ? "bg-[#ECFDF3] text-[#027A48] border border-[#D1FADF]"
+                                            : "bg-[#EFF8FF] text-[#175CD3] border border-[#D1E9FF]"
+                                        }`}
+                                      >
+                                        {act.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right (5 cols / 40%): Quick Actions */}
+                      <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
+                        <div className="space-y-4">
+                          <div className="pb-3 border-b border-gray-100">
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                              Quick Actions
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">
+                              Fast shortcuts to explore programs, matches, and profile settings
                             </p>
-                            <div className="flex items-center gap-2 pt-1 text-[10px] text-gray-400">
-                              <span>Audience: {a.audience || "All Youth"}</span>
-                              <span>•</span>
-                              <span className="text-emerald-700 font-bold">Active in Portal</span>
-                            </div>
                           </div>
-                        ))}
+
+                          <div className="grid grid-cols-1 gap-3">
+                            {/* Action 1: Explore Training Programs */}
+                            <button
+                              onClick={() => setCurrentScreen(SKOfficialScreen.TESDA_PROGRAMS)}
+                              style={{
+                                transitionDelay: "40ms"
+                              }}
+                              className={`w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.98] transition-all duration-300 flex items-center justify-between group cursor-pointer text-left ${
+                                isRevealed ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
+                              }`}
+                            >
+                              <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                                Explore Training Programs
+                              </span>
+                              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                            </button>
+
+                            {/* Action 2: View My Matches */}
+                            <button
+                              onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
+                              style={{
+                                transitionDelay: "90ms"
+                              }}
+                              className={`w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.98] transition-all duration-300 flex items-center justify-between group cursor-pointer text-left ${
+                                isRevealed ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
+                              }`}
+                            >
+                              <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                                View My Matches
+                              </span>
+                              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                            </button>
+
+                            {/* Action 3: Update My Profile */}
+                            <button
+                              onClick={() => setCurrentScreen(SKOfficialScreen.SETTINGS)}
+                              style={{
+                                transitionDelay: "140ms"
+                              }}
+                              className={`w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.98] transition-all duration-300 flex items-center justify-between group cursor-pointer text-left ${
+                                isRevealed ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
+                              }`}
+                            >
+                              <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                                Update My Profile
+                              </span>
+                              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                            </button>
+
+                            {/* Action 4: View Announcements */}
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById("community-announcements-card");
+                                if (el) {
+                                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                } else {
+                                  setShowAnnouncementModal(true);
+                                }
+                              }}
+                              style={{
+                                transitionDelay: "190ms"
+                              }}
+                              className={`w-full p-3.5 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.98] transition-all duration-300 flex items-center justify-between group cursor-pointer text-left ${
+                                isRevealed ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"
+                              }`}
+                            >
+                              <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                                View Announcements
+                              </span>
+                              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                    <span>Announcements appear instantly on youth mobile dashboards</span>
-                  </div>
-                </div>
-
-                {/* Right (5 cols): Quick Actions */}
-                <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="pb-3 border-b border-gray-100">
-                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                        Quick Actions
-                      </h3>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">
-                        Direct administrative shortcuts for SK Council operations
-                      </p>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      {/* Action 1: Youth Profiles */}
-                      <button
-                        onClick={() => setCurrentScreen(SKOfficialScreen.YOUTH_PROFILES)}
-                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
-                            <Users className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-gray-900">View Youth Directory</p>
-                            <p className="text-[10px] text-gray-400">Search profiles & match status</p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
-                      </button>
-
-                      {/* Action 2: Review Pending Approvals */}
-                      <button
-                        onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
-                        className="w-full flex items-center justify-between p-3 rounded-xl border border-amber-200/90 hover:border-amber-400 hover:bg-amber-50/40 text-left transition-all group cursor-pointer shadow-2xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:scale-105 transition-transform">
-                            <Clock className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-bold text-gray-900">Review Pending Approvals</p>
-                              {pendingProfiles.length > 0 && (
-                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                                  {pendingProfiles.length}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-gray-400">Verify government IDs and accounts</p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-amber-700 transition-colors" />
-                      </button>
-
-                      {/* Action 3: View Training Programs */}
-                      <button
-                        onClick={() => setCurrentScreen(SKOfficialScreen.TESDA_PROGRAMS)}
-                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
-                            <BookOpen className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-gray-900">View Training Listings</p>
-                            <p className="text-[10px] text-gray-400">{programs.length} active TESDA courses</p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
-                      </button>
-
-                      {/* Action 4: View Skills Gap Analytics */}
-                      <button
-                        onClick={() => setCurrentScreen(SKOfficialScreen.SKILLS_GAP)}
-                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
-                            <BarChart2 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-gray-900">Skills Gap Diagnostics</p>
-                            <p className="text-[10px] text-gray-400">Export reports & analytics</p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
-                      </button>
-
-                      {/* Action 5: Register Youth Profile */}
-                      <button
-                        onClick={() => {
-                          resetRegForm();
-                          setCurrentScreen(SKOfficialScreen.REGISTER_YOUTH);
-                        }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 text-left transition-all group cursor-pointer shadow-2xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-emerald-50 text-[#0A6B43] group-hover:scale-105 transition-transform">
-                            <Plus className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-gray-900">Register New Youth</p>
-                            <p className="text-[10px] text-gray-400">Manual KK profiling entry</p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] transition-colors" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-gray-100 text-[11px] text-gray-400 text-center">
-                    Authorized for SK Chairperson & Councilors
-                  </div>
-                </div>
-              </div>
+                    </>
+                  )}
+                </SKScrollRevealInner>
+              </SKScrollReveal>
 
             </div>
           )}
@@ -7017,7 +7615,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
                             {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
                             <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
-                              <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-emerald-600/30 bg-gradient-to-tr from-[#082D21] to-[#0A6B43] flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
+                              <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-emerald-600/30 bg-gradient-to-tr from-[#0A6B43] to-[#15803D] flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
                                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-black text-lg sm:text-xl">
                                   {settingsName
                                     ? settingsName

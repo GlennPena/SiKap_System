@@ -3320,7 +3320,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     </div>
 
                     {localAnnouncements.length === 0 ? (
-                      <div className="py-10 text-center flex flex-col items-center justify-center space-y-2">
+                      <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
                         <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
                           <Megaphone className="w-6 h-6" />
                         </div>

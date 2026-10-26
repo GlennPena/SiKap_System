@@ -226,9 +226,14 @@ export function normalizeBarangayName(rawName?: string | null): string {
   cleaned = cleaned.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // Match case-insensitively against official list
-  const found = Object.keys(BARANGAY_JURISDICTIONS).find(
-    k => k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === cleaned.toLowerCase()
-  );
+  const found = Object.keys(BARANGAY_JURISDICTIONS).find(k => {
+    const kNorm = k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const cNorm = cleaned.toLowerCase();
+    if (kNorm === cNorm) return true;
+    const kAlt = kNorm.replace(/\bsta\.\s*/g, "santa ").replace(/\bsto\.\s*/g, "santo ");
+    const cAlt = cNorm.replace(/\bsta\.\s*/g, "santa ").replace(/\bsto\.\s*/g, "santo ");
+    return kAlt === cAlt;
+  });
 
   return found || cleaned;
 }
