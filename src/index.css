@@ -28,12 +28,15 @@ optgroup {
   font-family: inherit;
 }
 
+html {
+  overscroll-behavior-y: none;
+}
+
 html,
 body {
   background-color: #FAFAF8;
   color: #1C2B20;
-  overflow-x: hidden;
-  overscroll-behavior-y: none;
+  overflow-x: clip;
   max-width: 100vw;
   width: 100%;
 }

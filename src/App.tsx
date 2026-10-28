@@ -473,7 +473,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-sans antialiased w-full max-w-full overflow-x-hidden" id="sikap-application-root">
+    <div className="font-sans antialiased w-full max-w-full overflow-x-clip" id="sikap-application-root">
       {/* Toast Alert stack */}
       <aside
         aria-label="Notifications"
@@ -510,7 +510,7 @@ export default function App() {
           )}
 
           {!viewingLanding && (
-            <div className={`min-h-[100dvh] xl:h-[100dvh] flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto overscroll-y-contain xl:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
+            <div className={`min-h-[100dvh] xl:h-[100dvh] flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 xl:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
 
             {/* Left panel as a card (Hidden on mobile, tablets & iPads <1280px to maximize form focus and prevent vertical cutoff) */}
             <div className="hidden xl:flex xl:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 xl:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
