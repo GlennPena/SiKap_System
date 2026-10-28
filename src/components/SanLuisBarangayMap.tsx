@@ -236,16 +236,38 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
     };
   }, [selectedMetric]);
 
-  // Ensure the hovered/selected pin renders on top in SVG
+  // Normalize the user's assigned barangay name to match polygon names
+  const normalizedAssignedBarangay = useMemo(() => {
+    return normalizeBarangayName(designatedBarangay);
+  }, [designatedBarangay]);
+
+  // Ensure the assigned pin, and hovered/selected pin render on top in SVG
   const sortedStats = useMemo(() => {
     return [...activeStats].sort((a, b) => {
       const aActive = a.name === hoveredBarangay || a.name === selectedBarangay;
       const bActive = b.name === hoveredBarangay || b.name === selectedBarangay;
       if (aActive && !bActive) return 1;
       if (!aActive && bActive) return -1;
+
+      const aAssigned = a.name === normalizedAssignedBarangay;
+      const bAssigned = b.name === normalizedAssignedBarangay;
+      if (aAssigned && !bAssigned) return 1;
+      if (!aAssigned && bAssigned) return -1;
+
       return 0;
     });
-  }, [activeStats, hoveredBarangay, selectedBarangay]);
+  }, [activeStats, hoveredBarangay, selectedBarangay, normalizedAssignedBarangay]);
+
+  // Sort polygons so the assigned polygon's border renders cleanly above neighboring polygon borders
+  const sortedPolygons = useMemo(() => {
+    return [...SAN_LUIS_POLYGONS].sort((a, b) => {
+      const aAssigned = a.name === normalizedAssignedBarangay;
+      const bAssigned = b.name === normalizedAssignedBarangay;
+      if (aAssigned && !bAssigned) return 1;
+      if (!aAssigned && bAssigned) return -1;
+      return 0;
+    });
+  }, [normalizedAssignedBarangay]);
 
   return (
     <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between">
@@ -276,13 +298,13 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
 
         {/* Metric Selector Pills */}
         <div className="flex flex-wrap items-center gap-1.5 pt-3 pb-2">
-          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">
+          <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">
             Metric:
           </span>
           <button
             type="button"
             onClick={() => setSelectedMetric("total")}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
               selectedMetric === "total"
                 ? "bg-[#0A6B43] text-white shadow-xs"
                 : "bg-gray-100/90 text-gray-600 hover:bg-gray-200/80"
@@ -293,7 +315,7 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
           <button
             type="button"
             onClick={() => setSelectedMetric("completion")}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
               selectedMetric === "completion"
                 ? "bg-[#0A6B43] text-white shadow-xs"
                 : "bg-gray-100/90 text-gray-600 hover:bg-gray-200/80"
@@ -304,7 +326,7 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
           <button
             type="button"
             onClick={() => setSelectedMetric("pending")}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
               selectedMetric === "pending"
                 ? "bg-amber-600 text-white shadow-xs"
                 : "bg-gray-100/90 text-gray-600 hover:bg-gray-200/80"
@@ -315,7 +337,7 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
           <button
             type="button"
             onClick={() => setSelectedMetric("incomplete")}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold transition-all cursor-pointer ${
               selectedMetric === "incomplete"
                 ? "bg-rose-600 text-white shadow-xs"
                 : "bg-gray-100/90 text-gray-600 hover:bg-gray-200/80"
@@ -345,16 +367,29 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
                 </filter>
               </defs>
 
-              {/* 17 Vector Barangay Polygons with grayer fill and #0A6B43 on hover */}
+              {/* 17 Vector Barangay Polygons with assigned highlight and #0A6B43 on hover */}
               <g className="transition-all duration-200">
-                {SAN_LUIS_POLYGONS.map((poly) => {
+                {sortedPolygons.map((poly) => {
                   const isHovered = hoveredBarangay === poly.name;
                   const isSelected = selectedBarangay === poly.name;
+                  const isAssigned = poly.name === normalizedAssignedBarangay;
                   const isHighlighted = isHovered || isSelected;
 
-                  const fill = isHighlighted ? "#0A6B43" : "#E2E8F0";
-                  const stroke = isHighlighted ? "#0A6B43" : "#CBD5E1";
-                  const strokeWidth = isHighlighted ? 1.0 : 0.45;
+                  const fill = isHighlighted
+                    ? "#0A6B43"
+                    : isAssigned
+                    ? "#A7F3D0"
+                    : "#E2E8F0";
+                  const stroke = isHighlighted
+                    ? "#0A6B43"
+                    : isAssigned
+                    ? "#059669"
+                    : "#CBD5E1";
+                  const strokeWidth = isHighlighted
+                    ? 1.2
+                    : isAssigned
+                    ? 1.5
+                    : 0.45;
 
                   return (
                     <path
@@ -378,6 +413,7 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
               {sortedStats.map((stat) => {
                 const isHovered = hoveredBarangay === stat.name;
                 const isSelected = selectedBarangay === stat.name;
+                const isAssigned = stat.name === normalizedAssignedBarangay;
                 const isHighlighted = isHovered || isSelected;
                 const val = getPinValue(stat);
                 const valStr = String(val);
@@ -420,8 +456,10 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
                         />
 
                         {(() => {
-                          const label = `${stat.name}: ${valStr}`;
-                          const badgeWidth = Math.max(56, label.length * 7.5 + 24);
+                          const label = isAssigned
+                            ? `${stat.name} (Your Barangay): ${valStr}`
+                            : `${stat.name}: ${valStr}`;
+                          const badgeWidth = Math.max(56, label.length * 7.2 + 24);
                           const badgeHeight = 26;
                           return (
                             <>
@@ -443,7 +481,7 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
                                 strokeWidth="1.5"
                               />
 
-                              {/* Hovered text: 12px Name + Gold Number */}
+                              {/* Hovered text */}
                               <text
                                 x="0"
                                 y="-18.5"
@@ -453,14 +491,79 @@ export const SanLuisBarangayMap: React.FC<SanLuisBarangayMapProps> = ({
                                 fontWeight="800"
                                 fill="#FFFFFF"
                               >
-                                {stat.name}: <tspan fill="#FDE047" fontWeight="900">{valStr}</tspan>
+                                {stat.name}
+                                {isAssigned && (
+                                  <tspan fill="#86EFAC" fontSize="10" fontWeight="700"> (Your Barangay)</tspan>
+                                )}
+                                : <tspan fill="#FDE047" fontWeight="900">{valStr}</tspan>
+                              </text>
+                            </>
+                          );
+                        })()}
+                      </g>
+                    ) : isAssigned ? (
+                      /* Assigned Barangay Idle Pin: Highlighted with Brand Emerald & Pulsing Glow */
+                      <g filter="url(#pinShadow)">
+                        {/* Soft pulsing halo ring */}
+                        <circle
+                          r="15"
+                          fill="#0A6B43"
+                          opacity="0.22"
+                          className="animate-pulse"
+                        />
+
+                        {/* Centroid anchor dot */}
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="3"
+                          fill="#FFFFFF"
+                          stroke="#0A6B43"
+                          strokeWidth="1.5"
+                        />
+
+                        {(() => {
+                          const badgeWidth = Math.max(30, valStr.length * 8.5 + 20);
+                          const badgeHeight = 22;
+                          return (
+                            <>
+                              {/* Pin pointer tip to centroid */}
+                              <polygon
+                                points="-4,-4.5 0,0 4,-4.5"
+                                fill="#0A6B43"
+                              />
+
+                              {/* Pin head capsule */}
+                              <rect
+                                x={-badgeWidth / 2}
+                                y={-26.5}
+                                width={badgeWidth}
+                                height={badgeHeight}
+                                rx={badgeHeight / 2}
+                                fill="#0A6B43"
+                                stroke="#FFFFFF"
+                                strokeWidth="1.5"
+                              />
+
+
+                              {/* Pin number */}
+                              <text
+                                x="0"
+                                y="-15.5"
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                                fontSize="12"
+                                fontWeight="900"
+                                fill="#FFFFFF"
+                              >
+                                {valStr}
                               </text>
                             </>
                           );
                         })()}
                       </g>
                     ) : (
-                      /* Idle State: 12px Location Pin with ONLY the Number */
+                      /* Standard Idle State Pin */
                       <g filter="url(#pinShadow)">
                         {/* Centroid anchor dot */}
                         <circle

@@ -725,28 +725,40 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     }));
   };
 
-  // Localized data lists filtered by designatedBarangay
+  // Localized data lists filtered by designatedBarangay (using normalizeBarangayName to guarantee exact matching with database records)
   const localYouthProfiles = useMemo(() => {
+    const dbClean = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    if (!dbClean || dbClean === "all" || dbClean === "san luis" || dbClean === "municipality of san luis") {
+      return youthProfiles;
+    }
+    const dbNorm = normalizeBarangayName(designatedBarangay);
     return youthProfiles.filter(y => {
-      const yBrgy = y.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-      const dbBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-      return yBrgy === dbBrgy;
+      const yNorm = normalizeBarangayName(y.barangay);
+      return yNorm === dbNorm;
     });
   }, [youthProfiles, designatedBarangay]);
 
   const localReferrals = useMemo(() => {
+    const dbClean = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    if (!dbClean || dbClean === "all" || dbClean === "san luis" || dbClean === "municipality of san luis") {
+      return referrals;
+    }
+    const dbNorm = normalizeBarangayName(designatedBarangay);
     return referrals.filter(r => {
-      const rBrgy = r.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-      const dbBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-      return rBrgy === dbBrgy;
+      const rNorm = normalizeBarangayName(r.barangay);
+      return rNorm === dbNorm;
     });
   }, [referrals, designatedBarangay]);
 
   const localCouncilors = useMemo(() => {
+    const dbClean = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    if (!dbClean || dbClean === "all" || dbClean === "san luis" || dbClean === "municipality of san luis") {
+      return councilors;
+    }
+    const dbNorm = normalizeBarangayName(designatedBarangay);
     return councilors.filter(c => {
-      const cBrgy = c.barangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-      const dbBrgy = designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
-      return cBrgy === dbBrgy;
+      const cNorm = normalizeBarangayName(c.barangay);
+      return cNorm === dbNorm;
     });
   }, [councilors, designatedBarangay]);
 
@@ -819,7 +831,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     const electricalSlots = getSlotsForKeywords(["electr", "wire", "eim", "installation"]);
     const weldingSlots = getSlotsForKeywords(["weld", "metal", "smaw", "fabrication"]);
     const bakingSlots = getSlotsForKeywords(["bread", "pastry", "bake", "baking"]);
-    const autoSlots = getSlotsForKeywords(["automotive", "motor", "engine", "mechanic", "vehicle"]);
+    const autoSlots = getSlotsForKeywords(["automotive", "motor", "engine", "mechanic", "vehicle", "driving"]);
+    const creativeSlots = getSlotsForKeywords(["design", "graphic", "canva", "media", "creative", "multimedia", "content", "arts"]);
     const agriSlots = getSlotsForKeywords(["agri", "crop", "farm", "organic", "poultry"]);
 
     const brgyClean = designatedBarangay.replace(/^Barangay\s+/i, "");
@@ -831,7 +844,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         { skill: "Bread & Pastry Production", count: 0, percentage: 0, availableSlots: bakingSlots, recommendedAction: `Partner with local cooperative bakeries in San Luis for job placement of ${brgyClean} graduates.` },
         { skill: "Electrical Installation & Maintenance", count: 0, percentage: 0, availableSlots: electricalSlots, recommendedAction: `Refer out-of-school youth in ${brgyClean} to training slots at TESDA GPSAT campus.` },
         { skill: "Welding / SMAW Fabrication", count: 0, percentage: 0, availableSlots: weldingSlots, recommendedAction: `Utilize ${brgyClean} SK budget to sponsor tools & protective gears for priority SMAW enrollees.` },
-        { skill: "Automotive & Engine Servicing", count: 0, percentage: 0, availableSlots: autoSlots, recommendedAction: `Coordinate with TESDA for mobile mechanical diagnostics training in Barangay ${brgyClean}.` },
+        { skill: "Automotive Servicing & Mechanics", count: 0, percentage: 0, availableSlots: autoSlots, recommendedAction: `Coordinate with TESDA for mobile mechanical diagnostics training in Barangay ${brgyClean}.` },
+        { skill: "Creative Arts & Graphic Design", count: 0, percentage: 0, availableSlots: creativeSlots, recommendedAction: `Coordinate with TESDA for community-based multimedia arts and digital content training in Barangay ${brgyClean}.` },
         { skill: "Organic Agriculture & Agribusiness", count: 0, percentage: 0, availableSlots: agriSlots, recommendedAction: `Launch youth urban container gardening and high-value crop production in ${brgyClean}.` }
       ];
     }
@@ -842,6 +856,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     let weldingCount = 0;
     let bakingCount = 0;
     let autoCount = 0;
+    let creativeCount = 0;
     let agriCount = 0;
 
     localYouthProfiles.forEach(y => {
@@ -885,6 +900,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         autoCount++;
       }
 
+      // Creative Arts & Graphic Design:
+      const hasCreativeSkill = skillsLower.some(s => s.includes("design") || s.includes("graphic") || s.includes("canva") || s.includes("media") || s.includes("art"));
+      if (!hasCreativeSkill && (pref.includes("creative") || pref.includes("design") || pref.includes("art") || goal.includes("design") || goal.includes("graphic") || goal.includes("media"))) {
+        creativeCount++;
+      }
+
       // Agriculture:
       const hasAgriSkill = skillsLower.some(s => s.includes("agri") || s.includes("farm") || s.includes("crop") || s.includes("plant"));
       if (!hasAgriSkill && (pref.includes("agri") || pref.includes("farm") || goal.includes("farm") || goal.includes("agri"))) {
@@ -909,7 +930,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       makeGap("Bread & Pastry Production", bakingCount, bakingSlots, `Partner with local cooperative bakeries in San Luis for job placement of ${brgyClean} graduates.`),
       makeGap("Electrical Installation & Maintenance", electricalCount, electricalSlots, `Refer out-of-school youth in ${brgyClean} to training slots at TESDA GPSAT campus.`),
       makeGap("Welding / SMAW Fabrication", weldingCount, weldingSlots, `Utilize ${brgyClean} SK budget to sponsor tools & protective gears for priority SMAW enrollees.`),
-      makeGap("Automotive & Engine Servicing", autoCount, autoSlots, `Coordinate with TESDA for mobile mechanical diagnostics training in Barangay ${brgyClean}.`),
+      makeGap("Automotive Servicing & Mechanics", autoCount, autoSlots, `Coordinate with TESDA for mobile mechanical diagnostics training in Barangay ${brgyClean}.`),
+      makeGap("Creative Arts & Graphic Design", creativeCount, creativeSlots, `Coordinate with TESDA for community-based multimedia arts and digital content training in Barangay ${brgyClean}.`),
       makeGap("Organic Agriculture & Agribusiness", agriCount, agriSlots, `Launch youth urban container gardening and high-value crop production in ${brgyClean}.`)
     ].sort((a, b) => b.count - a.count);
   }, [localYouthProfiles, designatedBarangay, programs]);
@@ -2378,40 +2400,121 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     };
   }, [localYouthProfiles, dashboardMonthRange]);
 
-  // 6. Skills Gap & Training Readiness Table
+  // 6. Skills Gap & Training Readiness Table - Accurately computed from real database records
   const dashboardSkillsGap = useMemo(() => {
-    const benchmarkSectors = [
-      { competency: "Computer Systems Servicing / IT Support", keywords: ["computer", "ict", "it", "hardware", "software", "programming", "networking", "systems"], sector: "IT" },
-      { competency: "Bread & Pastry Production / Baking", keywords: ["baking", "pastry", "bread", "cake", "cook", "culinary"], sector: "Food" },
-      { competency: "Shielded Metal Arc Welding (SMAW)", keywords: ["welding", "smaw", "metal", "fabrication"], sector: "Trades" },
-      { competency: "Electrical Installation & Maintenance", keywords: ["electrical", "electrician", "wiring", "electronics"], sector: "Trades" },
-      { competency: "Automotive Servicing & Mechanics", keywords: ["automotive", "mechanic", "engine", "motorcycle", "vehicle"], sector: "Automotive" },
-      { competency: "Organic Agriculture & Farming", keywords: ["agriculture", "farming", "crops", "gardening", "livestock", "agribusiness"], sector: "Agriculture" }
+    // If no youth are registered in this barangay yet, return empty list to trigger the designed empty state
+    if (localYouthProfiles.length === 0) {
+      return [];
+    }
+
+    // Canonical competency domains reflecting actual database programs and youth sectors
+    const competencyDomains = [
+      {
+        competency: "Computer Systems Servicing & IT Support",
+        keywords: ["computer", "ict", "it", "hardware", "software", "programming", "networking", "systems", "tech", "web", "data", "typing"],
+        categories: ["information and communication technology", "ict"]
+      },
+      {
+        competency: "Automotive Servicing, Mechanics & Driving",
+        keywords: ["auto", "automotive", "mechanic", "engine", "motor", "motorcycle", "vehicle", "driving", "transport"],
+        categories: ["automotive and land transport", "automotive"]
+      },
+      {
+        competency: "Electrical Installation & Electronics Servicing",
+        keywords: ["electrical", "electrician", "wiring", "electronics", "eim", "electronic products", "circuit"],
+        categories: ["electrical and electronics"]
+      },
+      {
+        competency: "Shielded Metal Arc Welding (SMAW) & Fabrication",
+        keywords: ["welding", "weld", "metal", "smaw", "fabrication", "fabricat", "construction", "carpentry", "plumbing", "masonry"],
+        categories: ["construction"]
+      },
+      {
+        competency: "Bread & Pastry Production / Commercial Cookery",
+        keywords: ["baking", "pastry", "bread", "cake", "cook", "cooking", "culinary", "food processing", "food prep"],
+        categories: ["process food and beverages"]
+      },
+      {
+        competency: "Tourism, Hotel & Restaurant Hospitality",
+        keywords: ["tourism", "hospitality", "hotel", "restaurant", "food and beverages", "bartending", "housekeeping", "barista", "front office"],
+        categories: ["tourism"]
+      },
+      {
+        competency: "Creative Arts, Graphic Design & Digital Media",
+        keywords: ["design", "graphic", "canva", "media", "creative", "multimedia", "content", "arts", "video", "editing"],
+        categories: ["creative arts & design", "visual arts"]
+      },
+      {
+        competency: "Healthcare & Barangay Health Services",
+        keywords: ["health", "healthcare", "nursing", "caregiving", "medical", "clinic", "barangay health"],
+        categories: ["human health/ health care", "health"]
+      },
+      {
+        competency: "Organic Agriculture & Agribusiness",
+        keywords: ["agriculture", "farming", "farm", "crop", "agri", "gardening", "livestock", "poultry", "organic"],
+        categories: ["agriculture"]
+      }
     ];
 
-    return benchmarkSectors.map(item => {
+    const results = competencyDomains.map(item => {
+      // 1. Real youth from database who already possess skills in this domain
       const youthWithSkill = localYouthProfiles.filter(y => {
-        const allSkills = (y.skills || []).map(s => s.toLowerCase());
-        return item.keywords.some(kw => allSkills.some(s => s.includes(kw)));
+        const skillsList = [
+          ...(y.skills || []),
+          ...(y.skillsRaw || []),
+          ...(Array.isArray(y.skillsNormalized) ? y.skillsNormalized.map((sn: any) => typeof sn === "string" ? sn : sn.name || sn.label || "") : [])
+        ].map(s => String(s).toLowerCase());
+
+        return item.keywords.some(kw => skillsList.some(s => s.includes(kw)));
       }).length;
 
+      // 2. Real youth from database who aspire or expressed interest in this competency
       const youthInterested = localYouthProfiles.filter(y => {
         const pref = (y.sectorPreference || "").toLowerCase();
-        const goal = (y.livelihoodGoal || "").toLowerCase();
-        const interests = (y.interests || []).map(i => i.toLowerCase());
-        return item.keywords.some(kw => pref.includes(kw) || goal.includes(kw) || interests.some(i => i.includes(kw)));
+        const goal = [
+          y.livelihoodGoal || "",
+          y.goalRaw || "",
+          typeof y.goalNormalized === "object" && y.goalNormalized ? JSON.stringify(y.goalNormalized) : ""
+        ].join(" ").toLowerCase();
+
+        const interestsList = [
+          ...(y.interests || []),
+          ...(y.preferencesRaw || []),
+          ...(Array.isArray(y.preferencesNormalized) ? y.preferencesNormalized.map((pn: any) => typeof pn === "string" ? pn : pn.name || pn.label || "") : [])
+        ].map(i => String(i).toLowerCase());
+
+        const matchesKeyword = item.keywords.some(kw =>
+          pref.includes(kw) || goal.includes(kw) || interestsList.some(i => i.includes(kw))
+        );
+
+        const matchesCategory = item.categories.some(cat =>
+          pref.includes(cat) || goal.includes(cat) || interestsList.some(i => i.includes(cat))
+        );
+
+        return matchesKeyword || matchesCategory;
       }).length;
 
+      // 3. Real active TESDA courses in the database matching this competency
       const matchingCourses = programs.filter(p => {
         const title = (p.title || "").toLowerCase();
-        return item.keywords.some(kw => title.includes(kw));
+        const cat = getProgramCategory(p).toLowerCase();
+        const reqSkills = (p.requiredSkills || []).map(s => s.toLowerCase());
+
+        return (
+          item.keywords.some(kw => title.includes(kw) || cat.includes(kw) || reqSkills.some(s => s.includes(kw))) ||
+          item.categories.some(c => cat.includes(c))
+        );
       });
 
+      // 4. Identified gap status based on real supply vs demand
       let status: "Critical Shortage" | "Moderate Gap" | "Adequate Coverage" = "Adequate Coverage";
-      if (youthInterested > 0 && matchingCourses.length === 0 && youthWithSkill < 3) {
+      if (youthInterested > 0 && matchingCourses.length === 0) {
+        // Critical Shortage: Youth in the barangay desire this training, but zero TESDA courses currently exist in the database!
         status = "Critical Shortage";
-      } else if (youthInterested > youthWithSkill * 1.5 || (matchingCourses.length <= 1 && youthInterested > 3)) {
+      } else if (youthInterested > 0 && (youthInterested > youthWithSkill || (matchingCourses.length <= 1 && youthInterested > 1))) {
         status = "Moderate Gap";
+      } else {
+        status = "Adequate Coverage";
       }
 
       return {
@@ -2422,6 +2525,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         programsList: matchingCourses.map(p => p.title),
         status
       };
+    });
+
+    // Only include competencies that have real activity in the database:
+    // (either registered youth interested, youth with existing skills, or available TESDA programs)
+    const activeResults = results.filter(r => r.youthInterested > 0 || r.youthWithSkill > 0 || r.availablePrograms > 0);
+
+    // Prioritize by gap urgency: Critical Shortages first, then Moderate Gaps, then Adequate Coverage,
+    // and secondary sort by youth demand descending
+    const severityOrder = { "Critical Shortage": 0, "Moderate Gap": 1, "Adequate Coverage": 2 };
+    return activeResults.sort((a, b) => {
+      const diff = severityOrder[a.status] - severityOrder[b.status];
+      if (diff !== 0) return diff;
+      return b.youthInterested - a.youthInterested;
     });
   }, [localYouthProfiles, programs]);
 
@@ -3347,7 +3463,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     background: "linear-gradient(to right, #041A13 0%, #082D21 45%, #106348 100%)",
                   }}
                 >
-                  <div className="text-[16px] font-medium text-white">
+                  <div className="text-xs sm:text-[16px] font-medium text-white leading-snug">
                     Total Registered OSY
                   </div>
                   <div className="text-4xl sm:text-5xl font-bold text-white tracking-tight my-1 sm:my-1.5">
@@ -3365,7 +3481,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   transition={{ duration: 0.45, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
                   className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all flex flex-col justify-between"
                 >
-                  <div className="text-[16px] font-medium text-black">
+                  <div className="text-xs sm:text-[16px] font-medium text-black leading-snug">
                     Verified Youth
                   </div>
                   <div className="text-4xl sm:text-5xl font-bold text-black tracking-tight my-1 sm:my-1.5">
@@ -3390,7 +3506,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   onClick={() => setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS)}
                   className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
                 >
-                  <div className="text-[16px] font-medium text-black">
+                  <div className="text-xs sm:text-[16px] font-medium text-black leading-snug">
                     Pending Verification
                   </div>
                   <div className="text-4xl sm:text-5xl font-bold text-black tracking-tight my-1 sm:my-1.5">
@@ -3408,7 +3524,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   transition={{ duration: 0.45, delay: 0.34, ease: [0.22, 1, 0.36, 1] }}
                   className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all flex flex-col justify-between"
                 >
-                  <div className="text-[16px] font-medium text-black">
+                  <div className="text-xs sm:text-[16px] font-medium text-black leading-snug">
                     Incomplete Profiles
                   </div>
                   <div className="text-4xl sm:text-5xl font-bold text-black tracking-tight my-1 sm:my-1.5">
@@ -3445,10 +3561,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
                     <button
                       onClick={() => setShowAnnouncementModal(true)}
-                      className="px-3 py-1.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                      className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98 shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Post Notice</span>
+                      <span>
+                        <span className="inline sm:hidden">Post</span>
+                        <span className="hidden sm:inline">Post Notice</span>
+                      </span>
                     </button>
                   </div>
 
@@ -3812,8 +3931,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       {/* Left (7 cols / 60%): Monthly Registration Progress Column Chart */}
                       <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                         <div className="space-y-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                            <div>
+                          <div className="flex items-start sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                            <div className="flex-1 min-w-0 pr-1 sm:pr-0">
                               <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
                                 Monthly Registration Progress
                               </h3>
@@ -3823,10 +3942,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             </div>
 
                             {/* Time Range Selector */}
-                            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0">
+                            <div className="flex items-center gap-1 bg-gray-50 p-0.5 sm:p-1 rounded-xl border border-gray-200 text-xs shrink-0 w-fit self-start sm:self-center">
                               <button
                                 onClick={() => setDashboardMonthRange("6")}
-                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                                className={`px-2 sm:px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap text-[11px] sm:text-xs ${
                                   dashboardMonthRange === "6" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
                                 }`}
                               >
@@ -3834,7 +3953,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               </button>
                               <button
                                 onClick={() => setDashboardMonthRange("12")}
-                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                                className={`px-2 sm:px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap text-[11px] sm:text-xs ${
                                   dashboardMonthRange === "12" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500"
                                 }`}
                               >
@@ -3915,18 +4034,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       {/* Right (5 cols / 40%): Youth Distribution by Gender Donut Chart */}
                       <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full">
                         <div className="flex flex-col flex-1">
-                          <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
-                            <div>
-                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                                Distribution by Gender
-                              </h3>
-                              <p className="text-xs text-gray-500 font-medium mt-0.5">
-                                Registered OSY gender demographics in {designatedBarangay}
-                              </p>
-                            </div>
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                              {genderDistributionData.total} Youth
-                            </span>
+                          <div className="pb-3 border-b border-gray-100 shrink-0">
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                              Distribution by Gender
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">
+                              Registered OSY gender demographics in {designatedBarangay}
+                            </p>
                           </div>
 
                           {/* Donut Chart & Legend Layout */}
@@ -4068,14 +4182,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
-                              Skills Gap & Training Readiness Analysis
-                            </h3>
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                              Diagnostics
-                            </span>
-                          </div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl tracking-tight">
+                            Skills Gap & Training Readiness Analysis
+                          </h3>
                           <p className="text-xs text-gray-500 font-medium mt-0.5">
                             Comparing registered youth aspirations against recorded skills and active TESDA offerings
                           </p>
