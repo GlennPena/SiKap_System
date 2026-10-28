@@ -1421,11 +1421,11 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
-              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
-                <span className="text-xs sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight">Captain</span>
-                <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px]" title={formattedBrgyName}>
+            <div className="flex items-center gap-2.5 min-w-0 sidebar-brand-container">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} className="sidebar-brand-logo" />
+              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center sidebar-brand-divider">
+                <span className="text-xs sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight sidebar-brand-position">Captain</span>
+                <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px] sidebar-brand-barangay" title={formattedBrgyName}>
                   {formattedBrgyName.replace(/^Barangay\s+/i, "")}
                 </span>
               </div>

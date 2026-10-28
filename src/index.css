@@ -566,3 +566,69 @@ button:focus:not(:focus-visible) {
 
 
 
+
+/* Sidebar Brand Header Responsiveness (< 1630px screen width) */
+@media (max-width: 1629px) {
+  .sidebar-brand-container {
+    gap: 0.45rem !important;
+  }
+
+  .sidebar-brand-logo {
+    gap: 0.375rem !important;
+  }
+
+  .sidebar-brand-logo img {
+    width: 29px !important;
+    height: 29px !important;
+  }
+
+  .sidebar-brand-logo .font-sans > span {
+    font-size: 21px !important;
+  }
+
+  .sidebar-brand-divider {
+    padding-left: 0.45rem !important;
+  }
+
+  .sidebar-brand-position {
+    font-size: 11px !important;
+    letter-spacing: 0.05em !important;
+  }
+
+  .sidebar-brand-barangay {
+    font-size: 10px !important;
+    max-width: 110px !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .sidebar-brand-container {
+    gap: 0.4rem !important;
+  }
+
+  .sidebar-brand-logo {
+    gap: 0.35rem !important;
+  }
+
+  .sidebar-brand-logo img {
+    width: 25px !important;
+    height: 25px !important;
+  }
+
+  .sidebar-brand-logo .font-sans > span {
+    font-size: 18px !important;
+  }
+
+  .sidebar-brand-divider {
+    padding-left: 0.4rem !important;
+  }
+
+  .sidebar-brand-position {
+    font-size: 10px !important;
+  }
+
+  .sidebar-brand-barangay {
+    font-size: 9.5px !important;
+    max-width: 95px !important;
+  }
+}

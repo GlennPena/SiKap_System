@@ -2644,18 +2644,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-              {/* Mobile Viewport Logo */}
-              <div className="sm:hidden flex items-center">
-                <SikapLogo size={26} logoSize={26} textSize={19} variant="white" showText={true} disableHover={true} />
-              </div>
-              {/* Tablet & Desktop Viewport Logo */}
-              <div className="hidden sm:flex items-center">
-                <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
-              </div>
-              <div className="border-l border-white/20 pl-2 sm:pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
-                <span className="text-[10px] sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight">Member</span>
-                <span className="text-[9px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[95px] sm:max-w-[120px] xl:max-w-[135px]" title={youthProfile.barangay || "San Luis"}>
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 sidebar-brand-container">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} className="sidebar-brand-logo" />
+              <div className="border-l border-white/20 pl-2 sm:pl-2.5 min-w-0 shrink-0 flex flex-col justify-center sidebar-brand-divider">
+                <span className="text-[10px] sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight sidebar-brand-position">Member</span>
+                <span className="text-[9px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[95px] sm:max-w-[120px] xl:max-w-[135px] sidebar-brand-barangay" title={youthProfile.barangay || "San Luis"}>
                   {(youthProfile.barangay || "San Luis").replace(/^Barangay\s+/i, "")}
                 </span>
               </div>

@@ -1594,10 +1594,10 @@ Please sign in at ${window.location.origin} and change your password immediately
         <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} />
-              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center">
-                <span className="text-[13px] sm:text-sm font-black text-amber-400 uppercase tracking-wider block leading-tight">Admin</span>
+            <div className="flex items-center gap-2.5 min-w-0 sidebar-brand-container">
+              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} className="sidebar-brand-logo" />
+              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center sidebar-brand-divider">
+                <span className="text-[13px] sm:text-sm font-black text-amber-400 uppercase tracking-wider block leading-tight sidebar-brand-position">Admin</span>
               </div>
             </div>
 
