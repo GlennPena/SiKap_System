@@ -1399,7 +1399,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   }, [captainNotifications, clearedNotificationIds]);
 
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] w-full bg-[#FAFAF8] text-slate-800 font-sans antialiased overflow-hidden" id="captain-portal-container">
+    <div className="fixed inset-0 flex h-[100dvh] max-h-[100dvh] w-full bg-[#FAFAF8] text-slate-800 font-sans antialiased overflow-hidden overscroll-none" id="captain-portal-container">
       
       {/* Mobile & Tablet Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
@@ -1414,11 +1414,11 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* SIDEBAR NAVIGATION (Responsive Sliding Drawer on Mobile & Tablet / Sticky on Desktop) */}
       {/* ========================================================================= */}
       <aside
-        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
+        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overscroll-y-contain overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${
           isMobileNavOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
         }`}
       >
-        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+        <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1672,7 +1672,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
       {/* ========================================================================= */}
       {/* MAIN VIEWPORT & STICKY TOPBAR                                            */}
       {/* ========================================================================= */}
-      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
+      <main className="flex-1 h-full max-h-full flex flex-col min-w-0 overflow-y-auto overscroll-y-contain pb-12 sm:pb-6">
         
         {/* Sticky Topbar */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
@@ -1807,7 +1807,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                       e.stopPropagation();
                                       markAsRead(n.id);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1.5 sm:p-1 rounded-md transition-all"
                                     title="Mark as read"
                                   >
                                     <Check className="w-3.5 h-3.5" />
@@ -1819,7 +1819,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                     e.stopPropagation();
                                     dismissNotification(n.id);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all"
+                                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1.5 sm:p-1 rounded-md transition-all"
                                   title="Clear alert"
                                 >
                                   <X className="w-3.5 h-3.5" />

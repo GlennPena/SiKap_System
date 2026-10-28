@@ -1366,7 +1366,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   };
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#F8FAF9] flex font-sans text-slate-800 antialiased w-full" id="tesda-portal-container">
+    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none bg-[#F8FAF9] flex font-sans text-slate-800 antialiased w-full" id="tesda-portal-container">
       {/* Mobile & Tablet Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
         <div
@@ -1378,10 +1378,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile & Tablet / Sticky on Desktop) */}
       <aside
-        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
+        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overscroll-y-contain overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
           }`}
       >
-        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+        <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1583,7 +1583,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       </aside>
 
       {/* Main Viewport */}
-      <main className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6">
+      <main className="flex-1 h-full max-h-full flex flex-col min-w-0 overflow-y-auto overscroll-y-contain pb-12 sm:pb-6">
         {/* Sticky Header */}
         <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
@@ -1706,7 +1706,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                       e.stopPropagation();
                                       markAsRead(n.id);
                                     }}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1.5 sm:p-1 rounded-md transition-all"
                                     title="Mark as read"
                                   >
                                     <Check className="w-3.5 h-3.5" />
@@ -1718,7 +1718,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     e.stopPropagation();
                                     dismissNotification(n.id);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all"
+                                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1.5 sm:p-1 rounded-md transition-all"
                                   title="Clear alert"
                                 >
                                   <X className="w-3.5 h-3.5" />

@@ -326,7 +326,7 @@ export interface YouthProfile {
   savedMatchAdvice?: SavedMatchAdvice | null;
 }
 
-export interface SavedMatchAdvice {
+export interface SavedMatchAdviceEntry {
   programId: string;
   programTitle: string;
   careerAdvice: string;
@@ -334,6 +334,10 @@ export interface SavedMatchAdvice {
   careerAdviceTl: string;
   bulletAdviceTl: string[];
   generatedAt?: string;
+}
+
+export interface SavedMatchAdvice extends SavedMatchAdviceEntry {
+  byProgramId?: Record<string, SavedMatchAdviceEntry>;
 }
 
 export interface TESDAProgram {

@@ -66,10 +66,10 @@ export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
   ariaLabel = "Settings navigation",
 }) => {
   return (
-    <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4">
+    <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4 overflow-hidden">
       {/* Settings Navigation: Responsive Pills that hug text on mobile & vertical cards on desktop */}
       <nav
-        className="flex flex-wrap gap-1.5 sm:gap-2 lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit"
+        className="flex flex-nowrap overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory gap-2 pb-1 lg:pb-0 lg:overflow-visible lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit"
         aria-label={ariaLabel}
       >
         {tabs.map((tab) => {
@@ -79,11 +79,14 @@ export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
             <button
               key={tab.id}
               type="button"
-              onClick={() => onTabChange(tab.id)}
-              className={`group/pill w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-2.5 sm:px-3 lg:px-3.5 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
+              onClick={(e) => {
+                onTabChange(tab.id);
+                e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+              }}
+              className={`group/pill shrink-0 snap-start w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
                 isActive
                   ? "bg-[#0A6B43] text-white shadow-xs border-transparent"
-                  : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs hover:translate-x-0.5"
+                  : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs lg:hover:translate-x-0.5"
               }`}
             >
               <IconComponent
