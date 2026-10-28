@@ -270,8 +270,8 @@ export const DashboardDonutVisual: React.FC<{
   return (
     <div ref={containerRef} className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-8 lg:gap-14 xl:gap-16 py-2 sm:py-3 lg:py-6 px-2">
       {/* Donut Chart SVG */}
-      <div className="relative w-32 h-32 sm:w-36 sm:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center">
-        <svg className="w-32 h-32 sm:w-36 sm:h-36 lg:w-44 lg:h-44 -rotate-90 transform" viewBox="0 0 130 130">
+      <div className="relative w-36 h-36 sm:w-36 sm:h-36 lg:w-44 lg:h-44 shrink-0 flex items-center justify-center">
+        <svg className="w-36 h-36 sm:w-36 sm:h-36 lg:w-44 lg:h-44 -rotate-90 transform" viewBox="0 0 130 130">
           {/* Base track ring */}
           <circle cx="65" cy="65" r={R} fill="none" stroke="#F1F5F9" strokeWidth="18" />
           {matchDistribution.total > 0 && donutSlices.map((s, idx) => {
@@ -315,10 +315,10 @@ export const DashboardDonutVisual: React.FC<{
             </span>
           ) : (
             <div className="flex flex-col items-center justify-center animate-in fade-in duration-150">
-              <span className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 leading-none tabular-nums">
+              <span className="text-xl sm:text-3xl lg:text-4xl font-black text-gray-900 leading-none tabular-nums">
                 {animatedTotalMatches}
               </span>
-              <span className="text-[11px] lg:text-xs text-gray-500 font-normal mt-1 lg:mt-1.5">
+              <span className="text-[9.5px] sm:text-[11px] lg:text-xs text-gray-500 font-normal leading-tight mt-0.5 sm:mt-1 lg:mt-1.5 whitespace-nowrap">
                 Total matches
               </span>
             </div>
@@ -712,162 +712,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [newSkillInput, setNewSkillInput] = useState("");
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [selectedProgramToApply, setSelectedProgramToApply] = useState<TESDAProgram | null>(null);
+  const [referralToCancel, setReferralToCancel] = useState<ReferralPipelineItem | null>(null);
+  const [isCancellingApplication, setIsCancellingApplication] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
-
-  // Profile Picture state and local caching helper
-  const getProfilePictureStorageKey = () => {
-    const id = youthProfile?.id || currentUser?.id || currentUser?.email || "active_youth";
-    return `sikap_profile_photo_${id}`;
-  };
-
-  const [profilePictureUrl, setProfilePictureUrl] = useState<string>(() => {
-    if (youthProfile?.profilePicture) return youthProfile.profilePicture;
-    if (typeof window !== "undefined") {
-      try {
-        const id = youthProfile?.id || currentUser?.id || currentUser?.email || "active_youth";
-        const cached = localStorage.getItem(`sikap_profile_photo_${id}`);
-        if (cached) return cached;
-      } catch { }
-    }
-    return "";
-  });
-
-  const [isUploadingPic, setIsUploadingPic] = useState(false);
-
-  useEffect(() => {
-    if (youthProfile?.profilePicture) {
-      setProfilePictureUrl(youthProfile.profilePicture);
-    } else if (typeof window !== "undefined") {
-      try {
-        const id = youthProfile?.id || currentUser?.id || currentUser?.email || "active_youth";
-        const cached = localStorage.getItem(`sikap_profile_photo_${id}`);
-        if (cached) setProfilePictureUrl(cached);
-      } catch { }
-    }
-  }, [youthProfile?.profilePicture, youthProfile?.id]);
-
-  const compressProfileImage = (file: File, maxDim = 400, quality = 0.85): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-          if (width > height) {
-            if (width > maxDim) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            }
-          } else {
-            if (height > maxDim) {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return resolve(e.target?.result as string);
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", quality));
-        };
-        img.onerror = reject;
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      addToast("Please select a valid image file (JPG, PNG, WebP).", "error");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      addToast("Image size must be less than 10MB.", "error");
-      return;
-    }
-
-    setIsUploadingPic(true);
-    try {
-      const compressedDataUrl = await compressProfileImage(file, 400, 0.85);
-      setProfilePictureUrl(compressedDataUrl);
-
-      // Cache locally
-      const storageKey = getProfilePictureStorageKey();
-      try {
-        localStorage.setItem(storageKey, compressedDataUrl);
-      } catch { }
-
-      // Update in database
-      if (youthProfile.id && youthProfile.id !== "empty-youth-profile") {
-        const res = await fetch("/api/youth", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: youthProfile.id,
-            profilePicture: compressedDataUrl
-          })
-        });
-        const data = await res.json();
-        if (data.success) {
-          setYouthProfiles((prev) =>
-            prev.map((y) => (y.id === youthProfile.id ? { ...y, profilePicture: compressedDataUrl } : y))
-          );
-          addToast("Profile picture updated successfully!", "success");
-        } else {
-          addToast("Profile picture saved locally.", "info");
-        }
-      } else {
-        addToast("Profile picture updated!", "success");
-      }
-    } catch (err: any) {
-      console.error("Profile picture upload error:", err);
-      addToast("Failed to upload profile picture.", "error");
-    } finally {
-      setIsUploadingPic(false);
-      e.target.value = "";
-    }
-  };
-
-  const handleRemoveProfilePicture = async () => {
-    setIsUploadingPic(true);
-    try {
-      setProfilePictureUrl("");
-      const storageKey = getProfilePictureStorageKey();
-      try {
-        localStorage.removeItem(storageKey);
-      } catch { }
-
-      if (youthProfile.id && youthProfile.id !== "empty-youth-profile") {
-        await fetch("/api/youth", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: youthProfile.id,
-            profilePicture: ""
-          })
-        });
-        setYouthProfiles((prev) =>
-          prev.map((y) => (y.id === youthProfile.id ? { ...y, profilePicture: "" } : y))
-        );
-      }
-      addToast("Profile picture removed.", "info");
-    } catch (err) {
-      console.error("Error removing profile picture:", err);
-      addToast("Failed to remove profile picture.", "error");
-    } finally {
-      setIsUploadingPic(false);
-    }
-  };
 
   // Helper to get all relevant storage keys for the active youth user
   const getStorageKeys = () => {
@@ -1459,12 +1307,50 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return youthProfile.age + Math.max(0, years);
   }, [youthProfile.age, youthProfile.registeredDate]);
 
-  const [liveGeminiAdvice, setLiveGeminiAdvice] = useState<string>(youthProfile?.savedMatchAdvice?.careerAdvice || "");
-  const [liveGeminiBullets, setLiveGeminiBullets] = useState<string[]>(youthProfile?.savedMatchAdvice?.bulletAdvice || []);
-  const [featuredAdviceTl, setFeaturedAdviceTl] = useState<string>(youthProfile?.savedMatchAdvice?.careerAdviceTl || "");
-  const [featuredBulletsTl, setFeaturedBulletsTl] = useState<string[]>(youthProfile?.savedMatchAdvice?.bulletAdviceTl || []);
-  const [featuredLang, setFeaturedLang] = useState<"en" | "tl">("en");
+  const [topMatchAdviceMap, setTopMatchAdviceMap] = useState<Record<string, {
+    careerAdvice: string;
+    bulletAdvice: string[];
+    careerAdviceTl: string;
+    bulletAdviceTl: string[];
+  }>>(() => {
+    const initial: Record<string, {
+      careerAdvice: string;
+      bulletAdvice: string[];
+      careerAdviceTl: string;
+      bulletAdviceTl: string[];
+    }> = {};
+    const saved = youthProfile?.savedMatchAdvice;
+    if (saved) {
+      if (saved.byProgramId && typeof saved.byProgramId === "object") {
+        Object.entries(saved.byProgramId).forEach(([progId, entry]) => {
+          if (entry && entry.careerAdvice) {
+            initial[progId] = {
+              careerAdvice: entry.careerAdvice,
+              bulletAdvice: Array.isArray(entry.bulletAdvice) ? entry.bulletAdvice : [],
+              careerAdviceTl: entry.careerAdviceTl || "",
+              bulletAdviceTl: Array.isArray(entry.bulletAdviceTl) ? entry.bulletAdviceTl : [],
+            };
+          }
+        });
+      }
+      if (saved.programId && saved.careerAdvice && !initial[saved.programId]) {
+        initial[saved.programId] = {
+          careerAdvice: saved.careerAdvice,
+          bulletAdvice: Array.isArray(saved.bulletAdvice) ? saved.bulletAdvice : [],
+          careerAdviceTl: saved.careerAdviceTl || "",
+          bulletAdviceTl: Array.isArray(saved.bulletAdviceTl) ? saved.bulletAdviceTl : [],
+        };
+      }
+    }
+    return initial;
+  });
+  const [programLangMap, setProgramLangMap] = useState<Record<string, "en" | "tl">>({});
+  const getProgramLang = (progId: string): "en" | "tl" => programLangMap[progId] || "en";
+  const setProgramLang = (progId: string, lang: "en" | "tl") => {
+    setProgramLangMap(prev => ({ ...prev, [progId]: lang }));
+  };
   const [isLoadingFeaturedAI, setIsLoadingFeaturedAI] = useState<boolean>(!youthProfile?.savedMatchAdvice?.careerAdvice);
+  const fetchingTopAdviceIdsRef = useRef<Set<string>>(new Set());
   const [viewingProgramModal, setViewingProgramModal] = useState<{
     program: TESDAProgram;
     matchScore?: number;
@@ -1920,80 +1806,126 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       setIsLoadingFeaturedAI(false);
       return;
     }
-    // Target the actionable active matching program first so Gemini provides advice on the next open upskilling program
-    const targetProgramsForAdvice = activeMatchingPrograms.length > 0
-      ? activeMatchingPrograms.map(sp => sp.program)
-      : [];
 
-    if (targetProgramsForAdvice.length > 0) {
-      const targetProg = targetProgramsForAdvice[0];
-      const savedAdvice = youthProfile.savedMatchAdvice;
+    // Identify all Top Match programs so every Top Match card receives its own Gemini AI rationale & 3-step pathway
+    const topMatchPrograms = categorizedMatchedPrograms
+      .filter(item => item.isTopMatch && item.matchScore >= 50)
+      .map(item => item.program);
 
-      // 1. Check if database already has saved match advice for this specific top program
-      if (
-        savedAdvice &&
-        savedAdvice.careerAdvice &&
-        (savedAdvice.programId === targetProg.id || savedAdvice.programTitle === targetProg.title)
-      ) {
-        setLiveGeminiAdvice(savedAdvice.careerAdvice);
-        setLiveGeminiBullets(Array.isArray(savedAdvice.bulletAdvice) ? savedAdvice.bulletAdvice : []);
-        setFeaturedAdviceTl(savedAdvice.careerAdviceTl || "");
-        setFeaturedBulletsTl(Array.isArray(savedAdvice.bulletAdviceTl) ? savedAdvice.bulletAdviceTl : []);
-        setIsLoadingFeaturedAI(false);
-        return;
+    const targetProgramsForAdvice = topMatchPrograms.length > 0
+      ? topMatchPrograms
+      : activeMatchingPrograms.length > 0
+        ? [activeMatchingPrograms[0].program]
+        : [];
+
+    if (targetProgramsForAdvice.length === 0) {
+      setIsLoadingFeaturedAI(false);
+      return;
+    }
+
+    let isCancelled = false;
+    const savedAdvice = youthProfile.savedMatchAdvice;
+    const resolvedFromCache: Record<string, {
+      careerAdvice: string;
+      bulletAdvice: string[];
+      careerAdviceTl: string;
+      bulletAdviceTl: string[];
+    }> = {};
+    const programsToFetch: TESDAProgram[] = [];
+
+    for (const targetProg of targetProgramsForAdvice) {
+      // 1. Check if database already has saved match advice for this specific program (either in byProgramId map or top-level)
+      const dbEntry = savedAdvice?.byProgramId?.[targetProg.id]
+        || ((savedAdvice?.programId === targetProg.id || savedAdvice?.programTitle === targetProg.title) ? savedAdvice : null);
+
+      if (dbEntry && dbEntry.careerAdvice) {
+        resolvedFromCache[targetProg.id] = {
+          careerAdvice: dbEntry.careerAdvice,
+          bulletAdvice: Array.isArray(dbEntry.bulletAdvice) ? dbEntry.bulletAdvice : [],
+          careerAdviceTl: dbEntry.careerAdviceTl || "",
+          bulletAdviceTl: Array.isArray(dbEntry.bulletAdviceTl) ? dbEntry.bulletAdviceTl : [],
+        };
+        continue;
       }
 
       // 2. Check local client cache as an instant fallback
       const localKey = `sikap_saved_advice_${youthProfile.id}_${targetProg.id}`;
+      let foundInLocal = false;
       try {
         const cached = localStorage.getItem(localKey);
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed && parsed.careerAdvice) {
-            setLiveGeminiAdvice(parsed.careerAdvice);
-            setLiveGeminiBullets(parsed.bulletAdvice || []);
-            setFeaturedAdviceTl(parsed.careerAdviceTl || "");
-            setFeaturedBulletsTl(parsed.bulletAdviceTl || []);
-            setIsLoadingFeaturedAI(false);
-            return;
+            resolvedFromCache[targetProg.id] = {
+              careerAdvice: parsed.careerAdvice,
+              bulletAdvice: Array.isArray(parsed.bulletAdvice) ? parsed.bulletAdvice : [],
+              careerAdviceTl: parsed.careerAdviceTl || "",
+              bulletAdviceTl: Array.isArray(parsed.bulletAdviceTl) ? parsed.bulletAdviceTl : [],
+            };
+            foundInLocal = true;
           }
         }
       } catch (e) {
         // ignore storage read issues
       }
+      if (foundInLocal) continue;
 
-      // 3. If no saved advice exists for this program, generate fresh advice and persist to DB
-      setIsLoadingFeaturedAI(true);
-      fetch("/api/match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          youth: youthProfile,
-          programs: targetProgramsForAdvice,
-          generateLLMAdvice: true
-        })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            if (data.careerAdvice) setLiveGeminiAdvice(data.careerAdvice);
-            if (Array.isArray(data.bulletAdvice) && data.bulletAdvice.length > 0) {
-              setLiveGeminiBullets(data.bulletAdvice);
-            }
-            if (data.careerAdviceTl) setFeaturedAdviceTl(data.careerAdviceTl);
-            if (Array.isArray(data.bulletAdviceTl) && data.bulletAdviceTl.length > 0) {
-              setFeaturedBulletsTl(data.bulletAdviceTl);
-            }
+      // 3. Otherwise queue this Top Match program for Gemini AI generation
+      const fetchKey = `${youthProfile.id}_${targetProg.id}`;
+      if (!fetchingTopAdviceIdsRef.current.has(fetchKey)) {
+        programsToFetch.push(targetProg);
+      }
+    }
+
+    if (Object.keys(resolvedFromCache).length > 0) {
+      setTopMatchAdviceMap(prev => ({ ...prev, ...resolvedFromCache }));
+    }
+
+    if (programsToFetch.length === 0) {
+      setIsLoadingFeaturedAI(false);
+      return;
+    }
+
+    setIsLoadingFeaturedAI(true);
+
+    (async () => {
+      for (const targetProg of programsToFetch) {
+        if (isCancelled) break;
+        const fetchKey = `${youthProfile.id}_${targetProg.id}`;
+        fetchingTopAdviceIdsRef.current.add(fetchKey);
+        const localKey = `sikap_saved_advice_${youthProfile.id}_${targetProg.id}`;
+
+        try {
+          const res = await fetch("/api/match", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              youth: youthProfile,
+              programs: [targetProg],
+              targetProgram: targetProg,
+              generateLLMAdvice: true
+            })
+          });
+          const data = await res.json();
+          if (data.success && data.careerAdvice) {
+            const newEntry = {
+              careerAdvice: data.careerAdvice,
+              bulletAdvice: Array.isArray(data.bulletAdvice) ? data.bulletAdvice : [],
+              careerAdviceTl: data.careerAdviceTl || "",
+              bulletAdviceTl: Array.isArray(data.bulletAdviceTl) ? data.bulletAdviceTl : [],
+            };
+
+            setTopMatchAdviceMap(prev => ({
+              ...prev,
+              [targetProg.id]: newEntry
+            }));
 
             // Also cache in localStorage for immediate client-side retrieval
             try {
               const advicePayload = {
                 programId: targetProg.id,
                 programTitle: targetProg.title,
-                careerAdvice: data.careerAdvice,
-                bulletAdvice: data.bulletAdvice,
-                careerAdviceTl: data.careerAdviceTl,
-                bulletAdviceTl: data.bulletAdviceTl,
+                ...newEntry,
                 generatedAt: new Date().toISOString()
               };
               localStorage.setItem(localKey, JSON.stringify(advicePayload));
@@ -2001,15 +1933,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               // ignore
             }
           }
-        })
-        .catch(err => console.error("Error fetching Gemini advice:", err))
-        .finally(() => {
-          setIsLoadingFeaturedAI(false);
-        });
-    } else {
-      setIsLoadingFeaturedAI(false);
-    }
-  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, youthProfile?.savedMatchAdvice, activeMatchingPrograms, uncompletedScoredPrograms, scoredPrograms]);
+        } catch (err) {
+          console.error(`Error fetching Gemini advice for ${targetProg.title}:`, err);
+          fetchingTopAdviceIdsRef.current.delete(fetchKey);
+        }
+      }
+      if (!isCancelled) {
+        setIsLoadingFeaturedAI(false);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [youthProfile?.id, youthProfile?.barangay, youthProfile?.skills, youthProfile?.sectorPreference, youthProfile?.livelihoodGoal, youthProfile?.interests, youthProfile?.savedMatchAdvice, categorizedMatchedPrograms, activeMatchingPrograms]);
 
   const skChairpersonName = useMemo(() => {
     return "Your SK Chairperson";
@@ -2087,7 +2024,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
   };
 
-  const handleCancelApplication = async (referralId: string) => {
+  const handleCancelApplication = (referralId: string) => {
+    if (isUnverified) {
+      addToast("Cannot cancel applications in View-Only Mode (Awaiting SK Verification)", "error");
+      return;
+    }
+    const targetRef = referrals?.find(r => r.id === referralId);
+    if (!targetRef) {
+      addToast("Application record could not be found.", "error");
+      return;
+    }
+    setReferralToCancel(targetRef);
+  };
+
+  const confirmCancelApplication = async () => {
+    if (!referralToCancel || isCancellingApplication) return;
+    const referralId = referralToCancel.id;
+    setIsCancellingApplication(true);
     if (isUnverified) {
       addToast("Cannot cancel applications in View-Only Mode (Awaiting SK Verification)", "error");
       return;
@@ -2096,12 +2049,29 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     try {
       const res = await fetch(`/api/referrals?id=${referralId}`, { method: "DELETE" });
       const data = await res.json();
-      if (!data.success && data.error) {
-        addToast(data.error || "Failed to cancel application", "error");
+      if (!res.ok || (!data.success && data.error)) {
+        addToast(data.error || "Failed to cancel application. Please try again.", "error");
+        setIsCancellingApplication(false);
         return;
       }
     } catch (err) {
       console.error("Error cancelling referral:", err);
+      addToast("Network error while cancelling application. Please try again.", "error");
+      setIsCancellingApplication(false);
+      return;
+    }
+    setIsCancellingApplication(false);
+    setReferralToCancel(null);
+    if (false) {
+      try {
+        if (false) {
+          addToast("Failed to cancel application", "error");
+        return;
+      }
+    } catch (err) {
+      if (false) {
+      }
+    }
     }
     if (targetRef && (targetRef.status === "Pending" || targetRef.status === "Enrolled") && setPrograms) {
       setPrograms(prev => prev.map(p => {
@@ -2655,7 +2625,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   };
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAFAF8] flex w-full font-sans antialiased" id="youth-portal-container">
+    <div className="fixed inset-0 h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none bg-[#FAFAF8] flex w-full font-sans antialiased" id="youth-portal-container">
 
       {/* Mobile & Tablet Navigation Backdrop Overlay */}
       {isMobileNavOpen && (
@@ -2668,10 +2638,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
       {/* Sidebar Navigation (Responsive Sliding Drawer on Mobile & Tablet / Sticky on Desktop) */}
       <aside
-        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
+        className={`fixed xl:static inset-y-0 left-0 z-50 w-72 sm:w-80 xl:w-[17%] xl:min-w-[260px] h-[100dvh] max-h-[100dvh] shrink-0 bg-[#082D21] text-white flex flex-col justify-between shadow-2xl xl:shadow-none border-r border-white/10 select-none overflow-y-auto overscroll-y-contain overflow-x-hidden transform transition-transform duration-300 ease-in-out font-sans ${isMobileNavOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
           }`}
       >
-        <div className="p-4 sm:p-5 overflow-y-auto min-h-0 flex-1">
+        <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
@@ -2856,13 +2826,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             <div className="flex items-center gap-3 min-w-0 flex-1">
               {/* Avatar without hover effect */}
               <div className="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs border border-amber-400/40 shrink-0 select-none overflow-hidden">
-                {profilePictureUrl ? (
-                  <img
-                    src={profilePictureUrl}
-                    alt={youthProfile?.name || "Avatar"}
-                    className="w-full h-full object-cover"
-                  />
-                ) : youthProfile?.name ? (
+                {youthProfile?.name ? (
                   youthProfile.name
                     .split(" ")
                     .filter(Boolean)
@@ -2908,7 +2872,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       {/* Main viewport */}
       <main
         onScroll={(e) => updatePortalScrollVelocity(e.currentTarget.scrollTop)}
-        className="flex-1 h-[100dvh] max-h-[100dvh] flex flex-col min-w-0 overflow-y-auto pb-12 sm:pb-6"
+        className="flex-1 h-full max-h-full flex flex-col min-w-0 overflow-y-auto overscroll-y-contain pb-12 sm:pb-6"
       >
         <header className="sticky top-0 bg-white/95 backdrop-blur-xs border-b border-gray-100 z-30 px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2">
@@ -3090,7 +3054,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             e.stopPropagation();
                                             markAsRead(item.id);
                                           }}
-                                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1 rounded-md transition-all"
+                                          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-gray-400 hover:text-emerald-700 hover:bg-emerald-100/70 p-1.5 sm:p-1 rounded-md transition-all"
                                           title="Mark as read"
                                         >
                                           <Check className="w-3.5 h-3.5" />
@@ -3102,7 +3066,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                           e.stopPropagation();
                                           dismissNotification(item.id);
                                         }}
-                                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1 rounded-md transition-all shrink-0"
+                                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-gray-400 hover:text-rose-600 hover:bg-gray-100 p-1.5 sm:p-1 rounded-md transition-all shrink-0"
                                         title="Clear alert"
                                       >
                                         <X className="w-3.5 h-3.5" />
@@ -3765,14 +3729,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         const categoryMeta = getCBFMatchCategory(score, hasEnoughMatchingData);
                         const cbfBreakdown = itemBreakdown || calculateDetailedCBFMatch(youthProfile, prog);
 
-                        const isPrimaryTopProg = isTopMatch && activeMatchingPrograms.length > 0 && activeMatchingPrograms[0].program.id === prog.id && score >= 50;
-                        const topRationale = isPrimaryTopProg && (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
-                          ? (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
-                          : getFallbackPersonalizedRationale(youthProfile, prog, featuredLang);
+                        const cardLang = getProgramLang(prog.id);
+                        const progAdvice = topMatchAdviceMap[prog.id];
+                        const topRationale = isTopMatch && progAdvice && (cardLang === "tl" ? progAdvice.careerAdviceTl : progAdvice.careerAdvice)
+                          ? (cardLang === "tl" ? progAdvice.careerAdviceTl : progAdvice.careerAdvice)
+                          : getFallbackPersonalizedRationale(youthProfile, prog, cardLang);
 
-                        const topBullets = isPrimaryTopProg && (featuredLang === "tl" ? (featuredBulletsTl?.length === 3 ? featuredBulletsTl : null) : (liveGeminiBullets?.length === 3 ? liveGeminiBullets : null))
-                          ? (featuredLang === "tl" ? featuredBulletsTl : liveGeminiBullets)
-                          : getFallbackPersonalized3StepPathway(youthProfile, prog, featuredLang);
+                        const topBullets = isTopMatch && progAdvice && (cardLang === "tl" ? (progAdvice.bulletAdviceTl?.length === 3 ? progAdvice.bulletAdviceTl : null) : (progAdvice.bulletAdvice?.length === 3 ? progAdvice.bulletAdvice : null))
+                          ? (cardLang === "tl" ? progAdvice.bulletAdviceTl : progAdvice.bulletAdvice)
+                          : getFallbackPersonalized3StepPathway(youthProfile, prog, cardLang);
 
                         return (
                           <motion.div
@@ -3801,8 +3766,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   <div className="flex items-center gap-0.5 sm:gap-1 bg-white p-0.5 rounded-lg border border-emerald-200 text-[10px] sm:text-[11px] font-bold shadow-2xs shrink-0">
                                     <button
                                       type="button"
-                                      onClick={() => setFeaturedLang("en")}
-                                      className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                                      onClick={() => setProgramLang(prog.id, "en")}
+                                      className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${cardLang === "en" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
                                       title="Read in English"
                                     >
                                       <span className="xl:hidden">EN</span>
@@ -3810,8 +3775,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => setFeaturedLang("tl")}
-                                      className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "tl" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                                      onClick={() => setProgramLang(prog.id, "tl")}
+                                      className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${cardLang === "tl" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
                                       title="Isalin sa Tagalog"
                                     >
                                       <span className="xl:hidden">TAG</span>
@@ -4395,10 +4360,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       </div>
 
                                       {/* Status & Actions - Mobile Optimized Layout */}
-                                      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t border-gray-100/90 sm:border-0 w-full sm:w-auto shrink-0">
+                                      <div className="flex flex-wrap items-center justify-between sm:flex-col sm:items-end gap-2 pt-2.5 sm:pt-0 border-t border-gray-100/90 sm:border-0 w-full sm:w-auto shrink-0">
                                         <div className="flex items-center gap-1.5">
                                           <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Status:</span>
-                                          <span className={`inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full border shadow-2xs ${isArchived
+                                          <span className={`inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold px-2.5 sm:px-3 py-1 rounded-full border shadow-2xs ${isArchived
                                             ? "bg-purple-50 text-purple-700 border-purple-200"
                                             : isEnrolled
                                               ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
@@ -4433,7 +4398,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         {isPending && (
                                           <button
                                             onClick={() => handleCancelApplication(app.id)}
-                                            className="p-1.5 sm:px-2.5 sm:py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer ml-auto sm:ml-0"
+                                            className="px-2.5 py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer"
                                             title="Cancel Application"
                                             id={`cancel-application-header-${app.id}`}
                                           >
@@ -4444,7 +4409,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         {isDeclined && (
                                           <button
                                             onClick={() => handleDeletePathway(app.id)}
-                                            className="p-1.5 sm:px-2.5 sm:py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer ml-auto sm:ml-0"
+                                            className="px-2.5 py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer"
                                             title="Delete Declined Pathway"
                                             id={`delete-pathway-header-${app.id}`}
                                           >
@@ -4468,9 +4433,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     {(() => {
                                       if (isPending) {
                                         return (
-                                          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-5 space-y-4 shadow-xs">
-                                            <div className="flex items-start justify-between gap-3 border-b border-blue-100/80 pb-3">
-                                              <div className="flex items-center gap-2.5">
+                                          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 shadow-xs">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-blue-100/80 pb-3">
+                                              <div className="flex items-start sm:items-center gap-2.5">
                                                 <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
                                                   <Sparkles className="w-4 h-4 animate-pulse" />
                                                 </div>
@@ -4485,7 +4450,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                               </div>
                                               <button
                                                 onClick={() => handleCancelApplication(app.id)}
-                                                className="text-[11px] bg-white hover:bg-red-50 text-red-700 px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 border border-red-200 shadow-2xs hover:border-red-300 cursor-pointer"
+                                                className="w-full sm:w-auto justify-center text-[11px] bg-white hover:bg-red-50 text-red-700 px-3 py-2 sm:py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 border border-red-200 shadow-2xs hover:border-red-300 cursor-pointer"
                                                 id={`cancel-pathway-box-${app.id}`}
                                               >
                                                 <XCircle className="w-3.5 h-3.5" />
@@ -4498,52 +4463,52 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                             </p>
 
                                             {/* Program Details Overview Card */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white/95 p-4 rounded-xl border border-blue-150 shadow-2xs">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs bg-white/95 p-3.5 sm:p-4 rounded-xl border border-blue-150 shadow-2xs">
                                     <div className="space-y-2">
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <Briefcase className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Training Provider:</strong> <span className="text-gray-900 font-bold">{provider}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Training Provider:</strong> <span className="text-gray-900 font-bold break-words">{provider}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Location / Campus:</strong> <span className="text-gray-900 font-semibold">{location}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Location / Campus:</strong> <span className="text-gray-900 font-semibold break-words">{location}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Program Duration:</strong> <span className="text-gray-900 font-semibold">{trainingHours}{dateRange}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Program Duration:</strong> <span className="text-gray-900 font-semibold break-words">{trainingHours}{dateRange}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Program Cost:</strong> <span className="font-bold text-emerald-700">{program?.cost || "100% Free / Subsidized"}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Program Cost:</strong> <span className="font-bold text-emerald-700 break-words">{program?.cost || "100% Free / Subsidized"}</span></span>
                                       </p>
                                     </div>
                                     <div className="space-y-2">
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <Calendar className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Class Schedule:</strong> <span className="text-gray-900 font-semibold">{scheduleDays}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Class Schedule:</strong> <span className="text-gray-900 font-semibold break-words">{scheduleDays}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Training Hours:</strong> <span className="text-gray-900 font-semibold">{timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Training Hours:</strong> <span className="text-gray-900 font-semibold break-words">{timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Facility / Room:</strong> <span className="text-gray-900 font-semibold">{room}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Facility / Room:</strong> <span className="text-gray-900 font-semibold break-words">{room}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold">{instructor}</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold break-words">{instructor}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-center gap-1.5">
+                                      <p className="text-gray-600 flex items-start gap-2">
                                         <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <strong>Registrar Contact:</strong> <span className="text-gray-900 font-semibold">{contactPerson} ({contactNumber})</span>
+                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Registrar Contact:</strong> <span className="text-gray-900 font-semibold break-words">{contactPerson} ({contactNumber})</span></span>
           </p>
         </div>
     </div>
 
   {/* Action Required: Physical Documents for Verification */ }
   <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-4 space-y-2.5 text-xs">
-    <p className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
+    <p className="font-extrabold text-amber-950 flex items-start sm:items-center gap-1.5 uppercase text-[11px] tracking-wider leading-snug">
                                       <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                                       <span>Action Required to Complete Enrollment Verification:</span>
                                     </p >
@@ -4570,7 +4535,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           <p className="text-xs font-extrabold text-red-800 uppercase tracking-wider">Application Declined</p>
           <button
             onClick={() => handleDeletePathway(app.id)}
-            className="text-[11px] bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-200 cursor-pointer"
+            className="w-full sm:w-auto justify-center text-[11px] bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 shrink-0 border border-red-200 cursor-pointer"
             id={`delete-pathway-box-${app.id}`}
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -4580,7 +4545,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         <p className="text-xs text-red-700 leading-relaxed font-medium">
           Your application for <strong>{app.programTitle}</strong> was declined. Please verify your skills and profile info before re-applying, or message Sangguniang Kabataan for mentorship.
         </p>
-        <p className="text-[10px] text-red-500 italic font-semibold flex items-center gap-1.5">
+        <p className="text-[10px] text-red-500 italic font-semibold flex items-start sm:items-center gap-1.5">
           <Sparkles className="w-3 h-3 text-red-400 shrink-0" />
           <span>You can delete this pathway card to clear your list and explore other matching livelihood programs!</span>
         </p>
@@ -4756,7 +4721,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <span>{displayPlan.employmentTrack.estimatedSalary}</span>
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-center gap-1">
+                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                     <span><strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}</span>
                   </p>
@@ -4796,12 +4761,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <span>{careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}</span>
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-center gap-1">
+                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
                     <Store className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                     <span><strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}</span>
                   </p>
                   <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
-                    <p className="text-xs text-amber-100 leading-relaxed font-medium flex items-center gap-1">
+                    <p className="text-xs text-amber-100 leading-relaxed font-medium flex items-start gap-1.5">
                       <Gift className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                       <span><strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}</span>
                     </p>
@@ -4941,7 +4906,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
       {/* Locked Step 4 Milestone Notice */}
       <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-start sm:items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-bold shrink-0">
             <Lock className="w-3.5 h-3.5" />
           </div>
@@ -4954,7 +4919,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </span>
           </div>
         </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-end sm:self-auto">
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-start sm:self-auto">
           Locked Milestone
         </span>
       </div>
@@ -5047,9 +5012,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       {/* 2-Column Settings Layout: Left Vertical Sidebar + Right Main Content Area */}
       <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
         {/* Left Vertical Sidebar Navigation */}
-        <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4">
+        <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4 overflow-hidden">
           {/* Settings Navigation: Responsive Pills that hug text on mobile & vertical cards on desktop */}
-          <nav className="flex flex-wrap gap-1.5 sm:gap-2 lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit" aria-label="Settings navigation">
+          <nav className="flex flex-nowrap overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory gap-2 pb-1 lg:pb-0 lg:overflow-visible lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit" aria-label="Settings navigation">
             {[
               { id: "profile", label: "Personal Details", icon: User },
               { id: "skills", label: "Skills & Competencies", icon: Award },
@@ -5063,11 +5028,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setProfileActiveTab(tab.id as any)}
-                  className={`group/pill w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-2.5 sm:px-3 lg:px-3.5 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
+                  onClick={(e) => {
+                    setProfileActiveTab(tab.id as any);
+                    e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                  }}
+                  className={`group/pill shrink-0 snap-start w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
                     isActive
                       ? "bg-[#0A6B43] text-white shadow-xs border-transparent"
-                      : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs hover:translate-x-0.5"
+                      : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs lg:hover:translate-x-0.5"
                   }`}
                 >
                   <IconComponent
@@ -5532,82 +5500,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
             {/* Right Column: Summary & Verification Card */}
             <div className="xl:col-span-5 space-y-4">
-              {/* Profile Photo Management Card */}
-              <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-xs sm:text-sm space-y-3.5 sm:space-y-4">
-                <div className="border-b border-gray-100 pb-2.5 sm:pb-3 flex items-center justify-between">
-                  <h4 className="font-bold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
-                    <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#0A6B43]" />
-                    Official Profile Picture
-                  </h4>
-                  {profilePictureUrl && (
-                    <span className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      Active
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
-                    {profilePictureUrl ? (
-                      <img
-                        src={profilePictureUrl}
-                        alt={youthProfile.name}
-                        className="w-full h-full object-cover rounded-full"
-                      />
-                    ) : youthProfile.name ? (
-                      youthProfile.name
-                        .split(" ")
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((n) => n[0]?.toUpperCase())
-                        .join("")
-                    ) : (
-                      "KK"
-                    )}
-                    {isUploadingPic && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-full">
-                        <Loader2 className="w-6 h-6 text-white animate-spin" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label
-                        htmlFor="tab-profile-pic-input"
-                        className="group/upload inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0A6B43] text-white hover:bg-[#075332] active:scale-98 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                      >
-                        <Upload className="w-3.5 h-3.5 transition-transform duration-200 group-hover/upload:-translate-y-0.5 group-hover/upload:scale-115" />
-                        <span>{profilePictureUrl ? "Change Photo" : "Upload Photo"}</span>
-                      </label>
-                      <input
-                        id="tab-profile-pic-input"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfilePictureUpload}
-                        disabled={isUploadingPic}
-                      />
-
-                      {profilePictureUrl && (
-                        <button
-                          type="button"
-                          onClick={handleRemoveProfilePicture}
-                          disabled={isUploadingPic}
-                          className="group/remove inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 active:scale-98 transition-all border border-red-200 cursor-pointer disabled:opacity-50"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 transition-transform duration-200 group-hover/remove:scale-115 group-hover/remove:rotate-12" />
-                          <span>Remove</span>
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
-                      Square JPEG, PNG, or WebP. Auto-optimized for Katipunan ng Kabataan Digital ID & official records.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-xs sm:text-sm">
                 <div className="border-b border-gray-100 pb-2.5 sm:pb-3">
                   <h4 className="font-bold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
@@ -6441,49 +6333,15 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                   {/* Main Content Area: Two Columns */}
                   <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
-                    {/* Left Column: Rectangular Profile Photo Area + Complete ID Number in One Row */}
+                    {/* Left Column: Rectangular Profile Avatar Area + Complete ID Number in One Row */}
                     <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
-                      <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-gray-200 bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden shadow-2xs group">
-                        {profilePictureUrl ? (
-                          <img
-                            src={profilePictureUrl}
-                            alt={youthProfile.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center p-2 text-center">
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
-                              <User className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
-                            </div>
-                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1.5">No Photo</span>
+                      <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-gray-200 bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
+                        <div className="flex flex-col items-center justify-center p-2 text-center">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
+                            <User className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
                           </div>
-                        )}
-
-                        {/* Hover / Direct upload overlay for Digital ID Card */}
-                        <label
-                          htmlFor="id-card-profile-pic-input"
-                          className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-white"
-                          title="Change ID Photo"
-                        >
-                          {isUploadingPic ? (
-                            <Loader2 className="w-5 h-5 text-white animate-spin" />
-                          ) : (
-                            <>
-                              <Camera className="w-5 h-5 text-emerald-300" />
-                              <span className="text-[9px] font-black tracking-wider uppercase mt-0.5 text-white">
-                                {profilePictureUrl ? "Change" : "Add Photo"}
-                              </span>
-                            </>
-                          )}
-                        </label>
-                        <input
-                          id="id-card-profile-pic-input"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleProfilePictureUpload}
-                          disabled={isUploadingPic}
-                        />
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1.5">KK Member</span>
+                        </div>
                       </div>
 
                       {/* ID Number in one row without ellipsis */}
@@ -6576,7 +6434,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {savedPlan ? (
                 <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
                   <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-start sm:items-center gap-2.5">
                       <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
                         <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600" />
                       </div>
@@ -6926,19 +6784,21 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
       {/* CONDITIONAL: Gemini AI Match Rationale & 3-Step Pathway ONLY for Top Match programs */}
       {(() => {
+        const modalProgId = viewingProgramModal.program.id;
         const modalScore = viewingProgramModal.matchScore || calculateContentBasedMatchScore(youthProfile, viewingProgramModal.program);
-        const isModalTopMatch = topMatchProgramIds.has(viewingProgramModal.program.id) && modalScore >= 50;
+        const isModalTopMatch = topMatchProgramIds.has(modalProgId) && modalScore >= 50;
         const modalCategoryMeta = getCBFMatchCategory(modalScore, hasEnoughMatchingData);
         const modalBreakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
-        const isPrimaryTopProg = activeMatchingPrograms.length > 0 && activeMatchingPrograms[0].program.id === viewingProgramModal.program.id;
+        const modalLang = getProgramLang(modalProgId);
+        const modalProgAdvice = topMatchAdviceMap[modalProgId];
 
-        const modalRationale = isPrimaryTopProg && (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
-          ? (featuredLang === "tl" ? featuredAdviceTl : liveGeminiAdvice)
-          : getFallbackPersonalizedRationale(youthProfile, viewingProgramModal.program, featuredLang);
+        const modalRationale = isModalTopMatch && modalProgAdvice && (modalLang === "tl" ? modalProgAdvice.careerAdviceTl : modalProgAdvice.careerAdvice)
+          ? (modalLang === "tl" ? modalProgAdvice.careerAdviceTl : modalProgAdvice.careerAdvice)
+          : getFallbackPersonalizedRationale(youthProfile, viewingProgramModal.program, modalLang);
 
-        const modalBullets = isPrimaryTopProg && (featuredLang === "tl" ? (featuredBulletsTl?.length === 3 ? featuredBulletsTl : null) : (liveGeminiBullets?.length === 3 ? liveGeminiBullets : null))
-          ? (featuredLang === "tl" ? featuredBulletsTl : liveGeminiBullets)
-          : getFallbackPersonalized3StepPathway(youthProfile, viewingProgramModal.program, featuredLang);
+        const modalBullets = isModalTopMatch && modalProgAdvice && (modalLang === "tl" ? (modalProgAdvice.bulletAdviceTl?.length === 3 ? modalProgAdvice.bulletAdviceTl : null) : (modalProgAdvice.bulletAdvice?.length === 3 ? modalProgAdvice.bulletAdvice : null))
+          ? (modalLang === "tl" ? modalProgAdvice.bulletAdviceTl : modalProgAdvice.bulletAdvice)
+          : getFallbackPersonalized3StepPathway(youthProfile, viewingProgramModal.program, modalLang);
 
         if (isModalTopMatch) {
           return (
@@ -6953,8 +6813,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <div className="flex items-center gap-0.5 sm:gap-1 bg-white p-0.5 rounded-lg border border-emerald-200 text-[10px] sm:text-[11px] font-bold shadow-2xs shrink-0">
                   <button
                     type="button"
-                    onClick={() => setFeaturedLang("en")}
-                    className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "en" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                    onClick={() => setProgramLang(modalProgId, "en")}
+                    className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${modalLang === "en" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
                     title="Read in English"
                   >
                     <span className="xl:hidden">EN</span>
@@ -6962,8 +6822,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFeaturedLang("tl")}
-                    className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${featuredLang === "tl" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
+                    onClick={() => setProgramLang(modalProgId, "tl")}
+                    className={`px-1.5 sm:px-2 py-0.5 rounded-md transition-all cursor-pointer ${modalLang === "tl" ? "bg-[#0A6B43] text-white font-extrabold shadow-2xs" : "text-gray-500 hover:text-[#0A6B43]"}`}
                     title="Isalin sa Tagalog"
                   >
                     <span className="xl:hidden">TAG</span>
@@ -7385,6 +7245,56 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       </div>
     )
   }
+
+  {/* Cancel Application Confirmation Modal */}
+  {referralToCancel && (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+      style={{ zIndex: 100 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isCancellingApplication) {
+          setReferralToCancel(null);
+        }
+      }}
+    >
+      <div className="bg-white rounded-2xl p-6 shadow-2xl text-center space-y-4 max-w-[380px] w-full animate-in fade-in zoom-in-95 duration-200 ease-out border border-red-100">
+        <div className="w-16 h-16 rounded-full bg-red-50 border border-red-100 flex items-center justify-center mx-auto shadow-2xs">
+          <AlertTriangle className="w-8 h-8 text-red-600" />
+        </div>
+        <div>
+          <h4 className="font-extrabold text-gray-900 text-base">Cancel Application?</h4>
+          <p className="text-xs text-gray-500 leading-relaxed mt-2 font-medium">
+            Are you sure you want to cancel your application for <strong className="text-gray-800">{referralToCancel.programTitle}</strong>? Your reserved training slot will be released and you will need to re-apply if you change your mind.
+          </p>
+        </div>
+        <div className="flex gap-2.5 pt-2">
+          <button
+            type="button"
+            disabled={isCancellingApplication}
+            onClick={() => setReferralToCancel(null)}
+            className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-50 active:scale-98 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Keep Application
+          </button>
+          <button
+            type="button"
+            disabled={isCancellingApplication}
+            onClick={confirmCancelApplication}
+            className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 active:scale-98 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
+          >
+            {isCancellingApplication ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                <span>Cancelling...</span>
+              </>
+            ) : (
+              <span>Yes, Cancel</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
 
   {/* Verification ID Full Photo Modal */ }
   {

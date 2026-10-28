@@ -294,7 +294,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   return (
-    <div className="bg-[#FAFBF9] min-h-screen text-gray-800 w-full max-w-full overflow-x-hidden" id="landing-page-root">
+    <div className="bg-[#FAFBF9] min-h-[100dvh] overscroll-y-none text-gray-800 w-full max-w-full overflow-x-hidden" id="landing-page-root">
 
       {/* Non-sticky Header */}
       <header className="relative w-full z-40 bg-white border-b border-emerald-100/80 shadow-2xs transition-all duration-200">

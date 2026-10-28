@@ -460,7 +460,7 @@ export default function App() {
   // Prevent flash of landing page while session is loading or authenticating
   if (status === "loading" || (status === "authenticated" && !activeUserRole)) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 select-none" id="sikap-session-loader">
+      <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6 select-none overscroll-none" id="sikap-session-loader">
         <div className="flex flex-col items-center gap-6">
           <SikapLogo size={52} logoSize={68} textSize={44} showText={true} showSubtext={true} disableHover={true} />
           <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-white border border-slate-200/80 text-emerald-800 text-xs font-semibold shadow-xs">
@@ -510,7 +510,7 @@ export default function App() {
           )}
 
           {!viewingLanding && (
-            <div className={`min-h-screen xl:h-screen flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto xl:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
+            <div className={`min-h-[100dvh] xl:h-[100dvh] flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 overflow-y-auto overscroll-y-contain xl:overflow-hidden ${viewingLegal ? 'hidden' : ''}`}>
 
             {/* Left panel as a card (Hidden on mobile, tablets & iPads <1280px to maximize form focus and prevent vertical cutoff) */}
             <div className="hidden xl:flex xl:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 xl:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
