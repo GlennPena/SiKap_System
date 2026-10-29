@@ -3635,7 +3635,10 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             <div className="w-full sm:w-52 shrink-0">
                               <CustomSelect
                                 value={purokChartBarangay}
-                                onChange={(v) => setPurokChartBarangay(v)}
+                                onChange={(v) => {
+                                  setPurokChartBarangay(v);
+                                  setHoveredPurokIdx(null);
+                                }}
                                 options={SAN_LUIS_BARANGAYS.map(b => ({ value: b, label: b }))}
                                 placeholder="Select Barangay"
                               />
@@ -3645,7 +3648,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           {/* Stacked Column Chart Visualization */}
                           <div className="pt-6 pb-2 flex-1 flex flex-col justify-end">
                             {/* Chart Area with Horizontal Grid Lines */}
-                            <div className="relative h-48 sm:h-52 w-full flex items-end justify-between gap-2 sm:gap-4 px-2 pb-2">
+                            <div className="relative h-48 sm:h-52 w-full flex items-end justify-between gap-1.5 sm:gap-3 px-1.5 sm:px-2 pb-2">
                               {/* 4 Subtle Horizontal Grid Lines */}
                               <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none pb-2">
                                 <div className="border-b border-gray-100 w-full" />
@@ -3653,6 +3656,97 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 <div className="border-b border-gray-100 w-full" />
                                 <div className="border-b border-gray-200/80 w-full" />
                               </div>
+
+                              {/* Spacious, Responsive Hover/Tap Analytics Popover (Anchored to Chart Container so it never squeezes) */}
+                              {hoveredPurokIdx !== null && purokDistributionData.items[hoveredPurokIdx] && (() => {
+                                const activePurokItem = purokDistributionData.items[hoveredPurokIdx];
+                                const totalCols = purokDistributionData.items.length;
+                                const isLeftEdge = hoveredPurokIdx <= 1;
+                                const isRightEdge = hoveredPurokIdx >= totalCols - 2;
+                                const colCenterPct = ((hoveredPurokIdx + 0.5) / Math.max(totalCols, 1)) * 100;
+
+                                return (
+                                  <div
+                                    style={
+                                      !isLeftEdge && !isRightEdge
+                                        ? ({ "--col-x": `${colCenterPct}%` } as React.CSSProperties)
+                                        : undefined
+                                    }
+                                    className={`
+                                      absolute -top-4 sm:-top-6 z-40
+                                      w-[calc(100%-8px)] max-w-[300px] sm:w-[280px] md:w-[300px]
+                                      max-sm:left-1/2 max-sm:-translate-x-1/2
+                                      ${isLeftEdge
+                                        ? "sm:left-1 sm:translate-x-0"
+                                        : isRightEdge
+                                        ? "sm:right-1 sm:left-auto sm:translate-x-0"
+                                        : "sm:left-[var(--col-x)] sm:-translate-x-1/2"}
+                                      bg-gray-900/95 backdrop-blur-xs text-white p-3 sm:p-3.5 rounded-xl shadow-2xl
+                                      border border-gray-700/80 pointer-events-none
+                                      animate-in fade-in zoom-in-95 duration-150
+                                    `}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-gray-800">
+                                      <span className="font-extrabold text-emerald-400 text-xs sm:text-[13px] tracking-tight truncate">
+                                        {activePurokItem.purokName}
+                                      </span>
+                                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 tabular-nums">
+                                        {activePurokItem.total} youth
+                                      </span>
+                                    </div>
+                                    {activePurokItem.total > 0 ? (
+                                      <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 text-[11px] sm:text-xs">
+                                        <div className="flex items-center justify-between gap-2 bg-gray-800/75 px-2.5 py-1 rounded-lg">
+                                          <span className="flex items-center gap-1.5 text-gray-300 font-medium truncate">
+                                            <span className="w-2 h-2 rounded-full bg-[#F59E0B] shrink-0" />
+                                            <span>Elem</span>
+                                          </span>
+                                          <strong className="text-white font-extrabold tabular-nums">{activePurokItem.elementary}</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 bg-gray-800/75 px-2.5 py-1 rounded-lg">
+                                          <span className="flex items-center gap-1.5 text-gray-300 font-medium truncate">
+                                            <span className="w-2 h-2 rounded-full bg-[#10B981] shrink-0" />
+                                            <span>JHS</span>
+                                          </span>
+                                          <strong className="text-white font-extrabold tabular-nums">{activePurokItem.juniorHigh}</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 bg-gray-800/75 px-2.5 py-1 rounded-lg">
+                                          <span className="flex items-center gap-1.5 text-gray-300 font-medium truncate">
+                                            <span className="w-2 h-2 rounded-full bg-[#0A6B43] ring-1 ring-emerald-400/50 shrink-0" />
+                                            <span>SHS</span>
+                                          </span>
+                                          <strong className="text-white font-extrabold tabular-nums">{activePurokItem.seniorHigh}</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 bg-gray-800/75 px-2.5 py-1 rounded-lg">
+                                          <span className="flex items-center gap-1.5 text-gray-300 font-medium truncate">
+                                            <span className="w-2 h-2 rounded-full bg-[#3B82F6] shrink-0" />
+                                            <span>College</span>
+                                          </span>
+                                          <strong className="text-white font-extrabold tabular-nums">{activePurokItem.college}</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 bg-gray-800/75 px-2.5 py-1 rounded-lg">
+                                          <span className="flex items-center gap-1.5 text-gray-300 font-medium truncate">
+                                            <span className="w-2 h-2 rounded-full bg-[#8B5CF6] shrink-0" />
+                                            <span>Tech-Voc</span>
+                                          </span>
+                                          <strong className="text-white font-extrabold tabular-nums">{activePurokItem.techVoc}</strong>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 bg-gray-800/75 px-2.5 py-1 rounded-lg">
+                                          <span className="flex items-center gap-1.5 text-gray-300 font-medium truncate">
+                                            <span className="w-2 h-2 rounded-full bg-[#94A3B8] shrink-0" />
+                                            <span>Others</span>
+                                          </span>
+                                          <strong className="text-white font-extrabold tabular-nums">{activePurokItem.others}</strong>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-[11px] sm:text-xs text-gray-300 bg-gray-800/60 px-2.5 py-1.5 rounded-lg text-center font-medium">
+                                        0 registered youth in database
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
 
                               {/* Stacked Columns */}
                               {purokDistributionData.items.map((item, idx) => {
@@ -3665,37 +3759,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 return (
                                   <div
                                     key={item.purokName + idx}
-                                    className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative z-10"
+                                    className="flex-1 min-w-0 flex flex-col items-center h-full justify-end group cursor-pointer relative z-10"
                                     onMouseEnter={() => setHoveredPurokIdx(idx)}
                                     onMouseLeave={() => setHoveredPurokIdx(null)}
+                                    onClick={() => setHoveredPurokIdx(prev => (prev === idx ? null : idx))}
                                   >
-                                    {/* Hover Tooltip */}
-                                    {isHovered && (
-                                      <div className="absolute -top-24 sm:-top-28 z-30 bg-gray-900 text-white text-[11px] font-medium p-2.5 rounded-xl shadow-xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 pointer-events-none border border-gray-700/60">
-                                        <div className="font-extrabold text-emerald-400 text-xs border-b border-gray-800 pb-1 mb-1.5 flex items-center justify-between gap-3">
-                                          <span>{item.purokName}</span>
-                                          <span className="text-white font-black">{item.total} youth</span>
-                                        </div>
-                                        {item.total > 0 ? (
-                                          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-gray-300">
-                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" /> Elem: <strong className="text-white">{item.elementary}</strong></span>
-                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> JHS: <strong className="text-white">{item.juniorHigh}</strong></span>
-                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43]" /> SHS: <strong className="text-white">{item.seniorHigh}</strong></span>
-                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]" /> College: <strong className="text-white">{item.college}</strong></span>
-                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6]" /> Tech-Voc: <strong className="text-white">{item.techVoc}</strong></span>
-                                            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#94A3B8]" /> Others: <strong className="text-white">{item.others}</strong></span>
-                                          </div>
-                                        ) : (
-                                          <div className="text-[10px] text-gray-400">0 registered youth in database</div>
-                                        )}
-                                      </div>
-                                    )}
-
                                     {/* Number on top of column */}
-                                    <span className={`text-[10px] mb-1 font-bold transition-all duration-300 ${
+                                    <span className={`text-[10px] sm:text-[11px] mb-1 font-bold transition-all duration-300 tabular-nums ${
                                       isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
                                     } ${
-                                      isHovered ? "text-[#0A6B43] font-black" : item.total > 0 ? "text-gray-700" : "text-gray-300"
+                                      isHovered ? "text-[#0A6B43] font-black scale-110" : item.total > 0 ? "text-gray-700" : "text-gray-300"
                                     }`}>
                                       {item.total}
                                     </span>
@@ -3707,7 +3780,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                           height: isRevealed ? `${heightPct}%` : '0%',
                                           transition: `height 0.65s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 60}ms`
                                         }}
-                                        className={`w-8 sm:w-10 max-w-[42px] flex flex-col-reverse rounded-t-md overflow-hidden shadow-2xs ${
+                                        className={`w-full max-w-[28px] sm:max-w-[38px] flex flex-col-reverse rounded-t-md overflow-hidden shadow-2xs transition-transform ${
                                           isHovered ? "scale-y-105 shadow-md ring-2 ring-emerald-500/30" : ""
                                         }`}
                                       >
@@ -3756,7 +3829,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                       </div>
                                     ) : (
                                       <div
-                                        className={`w-8 sm:w-10 max-w-[42px] h-1.5 rounded-sm bg-gray-200 transition-all ${
+                                        className={`w-full max-w-[28px] sm:max-w-[38px] h-1.5 rounded-sm bg-gray-200 transition-all ${
                                           isHovered ? "bg-gray-400" : ""
                                         }`}
                                         title={`${item.purokName}: 0 registered youth`}
@@ -3768,11 +3841,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                             </div>
 
                             {/* X-Axis Purok Labels */}
-                            <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between gap-1.5 sm:gap-3 px-1.5 sm:px-2 pt-2 border-t border-gray-100">
                               {purokDistributionData.items.map((item, idx) => (
                                 <span
                                   key={item.purokName + idx}
-                                  className={`flex-1 text-center text-xs transition-colors ${
+                                  onClick={() => setHoveredPurokIdx(prev => (prev === idx ? null : idx))}
+                                  onMouseEnter={() => setHoveredPurokIdx(idx)}
+                                  onMouseLeave={() => setHoveredPurokIdx(null)}
+                                  className={`flex-1 min-w-0 text-center text-[11px] sm:text-xs cursor-pointer select-none transition-colors truncate ${
                                     hoveredPurokIdx === idx ? "font-black text-[#0A6B43]" : "font-semibold text-gray-500"
                                   }`}
                                 >
@@ -4199,9 +4275,92 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </div>
 
                       <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse text-xs">
-                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-[11px]">
+                        {/* Mobile View: Stacked Responsive Cards (md:hidden) */}
+                        <div className="md:hidden divide-y divide-gray-100">
+                          {dashboardSkillsGap.length === 0 ? (
+                            <div className="py-10 px-4 text-center">
+                              <div className="flex flex-col items-center justify-center space-y-2">
+                                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                                  <Briefcase className="w-6 h-6" />
+                                </div>
+                                <h5 className="text-sm font-bold text-gray-800">No Diagnostic Data</h5>
+                                <p className="text-xs text-gray-400 max-w-sm font-medium">
+                                  There are currently no skills gap diagnostics available for Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")}.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            dashboardSkillsGap.map((item, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  transitionDelay: `${idx * 45}ms`
+                                }}
+                                className={`p-3.5 sm:p-4 hover:bg-emerald-50/30 transition-all duration-300 space-y-3 ${
+                                  isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1.5"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2.5">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 mt-0.5" />
+                                    <span className="font-bold text-gray-900 text-xs sm:text-sm leading-snug break-words">
+                                      {item.competency}
+                                    </span>
+                                  </div>
+                                  <span className={`shrink-0 whitespace-nowrap inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border transition-all duration-300 ${
+                                    item.status === "Critical Shortage"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                                      : item.status === "Moderate Gap"
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="bg-gray-50/90 border border-gray-200/80 rounded-lg px-2 py-1.5 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-tight leading-tight">
+                                      Interested
+                                    </span>
+                                    <span className="text-xs sm:text-sm font-extrabold text-gray-900 mt-0.5 tabular-nums">
+                                      {item.youthInterested}
+                                    </span>
+                                  </div>
+                                  <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-lg px-2 py-1.5 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] font-semibold text-emerald-700 uppercase tracking-tight leading-tight">
+                                      With Skills
+                                    </span>
+                                    <span className="text-xs sm:text-sm font-extrabold text-[#0A6B43] mt-0.5 tabular-nums">
+                                      {item.youthWithSkill}
+                                    </span>
+                                  </div>
+                                  <div className={`rounded-lg px-2 py-1.5 flex flex-col items-center justify-center text-center border ${
+                                    item.availablePrograms > 0
+                                      ? "bg-blue-50/60 border-blue-200/80"
+                                      : "bg-gray-50/60 border-gray-200/80"
+                                  }`}>
+                                    <span className={`text-[10px] font-semibold uppercase tracking-tight leading-tight ${
+                                      item.availablePrograms > 0 ? "text-blue-700" : "text-gray-400"
+                                    }`}>
+                                      TESDA
+                                    </span>
+                                    <span className={`text-[11px] sm:text-xs font-extrabold mt-0.5 whitespace-nowrap ${
+                                      item.availablePrograms > 0 ? "text-blue-700" : "text-gray-400"
+                                    }`}>
+                                      {item.availablePrograms > 0 ? `${item.availablePrograms} Active` : "None"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Tablet & Desktop View: Full Diagnostic Table (hidden md:block) */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full min-w-[660px] text-left border-collapse text-xs">
+                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-[11px] whitespace-nowrap">
                               <tr>
                                 <th className="py-3 px-4">Skill or Competency</th>
                                 <th className="py-3 px-4 text-center">Youth Interested</th>
@@ -4238,22 +4397,22 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 >
                                   <td className="py-3 px-4 font-semibold text-gray-900">
                                     <div className="flex items-center gap-2">
-                                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                                      <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
                                       <span>{item.competency}</span>
                                     </div>
                                   </td>
-                                  <td className="py-3 px-4 text-center font-bold text-gray-800">
-                                    <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200">
+                                  <td className="py-3 px-4 text-center font-bold text-gray-800 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200 tabular-nums">
                                       {item.youthInterested}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-4 text-center font-bold text-[#0A6B43]">
-                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+                                  <td className="py-3 px-4 text-center font-bold text-[#0A6B43] whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 tabular-nums">
                                       {item.youthWithSkill}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                                    <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold ${
                                       item.availablePrograms > 0
                                         ? "bg-blue-50 text-blue-700 border border-blue-200"
                                         : "bg-gray-50 text-gray-400 border border-gray-200"
@@ -4261,7 +4420,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                       {item.availablePrograms > 0 ? `${item.availablePrograms} Active Course(s)` : "None Available"}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-4 text-right">
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
                                     <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border transition-all duration-300 ${
                                       item.status === "Critical Shortage"
                                         ? "bg-rose-50 text-rose-700 border-rose-200"

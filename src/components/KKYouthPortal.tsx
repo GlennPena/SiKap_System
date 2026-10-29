@@ -714,6 +714,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [selectedProgramToApply, setSelectedProgramToApply] = useState<TESDAProgram | null>(null);
   const [referralToCancel, setReferralToCancel] = useState<ReferralPipelineItem | null>(null);
   const [isCancellingApplication, setIsCancellingApplication] = useState(false);
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
+  const isSubmittingAppRef = useRef(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
 
@@ -2554,12 +2556,31 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return;
     }
 
+    const existingApp = referrals?.find(
+      r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail) && (r.programId === prog.id || r.programTitle === prog.title)
+    );
+    if (existingApp) {
+      addToast(`You have already submitted an application for "${prog.title}".`, "info");
+      return;
+    }
     setSelectedProgramToApply(prog);
     setShowApplyModal(true);
   };
 
   const confirmDirectApply = async () => {
-    if (!selectedProgramToApply) return;
+    if (!selectedProgramToApply || isSubmittingApplication || isSubmittingAppRef.current) return;
+    const existingApp = referrals?.find(
+      r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail) && (r.programId === selectedProgramToApply.id || r.programTitle === selectedProgramToApply.title)
+    );
+    if (existingApp) {
+      addToast(`You have already submitted an application for "${selectedProgramToApply.title}".`, "info");
+      isSubmittingAppRef.current = false;
+      setIsSubmittingApplication(false);
+      setShowApplyModal(false);
+      setViewingProgramModal(null);
+      setSelectedProgramToApply(null);
+      return;
+    }
     if (isProgramEnded(selectedProgramToApply)) {
       addToast(`Sorry, "${selectedProgramToApply.title}" has already ended or concluded its period.`, "error");
       return;
@@ -2576,6 +2597,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
 
     const calculatedScore = calculateContentBasedMatchScore(youthProfile, selectedProgramToApply);
+    isSubmittingAppRef.current = true;
+    setIsSubmittingApplication(true);
 
     try {
       const res = await fetch("/api/referrals", {
@@ -2592,9 +2615,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       const data = await res.json();
       if (data.success && data.data) {
         if (setReferrals) {
-          setReferrals(prev => [data.data, ...prev.filter(r => r.id !== data.data.id)]);
+          setReferrals(prev => [
+            data.data,
+            ...prev.filter(
+              r =>
+                r.id !== data.data.id &&
+                !(
+                  isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail) &&
+                  (r.programId === selectedProgramToApply.id || r.programTitle === selectedProgramToApply.title)
+                )
+            )
+          ]);
         }
-        if (setPrograms) {
+        if (setPrograms && !data.alreadyExisted) {
           setPrograms(prev => prev.map(p => {
             if (p.id === selectedProgramToApply.id || p.title === selectedProgramToApply.title) {
               return { ...p, slotsRemaining: Math.max(0, p.slotsRemaining - 1) };
@@ -2618,6 +2651,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       console.error("Application submission error:", err);
       addToast("Failed to submit application. Please try again.", "error");
     } finally {
+      isSubmittingAppRef.current = false;
+      setIsSubmittingApplication(false);
       setShowApplyModal(false);
       setViewingProgramModal(null);
       setSelectedProgramToApply(null);
@@ -4276,7 +4311,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </div>
 
                         {(() => {
-                          const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail)) || [];
+                          const rawUserApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail)) || [];
+                          const seenProgKeys = new Set<string>();
+                          const userApps = rawUserApps.filter(r => {
+                            const key = (r.programId || r.programTitle || r.id).toLowerCase().trim();
+                            if (seenProgKeys.has(key)) return false;
+                            seenProgKeys.add(key);
+                            return true;
+                          });
                           if (userApps.length === 0) {
                             return (
                               <div className="bg-white rounded-2xl p-6 sm:p-14 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 text-center flex flex-col items-center justify-center space-y-2">
@@ -7202,7 +7244,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         style={{ zIndex: 100 }}
         onClick={(e) => {
           if (e.target === e.currentTarget) {
-            setShowApplyModal(false);
+            isSubmittingAppRef.current = false;
+      setIsSubmittingApplication(false);
+      setShowApplyModal(false);
             setSelectedProgramToApply(null);
           }
         }}
@@ -7220,18 +7264,29 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           <div className="flex gap-2.5 pt-2">
             <button
               onClick={() => {
-                setShowApplyModal(false);
+                isSubmittingAppRef.current = false;
+      setIsSubmittingApplication(false);
+      setShowApplyModal(false);
                 setSelectedProgramToApply(null);
               }}
-              className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-50 active:scale-98 transition-all cursor-pointer shadow-2xs"
+              disabled={isSubmittingApplication}
+              className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-50 active:scale-98 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={confirmDirectApply}
-              className="flex-1 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-xs"
+              disabled={isSubmittingApplication}
+              className="flex-1 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
             >
-              Apply Now
+              {isSubmittingApplication ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <span>Apply Now</span>
+              )}
             </button>
           </div>
         </div>

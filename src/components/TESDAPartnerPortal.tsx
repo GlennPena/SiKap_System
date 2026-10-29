@@ -370,6 +370,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Selected applicant for detail view modal
   const [selectedApplicant, setSelectedApplicant] = useState<YouthProfile | null>(null);
+  const [selectedApplicantReferral, setSelectedApplicantReferral] = useState<ReferralPipelineItem | null>(null);
 
   // Selected program for detail view modal
   const [viewingProgram, setViewingProgram] = useState<TESDAProgram | null>(null);
@@ -822,7 +823,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       });
       const data = await res.json();
       if (data.success && data.data) {
-        setReferrals(prev => prev.map(item => {
+        setReferrals(prev =>
+          prev
+            .filter(item => {
+              if (item.id === refId) return true;
+              const isSameYouthAndProg =
+                ((targetReferral.youthId && item.youthId === targetReferral.youthId) ||
+                  item.youthName.toLowerCase().trim() === targetReferral.youthName.toLowerCase().trim()) &&
+                (item.programTitle === targetReferral.programTitle ||
+                  (targetReferral.programId && item.programId === targetReferral.programId));
+              return !isSameYouthAndProg;
+            })
+            .map(item => {
           if (item.id === refId) {
             return { ...item, status: newStatus };
           }
@@ -1127,7 +1139,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Active referrals: only non-archived referrals belonging to active programs
   const activeReferrals = useMemo(() => {
+    const seenApplicantProg = new Set<string>();
     return referrals.filter(item => {
+      const youthKey = (item.youthId || item.youthEmail || item.youthName || item.id).toLowerCase().trim();
+      const progKey = (item.programId || item.programTitle || item.id).toLowerCase().trim();
+      const compositeKey = `${youthKey}::${progKey}`;
+      if (seenApplicantProg.has(compositeKey)) return false;
+      seenApplicantProg.add(compositeKey);
       if (item.status === "Archived") return false;
       const prog = activePrograms.find(p => p.title === item.programTitle || p.id === item.programId);
       return !!prog;
@@ -1334,6 +1352,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Helper to open applicant modal
   const openApplicantModal = (item: ReferralPipelineItem) => {
+    setSelectedApplicantReferral(item);
     const itemEmail = (item.youthEmail || (item as any).email || "").toLowerCase().trim();
     const matchedProfile = youthProfiles.find(y =>
       (item.youthId && y.id === item.youthId) ||
@@ -4556,7 +4575,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <div>
                 {(() => {
                   const activeRef = referrals.find(
-                    r => r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()
+                    r => (selectedApplicantReferral && r.id === selectedApplicantReferral.id) || r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()
                   );
                   if (!activeRef) return null;
                   return (
@@ -4575,7 +4594,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <div className="flex items-center gap-2">
                 {(() => {
                   const activeRef = referrals.find(
-                    r => r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase() && r.status === "Pending"
+                    r => ((selectedApplicantReferral && r.id === selectedApplicantReferral.id) || r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()) && r.status === "Pending"
                   );
                   if (!activeRef) return null;
 
