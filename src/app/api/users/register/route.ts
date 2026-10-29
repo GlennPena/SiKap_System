@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Role, ApprovalStatus } from "@prisma/client";
 import { encrypt } from "@/lib/encryption";
@@ -111,7 +111,36 @@ export async function POST(req: Request) {
     const normalizedExperiences = normalizeExperiences(finalExperiencesRaw);
     const normalizedGoal = normalizeGoal(finalGoalRaw);
 
-    // Use transaction to create both User and YouthProfile
+    // Pre-fetch active programs and compute match score BEFORE starting the interactive transaction
+    // so slow network round-trips or CPU work do not consume transaction timeout budget
+    const activePrograms = await db.tESDAProgram.findMany({ where: { activeStatus: "Active" } });
+    const tempYouth = {
+      name,
+      skills: finalSkillsRaw,
+      interests: finalPreferencesRaw,
+      sectorPreference: sectorPreference || (finalPreferencesRaw[0] || ""),
+      livelihoodGoal: finalGoalRaw,
+      skillsRaw: finalSkillsRaw,
+      preferencesRaw: finalPreferencesRaw,
+      experiencesRaw: finalExperiencesRaw,
+      goalRaw: finalGoalRaw,
+      skillsNormalized: normalizedSkills,
+      preferencesNormalized: normalizedPreferences,
+      experiencesNormalized: normalizedExperiences,
+      goalNormalized: normalizedGoal,
+      educationalAttainment: normalizeEducationalAttainment(educationalAttainment),
+      currentStatus: currentStatus || "Out-of-school"
+    };
+
+    const calculatedScore = activePrograms.length > 0
+      ? Math.max(...activePrograms.map(p => calculateContentBasedMatchScore(tempYouth as any, p as any)))
+      : 50;
+
+    const parsedBirthdate = birthdate || dob ? new Date(birthdate || dob) : null;
+    const computedAge = parsedBirthdate ? (calculateAge(parsedBirthdate) || Number(age)) : Number(age);
+    const userGender = gender || sex || "Male";
+
+    // Use transaction to create both User and YouthProfile with extended timeout for slow networks / large ID images
     const result = await db.$transaction(async (prisma) => {
       const newUser = await prisma.user.create({
         data: {
@@ -123,33 +152,6 @@ export async function POST(req: Request) {
           status: "Active"
         }
       });
-
-      const activePrograms = await prisma.tESDAProgram.findMany({ where: { activeStatus: "Active" } });
-      const tempYouth = {
-        name,
-        skills: finalSkillsRaw,
-        interests: finalPreferencesRaw,
-        sectorPreference: sectorPreference || (finalPreferencesRaw[0] || ""),
-        livelihoodGoal: finalGoalRaw,
-        skillsRaw: finalSkillsRaw,
-        preferencesRaw: finalPreferencesRaw,
-        experiencesRaw: finalExperiencesRaw,
-        goalRaw: finalGoalRaw,
-        skillsNormalized: normalizedSkills,
-        preferencesNormalized: normalizedPreferences,
-        experiencesNormalized: normalizedExperiences,
-        goalNormalized: normalizedGoal,
-        educationalAttainment: normalizeEducationalAttainment(educationalAttainment),
-        currentStatus: currentStatus || "Out-of-school"
-      };
-
-      const calculatedScore = activePrograms.length > 0
-        ? Math.max(...activePrograms.map(p => calculateContentBasedMatchScore(tempYouth as any, p as any)))
-        : 50;
-
-      const parsedBirthdate = birthdate || dob ? new Date(birthdate || dob) : null;
-      const computedAge = parsedBirthdate ? (calculateAge(parsedBirthdate) || Number(age)) : Number(age);
-      const userGender = gender || sex || "Male";
 
       let newProfile;
       try {
@@ -233,7 +235,7 @@ export async function POST(req: Request) {
       }
 
       return { newUser, newProfile };
-    });
+    }, { maxWait: 20000, timeout: 30000 });
 
     // Send email/push notification to SK Officials & Barangay Captain
     notifyNewYouthRegistered({
@@ -290,6 +292,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("Error in youth registration:", error);
-    return NextResponse.json({ success: false, message: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json({ success: false, message: sanitizeApiError(error, "Unable to complete registration at the moment. Please try again.") }, { status: 500 });
   }
 }

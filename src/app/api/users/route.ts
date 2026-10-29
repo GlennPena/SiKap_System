@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 // actually next/server
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
@@ -243,7 +243,7 @@ export async function PUT(req: Request) {
     });
   } catch (error: any) {
     console.error("Error updating user profile:", error);
-    return NextResponse.json({ success: false, message: error.message || "Failed to update profile" }, { status: 500 });
+    return NextResponse.json({ success: false, message: sanitizeApiError(error, "Failed to update profile") }, { status: 500 });
   }
 }
 
@@ -265,6 +265,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ success: true, message: "Official account deleted successfully from database" });
   } catch (error: any) {
     console.error("Error deleting user:", error);
-    return NextResponse.json({ success: false, message: error.message || "Failed to delete user" }, { status: 500 });
+    return NextResponse.json({ success: false, message: sanitizeApiError(error, "Failed to delete user") }, { status: 500 });
   }
 }

@@ -181,7 +181,7 @@ export function recordFailedLoginAttempt(rawEmail?: string | null): LoginRateLim
     remainingAttempts,
     remainingSeconds: 0,
     remainingMinutes: 0,
-    message: `Invalid password. ${remainingAttempts} attempt${remainingAttempts > 1 ? "s" : ""} remaining before a 5-minute lockout.`
+    message: "Invalid email or password"
   };
 }
 

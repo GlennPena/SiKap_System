@@ -107,13 +107,10 @@ export async function POST(req: Request) {
       maskedEmail: maskEmail(user.email),
       accountName: user.name,
       designation,
-      expiresInMinutes: saveResult.expiresInMinutes,
-      // Only provide devCode as a fallback if email sending failed or was unconfigured
-      devCode: !emailSent ? resetCode : undefined
+      expiresInMinutes: saveResult.expiresInMinutes
     });
 
   } catch (error: any) {
-    console.error("Forgot password request error:", error);
     return NextResponse.json(
       { success: false, message: "An error occurred while processing password recovery. Please try again." },
       { status: 500 }

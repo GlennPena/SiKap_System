@@ -10,7 +10,7 @@ import {
 import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
 import { SAN_LUIS_BARANGAYS, getBarangayJurisdiction, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { SiKapDatePicker } from "./ReusableComponents";
-import { formatContactNumber, isValidContactNumber, calculateAge } from "../lib/utils";
+import { formatContactNumber, isValidContactNumber, calculateAge, sanitizeClientError } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
 import { broadcastDataChange } from "../lib/realtime-sync";
@@ -235,7 +235,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
           setDevCode(data.devCode);
         }
       } else {
-        setOtpError(data.message || "Failed to send verification code. Please try again.");
+        setOtpError(sanitizeClientError(data.message, "Failed to send verification code. Please try again."));
       }
     } catch {
       setOtpError("Network error sending verification code. Please check your connection.");
@@ -414,10 +414,50 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     setRegExperiences(regExperiences.filter(e => e !== exp));
   };
 
+  const processAndCompressIdFile = (file: File) => {
+    setRegIdFileName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const rawDataUrl = reader.result as string;
+      if (!file.type.startsWith("image/")) {
+        setRegIdImage(rawDataUrl);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1200;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL("image/jpeg", 0.78);
+          setRegIdImage(compressed);
+        } else {
+          setRegIdImage(rawDataUrl);
+        }
+      };
+      img.onerror = () => setRegIdImage(rawDataUrl);
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setRegIdFileName(file.name);
+      processAndCompressIdFile(file); return; setRegIdFileName(file.name);
       const reader = new FileReader();
       reader.onloadend = () => {
         setRegIdImage(reader.result as string);
@@ -440,7 +480,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      setRegIdFileName(file.name);
+      processAndCompressIdFile(file); return; setRegIdFileName(file.name);
       const reader = new FileReader();
       reader.onloadend = () => {
         setRegIdImage(reader.result as string);
@@ -511,11 +551,11 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         onRegisterComplete(data.data);
         setCurrentStep(5); // Go to "Pending Approval" screen
       } else {
-        alert("Registration failed: " + data.message);
+        alert("Registration failed: " + sanitizeClientError(data.message, "Unable to complete registration right now. Please try again."));
       }
     } catch (err) {
       alert("An error occurred during registration.");
-      console.error(err);
+      // Do not log error details to the browser console
     } finally {
       setIsRegistering(false);
     }

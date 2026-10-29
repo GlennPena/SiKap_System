@@ -42,14 +42,6 @@ export async function sendEmail({
   const recipients = Array.isArray(to) ? to.join(", ") : to;
 
   if (!transporter) {
-    console.log("\n=======================================================");
-    console.log("[EMAIL PREVIEW - SMTP NOT CONFIGURED]");
-    console.log(`To: ${recipients}`);
-    console.log(`From: ${emailFrom}`);
-    console.log(`Subject: ${subject}`);
-    console.log("-------------------------------------------------------");
-    console.log(text || html.replace(/<[^>]+>/g, " ").slice(0, 300) + "...");
-    console.log("=======================================================\n");
     return true;
   }
 
@@ -62,8 +54,7 @@ export async function sendEmail({
       html
     });
     return true;
-  } catch (error: any) {
-    console.error(`[Email] Failed to send email to ${recipients}:`, error?.message || error);
+  } catch {
     return false;
   }
 }

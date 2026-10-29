@@ -1,6 +1,6 @@
 import { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { checkLoginRateLimit, recordFailedLoginAttempt, clearFailedLoginAttempts } from "@/lib/login-rate-limiter";
@@ -25,13 +25,18 @@ export const authOptions: AuthOptions = {
           throw new Error(rateLimit.message || "Account temporarily locked due to 5 failed attempts. Please wait 5 minutes.");
         }
 
-        const user = await db.user.findUnique({
-          where: { email },
-          include: { barangay: true, councilor: true, officialAcc: true }
-        });
+        let user;
+        try {
+          user = await db.user.findUnique({
+            where: { email },
+            include: { barangay: true, councilor: true, officialAcc: true }
+          });
+        } catch (dbErr) {
+          throw new Error(sanitizeApiError(dbErr, "Unable to sign in right now. Please try again shortly."));
+        }
 
         if (!user || user.status !== "Active") {
-          throw new Error("Invalid credentials");
+          throw new Error("Invalid email or password");
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
@@ -39,7 +44,7 @@ export const authOptions: AuthOptions = {
         if (!isValid) {
           // Record wrong password attempt and apply 5-minute cooldown if 5 attempts reached
           const failResult = recordFailedLoginAttempt(email);
-          throw new Error(failResult.message || "Invalid password.");
+          throw new Error(failResult.message || "Invalid email or password");
         }
 
         // 2. Successful password match: immediately clear failed attempts counter
@@ -54,7 +59,7 @@ export const authOptions: AuthOptions = {
         } else if (user.officialAcc?.role) {
           officialPosition = user.officialAcc.role;
         } else if (user.role === Role.SK_OFFICIAL) {
-          const c = await db.councilor.findFirst({ where: { email: user.email } });
+          const c = await db.councilor.findFirst({ where: { email: user.email } }).catch(() => null);
           if (c) {
             const r = c.role.trim();
             officialPosition = r.toLowerCase().includes("secretary") ? "SK Secretary" : r.toLowerCase().includes("treasurer") ? "SK Treasurer" : "SK Councilor";

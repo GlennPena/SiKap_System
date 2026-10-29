@@ -49,7 +49,6 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("Reset password error:", error);
     return NextResponse.json(
       { success: false, message: "Failed to reset password. Please try again later." },
       { status: 500 }

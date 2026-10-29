@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notifyReferralStatusChanged, notifyNewApplicationReceived } from "@/lib/notifications";
@@ -171,7 +171,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: deduplicatedReferrals.map(mapToPipelineItem) });
   } catch (error: any) {
     console.error("Referrals GET Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 500 });
   }
 }
 
@@ -293,7 +293,7 @@ export async function POST(request: Request) {
       });
 
       return { alreadyExisted: false, referral: newReferral, error: null, status: 201 };
-    });
+    }, { maxWait: 20000, timeout: 30000 });
 
     if (txResult.error || !txResult.referral) {
       return NextResponse.json({ success: false, error: txResult.error || "Failed to create application" }, { status: txResult.status });
@@ -315,7 +315,7 @@ export async function POST(request: Request) {
     );
   } catch (error: any) {
     console.error("Referrals POST Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -409,7 +409,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true, data: mapToPipelineItem(updated) });
   } catch (error: any) {
     console.error("Referrals PATCH Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -468,6 +468,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true, message: "Referral deleted successfully" });
   } catch (error: any) {
     console.error("Referrals DELETE Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }

@@ -81,13 +81,10 @@ export async function POST(req: Request) {
         ? "Verification code sent to your email address."
         : "Verification code generated.",
       expiresInMinutes: saveResult.expiresInMinutes,
-      waitSeconds: 60,
-      // Provide devCode fallback if email transport is unconfigured
-      devCode: !emailSent ? otpCode : undefined
+      waitSeconds: 60
     });
 
   } catch (error: any) {
-    console.error("Register OTP Send Error:", error);
     return NextResponse.json(
       { success: false, message: "An error occurred while sending verification code. Please try again." },
       { status: 500 }

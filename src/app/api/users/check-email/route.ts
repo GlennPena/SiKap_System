@@ -15,8 +15,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ exists: !!existingUser });
-  } catch (error) {
-    console.error("Error checking email existence:", error);
+  } catch {
     return NextResponse.json({ exists: false }, { status: 500 });
   }
 }

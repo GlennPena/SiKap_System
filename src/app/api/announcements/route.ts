@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notifyNewAnnouncement } from "@/lib/notifications";
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: announcements.map(mapToAnnouncement) });
   } catch (error: any) {
     console.error("Announcements GET Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 500 });
   }
 }
 
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: mapToAnnouncement(newAnnouncement) }, { status: 201 });
   } catch (error: any) {
     console.error("Announcements POST Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -186,7 +186,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, data: mapToAnnouncement(updated) });
   } catch (error: any) {
     console.error("Announcements PUT Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -205,6 +205,6 @@ export async function DELETE(request: Request) {
     await db.sKAnnouncement.delete({ where: { id } });
     return NextResponse.json({ success: true, message: "Announcement deleted" });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }

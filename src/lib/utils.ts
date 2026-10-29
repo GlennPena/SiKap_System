@@ -158,3 +158,76 @@ export function toTitleCase(str?: string | null): string {
     })
     .join(" ");
 }
+
+/**
+ * Sanitizes any error message on the client side before showing it in a toast,
+ * alert, or inline banner so that database URLs, hostnames, ports, Prisma internals,
+ * or stack traces are never exposed to the user or web console.
+ */
+export function sanitizeClientError(
+  errorOrMessage: unknown,
+  fallbackMessage = "Unable to complete your request right now. Please try again shortly."
+): string {
+  if (!errorOrMessage) return fallbackMessage;
+
+  const raw =
+    typeof errorOrMessage === "string"
+      ? errorOrMessage
+      : errorOrMessage instanceof Error
+      ? errorOrMessage.message
+      : String(errorOrMessage);
+
+  const trimmed = raw.trim();
+  if (!trimmed) return fallbackMessage;
+
+  const lower = trimmed.toLowerCase();
+
+  // Detect any database connection string, host, Prisma error, or internal stack trace
+  if (
+    lower.includes("prisma") ||
+    lower.includes("can't reach database") ||
+    lower.includes("database server") ||
+    lower.includes("postgres://") ||
+    lower.includes("postgresql://") ||
+    lower.includes("neon.tech") ||
+    lower.includes("supabase") ||
+    lower.includes("aws.neon") ||
+    lower.includes("pooler") ||
+    lower.includes(":5432") ||
+    lower.includes(":6543") ||
+    lower.includes("connection refused") ||
+    lower.includes("connection timed out") ||
+    lower.includes("econnrefused") ||
+    lower.includes("etimedout") ||
+    lower.includes("enotfound") ||
+    lower.includes("p1001") ||
+    lower.includes("p1002") ||
+    lower.includes("p1008") ||
+    lower.includes("p1017")
+  ) {
+    return "Service is temporarily unavailable due to a server connection issue. Please try again in a moment.";
+  }
+
+  if (
+    lower.includes("transaction already closed") ||
+    lower.includes("expired transaction") ||
+    lower.includes("transaction api error") ||
+    lower.includes("p2024") ||
+    lower.includes("p2028")
+  ) {
+    return "The request took too long due to a slow connection. Please check your internet and try again.";
+  }
+
+  if (
+    lower.includes("invocation:") ||
+    lower.includes("unique constraint") ||
+    lower.includes("foreign key constraint") ||
+    lower.includes("invalid `") ||
+    lower.includes("at ") && lower.includes(".ts:")
+  ) {
+    return fallbackMessage;
+  }
+
+  return trimmed;
+}
+

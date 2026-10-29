@@ -21,6 +21,7 @@ import { TermsPage } from "./components/TermsPage";
 import { PrivacyPolicyPage } from "./components/PrivacyPolicyPage";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
 import { onRealtimeSync, broadcastDataChange } from "./lib/realtime-sync";
+import { sanitizeClientError } from "./lib/utils";
 import { Briefcase, Eye, EyeOff, Shield, Award, Landmark, UserCheck, ArrowLeft, Loader2, ShieldAlert, Clock, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -215,7 +216,7 @@ export default function App() {
         });
       }
     } catch (err) {
-      console.log("Real-time sync error:", err);
+      // Silent background sync error handling - never expose sync errors to browser console
     } finally {
       isSyncingRef.current = false;
     }
@@ -263,7 +264,8 @@ export default function App() {
 
   const addToast = (message: string, type: "success" | "error" | "info") => {
     const id = `${Date.now()}-${++toastCounterRef.current}`;
-    setToasts(prev => [...prev, { id, message, type }]);
+    const safeMessage = type === "error" ? sanitizeClientError(message) : message;
+    setToasts(prev => [...prev, { id, message: safeMessage, type }]);
   };
 
   const removeToast = (id: string) => {
@@ -316,7 +318,7 @@ export default function App() {
         setLockoutSeconds(0);
         setLockoutMessage(null);
         if (data.failedAttempts > 0) {
-          setAttemptWarning(`Warning: ${data.remainingAttempts} attempt${data.remainingAttempts > 1 ? "s" : ""} remaining before a 5-minute lockout.`);
+          setAttemptWarning(null);
         } else {
           setAttemptWarning(null);
         }
@@ -781,7 +783,7 @@ export default function App() {
                               </span>
                             </div>
                           </div>
-                        ) : attemptWarning ? (
+                        ) : false && attemptWarning ? (
                           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl lg:rounded-2xl text-left flex items-center gap-2.5 animate-in fade-in duration-200">
                             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                             <span className="text-xs sm:text-sm font-semibold text-amber-800">{attemptWarning}</span>

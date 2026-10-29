@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { decryptAES256 } from "@/lib/crypto";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -140,7 +140,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     console.error("Youth GET Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 500 });
   }
 }
 
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: mapToClientProfile(newProfile) }, { status: 201 });
   } catch (error: any) {
     console.error("Youth POST Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -445,7 +445,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, data: clientProfile });
   } catch (error: any) {
     console.error("Youth PUT Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -477,6 +477,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true, message: "Youth profile and account deleted successfully" });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import bcrypt from "bcryptjs";
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, data: councilors.map(mapToCouncilor) });
   } catch (error: any) {
     console.error("Councilors GET Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 500 });
   }
 }
 
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Councilors POST Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -238,7 +238,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, data: mapToCouncilor(updated) });
   } catch (error: any) {
     console.error("Councilors PUT Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
 
@@ -262,6 +262,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true, message: "Councilor account deleted" });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
 }
