@@ -177,17 +177,20 @@ export const BARANGAY_JURISDICTIONS: Record<string, BarangayJurisdiction> = {
     name: "Sta. Cruz Poblacion",
     zoneType: "street",
     zones: [
-      { name: "Street 1", type: "street" },
-      { name: "Street 2", type: "street" },
-      { name: "Street 3", type: "street" },
-      { name: "Street 4", type: "street" },
-      { name: "Street 5", type: "street" },
-      { name: "Street 6", type: "street" },
-      { name: "Street 7", type: "street" },
-      { name: "Street 8", type: "street" }
+      { name: "F. Carlos St.", type: "street" },
+      { name: "P. Leuterio St.", type: "street" },
+      { name: "V. Trinidad St.", type: "street" },
+      { name: "Msgr. J. Salas St.", type: "street" },
+      { name: "M. Larin St.", type: "street" },
+      { name: "J. Sagum St.", type: "street" },
+      { name: "G. Canlas St.", type: "street" },
+      { name: "Church St.", type: "street" }
     ]
   }
 };
+
+// Register accented alias for direct dictionary access
+BARANGAY_JURISDICTIONS["Sta. Cruz Población"] = BARANGAY_JURISDICTIONS["Sta. Cruz Poblacion"];
 
 /**
  * Standard list of all 17 Barangays in San Luis, Pampanga

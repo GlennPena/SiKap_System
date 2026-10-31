@@ -324,6 +324,7 @@ export interface YouthProfile {
   profilePicture?: string;
   savedCareerPlan?: any;
   savedMatchAdvice?: SavedMatchAdvice | null;
+  accountStatus?: string; // "Active" | "Archived" | "Suspended" | "Deactivated"
 }
 
 export interface SavedMatchAdviceEntry {
@@ -366,6 +367,8 @@ export interface TESDAProgram {
   instructor?: string;
   startDate?: string;
   endDate?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface SKAnnouncement {

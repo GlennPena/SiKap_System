@@ -23,6 +23,8 @@ import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan, getFallbackPersonalizedRationale, getFallbackPersonalized3StepPathway } from "../lib/gemini";
 import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { broadcastDataChange } from "../lib/realtime-sync";
+import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
+import { extractLocationDisplay } from "../lib/training-venues";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 
 // --- KK PORTAL REAL-TIME SCROLL VELOCITY TRACKER ---
@@ -542,6 +544,7 @@ export const DashboardLivelihoodPathway: React.FC<{
           const isDone = st.status === "done";
           const isCurrent = st.status === "current";
 
+          const StepIcon = st.num === 1 ? UserCheck : st.num === 2 ? FileCheck : st.num === 3 ? GraduationCap : TrendingUp;
           const nextStep = steps[idx + 1];
           const connectorWidth = isDone && nextStep?.status === "done"
             ? "100%"
@@ -587,15 +590,26 @@ export const DashboardLivelihoodPathway: React.FC<{
                 className={`${isRevealed ? "animate-pathway-circle" : "opacity-0"} relative z-10 flex items-center justify-center`}
               >
                 {isDone ? (
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform hover:scale-105">
-                    <Check className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[3]" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform hover:scale-105 relative">
+                    <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white border border-white flex items-center justify-center">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </span>
                   </div>
                 ) : isCurrent ? (
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-[2.5px] border-[#0A6B43] p-1 flex items-center justify-center bg-white shadow-xs transition-transform hover:scale-105">
-                    <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#0A6B43] animate-pulse" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border-2 border-[#0A6B43] flex items-center justify-center bg-emerald-50 text-[#0A6B43] shadow-xs ring-2 ring-emerald-100 transition-transform hover:scale-105 relative">
+                    <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5 animate-pulse" />
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white border border-white flex items-center justify-center">
+                      <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
+                    </span>
                   </div>
                 ) : (
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-200 border border-gray-300/70 flex items-center justify-center transition-transform hover:scale-105" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center transition-transform hover:scale-105 relative">
+                    <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gray-200 text-gray-500 border border-white flex items-center justify-center">
+                      <Lock className="w-2 h-2" />
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -1060,6 +1074,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [translatedPlanTl, setTranslatedPlanTl] = useState<GeminiLongTermCareerPlan | null>(() => getInitialTagalogPlan());
   const [isTranslatingPlan, setIsTranslatingPlan] = useState<boolean>(false);
 
+  // Map Modal State for Viewing Training Provider Venue
+  const [mapModalProgram, setMapModalProgram] = useState<TESDAProgram | null>(null);
+  const [isVenueMapOpen, setIsVenueMapOpen] = useState(false);
+
+  const handleOpenVenueMap = (prog?: TESDAProgram | null) => {
+    if (!prog) return;
+    setMapModalProgram(prog);
+    setIsVenueMapOpen(true);
+  };
+
   const handleToggleCareerPlanLang = async (lang: "en" | "tl") => {
     if (lang === "en") {
       setCareerPlanLang("en");
@@ -1187,7 +1211,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
   const handleGenerateCareerPlan = async (prog?: TESDAProgram | null) => {
     const existing = currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan) || generatedPlan;
-    if (existing?.roadmapTitle) {
+    if (existing?.roadmapTitle && (!prog?.title || !existing.programTitle || existing.programTitle.toLowerCase() === prog.title.toLowerCase())) {
       addToast("Your official career plan is already generated and saved to your account.", "info");
       return;
     }
@@ -1204,7 +1228,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       });
       const data = await res.json();
       if (data.success && data.data) {
-        const newPlan = parseCareerPlan(data.data) || data.data;
+        const rawPlan = parseCareerPlan(data.data) || data.data;
+        const newPlan = prog?.title ? { ...rawPlan, programTitle: prog.title } : rawPlan;
         setGeneratedPlan(newPlan);
 
         // Instantly cache in localStorage
@@ -1273,6 +1298,282 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     } finally {
       setIsSavingPlan(false);
     }
+  };
+
+  // Render Step 4 Gemini AI Career & Livelihood Guide (unlocked during Pending & Enrolled stages for motivation)
+  const renderMotivationalCareerGuideCard = (programTitle: string, prog?: TESDAProgram | null) => {
+    const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
+    const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
+    const displayPlan = (careerPlanLang === "tl" && planToShow)
+      ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
+      : planToShow;
+
+    return (
+      <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-4 sm:p-6 lg:p-7 shadow-lg border border-emerald-700/60 space-y-5 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 border-b border-white/15 pb-4">
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse shrink-0" />
+              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
+                Google Gemini AI • Step 4 Future Career & Livelihood Guide
+              </span>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-400/20 text-amber-200 border border-amber-300/30 px-2 py-0.5 rounded-full">
+                {careerPlanLang === "tl" ? "Pang-Motibasyon ✨" : "Motivational Preview ✨"}
+              </span>
+              {planToShow && (
+                <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCareerPlanLang("en")}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${careerPlanLang === "en"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-emerald-200 hover:text-white"
+                      }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCareerPlanLang("tl")}
+                    disabled={isTranslatingPlan}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${careerPlanLang === "tl"
+                      ? "bg-amber-400 text-slate-950 font-black shadow-xs"
+                      : "text-emerald-200 hover:text-white"
+                      }`}
+                  >
+                    {isTranslatingPlan ? (
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                    ) : (
+                      <span>🇵🇭 Tagalog</span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+            <h4 className="text-base sm:text-lg md:text-xl font-black text-white leading-snug">
+              {displayPlan?.roadmapTitle || (
+                careerPlanLang === "tl"
+                  ? "Plano para sa Trabaho at Negosyo Pagkatapos ng Training"
+                  : `Future Career & Livelihood Opportunities After ${programTitle}`
+              )}
+            </h4>
+            <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
+              {displayPlan?.summary || (
+                careerPlanLang === "tl"
+                  ? `Silipin ngayon pa lang ang mga trabaho, suweldo, at negosyong pwede mong makamit sa San Luis, Pampanga kapag natapos mo ang ${programTitle}.`
+                  : `See what awaits you after completing ${programTitle}! Gemini AI suggests a personalized guide plan showing the jobs, estimated salary, and local business opportunities you can unlock.`
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
+            {isSaved ? (
+              <span className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
+                <BookmarkCheck className="w-4 h-4 text-emerald-300" />
+                {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
+              </span>
+            ) : planToShow ? (
+              <button
+                onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
+                disabled={isSavingPlan}
+                className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
+              >
+                {isSavingPlan ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    {careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}
+                  </>
+                ) : (
+                  <>
+                    <Bookmark className="w-3.5 h-3.5" />
+                    {careerPlanLang === "tl" ? "I-save sa Digital ID Card" : "Save Plan to Digital ID Card"}
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleGenerateCareerPlan(prog)}
+                disabled={isGeneratingPlan}
+                className="w-full sm:w-auto justify-center px-4 py-2.5 bg-white hover:bg-gray-100 active:scale-95 text-slate-900 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
+              >
+                {isGeneratingPlan ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
+                    {careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    {careerPlanLang === "tl" ? "Silipin ang Plano sa Gemini AI" : "Preview My Future Career Guide with Gemini AI"}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Display Generated Plan Content */}
+        {planToShow && displayPlan ? (
+          <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+            {/* Phase 1: Immediate 30 Days */}
+            <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
+                  {careerPlanLang === "tl" ? "Yugto 1 • Unang 30 Araw Pagkatapos ng Training" : "Phase 1 • First 30 Days After Training"}
+                </span>
+                <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
+                  {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & Jobseeker Registration"}
+                </h6>
+              </div>
+              <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => (
+                  <li key={sIdx} className="bg-black/25 p-3 rounded-xl border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2.5 font-medium">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 shadow-2xs">
+                      {sIdx + 1}
+                    </span>
+                    <span className="leading-snug">{stepItem}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Phase 2: Dual Pathways (Wage Employment & Local Entrepreneurship) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
+              {/* Track A: Wage Employment */}
+              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
+                    <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md w-fit">
+                      {careerPlanLang === "tl" ? "Opsyon A • Trabaho at Suweldo" : "Track A • Wage Employment"}
+                    </span>
+                    <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-400/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
+                      <Coins className="w-3 h-3 text-emerald-300 shrink-0" />
+                      <span>{displayPlan.employmentTrack.estimatedSalary}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span><strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}</span>
+                  </p>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
+                      {careerPlanLang === "tl" ? "Mga Trabahong Bagay Sayo:" : "Recommended Entry Job Roles:"}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {displayPlan.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
+                        <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-lg text-white border border-white/10 shadow-2xs flex items-center gap-1.5">
+                          <Briefcase className="w-3 h-3 text-cyan-300 shrink-0" />
+                          <span>{role}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-xs text-emerald-100">
+                  {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
+                    <p key={stIdx} className="flex items-start gap-2 text-[11px] sm:text-xs leading-relaxed">
+                      <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
+                      <span>{step}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              {/* Track B: Entrepreneurship & Freelancing */}
+              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
+                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md w-fit">
+                      {careerPlanLang === "tl" ? "Opsyon B • Sariling Negosyo at Raket" : "Track B • Self-Employment & Freelance"}
+                    </span>
+                    <span className="text-[11px] font-bold text-amber-200 bg-amber-400/15 border border-amber-300/25 px-2.5 py-0.5 rounded-md flex items-center gap-1.5 w-fit">
+                      <Wrench className="w-3 h-3 text-amber-300 shrink-0" />
+                      <span>{careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                    <span><strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}</span>
+                  </p>
+                  <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
+                    <p className="text-xs text-amber-100 leading-relaxed font-medium flex items-start gap-1.5">
+                      <Gift className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      <span><strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-2.5 border-t border-white/10 space-y-1.5">
+                  <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
+                    {careerPlanLang === "tl" ? "Mga Serbisyo o Produktong Pwedeng Simulan:" : "Initial Services to Offer:"}
+                  </span>
+                  {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
+                    <p key={sIdx} className="text-[11px] sm:text-xs text-emerald-100 flex items-start gap-2 font-medium leading-relaxed">
+                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
+                      <span>{srv}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Phase 3 & Local Support Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 text-xs bg-black/25 p-3.5 sm:p-4.5 rounded-xl border border-white/10">
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-purple-300 shrink-0" />
+                  <span>{careerPlanLang === "tl" ? "1–2 Taon na Pag-asenso sa Karera:" : "1–2 Year Long-Term Elevation:"}</span>
+                </span>
+                {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
+                  <p key={mIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
+                    <span className="text-purple-400 shrink-0 mt-0.5">◆</span>
+                    <span>{milestone}</span>
+                  </p>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
+                  <Handshake className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                  <span>{careerPlanLang === "tl" ? "Mga Malalapit na Tanggapan sa San Luis:" : "Local Support Contacts in San Luis:"}</span>
+                </span>
+                {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
+                  <p key={cIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{contact}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6 sm:py-8 space-y-3 bg-black/20 rounded-xl border border-dashed border-white/20 p-4 sm:p-6">
+            <Sparkles className="w-9 h-9 sm:w-10 sm:h-10 text-amber-400 mx-auto animate-pulse" />
+            <h5 className="font-extrabold text-white text-sm sm:text-base leading-snug">
+              Preview Your Future Opportunities After Completing {programTitle}!
+            </h5>
+            <p className="text-xs text-emerald-100 max-w-lg mx-auto leading-relaxed font-medium">
+              Stay motivated while in training! Click below to let Google Gemini AI show you the career paths, estimated salary, and local business opportunities waiting for you in San Luis, Pampanga once you finish <strong>{programTitle}</strong>.
+            </p>
+            <button
+              onClick={() => handleGenerateCareerPlan(prog)}
+              disabled={isGeneratingPlan}
+              className="w-full sm:w-auto mt-3 px-6 py-3 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              {isGeneratingPlan ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  Generating your realistic Gemini plan...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-slate-950" />
+                  Preview My Future Career Guide with Gemini AI
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Filter announcements to only show active, unexpired ones matching member's barangay
@@ -3250,7 +3551,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-gray-600 bg-emerald-50/40 p-3 rounded-xl border border-emerald-150">
                             <p className="font-medium flex items-center gap-1.5">
                               <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                              <span><strong>Campus Location:</strong> {location}</span>
+                              <span><strong>Campus Location:</strong>{" "}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenVenueMap(program || { id: "enrolled", title: ref.programTitle, provider, location } as any)}
+                                  className="text-emerald-800 hover:text-emerald-950 underline underline-offset-2 font-bold cursor-pointer transition-colors"
+                                  title="View on Interactive Map"
+                                >
+                                  {location}
+                                </button>
+                              </span>
                             </p>
                             {program && (
                               <p className="font-semibold text-emerald-800 flex items-center gap-1.5 flex-wrap">
@@ -3504,7 +3814,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     },
                     {
                       num: 4,
-                      label: "Placement",
+                      label: "AI Career Guide",
                       status: archivedApp ? ("current" as const) : ("not_done" as const),
                     }
                   ];
@@ -3958,9 +4268,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
                                       Location
                                     </span>
-                                    <p className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2 break-words leading-snug" title={prog.location}>
-                                      {prog.location || "San Luis, Pampanga"}
-                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenVenueMap(prog);
+                                      }}
+                                      className="text-left text-xs sm:text-sm font-bold text-emerald-800 hover:text-emerald-950 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-700 line-clamp-2 break-words leading-snug cursor-pointer transition-colors block"
+                                      title="Click to view interactive campus map"
+                                    >
+                                      {extractLocationDisplay(prog.location) || "San Luis, Pampanga"}
+                                    </button>
                                   </div>
                                 </div>
 
@@ -4460,6 +4778,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       return (
                                         <PathwayTimeline
                                           currentStep={isArchived ? (hasSavedPlan ? 5 : 4) : isEnrolled ? 3 : 2}
+                                          appStatus={app.status}
+                                          applicationDate={app.applicationDate || app.referralDate}
+                                          trainingHours={trainingHours}
+                                          provider={provider}
+                                          hasGeneratedPlan={hasSavedPlan}
                                         />
                                       );
                                     })()}
@@ -4506,7 +4829,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       </p>
                                       <p className="text-gray-600 flex items-start gap-2">
                                         <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Location / Campus:</strong> <span className="text-gray-900 font-semibold break-words">{location}</span></span>
+                                        <span className="min-w-0 flex-1 leading-snug">
+                                          <strong className="text-gray-700">Location / Campus:</strong>{" "}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenVenueMap(program || { id: "pathway", title: app.programTitle, provider, location } as any)}
+                                            className="text-emerald-800 hover:text-emerald-950 underline underline-offset-2 font-bold cursor-pointer transition-colors text-left"
+                                            title="View Campus on Interactive Map"
+                                          >
+                                            <span className="text-gray-900 font-semibold break-words hover:text-emerald-900">{extractLocationDisplay(location)}</span>
+                                          </button>
+                                        </span>
                                       </p>
                                       <p className="text-gray-600 flex items-start gap-2">
                                         <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
@@ -4548,7 +4881,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       <span>Action Required to Complete Enrollment Verification:</span>
                                     </p >
                                     <p className="leading-relaxed font-medium text-amber-900">
-                                      Please bring and submit the following physical requirements to the <strong>{provider} Admissions Office ({location})</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
+                                      Please bring and submit the following physical requirements to the <strong>{provider} Admissions Office (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenVenueMap(program || { id: "admissions", title: app.programTitle, provider, location } as any)}
+                                          className="text-amber-950 underline underline-offset-2 font-bold hover:text-emerald-800 cursor-pointer"
+                                          title="View on Interactive Map"
+                                        >
+                                          {extractLocationDisplay(location)}
+                                        </button>
+                                      )</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
                                     </p>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 list-disc text-amber-950 font-semibold">
                                       {requiredDocs.map((doc: string, dIdx: number) => (
@@ -4557,6 +4899,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     </ul>
                                     <p className="text-[10px] text-amber-800 italic pt-1 border-t border-amber-200 font-medium">
                                       Once your physical documents are verified by the TESDA registrar, your enrollment will be officially approved and this pathway will advance to <strong>Step 3: Officially Enrolled & Active Training</strong>!
+                                    </p>
+                                  </div>
+                                  {renderMotivationalCareerGuideCard(app.programTitle, program)}
+                                  <div className="hidden">
+                                    <p>
                                     </p>
                                   </div >
                                 </div >
@@ -4618,7 +4965,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           <div className="pt-0.5">
             <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-purple-900 bg-purple-100/90 border border-purple-200/80 px-2.5 py-1 rounded-lg">
               <Award className="w-3.5 h-3.5 text-purple-700 shrink-0" />
-              <span>Achieved <strong className="font-extrabold text-purple-950">Step 4: Livelihood Placement & Career Launch</strong></span>
+              <span>Achieved <strong className="font-extrabold text-purple-950">Step 4: AI Career & Livelihood Guide Plan</strong></span>
             </span>
           </div>
         </div>
@@ -4939,7 +5286,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </div>
       </div>
 
-      {/* Locked Step 4 Milestone Notice */}
+      {/* Step 4 Gemini AI Career & Livelihood Guide is now unlocked below for motivation */}
+      {false && (
       <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
         <div className="flex items-start sm:items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-bold shrink-0">
@@ -4947,14 +5295,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           </div>
           <div>
             <span className="font-extrabold text-slate-800 block text-xs">
-              Step 4: Livelihood Placement & Gemini Career Plan
+              Step 4: AI Career & Livelihood Guide Plan
             </span>
             <span className="text-[11px] text-slate-500 font-medium">
-              This milestone and your Google Gemini Post-Graduation Career Plan will unlock once your Step 3 training is complete and certified.
+              Unlocks after Step 3 with a Gemini AI guide on your next steps after training.
             </span>
           </div>
         </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-start sm:self-auto">
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-start sm:self-auto" />
+      </div>
+      )}
+      {renderMotivationalCareerGuideCard(app.programTitle, program)}
+      <div className="hidden">
+        <span>
           Locked Milestone
         </span>
       </div>
@@ -5204,7 +5557,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </span>
                         <div className="min-h-[28px] sm:h-[42px] flex items-center">
                           <p className="text-xs sm:text-[16px] font-semibold text-gray-900 leading-tight">
-                            {youthProfile.purok || (getBarangayZoneTypeLabel(youthProfile.barangay) === "Street" ? "Street 1" : "Purok 1")}
+                            {youthProfile.purok || (getBarangayZoneTypeLabel(youthProfile.barangay) === "Street" ? "F. Carlos St." : "Purok 1")}
                           </p>
                         </div>
                       </div>
@@ -7396,6 +7749,25 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       </div>
     )
   }
+
+        {/* Training Venue Interactive Map Viewer Modal */}
+        <TrainingVenueMapModal
+          isOpen={isVenueMapOpen}
+          onClose={() => {
+            setIsVenueMapOpen(false);
+            setMapModalProgram(null);
+          }}
+          mode="viewer"
+          programTitle={mapModalProgram?.title}
+          provider={mapModalProgram?.provider || "TESDA Partner"}
+          initialLocation={mapModalProgram?.location}
+          initialLat={mapModalProgram?.latitude}
+          initialLng={mapModalProgram?.longitude}
+          room={mapModalProgram?.room}
+          instructor={mapModalProgram?.instructor}
+          contactPerson={mapModalProgram?.contactPerson}
+          contactNumber={mapModalProgram?.contactNumber}
+        />
 
       </main >
     </div >

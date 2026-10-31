@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import {
-  Building2, Users, Briefcase, Activity, Shield, Copy, Check, RefreshCw, 
+  Building2, Users, Briefcase, Activity, Shield, Copy, Check, RefreshCw, Archive, 
   UserCheck, LogOut, ArrowRight, Eye, Edit, Trash2, PlusCircle, CheckCircle2,
   Lock, Bell, Search, Filter, MapPin, Sparkles, AlertTriangle, ChevronRight, ChevronLeft,
   User, Mail, Phone, Calendar, CheckCircle, X, Layers, ExternalLink, ShieldCheck,
@@ -674,6 +674,43 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
     }
   };
 
+  // Handle Data Retention Lifecycle: Archive, Deactivate, or Restore Youth Account
+  const handleToggleYouthAccountStatus = async (youth: YouthProfile, action: "restore" | "archive" | "deactivate") => {
+    setUpdatingUserId(youth.id);
+    const newStatus = action === "restore" ? "Active" : action === "archive" ? "Archived" : "Suspended";
+    try {
+      const res = await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: youth.id,
+          userId: youth.userId,
+          action,
+          accountStatus: newStatus
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (setYouthProfiles) {
+          setYouthProfiles(prev => prev.map(y => y.id === youth.id ? { ...y, accountStatus: newStatus } : y));
+        }
+        if (selectedYouthDetail && selectedYouthDetail.id === youth.id) {
+          setSelectedYouthDetail({ ...selectedYouthDetail, accountStatus: newStatus });
+        }
+        const actionLabel = action === "restore" ? "restored to Active" : action === "archive" ? "archived (3-year statutory retention)" : "deactivated";
+        addToast(`Account for ${youth.name} successfully ${actionLabel}!`, "success");
+        broadcastDataChange("youth", "updated");
+      } else {
+        addToast(data.error || data.message || `Failed to update status for ${youth.name}`, "error");
+      }
+    } catch (err) {
+      console.error("Error updating youth lifecycle status:", err);
+      addToast("Network error updating account status", "error");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   // Suggestion 3: Account Status Toggle (Active vs Suspended)
   const handleToggleStatus = async (official: { id: string; name: string; status: string }) => {
     const nextStatus = official.status === "Active" ? "Suspended" : "Active";
@@ -956,7 +993,7 @@ Please sign in at ${window.location.origin} and change your password immediately
         category: "Youth Registration",
         actor: y.name,
         action: `Registered Katipunan ng Kabataan Profile`,
-        target: `${y.name} · ${y.purok}`,
+        target: `${y.name} • ${y.purok}`,
         barangay: y.barangay.replace(/^Barangay\s+/i, ""),
         timestamp: y.registeredDate ? new Date(y.registeredDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Active Record",
         rawDate: y.registeredDate ? new Date(y.registeredDate) : new Date()
@@ -971,7 +1008,7 @@ Please sign in at ${window.location.origin} and change your password immediately
         category: "Application & Enrollment",
         actor: r.youthName,
         action: `Application status: ${r.status} for ${r.programTitle}`,
-        target: `${r.youthName} · Match Score ${r.matchScore}%`,
+        target: `${r.youthName} • Match Score ${r.matchScore}%`,
         barangay: r.barangay || "San Luis",
         timestamp: appDate ? new Date(appDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recently",
         rawDate: appDate ? new Date(appDate) : new Date()
@@ -985,7 +1022,7 @@ Please sign in at ${window.location.origin} and change your password immediately
         category: "Program Update",
         actor: "TESDA Partner Coordinator",
         action: `Program cataloged (${p.activeStatus}): ${p.title}`,
-        target: `${p.provider} · ${p.trainingHours} Hours · ${p.slotsRemaining} Slots`,
+        target: `${p.provider} • ${p.trainingHours} Hours • ${p.slotsRemaining} Slots`,
         barangay: "Municipal Hub",
         timestamp: "Active Offering",
         rawDate: new Date()
@@ -1379,8 +1416,8 @@ Please sign in at ${window.location.origin} and change your password immediately
           <col width="88" />   <!-- Col 8 (H): Councilors -->
           <col width="98" />   <!-- Col 9 (I): Enrollments -->
 
-          <tr><td colspan="9" class="banner-title">MUNICIPALITY OF SAN LUIS · PROVINCE OF PAMPANGA</td></tr>
-          <tr><td colspan="9" class="banner-sub">MUNICIPAL YOUTH DEVELOPMENT OFFICE (MYDO) · SIKAP CENTRAL EXECUTIVE REGISTRY</td></tr>
+          <tr><td colspan="9" class="banner-title">MUNICIPALITY OF SAN LUIS • PROVINCE OF PAMPANGA</td></tr>
+          <tr><td colspan="9" class="banner-sub">MUNICIPAL YOUTH DEVELOPMENT OFFICE (MYDO) • SIKAP CENTRAL EXECUTIVE REGISTRY</td></tr>
           <tr><td colspan="9" style="height: 6px; border: none;"></td></tr>
           <tr>
             <td colspan="3" class="meta-box"><strong>Scope:</strong> ${reportScope}</td>
@@ -1959,7 +1996,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                 >
                                   Mark read
                                 </button>
-                                <span className="text-slate-300">·</span>
+                                <span className="text-slate-300">•</span>
                               </>
                             )}
                             <button
@@ -2090,7 +2127,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     Mabuhay, {adminName || "Administrator"}!
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Municipal System Infrastructure & Telemetry · San Luis Central Governance Engine across 17 Barangays.
+                    Municipal System Infrastructure & Telemetry • San Luis Central Governance Engine across 17 Barangays.
                   </p>
                 </div>
               </div>
@@ -2325,7 +2362,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search by name, skill, purok, or barangay…"
+                      placeholder="Search by name, skill, purok, or barangay..."
                       value={youthSearch}
                       onChange={(e) => setYouthSearch(e.target.value)}
                       className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
@@ -2485,7 +2522,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                     {y.name}
                                   </h4>
                                   <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                    {y.age} years old · {y.gender || "Youth"}
+                                    {y.age} years old • {y.gender || "Youth"}
                                   </p>
                                 </div>
                               </div>
@@ -2499,7 +2536,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <span className="font-medium">{y.barangay.replace(/^Barangay\s+/i, "")} ({y.purok})</span>
                                 </div>
-                                <span className="text-gray-300 shrink-0 select-none">·</span>
+                                <span className="text-gray-300 shrink-0 select-none">•</span>
                                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                   <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <span className="truncate">{y.educationalAttainment}</span>
@@ -2754,7 +2791,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
-                                  {y.age} y/o · {y.gender || "Youth"}
+                                  {y.age} y/o • {y.gender || "Youth"}
                                 </td>
                                 <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
                                   {y.educationalAttainment}
@@ -2997,7 +3034,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search by Barangay name, SK Chairperson, or Barangay Captain…"
+                      placeholder="Search by Barangay name, SK Chairperson, or Barangay Captain..."
                       value={brgySearch}
                       onChange={(e) => setBrgySearch(e.target.value)}
                       className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
@@ -3598,7 +3635,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search by representative name or official email…"
+                      placeholder="Search by representative name or official email..."
                       value={tesdaSearch}
                       onChange={(e) => setTesdaSearch(e.target.value)}
                       className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
@@ -3746,7 +3783,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search logs by actor, action description, or barangay…"
+                      placeholder="Search logs by actor, action description, or barangay..."
                       value={auditSearch}
                       onChange={(e) => setAuditSearch(e.target.value)}
                       className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
@@ -4771,7 +4808,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-[9px] font-black uppercase tracking-widest text-amber-400 truncate">Republic of the Philippines</p>
-                                  <p className="text-xs font-extrabold tracking-wide text-white truncate">Municipality of San Luis · MYDO</p>
+                                  <p className="text-xs font-extrabold tracking-wide text-white truncate">Municipality of San Luis • MYDO</p>
                                 </div>
                               </div>
                               <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 shrink-0">
@@ -4788,7 +4825,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                 <h4 className="text-lg font-black text-white tracking-tight">{adminName}</h4>
                                 <p className="text-xs font-semibold text-amber-300">Super Administrator & MYDO Head</p>
                                 <p className="text-[11px] text-slate-300 font-mono pt-1">
-                                  Municipal Youth Development Office · San Luis, Pampanga
+                                  Municipal Youth Development Office • San Luis, Pampanga
                                 </p>
                                 <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-amber-300">
                                   <span>AUTH-ID:</span>
@@ -4857,7 +4894,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     {selectedYouthDetail.name}
                   </h3>
                   <p className="text-xs text-emerald-100/90 font-medium mt-0.5 truncate">
-                    {selectedYouthDetail.email || `Barangay ${selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")} · ${selectedYouthDetail.purok}`}
+                    {selectedYouthDetail.email || `Barangay ${selectedYouthDetail.barangay.replace(/^Barangay\s+/i, "")} • ${selectedYouthDetail.purok}`}
                   </p>
                 </div>
               </div>
@@ -4898,6 +4935,31 @@ Please sign in at ${window.location.origin} and change your password immediately
                     <Key className="w-3.5 h-3.5 text-amber-700" />
                     <span>{updatingUserId === selectedYouthDetail.id ? "Generating..." : "Reset Password"}</span>
                   </button>
+
+                  {selectedYouthDetail.accountStatus === "Archived" || selectedYouthDetail.accountStatus === "Suspended" ? (
+                    <button
+                      type="button"
+                      disabled={updatingUserId === selectedYouthDetail.id}
+                      onClick={() => handleToggleYouthAccountStatus(selectedYouthDetail, "restore")}
+                      className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Restore this archived account back to active status within the 30-day grace period"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${updatingUserId === selectedYouthDetail.id ? "animate-spin" : ""}`} />
+                      <span>{updatingUserId === selectedYouthDetail.id ? "Restoring..." : "Restore Account"}</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={updatingUserId === selectedYouthDetail.id}
+                      onClick={() => handleToggleYouthAccountStatus(selectedYouthDetail, "archive")}
+                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Archive account for 3-year statutory audit retention (restorable within 30 days)"
+                    >
+                      <Archive className="w-3.5 h-3.5 text-slate-600" />
+                      <span>{updatingUserId === selectedYouthDetail.id ? "Archiving..." : "Archive Account"}</span>
+                    </button>
+                  )}
+
 
                   <button
                     type="button"
@@ -5434,9 +5496,9 @@ Please sign in at ${window.location.origin} and change your password immediately
       {/* ============================================================ */}
       <ConfirmationModal
         isOpen={!!deleteAccountTarget}
-        title={`Delete Account: ${deleteAccountTarget?.role} "${deleteAccountTarget?.name}"?`}
-        description={`Are you sure you want to permanently delete the official account for "${deleteAccountTarget?.name}"? They will lose access to the SiKap administrative system immediately.`}
-        confirmText="Delete Account"
+        title={deleteAccountTarget?.isYouth ? `Dispose & Purge Youth Profile: "${deleteAccountTarget?.name}"?` : `Delete Account: ${deleteAccountTarget?.role} "${deleteAccountTarget?.name}"?`}
+        description={deleteAccountTarget?.isYouth ? `In compliance with the Data Privacy Act (RA 10173 Section 16 - Right to Erasure), confirming this action will permanently purge all records, zero out encrypted ID documents & contact details, and remove login credentials from the database. This action cannot be undone.` : `Are you sure you want to permanently delete the official account for "${deleteAccountTarget?.name}"? They will lose access to the SiKap administrative system immediately.`}
+        confirmText={deleteAccountTarget?.isYouth ? "Purge & Erase Data" : "Delete Account"}
         confirmVariant="red"
         onConfirm={confirmDeleteAccount}
         onCancel={() => setDeleteAccountTarget(null)}
@@ -5472,7 +5534,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     </span>
                   </h3>
                   <p className="text-[11px] text-emerald-200/90 font-medium">
-                    Municipality of San Luis, Pampanga · Comprehensive Statistical Assessment
+                    Municipality of San Luis, Pampanga • Comprehensive Statistical Assessment
                   </p>
                 </div>
               </div>
@@ -5538,13 +5600,13 @@ Please sign in at ${window.location.origin} and change your password immediately
               {/* Document Header & Official Government Letterhead */}
               <div className="text-center border-b-2 border-[#0A6B43] pb-5 space-y-1 print-avoid-break">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Republic of the Philippines · Province of Pampanga
+                  Republic of the Philippines • Province of Pampanga
                 </p>
                 <h2 className="text-lg sm:text-xl font-black text-slate-950 uppercase tracking-tight">
                   MUNICIPALITY OF SAN LUIS
                 </h2>
                 <h3 className="text-xs sm:text-sm font-extrabold text-[#0A6B43] uppercase tracking-wider">
-                  MUNICIPAL YOUTH DEVELOPMENT OFFICE (MYDO) · CENTRAL EXECUTIVE REGISTRY
+                  MUNICIPAL YOUTH DEVELOPMENT OFFICE (MYDO) • CENTRAL EXECUTIVE REGISTRY
                 </h3>
                 <p className="text-[10px] text-slate-400 font-semibold pt-1 uppercase tracking-wider">
                   SiKap Integrated Katipunan ng Kabataan & TVET Livelihood Matching System

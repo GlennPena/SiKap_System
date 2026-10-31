@@ -174,10 +174,19 @@ export const TermsAndPrivacyModal: React.FC<TermsAndPrivacyModalProps> = ({
 
                 <div>
                   <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide text-[#0A6B43] mb-1">
-                    6. Information Security & Retention
+                    6. Information Security, Retention, Disposal & Restoration
                   </h5>
                   <p>
-                    Industry-standard security protocols, including HTTPS transmission encryption, bcrypt password hashing, session tokens, and role-based access controls, are implemented. Records are maintained for active youth members (ages 18–30) and securely archived or anonymized upon age completion or relocation.
+                    Industry-standard technical and organizational security measures, including HTTPS encryption, AES-256-GCM data encryption, bcrypt password hashing, session tokens, and role-based access controls, are implemented.
+                  </p>
+                  <p className="mt-1.5">
+                    <strong className="text-gray-800">• Data Retention:</strong> Active youth records are retained while residing in {municipality} within the statutory youth bracket (ages 15–30, and 18–30 for adult TVET). Upon age 31, permanent relocation, or deactivation, records transition to an Archived Status preserved for three (3) years to satisfy COA, TESDA, and DILG statutory audit requirements.
+                  </p>
+                  <p className="mt-1.5">
+                    <strong className="text-gray-800">• Data Disposal:</strong> Following the 3-year archival window or upon an approved Right to Erasure request, sensitive personal data (encrypted contacts, government IDs, uploaded verification photo files, AI roadmaps) is cryptographically scrubbed and purged. Non-identifiable aggregates are retained strictly for municipal development metrics.
+                  </p>
+                  <p className="mt-1.5">
+                    <strong className="text-gray-800">• Data Restoration:</strong> Mistakenly deactivated or archived accounts may be restored within a thirty (30) day grace period by contacting the SK Office or Municipal Administrator. Encrypted database backups are maintained for a rolling 30 days for disaster recovery.
                   </p>
                 </div>
 

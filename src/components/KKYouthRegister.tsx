@@ -2164,10 +2164,10 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
                     <div>
                       <h5 className="font-black text-xs sm:text-sm uppercase tracking-wide flex items-center gap-1.5 mb-1 text-[#0A6B43]">
-                        <span>7. Data Retention & Disposal Policy</span>
+                        <span>7. Data Retention, Disposal & Restoration Policy</span>
                       </h5>
                       <p>
-                        Your personal information is retained in the active Katipunan ng Kabataan directory as long as you remain an eligible youth member (ages 18 to 30) residing in Barangay {selectedBarangay || "San Sebastian"}. Upon reaching age thirty-one (31) or upon permanent relocation outside the barangay, your record is transitioned into an archived status. Physical copies (if any) are shredded and digital files are permanently erased or anonymized in accordance with NPC guidelines.
+                        Your personal information is retained in the active Katipunan ng Kabataan directory as long as you remain an eligible youth member (ages 15 to 30, and 18 to 30 for adult TVET matching) residing in Barangay {selectedBarangay || "San Sebastian"}. Upon reaching age thirty-one (31), permanent relocation, or deactivation, your record transitions into an Archived Status preserved for three (3) years in compliance with COA, TESDA, and DILG statutory audit rules. Following this period or upon an approved Right to Erasure request, sensitive personal data (encrypted contacts, government IDs, uploaded verification photos) is cryptographically scrubbed and purged. Deactivated or archived accounts may be restored within a thirty (30) day grace period by contacting your SK Chairperson or Municipal Administrator. Encrypted database disaster recovery backups are retained for 30 rolling days.
                       </p>
                     </div>
 

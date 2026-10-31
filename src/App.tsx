@@ -603,14 +603,14 @@ export default function App() {
             </div>
 
             {/* Right panel */}
-            <div className="flex-1 bg-white relative min-h-[520px] md:min-h-[600px] w-full flex flex-col items-center justify-start md:justify-center p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 pt-3 sm:pt-6 md:py-8 overflow-y-auto xl:overflow-hidden">
+            <div className="flex-1 bg-white relative xl:h-full w-full flex flex-col items-center justify-between p-4 sm:p-6 md:px-10 lg:px-14 xl:px-20 py-3 sm:py-4 md:py-6 xl:py-6 overflow-y-auto">
 
               {/* Logo centered at top - sliding down from above (desktop, or mobile when registering) */}
               <motion.div
                 initial={{ opacity: 0, y: -25 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
-                className={`${isSelfRegistering ? 'flex' : 'hidden md:flex'} absolute top-2 sm:top-3 md:top-5 lg:top-7 left-0 w-full justify-center z-50 pointer-events-auto`}
+                className={`${isSelfRegistering ? 'flex' : 'hidden md:flex'} relative w-full justify-center shrink-0 pb-2 sm:pb-3 md:pb-4 z-30 pointer-events-auto`}
               >
                 <SikapLogo
                   size={46}
@@ -632,7 +632,7 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl px-1 sm:px-2 pt-[68px] sm:pt-[78px] md:pt-[88px] pb-4 sm:pb-6 md:pb-8"
+                    className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl px-1 sm:px-2 py-1 sm:py-2"
                   >
                     <KKYouthRegister
                       onRegisterComplete={(newProfile) => {
@@ -648,7 +648,7 @@ export default function App() {
                         setViewingLegal({ tab, returnTo: "register" });
                       }}
                     />
-                    <div className="text-center pt-4 sm:pt-5 pb-1 shrink-0">
+                    <div className="text-center pt-3 sm:pt-4 pb-1 shrink-0">
                       <p className="text-[14px] font-semibold text-gray-700">
                         Have a SiKap account?{" "}
                         <button
@@ -668,11 +668,11 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="w-full flex justify-center items-center"
+                    className="w-full flex-1 flex justify-center items-center my-auto py-3 sm:py-4"
                   >
-                    <div className="w-full z-10 relative max-w-md sm:max-w-lg lg:max-w-xl xl:max-w-[540px] space-y-5 sm:space-y-6 lg:space-y-8 pt-0 md:pt-0 pb-4 md:pb-0">
+                    <div className="w-full z-10 relative max-w-md sm:max-w-lg lg:max-w-xl xl:max-w-[540px] space-y-4 sm:space-y-5 lg:space-y-6 py-1">
                       {/* Mobile centered SiKap logo and text - positioned higher with ample separation */}
-                      <div className="md:hidden flex flex-col items-center justify-center pt-0 pb-6 mb-12 sm:mb-16">
+                      <div className="md:hidden flex flex-col items-center justify-center pt-1 pb-4 mb-4 sm:mb-6">
                         <SikapLogo
                           size={40}
                           logoSize={48}
@@ -730,7 +730,7 @@ export default function App() {
                             <div className="relative">
                               <input
                                 type={showPassword ? "text" : "password"}
-                                placeholder="••••••••"
+                                placeholder="Enter your password"
                                 value={password}
                                 disabled={isLoggingIn || lockoutSeconds > 0}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -822,7 +822,7 @@ export default function App() {
                       </form>
 
                       {/* Registration Link */}
-                      <div className="text-center mt-6 sm:mt-8 lg:mt-10">
+                      <div className="text-center pt-2 sm:pt-3">
                         <p className="text-[14px] font-semibold text-gray-700">
                           New to SiKap?{" "}
                           <button
@@ -844,7 +844,7 @@ export default function App() {
                 initial={{ opacity: 0, y: 25 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-                className="relative md:absolute mt-4 md:mt-0 bottom-auto md:bottom-6 lg:bottom-8 left-0 w-full flex justify-center z-30 pointer-events-auto pb-4 md:pb-0"
+                className="relative w-full flex justify-center shrink-0 pt-4 sm:pt-5 pb-2 sm:pb-1 mt-auto z-30 pointer-events-auto"
               >
                 <button
                   type="button"

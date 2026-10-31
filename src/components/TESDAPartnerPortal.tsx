@@ -7,9 +7,11 @@ import {
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, ChevronLeft, CheckCircle2,
   Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2,
   Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck,
-  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw
+  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw, Compass
 } from "lucide-react";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
+import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
+import { formatLocationWithCoords, extractLocationDisplay, extractLocationCoords } from "../lib/training-venues";
 import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
 import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
@@ -534,6 +536,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   // Editing program ID state
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
 
+  // Map Modal State for Picking / Viewing Training Venue
+  const [isVenueMapModalOpen, setIsVenueMapModalOpen] = useState(false);
+  const [venueMapModalMode, setVenueMapModalMode] = useState<"picker" | "viewer">("picker");
+  const [venueMapTarget, setVenueMapTarget] = useState<"create" | "modalEdit" | "editModal">("create");
+  const [progLat, setProgLat] = useState<number | undefined>(undefined);
+  const [progLng, setProgLng] = useState<number | undefined>(undefined);
+  const [modalEditLat, setModalEditLat] = useState<number | undefined>(undefined);
+  const [modalEditLng, setModalEditLng] = useState<number | undefined>(undefined);
+
   const handleNewProgramClick = () => {
     setEditingProgramId(null);
     setProgTitle("");
@@ -626,6 +637,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
     setProgTrainingHours(prog.trainingHours || "");
     setProgLocation(prog.location || "");
+    const parsedCoords = extractLocationCoords(prog.location);
+    setProgLat(prog.latitude || parsedCoords?.lat || 14.9833);
+    setProgLng(prog.longitude || parsedCoords?.lng || 120.7333);
     setProgCost(prog.cost || "Free");
     setProgSlots(prog.slotsTotal || 30);
     setProgEligibility(prog.eligibility || "");
@@ -3569,15 +3583,45 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Venue / Location</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. San Luis Training Center / GPSAT Guagua"
-                            value={progLocation}
-                            onChange={(e) => setProgLocation(e.target.value)}
-                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1">
+                            <label className="text-[10px] sm:text-[11px] font-extrabold text-gray-500 uppercase tracking-wider truncate">Training Venue / Location</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVenueMapTarget("create");
+                                setVenueMapModalMode("picker");
+                                setIsVenueMapModalOpen(true);
+                              }}
+                              className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                            >
+                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                              <span>Locate / Pin on Map</span>
+                            </button>
+                          </div>
+                          <div className="relative min-w-0 w-full">
+                            <input
+                              type="text"
+                              placeholder="e.g. San Luis Training Center / GPSAT Guagua"
+                              value={extractLocationDisplay(progLocation)}
+                              onChange={(e) => setProgLocation(e.target.value)}
+                              className="w-full min-w-0 h-[38px] pl-3.5 pr-20 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
+                              title={extractLocationDisplay(progLocation)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVenueMapTarget("create");
+                                setVenueMapModalMode("picker");
+                                setIsVenueMapModalOpen(true);
+                              }}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-[10px] font-extrabold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0 z-10"
+                              title="Search or Pin on Map"
+                            >
+                              <Compass className="w-3 h-3 shrink-0" />
+                              <span>Map</span>
+                            </button>
+                          </div>
                         </div>
 
                         <div className="space-y-1">
@@ -5036,23 +5080,78 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
                   {/* Venue / Location */}
-                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Training Venue / Location
-                    </span>
+                  <div className="min-w-0 space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1">
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block truncate">
+                        Training Venue / Location
+                      </span>
+                      {isEditingInModal ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVenueMapTarget("modalEdit");
+                            setVenueMapModalMode("picker");
+                            setIsVenueMapModalOpen(true);
+                          }}
+                          className="text-[10px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span>Pin on Map</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVenueMapModalMode("viewer");
+                            setIsVenueMapModalOpen(true);
+                          }}
+                          className="text-[10px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <Compass className="w-3 h-3 shrink-0" />
+                          <span>View Map</span>
+                        </button>
+                      )}
+                    </div>
                     {isEditingInModal ? (
-                      <input
-                        type="text"
-                        placeholder="e.g. San Luis Training Center / GPSAT Guagua"
-                        value={modalEditLocation}
-                        onChange={(e) => setModalEditLocation(e.target.value)}
-                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
+                      <div className="relative min-w-0 w-full">
+                        <input
+                          type="text"
+                          placeholder="e.g. San Luis Training Center / GPSAT Guagua"
+                          value={extractLocationDisplay(modalEditLocation)}
+                          onChange={(e) => setModalEditLocation(e.target.value)}
+                          className="w-full min-w-0 h-[36px] sm:h-[38px] pl-3 pr-16 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
+                          title={extractLocationDisplay(modalEditLocation)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVenueMapTarget("modalEdit");
+                            setVenueMapModalMode("picker");
+                            setIsVenueMapModalOpen(true);
+                          }}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-[10px] font-extrabold rounded-md transition-colors shrink-0 z-10"
+                        >
+                          Map
+                        </button>
+                      </div>
                     ) : (
-                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="truncate">{viewingProgram.location || "San Luis Training Center"}</span>
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVenueMapModalMode("viewer");
+                          setIsVenueMapModalOpen(true);
+                        }}
+                        className="w-full text-left text-xs sm:text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] leading-snug flex items-center justify-between gap-1.5 group cursor-pointer min-w-0"
+                        title="Click to view campus map location"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                          <span className="truncate group-hover:underline underline-offset-2">{extractLocationDisplay(viewingProgram.location) || "San Luis Training Center"}</span>
+                        </div>
+                        <span className="text-[9px] font-black uppercase text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded shrink-0">
+                          Map
+                        </span>
+                      </button>
                     )}
                   </div>
 
@@ -5824,15 +5923,47 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Venue / Location</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. San Luis Training Center / GPSAT Guagua"
-                        value={progLocation}
-                        onChange={(e) => setProgLocation(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">
+                          Training Venue / Location
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVenueMapTarget("editModal");
+                            setVenueMapModalMode("picker");
+                            setIsVenueMapModalOpen(true);
+                          }}
+                          className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                          <span>Locate / Pin on Map</span>
+                        </button>
+                      </div>
+                      <div className="relative min-w-0 w-full">
+                        <input
+                          type="text"
+                          placeholder="e.g. San Luis Training Center / GPSAT Guagua"
+                          value={extractLocationDisplay(progLocation)}
+                          onChange={(e) => setProgLocation(e.target.value)}
+                          className="w-full min-w-0 h-[38px] pl-3.5 pr-20 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
+                          title={extractLocationDisplay(progLocation)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVenueMapTarget("editModal");
+                            setVenueMapModalMode("picker");
+                            setIsVenueMapModalOpen(true);
+                          }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-[10px] font-extrabold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0 z-10"
+                          title="Search or Pin on Map"
+                        >
+                          <Compass className="w-3 h-3 shrink-0" />
+                          <span>Map</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -6195,6 +6326,45 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         }}
       />
 
+      {/* Training Venue Map Modal for TESDA Partner (Picker & Viewer) */}
+      <TrainingVenueMapModal
+        isOpen={isVenueMapModalOpen}
+        onClose={() => setIsVenueMapModalOpen(false)}
+        mode={venueMapModalMode}
+        programTitle={venueMapTarget === "create" || venueMapTarget === "editModal" ? progTitle : (viewingProgram?.title || progTitle)}
+        provider={viewingProgram?.provider || "TESDA Partner"}
+        initialLocation={
+          venueMapModalMode === "viewer"
+            ? (viewingProgram?.location || progLocation)
+            : (venueMapTarget === "create" || venueMapTarget === "editModal" ? progLocation : modalEditLocation)
+        }
+        initialLat={
+          venueMapModalMode === "viewer"
+            ? (viewingProgram?.latitude || progLat)
+            : (venueMapTarget === "create" || venueMapTarget === "editModal" ? progLat : modalEditLat)
+        }
+        initialLng={
+          venueMapModalMode === "viewer"
+            ? (viewingProgram?.longitude || progLng)
+            : (venueMapTarget === "create" || venueMapTarget === "editModal" ? progLng : modalEditLng)
+        }
+        room={viewingProgram?.room || progRoom}
+        instructor={viewingProgram?.instructor || progInstructor}
+        contactPerson={viewingProgram?.contactPerson || progContactName}
+        contactNumber={viewingProgram?.contactNumber || progContactPhone}
+        onSelectLocation={(res) => {
+          const locWithCoords = formatLocationWithCoords(res.location, res.latitude, res.longitude);
+          if (venueMapTarget === "create" || venueMapTarget === "editModal") {
+            setProgLocation(locWithCoords);
+            setProgLat(res.latitude);
+            setProgLng(res.longitude);
+          } else {
+            setModalEditLocation(locWithCoords);
+            setModalEditLat(res.latitude);
+            setModalEditLng(res.longitude);
+          }
+        }}
+      />
     </div>
   );
 };

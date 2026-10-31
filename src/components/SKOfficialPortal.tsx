@@ -38,6 +38,7 @@ import {
 import { motion, AnimatePresence, useInView, animate } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { SanLuisBarangayMap } from "./SanLuisBarangayMap";
+import { extractLocationDisplay } from "../lib/training-venues";
 import { broadcastDataChange } from "../lib/realtime-sync";
 
 const getProgramCategory = (prog?: any): string => {
@@ -10399,7 +10400,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     {/* Row 5 (Both Columns): Location / Venue */}
                     <div
                       className="sm:col-span-2 flex items-center gap-2 text-gray-700 min-w-0"
-                      title={`${selectedProgramForModal.location || "San Luis Training Center"}${selectedProgramForModal.room ? ` · ${selectedProgramForModal.room}` : ""}`}
+                      title={`${extractLocationDisplay(selectedProgramForModal.location) || "San Luis Training Center"}${selectedProgramForModal.room ? ` · ${selectedProgramForModal.room}` : ""}`}
                     >
                       <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span className="truncate sm:whitespace-normal leading-snug">

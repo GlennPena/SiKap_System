@@ -210,11 +210,65 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onBack, on
           <FadeIn direction="up" delay={0.05} margin="-30px">
             <section className="space-y-2">
               <h2 className="text-sm sm:text-base font-bold text-gray-900 text-left">
-                7. Data Retention &amp; Disposal
+                7. Data Retention, Disposal &amp; Restoration Policy
               </h2>
               <p className="text-justify">
-                Personal data is maintained in the active Katipunan ng Kabataan registry for as long as a member remains an eligible youth resident (ages 18 to 30) of San Luis, Pampanga. Upon reaching age thirty-one (31) or upon permanent relocation outside the municipality, accounts are transitioned to an archived status and subsequently disposed of or anonymized in compliance with National Archives and NPC guidelines.
+                In strict adherence to the Data Privacy Act of 2012 (RA 10173), the Sangguniang Kabataan Reform Act (RA 10742 / RA 11768), and National Privacy Commission (NPC) circulars, SiKap enforces transparent lifecycle protocols for personal data retention, secure disposal, and data restoration:
               </p>
+
+              <div className="space-y-2 pl-2">
+                <h3 className="text-xs sm:text-sm font-bold text-[#0A6B43] text-left">
+                  A. Data Retention Policy
+                </h3>
+                <ul className="list-disc list-inside space-y-1.5 text-xs sm:text-sm text-justify">
+                  <li>
+                    <strong>Active Youth Membership Retention:</strong> Personal information is retained in the active Katipunan ng Kabataan directory as long as a member remains within the statutory youth bracket (ages 15 to 30, and ages 18 to 30 for adult TVET matching) and resides in one of the 17 barangays of San Luis, Pampanga.
+                  </li>
+                  <li>
+                    <strong>Three (3) Year Statutory Archival Retention:</strong> Upon reaching age thirty-one (31), permanent relocation, or voluntary deactivation, accounts transition to an <em>Archived Status</em> and are preserved for three (3) years to comply with statutory audit standards (Commission on Audit / COA), TESDA National Certificate (NC) validation audits, and DILG/NYC youth governance reviews.
+                  </li>
+                  <li>
+                    <strong>Dormant Account Management:</strong> Accounts with no course enrollments or logins for twenty-four (24) consecutive months are scheduled for archival following automated electronic notice.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2 pl-2">
+                <h3 className="text-xs sm:text-sm font-bold text-[#0A6B43] text-left">
+                  B. Data Disposal &amp; Erasure Procedures
+                </h3>
+                <ul className="list-disc list-inside space-y-1.5 text-xs sm:text-sm text-justify">
+                  <li>
+                    <strong>Right to Erasure &amp; Blocking:</strong> Under Section 16 of RA 10173, registered youth have the right to request immediate deactivation or permanent data disposal through the Municipal SK Office or their Barangay SK Chairperson.
+                  </li>
+                  <li>
+                    <strong>Cryptographic Scrubbing &amp; Digital Purge:</strong> When the 3-year statutory archival period expires or upon an approved erasure request, sensitive personal identifiable information (PII)—including AES-256 encrypted contact numbers, government ID numbers, uploaded verification photo files, profile avatars, and Gemini AI career plans—is permanently overwritten and deleted from PostgreSQL database records.
+                  </li>
+                  <li>
+                    <strong>Statistical Anonymization:</strong> Non-identifying socio-demographic indicators (e.g., age bracket, course categories, gender ratio, barangay counts) are permanently decoupled from names and emails and retained as anonymized aggregate figures strictly for municipal planning.
+                  </li>
+                  <li>
+                    <strong>Cascading Removal:</strong> All associated login user credentials, push notification tokens, and portal session preferences are deleted in cascade, ensuring zero orphaned personal artifacts.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2 pl-2">
+                <h3 className="text-xs sm:text-sm font-bold text-[#0A6B43] text-left">
+                  C. Data Restoration &amp; Disaster Recovery
+                </h3>
+                <ul className="list-disc list-inside space-y-1.5 text-xs sm:text-sm text-justify">
+                  <li>
+                    <strong>Thirty (30) Day Accidental Deactivation Grace Period:</strong> In the event an account is archived or deactivated mistakenly, the youth member may request full account restoration within thirty (30) calendar days by contacting their Barangay SK Chairperson or the Municipal Administrator.
+                  </li>
+                  <li>
+                    <strong>Administrative Reinstatement:</strong> Authorized Super Administrators and SK Officials possess secure administrative interfaces to restore an archived or suspended account back to <em>Active</em> standing upon verifying continued youth residency or resolving eligibility disputes.
+                  </li>
+                  <li>
+                    <strong>Disaster Recovery &amp; Encrypted Backups:</strong> Point-in-time PostgreSQL database snapshots are maintained in an encrypted, isolated secondary backup tier for a rolling thirty (30) day window. In the event of system downtime or infrastructure failure, automated restoration drills guarantee the recovery of verified training competencies and scholarship endorsements without data loss.
+                  </li>
+                </ul>
+              </div>
             </section>
           </FadeIn>
 

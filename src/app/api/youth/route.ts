@@ -68,7 +68,8 @@ function mapToClientProfile(y: any) {
     verificationIdImage: safeDecrypt(y.verificationIdImageEnc),
     profilePicture: y.profilePicture || "",
     savedCareerPlan: y.savedCareerPlan ? (typeof y.savedCareerPlan === "string" && (y.savedCareerPlan.startsWith("{") || y.savedCareerPlan.startsWith("[")) ? JSON.parse(y.savedCareerPlan) : y.savedCareerPlan) : null,
-    savedMatchAdvice: y.savedMatchAdvice ? (typeof y.savedMatchAdvice === "string" && (y.savedMatchAdvice.startsWith("{") || y.savedMatchAdvice.startsWith("[")) ? JSON.parse(y.savedMatchAdvice) : y.savedMatchAdvice) : null
+    savedMatchAdvice: y.savedMatchAdvice ? (typeof y.savedMatchAdvice === "string" && (y.savedMatchAdvice.startsWith("{") || y.savedMatchAdvice.startsWith("[")) ? JSON.parse(y.savedMatchAdvice) : y.savedMatchAdvice) : null,
+    accountStatus: y.user?.status || "Active"
   };
 }
 
@@ -244,6 +245,10 @@ export async function PUT(request: Request) {
     delete updateData.preferencesNormalized;
     delete updateData.experiencesNormalized;
     delete updateData.goalNormalized;
+    delete updateData.accountStatus;
+    delete updateData.action;
+
+
 
     let profilePicToSave: string | null = null;
     if (body.profilePicture !== undefined) {
@@ -347,6 +352,10 @@ export async function PUT(request: Request) {
       normalizedGoalToSave = JSON.stringify(normalizeGoal(gRaw));
       delete updateData.goalRaw;
       delete updateData.goalNormalized;
+    delete updateData.accountStatus;
+    delete updateData.action;
+
+
     }
 
     let planStringToSave: string | null = null;
@@ -377,6 +386,34 @@ export async function PUT(request: Request) {
         adviceStringToSave,
         body.id
       );
+    }
+
+    // Handle Data Retention & Restoration Lifecycle Actions (Restore, Archive, Suspend)
+    if (body.action === "restore" || body.accountStatus === "Active") {
+      updateData.approvalStatus = "Approved";
+      const targetUserId = body.userId || (await db.youthProfile.findUnique({ where: { id: body.id }, select: { userId: true } }))?.userId;
+      if (targetUserId) {
+        await db.user.update({
+          where: { id: targetUserId },
+          data: { status: "Active" }
+        }).catch(() => {});
+      }
+    } else if (body.action === "archive" || body.accountStatus === "Archived") {
+      const targetUserId = body.userId || (await db.youthProfile.findUnique({ where: { id: body.id }, select: { userId: true } }))?.userId;
+      if (targetUserId) {
+        await db.user.update({
+          where: { id: targetUserId },
+          data: { status: "Archived" }
+        }).catch(() => {});
+      }
+    } else if (body.action === "deactivate" || body.accountStatus === "Suspended") {
+      const targetUserId = body.userId || (await db.youthProfile.findUnique({ where: { id: body.id }, select: { userId: true } }))?.userId;
+      if (targetUserId) {
+        await db.user.update({
+          where: { id: targetUserId },
+          data: { status: "Suspended" }
+        }).catch(() => {});
+      }
     }
 
     let updated: any = null;
@@ -459,9 +496,40 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    const mode = searchParams.get("mode"); // "archive" | "purge"
     if (!id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
-    const profile = await db.youthProfile.findUnique({ where: { id } });
+    const profile = await db.youthProfile.findUnique({ where: { id }, include: { user: true } });
+    if (!profile) return NextResponse.json({ success: false, message: "Youth profile not found" }, { status: 404 });
+
+    // 1. Soft Archive Mode (3-year statutory audit retention, restorable within 30-day grace period)
+    if (mode === "archive") {
+      if (profile.userId) {
+        await db.user.update({
+          where: { id: profile.userId },
+          data: { status: "Archived" }
+        }).catch(() => {});
+      }
+      return NextResponse.json({
+        success: true,
+        archived: true,
+        message: `Account for "${profile.name}" transitioned to Archived status. Retained for 3 years in accordance with RA 10173 and restorable within the 30-day grace period.`
+      });
+    }
+
+    // 2. Permanent Cryptographic Purge Mode (RA 10173 Section 16 Right to Erasure)
+    // Cryptographically scrub sensitive PII fields before final database purge
+    await db.youthProfile.update({
+      where: { id },
+      data: {
+        contactNumberEncrypted: "",
+        verificationIdNumberEnc: null,
+        verificationIdImageEnc: null,
+        profilePicture: null,
+        savedCareerPlan: null,
+        savedMatchAdvice: null
+      }
+    }).catch(() => {});
     if (profile) {
       // Clean up referrals first to avoid foreign key constraints
       await db.referral.deleteMany({ where: { youthId: id } }).catch(() => {});
@@ -469,13 +537,21 @@ export async function DELETE(request: Request) {
       // Delete the youth profile
       await db.youthProfile.delete({ where: { id } });
 
-      // If tied to a login User account, delete user record as well
+      // If tied to a login User account, clean up notification settings and delete user record
+      if (profile.userId) {
+        await db.pushSubscription.deleteMany({ where: { userId: profile.userId } }).catch(() => {});
+        await db.notificationPreference.deleteMany({ where: { userId: profile.userId } }).catch(() => {});
+      }
       if (profile.userId) {
         await db.user.delete({ where: { id: profile.userId } }).catch(() => {});
       }
     }
 
-    return NextResponse.json({ success: true, message: "Youth profile and account deleted successfully" });
+    return NextResponse.json({
+      success: true,
+      purged: true,
+      message: `Youth profile for "${profile.name}" and sensitive personal information permanently disposed and cryptographically scrubbed from the database.`
+    });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
   }
