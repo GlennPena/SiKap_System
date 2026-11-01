@@ -231,3 +231,58 @@ export function sanitizeClientError(
   return trimmed;
 }
 
+export interface ParsedVerificationIdImages {
+  front: string;
+  back?: string;
+  isPdf: boolean;
+  isDualPhoto: boolean;
+}
+
+/**
+ * Serializes front and optional back ID document images into a single string
+ * for encrypted database storage (`verificationIdImageEnc`).
+ * Preserves plain string format when only a single image/PDF is provided.
+ */
+export function serializeVerificationIdImages(front: string, back?: string | null): string {
+  const cleanFront = (front || "").trim();
+  const cleanBack = (back || "").trim();
+  if (!cleanBack) return cleanFront;
+  return JSON.stringify({ front: cleanFront, back: cleanBack });
+}
+
+/**
+ * Parses a raw `verificationIdImage` string (either legacy single URL/dataURL
+ * or JSON-serialized `{ front, back }`) into structured front/back images.
+ */
+export function parseVerificationIdImages(raw?: string | null): ParsedVerificationIdImages {
+  if (!raw || !raw.trim()) {
+    return { front: "", isPdf: false, isDualPhoto: false };
+  }
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed.front === "string") {
+        const front = parsed.front.trim();
+        const back = typeof parsed.back === "string" && parsed.back.trim() ? parsed.back.trim() : undefined;
+        const isPdf = front.startsWith("data:application/pdf") || front.toLowerCase().endsWith(".pdf");
+        return {
+          front,
+          back,
+          isPdf,
+          isDualPhoto: !!back && !isPdf
+        };
+      }
+    } catch {
+      // Fallback to treating as single image string
+    }
+  }
+  const isPdf = trimmed.startsWith("data:application/pdf") || trimmed.toLowerCase().endsWith(".pdf");
+  return {
+    front: trimmed,
+    isPdf,
+    isDualPhoto: false
+  };
+}
+
+

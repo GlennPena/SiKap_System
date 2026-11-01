@@ -110,7 +110,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [repEmail, setRepEmail] = useState(currentUser?.email || "tesda.gpsat@gov.ph");
   const [centerName, setCenterName] = useState("Gonzalo Puyat School of Arts and Trades (GPSAT)");
   const [repPhone, setRepPhone] = useState("+63 919 555 7890");
+  const [savedRepName, setSavedRepName] = useState(currentUser?.name || "TESDA Partner Representative");
+  const [savedRepEmail, setSavedRepEmail] = useState(currentUser?.email || "tesda.gpsat@gov.ph");
+  const [savedCenterName, setSavedCenterName] = useState("Gonzalo Puyat School of Arts and Trades (GPSAT)");
+  const [savedRepPhone, setSavedRepPhone] = useState("+63 919 555 7890");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const handleCancelProfileEdit = () => {
+    setRepName(savedRepName);
+    setRepEmail(savedRepEmail);
+    setCenterName(savedCenterName);
+    setRepPhone(savedRepPhone);
+    setIsEditingProfile(false);
+  };
 
   // Password Security Form State
   const [currentPassword, setCurrentPassword] = useState("");
@@ -123,8 +135,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Sync state if currentUser changes
   useEffect(() => {
-    if (currentUser?.name) setRepName(currentUser.name);
-    if (currentUser?.email) setRepEmail(currentUser.email);
+    if (currentUser?.name) {
+      setRepName(currentUser.name);
+      setSavedRepName(currentUser.name);
+    }
+    if (currentUser?.email) {
+      setRepEmail(currentUser.email);
+      setSavedRepEmail(currentUser.email);
+    }
   }, [currentUser]);
 
   const handleSaveProfileSubmit = async (e: React.FormEvent) => {
@@ -152,6 +170,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       if (!res.ok) {
         throw new Error(data.error || "Failed to update institution profile.");
       }
+      setSavedRepName(repName.trim());
+      setSavedRepEmail(repEmail.trim().toLowerCase());
+      setSavedCenterName(centerName.trim());
+      setSavedRepPhone(repPhone.trim());
       setIsEditingProfile(false);
       addToast("Institution profile updated successfully!", "success");
     } catch (err: any) {
@@ -396,6 +418,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [archivingProgramId, setArchivingProgramId] = useState<string | null>(null);
   const [isDeletingProgram, setIsDeletingProgram] = useState(false);
   const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null);
+
+  // Action loading states for referral status updates and program forms
+  const [processingReferralId, setProcessingReferralId] = useState<string | null>(null);
+  const [processingReferralStatus, setProcessingReferralStatus] = useState<"Enrolled" | "Declined" | null>(null);
+  const [isSubmittingProgram, setIsSubmittingProgram] = useState(false);
+  const [isSubmittingModalProgram, setIsSubmittingModalProgram] = useState(false);
 
   // Archived records state for the Archived History tab & Catalog Archive View
   const [archivedProgramsList, setArchivedProgramsList] = useState<TESDAProgram[]>([]);
@@ -696,6 +724,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       return;
     }
 
+    setIsSubmittingProgram(true);
+    setIsSubmittingModalProgram(true);
     const fullTitle = `${progTitle.trim()} ${progLevel}`.trim();
 
     const payload = {
@@ -737,6 +767,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
     } catch (err: any) {
       addToast(err.message || "An error occurred", "error");
+    } finally {
+      setIsSubmittingProgram(false);
     }
   };
 
@@ -817,17 +849,20 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   };
 
   // Change application status
-  const handleUpdateReferralStatus = async (refId: string, newStatus: "Enrolled" | "Declined") => {
+  const handleUpdateReferralStatus = async (refId: string, newStatus: "Enrolled" | "Declined"): Promise<boolean> => {
     const targetReferral = referrals.find(item => item.id === refId);
-    if (!targetReferral) return;
+    if (!targetReferral) return false;
 
     if (newStatus === "Enrolled") {
       const associatedProgram = programs.find(p => p.title === targetReferral.programTitle);
       if (associatedProgram && associatedProgram.slotsRemaining <= 0) {
         addToast(`Cannot accept: "${targetReferral.programTitle}" is already at full capacity!`, "error");
-        return;
+        return false;
       }
     }
+
+    setProcessingReferralId(refId);
+    setProcessingReferralStatus(newStatus);
 
     try {
       const res = await fetch("/api/referrals", {
@@ -888,12 +923,18 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         );
         broadcastDataChange("referrals", "status_updated");
         broadcastDataChange("programs", "slots_updated");
+        return true;
       } else {
         addToast(data.error || "Failed to update application status", "error");
+        return false;
       }
     } catch (err) {
       console.error("Error updating referral status:", err);
       addToast("Network error: Failed to update application status.", "error");
+      return false;
+    } finally {
+      setProcessingReferralId(null);
+      setProcessingReferralStatus(null);
     }
   };
 
@@ -2325,18 +2366,33 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                                   <>
                                                     <button
                                                       onClick={() => handleUpdateReferralStatus(item.id, "Enrolled")}
-                                                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                                                      disabled={processingReferralId === item.id}
+                                                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
                                                       title="Accept & Enroll Trainee"
                                                     >
-                                                      <Check className="w-3.5 h-3.5" />
-                                                      <span>Enroll</span>
+                                                      {processingReferralId === item.id && processingReferralStatus === "Enrolled" ? (
+                                                        <>
+                                                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                                                          <span>Enrolling...</span>
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <Check className="w-3.5 h-3.5" />
+                                                          <span>Enroll</span>
+                                                        </>
+                                                      )}
                                                     </button>
                                                     <button
                                                       onClick={() => handleUpdateReferralStatus(item.id, "Declined")}
-                                                      className="p-1.5 bg-white hover:bg-red-50 text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                                      disabled={processingReferralId === item.id}
+                                                      className="p-1.5 bg-white hover:bg-red-50 text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                                       title="Decline Application"
                                                     >
-                                                      <X className="w-3.5 h-3.5" />
+                                                      {processingReferralId === item.id && processingReferralStatus === "Declined" ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600 shrink-0" />
+                                                      ) : (
+                                                        <X className="w-3.5 h-3.5" />
+                                                      )}
                                                     </button>
                                                   </>
                                                 ) : (
@@ -3834,14 +3890,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
-                        <textarea
-                          rows={2}
-                          placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
-                          value={progEligibility}
-                          onChange={(e) => setProgEligibility(e.target.value)}
-                          className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                        />
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
+                          <span className="text-[10px] text-gray-400 font-medium">Prerequisites & Target Audience</span>
+                        </div>
+                        <div className="w-full rounded-xl border border-gray-200 bg-gray-50/70 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all overflow-hidden shadow-2xs">
+                          <textarea
+                            rows={3}
+                            placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
+                            value={progEligibility}
+                            onChange={(e) => setProgEligibility(e.target.value)}
+                            className="w-full p-2.5 sm:p-3 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[68px] max-h-[160px] block modal-scrollbar"
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3904,9 +3965,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       </button>
                       <button
                         type="submit"
-                        className="px-7 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer text-center"
+                        disabled={isSubmittingProgram}
+                        className="px-7 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {editingProgramId ? "Save Program Changes" : "Publish Training Program"}
+                        {isSubmittingProgram ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                            <span>{editingProgramId ? "Saving Program..." : "Publishing Program..."}</span>
+                          </>
+                        ) : (
+                          <span>{editingProgramId ? "Save Program Changes" : "Publish Training Program"}</span>
+                        )}
                       </button>
                     </div>
 
@@ -3971,27 +4040,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               <div className="space-y-0.5 sm:col-span-2">
                                 <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution</span>
                                 <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{centerName}</p>
+                                  <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{savedCenterName}</p>
                                 </div>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Representative</span>
                                 <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{repName}</p>
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{savedRepName}</p>
                                 </div>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email</span>
                                 <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={repEmail}>
-                                    {repEmail}
+                                  <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={savedRepEmail}>
+                                    {savedRepEmail}
                                   </p>
                                 </div>
                               </div>
                               <div className="space-y-0.5 sm:col-span-2">
                                 <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact / Hotline</span>
                                 <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{repPhone || "Not configured"}</p>
+                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{savedRepPhone || "Not configured"}</p>
                                 </div>
                               </div>
                               <div className="space-y-0.5">
@@ -4037,7 +4106,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <div className="pt-2 flex justify-end">
                             <button
                               type="button"
-                              onClick={() => setIsEditingProfile(true)}
+                              onClick={() => {
+                                setRepName(savedRepName);
+                                setRepEmail(savedRepEmail);
+                                setCenterName(savedCenterName);
+                                setRepPhone(savedRepPhone);
+                                setIsEditingProfile(true);
+                              }}
                               className="group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
                             >
                               <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
@@ -4111,7 +4186,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <div className="pt-2 flex justify-end gap-2.5">
                             <button
                               type="button"
-                              onClick={() => setIsEditingProfile(false)}
+                              onClick={handleCancelProfileEdit}
                               disabled={isSavingProfile}
                               className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
                             >
@@ -4468,143 +4543,207 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       </main>
 
       {/* ============================================================ */}
-      {/* APPLICANT PROFILE DOSSIER MODAL */}
+      {/* APPLICANT PROFILE DOSSIER MODAL (FULLY MOBILE RESPONSIVE)     */}
       {/* ============================================================ */}
       {selectedApplicant && (
         <div 
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedApplicant(null);
           }}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto animate-in fade-in duration-200"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
         >
-          <div className="bg-white rounded-3xl max-w-2xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] sm:max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 ease-out">
 
-            {/* Modal Top Header */}
-            <div className="bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white p-6 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center font-black text-xl shadow-sm uppercase">
-                  {selectedApplicant.name.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-black text-lg tracking-tight leading-tight">{selectedApplicant.name}</h3>
-                  <div className="flex items-center gap-2 text-xs text-emerald-200/90 mt-0.5">
-                    <span>{selectedApplicant.age} yrs old</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" />
-                      Purok {selectedApplicant.purok}, Brgy. {selectedApplicant.barangay}
-                    </span>
+            {/* Modal Top Header (Optimized for Mobile & Desktop) */}
+            <div className="bg-gradient-to-r from-[#112F24] via-[#163D2F] to-[#1A4234] text-white p-3.5 sm:p-5 md:p-6 shrink-0 border-b border-emerald-950/40">
+              <div className="flex items-start justify-between gap-2.5 sm:gap-4">
+                {/* Applicant Avatar & Name Info */}
+                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center font-black text-base sm:text-xl shadow-xs uppercase shrink-0">
+                    {selectedApplicant.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <h3 className="font-black text-sm sm:text-base md:text-lg tracking-tight leading-snug text-white truncate max-w-full">
+                        {selectedApplicant.name}
+                      </h3>
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+                        {selectedApplicant.age} yrs old
+                      </span>
+                    </div>
+                    <p className="flex items-center gap-1 text-[11px] sm:text-xs text-emerald-200/90 mt-0.5 truncate">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                      <span className="truncate">
+                        Purok {selectedApplicant.purok}, Brgy. {selectedApplicant.barangay.replace(/^Barangay\s+/i, "")}, San Luis
+                      </span>
+                    </p>
                   </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 text-center">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-300 block">AI Match</span>
-                  <span className="text-base font-black text-white">{selectedApplicant.matchScore || 85}%</span>
+                {/* Header Right: AI Match Badge + Close Button */}
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                  <div className="bg-white/10 backdrop-blur-md px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl border border-white/20 text-center">
+                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-emerald-300 block">AI Match</span>
+                    <span className="text-xs sm:text-base font-black text-white">{selectedApplicant.matchScore || 85}%</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedApplicant(null)}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
+                    title="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedApplicant(null)}
-                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[65vh]">
+            {/* Modal Body: Scrollable Content with Mobile Padding */}
+            <div className="p-3.5 sm:p-5 md:p-6 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
 
-              {/* 2-Column Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 2-Column Responsive Information Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
 
-                {/* Column 1: Contact & Education */}
-                <div className="space-y-4">
-                  <h5 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1.5">
-                    Residency & Contact
+                {/* Column 1: Residency, Contact & Profile */}
+                <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
+                  <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200/60 pb-1.5 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                    <span>Personal Profile & Contact</span>
                   </h5>
 
-                  <div className="space-y-3 text-xs">
-                    <div className="flex items-start gap-2.5">
-                      <Phone className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
-                      <div>
+                  <div className="space-y-2.5 text-xs">
+                    {/* Contact Number */}
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Contact Number</p>
-                        <p className="font-bold text-gray-800">{selectedApplicant.contactNumber || "N/A"}</p>
+                        <a
+                          href={`tel:${selectedApplicant.contactNumber}`}
+                          className="font-bold text-gray-900 hover:text-[#0A6B43] truncate block text-xs"
+                        >
+                          {selectedApplicant.contactNumber || "N/A"}
+                        </a>
                       </div>
                     </div>
 
+                    {/* Email */}
                     {selectedApplicant.email && (
-                      <div className="flex items-start gap-2.5">
-                        <Mail className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
-                        <div>
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <Mail className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
                           <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Email Address</p>
-                          <p className="font-bold text-gray-800">{selectedApplicant.email}</p>
+                          <a
+                            href={`mailto:${selectedApplicant.email}`}
+                            className="font-bold text-gray-900 hover:text-[#0A6B43] truncate block text-xs"
+                          >
+                            {selectedApplicant.email}
+                          </a>
                         </div>
                       </div>
                     )}
 
-                    <div className="flex items-start gap-2.5">
-                      <GraduationCap className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
-                      <div>
+                    {/* Educational Attainment */}
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <GraduationCap className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Educational Attainment</p>
-                        <p className="font-bold text-gray-800">{selectedApplicant.educationalAttainment}</p>
+                        <p className="font-bold text-gray-900 leading-snug break-words text-xs">
+                          {selectedApplicant.educationalAttainment || "Secondary Graduate"}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-2.5">
-                      <Info className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Status Category</p>
-                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-emerald-50 text-[#0A6B43] border border-emerald-200 font-bold text-[10px]">
-                          Out-of-School Youth (OSY)
-                        </span>
+                    {/* Demographic Categories */}
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <Info className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-1">Demographic Profile</p>
+                        <div className="flex flex-wrap gap-1">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[#0A6B43] border border-emerald-200 font-bold text-[10px]">
+                            {selectedApplicant.currentStatus || "Out-of-School Youth"}
+                          </span>
+                          {selectedApplicant.soloParent && (
+                            <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 font-bold text-[10px]">
+                              Solo Parent
+                            </span>
+                          )}
+                          {selectedApplicant.pwd && (
+                            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px]">
+                              PWD
+                            </span>
+                          )}
+                          {selectedApplicant.indigenous && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[10px]">
+                              Indigenous
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+
+                    {/* Verification Document Info (If Present) */}
+                    {selectedApplicant.verificationIdType && (
+                      <div className="flex items-start gap-2.5 min-w-0 pt-1 border-t border-gray-200/60">
+                        <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Proof of Identity Document</p>
+                          <p className="font-bold text-gray-900 text-xs truncate">
+                            {selectedApplicant.verificationIdType}
+                            {selectedApplicant.verificationIdNumber ? ` · ${selectedApplicant.verificationIdNumber}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Column 2: Skills & Career Path */}
-                <div className="space-y-4">
-                  <h5 className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1.5">
-                    Skills & Competencies
+                {/* Column 2: Competencies, Interests & Career Objective */}
+                <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-3">
+                  <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200/60 pb-1.5 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
+                    <span>Skills & Career Objective</span>
                   </h5>
 
                   <div className="space-y-3 text-xs">
+                    {/* Declared Skills */}
                     <div>
-                      <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-1.5">Declared Skills</p>
+                      <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-1.5">Registered Competencies</p>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedApplicant.skills && selectedApplicant.skills.length > 0 ? (
                           selectedApplicant.skills.map((s, idx) => (
-                            <span key={idx} className="text-[10px] font-bold bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2 py-0.5 rounded-md">
+                            <span key={idx} className="text-[10px] font-bold bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-0.5 rounded-md">
                               {s}
                             </span>
                           ))
                         ) : (
-                          <span className="text-gray-400 italic">No skills registered</span>
+                          <span className="text-gray-400 italic text-[11px]">No specific skills registered</span>
                         )}
                       </div>
                     </div>
 
+                    {/* Aspirational Interests */}
                     <div>
-                      <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider mb-1.5">Aspirational Interests</p>
+                      <p className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider mb-1.5">Vocational Interests</p>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedApplicant.interests && selectedApplicant.interests.length > 0 ? (
                           selectedApplicant.interests.map((i, idx) => (
-                            <span key={idx} className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md">
+                            <span key={idx} className="text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-0.5 rounded-md">
                               {i}
                             </span>
                           ))
                         ) : (
-                          <span className="text-gray-400 italic">No interests declared</span>
+                          <span className="text-gray-400 italic text-[11px]">General Vocational Interest</span>
                         )}
                       </div>
                     </div>
 
-                    <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-150">
+                    {/* Career Goal */}
+                    <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-2xs">
                       <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-1">Career & Livelihood Goal</p>
-                      <p className="text-xs text-gray-700 italic font-medium">
-                        "{selectedApplicant.livelihoodGoal || "Seeking technical training and livelihood certification."}"
+                      <p className="text-xs text-gray-800 italic font-medium leading-relaxed">
+                        &ldquo;{selectedApplicant.livelihoodGoal || "Seeking technical vocational training and accreditation for employment."}&rdquo;
                       </p>
                     </div>
                   </div>
@@ -4614,67 +4753,99 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
             </div>
 
-            {/* Modal Footer */}
-            <div className="bg-gray-50/80 border-t border-gray-100 p-4 px-6 flex items-center justify-between gap-3 shrink-0">
-              <div>
+            {/* Modal Footer (Stacked on Mobile, Flex on Desktop) */}
+            <div className="bg-gray-50/90 border-t border-gray-200/80 p-3 sm:p-4 px-4 sm:px-6 shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              {/* Left Status Indicator */}
+              <div className="flex items-center gap-2">
                 {(() => {
                   const activeRef = referrals.find(
                     r => (selectedApplicantReferral && r.id === selectedApplicantReferral.id) || r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()
                   );
                   if (!activeRef) return null;
                   return (
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider border ${activeRef.status === "Enrolled"
-                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                    <span className={`text-xs font-bold ${
+                      activeRef.status === "Enrolled"
+                        ? "text-[#0A6B43]"
                         : activeRef.status === "Pending"
-                          ? "bg-amber-50 text-amber-800 border-amber-200"
-                          : "bg-red-50 text-red-800 border-red-200"
-                      }`}>
-                      Current Status: {activeRef.status}
+                          ? "text-amber-800"
+                          : "text-red-700"
+                    }`}>
+                      Application Status: <strong>{activeRef.status}</strong>
                     </span>
                   );
                 })()}
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Action Buttons Grid on Mobile */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                 {(() => {
                   const activeRef = referrals.find(
                     r => ((selectedApplicantReferral && r.id === selectedApplicantReferral.id) || r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()) && r.status === "Pending"
                   );
-                  if (!activeRef) return null;
+                  if (!activeRef) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedApplicant(null)}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-gray-200 hover:bg-gray-300 active:scale-95 text-gray-800 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                      >
+                        Close Dossier
+                      </button>
+                    );
+                  }
 
                   return (
-                    <>
+                    <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
                       <button
                         type="button"
-                        onClick={() => {
-                          handleUpdateReferralStatus(activeRef.id, "Declined");
-                          setSelectedApplicant(null);
+                        disabled={processingReferralId === activeRef.id}
+                        onClick={async () => {
+                          const ok = await handleUpdateReferralStatus(activeRef.id, "Declined");
+                          if (ok) setSelectedApplicant(null);
                         }}
-                        className="px-3.5 py-2 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                        className="px-3.5 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Decline
+                        {processingReferralId === activeRef.id && processingReferralStatus === "Declined" ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            <span>Declining...</span>
+                          </>
+                        ) : (
+                          <span>Decline</span>
+                        )}
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          handleUpdateReferralStatus(activeRef.id, "Enrolled");
-                          setSelectedApplicant(null);
+                        disabled={processingReferralId === activeRef.id}
+                        onClick={async () => {
+                          const ok = await handleUpdateReferralStatus(activeRef.id, "Enrolled");
+                          if (ok) setSelectedApplicant(null);
                         }}
-                        className="px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs"
+                        className="px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs text-center flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
                       >
-                        Accept & Enroll
+                        {processingReferralId === activeRef.id && processingReferralStatus === "Enrolled" ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            <span>Enrolling...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>Accept & Enroll</span>
+                          </>
+                        )}
                       </button>
-                    </>
+                      <button
+                        type="button"
+                        disabled={processingReferralId === activeRef.id}
+                        onClick={() => setSelectedApplicant(null)}
+                        className="col-span-2 sm:col-span-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 active:scale-95 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer text-center disabled:opacity-50"
+                      >
+                        Close
+                      </button>
+                    </div>
                   );
                 })()}
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedApplicant(null)}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                >
-                  Close
-                </button>
               </div>
             </div>
 
@@ -5415,13 +5586,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       Eligibility Criteria
                     </span>
                     {isEditingInModal ? (
-                      <textarea
-                        rows={2}
-                        placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."
-                        value={modalEditEligibility}
-                        onChange={(e) => setModalEditEligibility(e.target.value)}
-                        className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
+                      <div className="w-full rounded-xl border border-gray-200 bg-gray-50/70 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all overflow-hidden shadow-2xs">
+                        <textarea
+                          rows={2}
+                          placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."
+                          value={modalEditEligibility}
+                          onChange={(e) => setModalEditEligibility(e.target.value)}
+                          className="w-full p-2.5 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[60px] max-h-[140px] block modal-scrollbar"
+                        />
+                      </div>
                     ) : (
                       <div className="bg-emerald-50/40 border border-emerald-100/80 rounded-lg sm:rounded-xl p-2.5 sm:p-3 flex items-start gap-2 sm:gap-2.5">
                         <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0 mt-0.5" />
@@ -6176,14 +6349,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
-                    <textarea
-                      rows={2}
-                      placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
-                      value={progEligibility}
-                      onChange={(e) => setProgEligibility(e.target.value)}
-                      className="w-full p-2.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
+                      <span className="text-[10px] text-gray-400 font-medium">Prerequisites & Target Audience</span>
+                    </div>
+                    <div className="w-full rounded-xl border border-gray-200 bg-gray-50/70 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all overflow-hidden shadow-2xs">
+                      <textarea
+                        rows={3}
+                        placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
+                        value={progEligibility}
+                        onChange={(e) => setProgEligibility(e.target.value)}
+                        className="w-full p-2.5 sm:p-3 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[68px] max-h-[160px] block modal-scrollbar"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -6250,9 +6428,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <button
                 type="submit"
                 form="edit-program-modal-form"
-                className="px-6 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                disabled={isSubmittingModalProgram}
+                className="px-6 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Update Program
+                {isSubmittingModalProgram ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span>Updating Program...</span>
+                  </>
+                ) : (
+                  <span>Update Program</span>
+                )}
               </button>
             </div>
 

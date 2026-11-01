@@ -547,13 +547,25 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   const [captainName, setCaptainName] = useState(captainInfo.name);
   const [captainEmail, setCaptainEmail] = useState(captainInfo.email);
   const [captainPhone, setCaptainPhone] = useState("+63 9");
+  const [savedCaptainName, setSavedCaptainName] = useState(captainInfo.name);
+  const [savedCaptainEmail, setSavedCaptainEmail] = useState(captainInfo.email);
+  const [savedCaptainPhone, setSavedCaptainPhone] = useState("+63 9");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const handleCancelProfileEdit = () => {
+    setCaptainName(savedCaptainName);
+    setCaptainEmail(savedCaptainEmail);
+    setCaptainPhone(savedCaptainPhone);
+    setIsEditingProfile(false);
+  };
 
   // Re-sync when captainInfo updates
   useEffect(() => {
     if (captainInfo) {
       setCaptainName(captainInfo.name);
+      setSavedCaptainName(captainInfo.name);
       setCaptainEmail(captainInfo.email);
+      setSavedCaptainEmail(captainInfo.email);
     }
   }, [captainInfo]);
 
@@ -4446,7 +4458,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                               <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
                                 <button
                                   type="button"
-                                  onClick={() => setIsEditingProfile(false)}
+                                  onClick={handleCancelProfileEdit}
                                   className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
                                 >
                                   Cancel

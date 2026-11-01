@@ -57,6 +57,7 @@ export interface SettingsSidebarNavProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
   ariaLabel?: string;
+  className?: string;
 }
 
 export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
@@ -64,12 +65,13 @@ export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
   activeTab,
   onTabChange,
   ariaLabel = "Settings navigation",
+  className = "",
 }) => {
   return (
-    <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4 overflow-hidden">
-      {/* Settings Navigation: Responsive Pills that hug text on mobile & vertical cards on desktop */}
+    <aside className={`w-full lg:w-fit min-w-[210px] shrink-0 lg:sticky lg:top-4 p-0.5 ${className}`}>
+      {/* Settings Navigation: Each tab in its own individual box/card */}
       <nav
-        className="flex flex-nowrap overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory gap-2 pb-1 lg:pb-0 lg:overflow-visible lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit"
+        className="flex flex-nowrap overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory gap-2 p-1 pb-2 lg:p-0 lg:overflow-visible lg:flex-col lg:space-y-2 lg:gap-0 w-full"
         aria-label={ariaLabel}
       >
         {tabs.map((tab) => {
@@ -83,15 +85,15 @@ export const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
                 onTabChange(tab.id);
                 e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
               }}
-              className={`group/pill shrink-0 snap-start w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
+              className={`group/pill shrink-0 snap-start w-auto lg:w-full flex items-center gap-2.5 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm lg:text-[14px] font-bold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
                 isActive
-                  ? "bg-[#0A6B43] text-white shadow-xs border-transparent"
-                  : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs lg:hover:translate-x-0.5"
+                  ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
+                  : "bg-white text-gray-700 border-gray-200/90 hover:border-emerald-300 hover:text-[#0A6B43] hover:bg-emerald-50/60 shadow-2xs hover:shadow-xs"
               }`}
             >
               <IconComponent
                 fill={isActive ? "currentColor" : "none"}
-                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0 transition-transform duration-200 ${
+                className={`w-4 h-4 lg:w-4.5 lg:h-4.5 shrink-0 transition-transform duration-200 ${
                   isActive
                     ? "text-white"
                     : "text-gray-400 group-hover/pill:text-[#0A6B43] group-hover/pill:scale-110"

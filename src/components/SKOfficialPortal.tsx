@@ -25,7 +25,7 @@ import {
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard } from "./SettingsShared";
-import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase } from "../lib/utils";
+import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase, parseVerificationIdImages } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import {
@@ -391,6 +391,18 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [settingsPos, setSettingsPos] = useState("SK Chairperson");
   const [settingsEmail, setSettingsEmail] = useState("rheacruz.sk@sanluispampanga.gov.ph");
   const [settingsPhone, setSettingsPhone] = useState("+63 915 777 8888");
+  const [savedSettingsName, setSavedSettingsName] = useState("Rhea Cruz");
+  const [savedSettingsPos, setSavedSettingsPos] = useState("SK Chairperson");
+  const [savedSettingsEmail, setSavedSettingsEmail] = useState("rheacruz.sk@sanluispampanga.gov.ph");
+  const [savedSettingsPhone, setSavedSettingsPhone] = useState("+63 915 777 8888");
+
+  const handleCancelProfileEdit = () => {
+    setSettingsName(savedSettingsName);
+    setSettingsEmail(savedSettingsEmail);
+    setSettingsPhone(savedSettingsPhone);
+    setSettingsPos(savedSettingsPos);
+    setIsEditingProfile(false);
+  };
   const [prefMatchAlerts, setPrefMatchAlerts] = useState(true);
   const [prefSlots, setPrefSlots] = useState(true);
   const [prefWeekly, setPrefWeekly] = useState(true);
@@ -405,6 +417,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Action loading states for youth approvals/rejections and announcements
+  const [processingYouthId, setProcessingYouthId] = useState<string | null>(null);
+  const [processingYouthAction, setProcessingYouthAction] = useState<"Approved" | "Rejected" | null>(null);
+  const [isSubmittingAnnouncement, setIsSubmittingAnnouncement] = useState(false);
+  const [isAddingCouncilor, setIsAddingCouncilor] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Check if current logged-in official is an SK Councilor, Secretary, or Treasurer
@@ -439,13 +457,19 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   useEffect(() => {
     if (currentUser) {
       setSettingsName(currentUser.name);
+      setSavedSettingsName(currentUser.name);
       setSettingsEmail(currentUser.email);
+      setSavedSettingsEmail(currentUser.email);
       setSettingsPos(officialPosition);
+      setSavedSettingsPos(officialPosition);
       return;
     }
     setSettingsName("SK Chairperson");
+    setSavedSettingsName("SK Chairperson");
     setSettingsEmail("chairperson@sanluispampanga.gov.ph");
+    setSavedSettingsEmail("chairperson@sanluispampanga.gov.ph");
     setSettingsPos("SK Chairperson");
+    setSavedSettingsPos("SK Chairperson");
   }, [designatedBarangay, currentUser, officialPosition]);
 
   // Protect My Team screen: if not Chairperson, automatically redirect to Dashboard
@@ -493,6 +517,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   } | null>(null);
   const [expandedIdZoom, setExpandedIdZoom] = useState<number>(1);
   const [expandedIdRotation, setExpandedIdRotation] = useState<number>(0);
+  const [expandedIdActiveSide, setExpandedIdActiveSide] = useState<"front" | "back" | "both">("front");
 
   // Handle ESC key to close expanded ID preview
   useEffect(() => {
@@ -1623,37 +1648,49 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     }
   };
 
-  const handleApproveYouth = async (id: string) => {
-    setYouthProfiles(prev => prev.map(y => y.id === id ? { ...y, approvalStatus: "Approved" } : y));
-    addToast("Youth profile has been successfully approved!", "success");
-    broadcastDataChange("youth", "approved");
-
+  const handleApproveYouth = async (id: string): Promise<boolean> => {
+    setProcessingYouthId(id);
+    setProcessingYouthAction("Approved");
     try {
       await fetch("/api/youth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, approvalStatus: "Approved" })
       });
+      setYouthProfiles(prev => prev.map(y => y.id === id ? { ...y, approvalStatus: "Approved" } : y));
+      addToast("Youth profile has been successfully approved!", "success");
       broadcastDataChange("youth", "approved");
+      return true;
     } catch (err) {
       console.error("Failed to persist youth approval to database:", err);
+      addToast("Failed to approve youth profile. Please try again.", "error");
+      return false;
+    } finally {
+      setProcessingYouthId(null);
+      setProcessingYouthAction(null);
     }
   };
 
-  const handleRejectYouth = async (id: string) => {
-    setYouthProfiles(prev => prev.map(y => y.id === id ? { ...y, approvalStatus: "Rejected" } : y));
-    addToast("Youth profile has been rejected.", "info");
-    broadcastDataChange("youth", "rejected");
-
+  const handleRejectYouth = async (id: string): Promise<boolean> => {
+    setProcessingYouthId(id);
+    setProcessingYouthAction("Rejected");
     try {
       await fetch("/api/youth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, approvalStatus: "Rejected" })
       });
+      setYouthProfiles(prev => prev.map(y => y.id === id ? { ...y, approvalStatus: "Rejected" } : y));
+      addToast("Youth profile has been rejected.", "info");
       broadcastDataChange("youth", "rejected");
+      return true;
     } catch (err) {
       console.error("Failed to persist youth rejection to database:", err);
+      addToast("Failed to reject youth profile. Please try again.", "error");
+      return false;
+    } finally {
+      setProcessingYouthId(null);
+      setProcessingYouthAction(null);
     }
   };
 
@@ -5320,22 +5357,38 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Inspect ID
                     </button>
                     <button
-                      onClick={() => {
-                        handleApproveYouth(selectedYouth.id);
-                        setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
+                      disabled={processingYouthId === selectedYouth.id}
+                      onClick={async () => {
+                        const ok = await handleApproveYouth(selectedYouth.id);
+                        if (ok) setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
                       }}
-                      className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Approve Profile
+                      {processingYouthId === selectedYouth.id && processingYouthAction === "Approved" ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                          <span>Approving...</span>
+                        </>
+                      ) : (
+                        <span>Approve Profile</span>
+                      )}
                     </button>
                     <button
-                      onClick={() => {
-                        handleRejectYouth(selectedYouth.id);
-                        setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
+                      disabled={processingYouthId === selectedYouth.id}
+                      onClick={async () => {
+                        const ok = await handleRejectYouth(selectedYouth.id);
+                        if (ok) setCurrentScreen(SKOfficialScreen.PENDING_APPROVALS);
                       }}
-                      className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95"
+                      className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[14px] font-bold rounded-xl shadow-xs transition-all uppercase tracking-wide cursor-pointer text-center active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Reject
+                      {processingYouthId === selectedYouth.id && processingYouthAction === "Rejected" ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                          <span>Rejecting...</span>
+                        </>
+                      ) : (
+                        <span>Reject</span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -7463,7 +7516,13 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <div className="pt-2 flex justify-end">
                             <button
                               type="button"
-                              onClick={() => setIsEditingProfile(true)}
+                              onClick={() => {
+                                setSettingsName(savedSettingsName);
+                                setSettingsEmail(savedSettingsEmail);
+                                setSettingsPhone(savedSettingsPhone);
+                                setSettingsPos(savedSettingsPos);
+                                setIsEditingProfile(true);
+                              }}
                               className="group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
                             >
                               <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
@@ -7574,14 +7633,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <div className="pt-2 flex justify-end gap-2.5">
                             <button
                               type="button"
-                              onClick={() => {
-                                setIsEditingProfile(false);
-                                if (currentUser) {
-                                  setSettingsName(currentUser.name);
-                                  setSettingsEmail(currentUser.email);
-                                  setSettingsPos(officialPosition);
-                                }
-                              }}
+                              onClick={handleCancelProfileEdit}
                               disabled={isSavingProfile}
                               className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
                             >
@@ -8909,19 +8961,29 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                     <div className="flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
+                                        disabled={processingYouthId === y.id}
                                         onClick={() => handleApproveYouth(y.id)}
-                                        className="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                        className="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed"
                                         title="Approve Member"
                                       >
-                                        <Check className="w-4 h-4" />
+                                        {processingYouthId === y.id && processingYouthAction === "Approved" ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <Check className="w-4 h-4" />
+                                        )}
                                       </button>
                                       <button
                                         type="button"
+                                        disabled={processingYouthId === y.id}
                                         onClick={() => handleRejectYouth(y.id)}
-                                        className="w-8 h-8 rounded-xl bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                                        className="w-8 h-8 rounded-xl bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs disabled:opacity-60 disabled:cursor-not-allowed"
                                         title="Reject Member"
                                       >
-                                        <X className="w-4 h-4" />
+                                        {processingYouthId === y.id && processingYouthAction === "Rejected" ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <X className="w-4 h-4" />
+                                        )}
                                       </button>
                                     </div>
                                   </td>
@@ -9532,77 +9594,186 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
               {/* ID Document Details */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Submitted Document Proof</p>
-                  {verifyingYouth.verificationIdImage && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setExpandedIdPreview({
-                          imageUrl: verifyingYouth.verificationIdImage || "",
-                          idType: verifyingYouth.verificationIdType,
-                          idNumber: verifyingYouth.verificationIdNumber,
-                          memberName: verifyingYouth.name,
-                          barangay: verifyingYouth.barangay,
-                        });
-                        setExpandedIdZoom(1);
-                        setExpandedIdRotation(0);
-                      }}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95"
-                      title="Expand ID View for clearer inspection"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      <span>Expand View</span>
-                    </button>
-                  )}
-                </div>
-                {verifyingYouth.verificationIdType ? (
-                  <div className="border border-gray-150 rounded-xl overflow-hidden bg-white">
-                    <div className="bg-gray-50 p-2.5 border-b border-gray-150 flex flex-wrap justify-between items-center gap-1.5">
-                      <span className="font-bold text-gray-800 flex items-center gap-1.5 text-xs">
-                        <FileText className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                        {verifyingYouth.verificationIdType}
-                      </span>
-                      <span className="font-mono text-gray-600 font-extrabold bg-white border border-gray-200 px-2 py-0.5 rounded text-[10px] break-all">
-                        Ref: {verifyingYouth.verificationIdNumber || "N/A"}
-                      </span>
-                    </div>
-
-                    <div
-                      onClick={() => {
-                        if (verifyingYouth.verificationIdImage) {
-                          setExpandedIdPreview({
-                            imageUrl: verifyingYouth.verificationIdImage,
-                            idType: verifyingYouth.verificationIdType,
-                            idNumber: verifyingYouth.verificationIdNumber,
-                            memberName: verifyingYouth.name,
-                            barangay: verifyingYouth.barangay,
-                          });
-                          setExpandedIdZoom(1);
-                          setExpandedIdRotation(0);
-                        }
-                      }}
-                      className="group relative p-3 bg-gray-50/80 flex justify-center items-center cursor-zoom-in overflow-hidden transition-colors hover:bg-gray-100/80"
-                      title="Click to expand and inspect ID details"
-                    >
-                      <img
-                        src={verifyingYouth.verificationIdImage}
-                        alt="KK Verification Document proof"
-                        className="max-h-44 sm:max-h-56 rounded-xl shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white transition-all duration-200 group-hover:scale-[1.02] group-hover:shadow-md"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                        <span className="bg-white/95 backdrop-blur-xs text-gray-900 px-3 py-1.5 rounded-xl font-extrabold text-xs shadow-lg border border-gray-200 flex items-center gap-1.5 transform translate-y-1 group-hover:translate-y-0 transition-transform">
-                          <ZoomIn className="w-4 h-4 text-[#0A6B43]" />
-                          Click to Expand & Inspect
-                        </span>
+                {(() => {
+                  const parsedIdDoc = parseVerificationIdImages(verifyingYouth.verificationIdImage);
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+                          Submitted Document Proof {parsedIdDoc.isDualPhoto ? "(Front & Back)" : ""}
+                        </p>
+                        {verifyingYouth.verificationIdImage && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedIdPreview({
+                                imageUrl: verifyingYouth.verificationIdImage || "",
+                                idType: verifyingYouth.verificationIdType,
+                                idNumber: verifyingYouth.verificationIdNumber,
+                                memberName: verifyingYouth.name,
+                                barangay: verifyingYouth.barangay,
+                              });
+                              setExpandedIdActiveSide(parsedIdDoc.isDualPhoto ? "both" : "front");
+                              setExpandedIdZoom(1);
+                              setExpandedIdRotation(0);
+                            }}
+                            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95"
+                            title="Expand ID View for clearer inspection"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span>Expand View</span>
+                          </button>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                ) : (
+                      {verifyingYouth.verificationIdType ? (
+                        <div className="border border-gray-150 rounded-xl overflow-hidden bg-white">
+                          <div className="bg-gray-50 p-2.5 border-b border-gray-150 flex flex-wrap justify-between items-center gap-1.5">
+                            <span className="font-bold text-gray-800 flex items-center gap-1.5 text-xs">
+                              <FileText className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                              {verifyingYouth.verificationIdType}
+                            </span>
+                            <span className="font-mono text-gray-600 font-extrabold bg-white border border-gray-200 px-2 py-0.5 rounded text-[10px] break-all">
+                              Ref: {verifyingYouth.verificationIdNumber || "N/A"}
+                            </span>
+                          </div>
+
+                          {parsedIdDoc.isDualPhoto && parsedIdDoc.back ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-gray-50/80">
+                              {/* Front Side Thumbnail */}
+                              <div
+                                onClick={() => {
+                                  if (verifyingYouth.verificationIdImage) {
+                                    setExpandedIdPreview({
+                                      imageUrl: verifyingYouth.verificationIdImage,
+                                      idType: verifyingYouth.verificationIdType,
+                                      idNumber: verifyingYouth.verificationIdNumber,
+                                      memberName: verifyingYouth.name,
+                                      barangay: verifyingYouth.barangay,
+                                    });
+                                    setExpandedIdActiveSide("front");
+                                    setExpandedIdZoom(1);
+                                    setExpandedIdRotation(0);
+                                  }
+                                }}
+                                className="group relative bg-white border border-gray-200 rounded-xl p-2 flex flex-col items-center cursor-zoom-in overflow-hidden transition-all hover:border-emerald-400 hover:shadow-sm"
+                                title="Click to inspect Front Side"
+                              >
+                                <span className="self-start text-[9px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md mb-1.5">
+                                  1 · Front Side
+                                </span>
+                                <img
+                                  src={parsedIdDoc.front}
+                                  alt="Front ID Document proof"
+                                  className="h-36 sm:h-40 rounded-lg object-contain w-auto max-w-full bg-white transition-transform duration-200 group-hover:scale-[1.02]"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                  <span className="bg-white/95 text-gray-900 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-md border border-gray-200 flex items-center gap-1">
+                                    <ZoomIn className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                    Inspect Front
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Back Side Thumbnail */}
+                              <div
+                                onClick={() => {
+                                  if (verifyingYouth.verificationIdImage) {
+                                    setExpandedIdPreview({
+                                      imageUrl: verifyingYouth.verificationIdImage,
+                                      idType: verifyingYouth.verificationIdType,
+                                      idNumber: verifyingYouth.verificationIdNumber,
+                                      memberName: verifyingYouth.name,
+                                      barangay: verifyingYouth.barangay,
+                                    });
+                                    setExpandedIdActiveSide("back");
+                                    setExpandedIdZoom(1);
+                                    setExpandedIdRotation(0);
+                                  }
+                                }}
+                                className="group relative bg-white border border-gray-200 rounded-xl p-2 flex flex-col items-center cursor-zoom-in overflow-hidden transition-all hover:border-emerald-400 hover:shadow-sm"
+                                title="Click to inspect Back Side"
+                              >
+                                <span className="self-start text-[9px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md mb-1.5">
+                                  2 · Back Side
+                                </span>
+                                <img
+                                  src={parsedIdDoc.back}
+                                  alt="Back ID Document proof"
+                                  className="h-36 sm:h-40 rounded-lg object-contain w-auto max-w-full bg-white transition-transform duration-200 group-hover:scale-[1.02]"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                  <span className="bg-white/95 text-gray-900 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-md border border-gray-200 flex items-center gap-1">
+                                    <ZoomIn className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                    Inspect Back
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : parsedIdDoc.isPdf ? (
+                            <div
+                              onClick={() => {
+                                if (verifyingYouth.verificationIdImage) {
+                                  setExpandedIdPreview({
+                                    imageUrl: verifyingYouth.verificationIdImage,
+                                    idType: verifyingYouth.verificationIdType,
+                                    idNumber: verifyingYouth.verificationIdNumber,
+                                    memberName: verifyingYouth.name,
+                                    barangay: verifyingYouth.barangay,
+                                  });
+                                  setExpandedIdActiveSide("front");
+                                  setExpandedIdZoom(1);
+                                  setExpandedIdRotation(0);
+                                }
+                              }}
+                              className="p-4 bg-gray-50/80 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-emerald-50/40 transition-colors"
+                              title="Click to open PDF Document"
+                            >
+                              <FileText className="w-8 h-8 text-[#0A6B43]" />
+                              <span className="text-xs font-extrabold text-gray-800">Combined PDF Document Submitted</span>
+                              <span className="text-[11px] font-bold text-[#0A6B43] flex items-center gap-1">
+                                <Maximize2 className="w-3 h-3" /> Click to Expand & Read Full PDF
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => {
+                                if (verifyingYouth.verificationIdImage) {
+                                  setExpandedIdPreview({
+                                    imageUrl: verifyingYouth.verificationIdImage,
+                                    idType: verifyingYouth.verificationIdType,
+                                    idNumber: verifyingYouth.verificationIdNumber,
+                                    memberName: verifyingYouth.name,
+                                    barangay: verifyingYouth.barangay,
+                                  });
+                                  setExpandedIdActiveSide("front");
+                                  setExpandedIdZoom(1);
+                                  setExpandedIdRotation(0);
+                                }
+                              }}
+                              className="group relative p-3 bg-gray-50/80 flex justify-center items-center cursor-zoom-in overflow-hidden transition-colors hover:bg-gray-100/80"
+                              title="Click to expand and inspect ID details"
+                            >
+                              <img
+                                src={parsedIdDoc.front}
+                                alt="KK Verification Document proof"
+                                className="max-h-44 sm:max-h-56 rounded-xl shadow-xs border border-gray-200 object-contain w-auto max-w-full bg-white transition-all duration-200 group-hover:scale-[1.02] group-hover:shadow-md"
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-emerald-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                <span className="bg-white/95 backdrop-blur-xs text-gray-900 px-3 py-1.5 rounded-xl font-extrabold text-xs shadow-lg border border-gray-200 flex items-center gap-1.5 transform translate-y-1 group-hover:translate-y-0 transition-transform">
+                                  <ZoomIn className="w-4 h-4 text-[#0A6B43]" />
+                                  Click to Expand & Inspect
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
                   <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-xl text-center text-amber-800 font-bold space-y-1">
                     <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-amber-600 mx-auto" />
                     <p className="text-xs">In-Person Profile Creation</p>
@@ -9611,6 +9782,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </p>
                   </div>
                 )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Validation Checklist */}
@@ -9654,23 +9828,39 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => {
-                    handleRejectYouth(verifyingYouth.id);
-                    setVerifyingYouth(null);
+                  disabled={processingYouthId === verifyingYouth.id}
+                  onClick={async () => {
+                    const ok = await handleRejectYouth(verifyingYouth.id);
+                    if (ok) setVerifyingYouth(null);
                   }}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center"
+                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Reject & Deny
+                  {processingYouthId === verifyingYouth.id && processingYouthAction === "Rejected" ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>Rejecting...</span>
+                    </>
+                  ) : (
+                    <span>Reject & Deny</span>
+                  )}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    handleApproveYouth(verifyingYouth.id);
-                    setVerifyingYouth(null);
+                  disabled={processingYouthId === verifyingYouth.id}
+                  onClick={async () => {
+                    const ok = await handleApproveYouth(verifyingYouth.id);
+                    if (ok) setVerifyingYouth(null);
                   }}
-                  className="px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center"
+                  className="px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Approve Member
+                  {processingYouthId === verifyingYouth.id && processingYouthAction === "Approved" ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>Approving...</span>
+                    </>
+                  ) : (
+                    <span>Approve Member</span>
+                  )}
                 </button>
               </div>
             </div>
@@ -9720,85 +9910,182 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               </div>
 
               {/* View Control Toolbar */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <div className="flex items-center bg-slate-700/80 rounded-xl p-0.5 border border-slate-600">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedIdZoom((prev) => Math.max(0.5, Number((prev - 0.25).toFixed(2))))}
-                    disabled={expandedIdZoom <= 0.5}
-                    className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExpandedIdZoom(1);
-                      setExpandedIdRotation(0);
-                    }}
-                    className="px-2 py-1 text-[11px] font-bold text-slate-200 hover:text-white transition-colors cursor-pointer"
-                    title="Reset Zoom & Rotation"
-                  >
-                    {Math.round(expandedIdZoom * 100)}%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedIdZoom((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))))}
-                    disabled={expandedIdZoom >= 3}
-                    className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="w-4 h-4" />
-                  </button>
-                </div>
+              {(() => {
+                const parsedModalId = parseVerificationIdImages(expandedIdPreview.imageUrl);
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    {parsedModalId.isDualPhoto && parsedModalId.back && (
+                      <div className="flex items-center bg-slate-700/80 rounded-xl p-0.5 border border-slate-600 mr-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedIdActiveSide("front");
+                            setExpandedIdZoom(1);
+                            setExpandedIdRotation(0);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-colors cursor-pointer ${
+                            expandedIdActiveSide === "front" ? "bg-emerald-600 text-white" : "text-slate-300 hover:text-white"
+                          }`}
+                        >
+                          Front
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedIdActiveSide("back");
+                            setExpandedIdZoom(1);
+                            setExpandedIdRotation(0);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-colors cursor-pointer ${
+                            expandedIdActiveSide === "back" ? "bg-emerald-600 text-white" : "text-slate-300 hover:text-white"
+                          }`}
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedIdActiveSide("both");
+                            setExpandedIdZoom(1);
+                            setExpandedIdRotation(0);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-colors cursor-pointer ${
+                            expandedIdActiveSide === "both" ? "bg-emerald-600 text-white" : "text-slate-300 hover:text-white"
+                          }`}
+                        >
+                          Both Sides
+                        </button>
+                      </div>
+                    )}
 
-                <button
-                  type="button"
-                  onClick={() => setExpandedIdRotation((prev) => (prev + 90) % 360)}
-                  className="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer"
-                  title="Rotate 90°"
-                >
-                  <RotateCw className="w-4 h-4" />
-                </button>
+                    <div className="flex items-center bg-slate-700/80 rounded-xl p-0.5 border border-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedIdZoom((prev) => Math.max(0.5, Number((prev - 0.25).toFixed(2))))}
+                        disabled={expandedIdZoom <= 0.5}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title="Zoom Out"
+                      >
+                        <ZoomOut className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpandedIdZoom(1);
+                          setExpandedIdRotation(0);
+                        }}
+                        className="px-2 py-1 text-[11px] font-bold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                        title="Reset Zoom & Rotation"
+                      >
+                        {Math.round(expandedIdZoom * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedIdZoom((prev) => Math.min(3, Number((prev + 0.25).toFixed(2))))}
+                        disabled={expandedIdZoom >= 3}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title="Zoom In"
+                      >
+                        <ZoomIn className="w-4 h-4" />
+                      </button>
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => setExpandedIdPreview(null)}
-                  className="p-2 rounded-xl bg-slate-700/80 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border border-slate-600 hover:border-red-500/30 transition-colors cursor-pointer ml-1"
-                  title="Close expanded view"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedIdRotation((prev) => (prev + 90) % 360)}
+                      className="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-300 hover:text-white border border-slate-600 transition-colors cursor-pointer"
+                      title="Rotate 90°"
+                    >
+                      <RotateCw className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setExpandedIdPreview(null)}
+                      className="p-2 rounded-xl bg-slate-700/80 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border border-slate-600 hover:border-red-500/30 transition-colors cursor-pointer ml-1"
+                      title="Close expanded view"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Document Image Viewing Canvas */}
             <div className="flex-1 bg-slate-950 p-3 sm:p-6 flex items-center justify-center overflow-auto min-h-[300px] max-h-[68vh] sm:max-h-[72vh] relative select-none">
-              {expandedIdPreview.imageUrl.startsWith("data:application/pdf") || expandedIdPreview.imageUrl.toLowerCase().endsWith(".pdf") ? (
-                <iframe
-                  src={expandedIdPreview.imageUrl}
-                  title="PDF ID Document"
-                  className="w-full h-[65vh] rounded-xl bg-white border-0"
-                />
-              ) : (
-                <div className="flex items-center justify-center w-full h-full p-2">
-                  <img
-                    src={expandedIdPreview.imageUrl}
-                    alt="Expanded ID Document"
-                    style={{
-                      transform: `scale(${expandedIdZoom}) rotate(${expandedIdRotation}deg)`,
-                      transformOrigin: "center center",
-                      transition: "transform 0.15s ease-out",
-                    }}
-                    className="max-h-[64vh] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-transform"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
-                    }}
-                  />
-                </div>
-              )}
+              {(() => {
+                const parsedModalId = parseVerificationIdImages(expandedIdPreview.imageUrl);
+                if (parsedModalId.isPdf) {
+                  return (
+                    <iframe
+                      src={parsedModalId.front}
+                      title="PDF ID Document"
+                      className="w-full h-[65vh] rounded-xl bg-white border-0"
+                    />
+                  );
+                }
+                if (parsedModalId.isDualPhoto && parsedModalId.back && expandedIdActiveSide === "both") {
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full h-full items-center justify-items-center p-2">
+                      <div className="flex flex-col items-center gap-2 w-full">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                          1 · Front Side
+                        </span>
+                        <img
+                          src={parsedModalId.front}
+                          alt="Front ID Document"
+                          style={{
+                            transform: `scale(${expandedIdZoom}) rotate(${expandedIdRotation}deg)`,
+                            transformOrigin: "center center",
+                            transition: "transform 0.15s ease-out",
+                          }}
+                          className="max-h-[55vh] max-w-full w-auto object-contain rounded-lg shadow-2xl"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <div className="flex flex-col items-center gap-2 w-full">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                          2 · Back Side
+                        </span>
+                        <img
+                          src={parsedModalId.back}
+                          alt="Back ID Document"
+                          style={{
+                            transform: `scale(${expandedIdZoom}) rotate(${expandedIdRotation}deg)`,
+                            transformOrigin: "center center",
+                            transition: "transform 0.15s ease-out",
+                          }}
+                          className="max-h-[55vh] max-w-full w-auto object-contain rounded-lg shadow-2xl"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+                const displayUrl =
+                  parsedModalId.isDualPhoto && expandedIdActiveSide === "back" && parsedModalId.back
+                    ? parsedModalId.back
+                    : parsedModalId.front;
+                return (
+                  <div className="flex items-center justify-center w-full h-full p-2">
+                    <img
+                      src={displayUrl}
+                      alt="Expanded ID Document"
+                      style={{
+                        transform: `scale(${expandedIdZoom}) rotate(${expandedIdRotation}deg)`,
+                        transformOrigin: "center center",
+                        transition: "transform 0.15s ease-out",
+                      }}
+                      className="max-h-[64vh] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-transform"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600";
+                      }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Modal Bottom Footer / Inspection Guide */}
@@ -9980,23 +10267,39 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    handleRejectYouth(viewingPendingYouthModal.id);
-                    setViewingPendingYouthModal(null);
+                  disabled={processingYouthId === viewingPendingYouthModal.id}
+                  onClick={async () => {
+                    const ok = await handleRejectYouth(viewingPendingYouthModal.id);
+                    if (ok) setViewingPendingYouthModal(null);
                   }}
-                  className="px-2 sm:px-3.5 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate"
+                  className="px-2 sm:px-3.5 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Reject
+                  {processingYouthId === viewingPendingYouthModal.id && processingYouthAction === "Rejected" ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>Rejecting...</span>
+                    </>
+                  ) : (
+                    <span>Reject</span>
+                  )}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    handleApproveYouth(viewingPendingYouthModal.id);
-                    setViewingPendingYouthModal(null);
+                  disabled={processingYouthId === viewingPendingYouthModal.id}
+                  onClick={async () => {
+                    const ok = await handleApproveYouth(viewingPendingYouthModal.id);
+                    if (ok) setViewingPendingYouthModal(null);
                   }}
-                  className="px-2 sm:px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate"
+                  className="px-2 sm:px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider text-center truncate flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Approve
+                  {processingYouthId === viewingPendingYouthModal.id && processingYouthAction === "Approved" ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                      <span>Approving...</span>
+                    </>
+                  ) : (
+                    <span>Approve</span>
+                  )}
                 </button>
               </div>
             </div>

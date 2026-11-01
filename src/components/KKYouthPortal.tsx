@@ -11,13 +11,14 @@ import {
   TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame,
   Search, Filter, Settings
 } from "lucide-react";
-import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender } from "../lib/utils";
+import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender, parseVerificationIdImages } from "../lib/utils";
 import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo, NotificationBellButton, SiKapDatePicker } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { motion, AnimatePresence, useInView, useAnimation } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { SettingsSidebarNav } from "./SettingsShared";
 import { calculateContentBasedMatchScore, calculateDetailedCBFMatch, rankProgramsForYouth, getSuggestedSkillsForYouth, formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, getCBFMatchCategory, identifyTopMatchProgramIds, CBFMatchCategory } from "../lib/cbf-matcher";
 import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan, getFallbackPersonalizedRationale, getFallbackPersonalized3StepPathway } from "../lib/gemini";
@@ -932,6 +933,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const [newPrefInput, setNewPrefInput] = useState("");
   const [newExpInput, setNewExpInput] = useState("");
   const [showIdPhotoModal, setShowIdPhotoModal] = useState(false);
+  const [idPhotoModalSide, setIdPhotoModalSide] = useState<"front" | "back">("front");
 
   // Dashboard hover states
   const [hoveredSlice, setHoveredSlice] = useState<number | null>(null);
@@ -5400,44 +5402,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       {/* 2-Column Settings Layout: Left Vertical Sidebar + Right Main Content Area */}
       <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
         {/* Left Vertical Sidebar Navigation */}
-        <aside className="w-full lg:w-fit shrink-0 lg:sticky lg:top-4 overflow-hidden">
-          {/* Settings Navigation: Responsive Pills that hug text on mobile & vertical cards on desktop */}
-          <nav className="flex flex-nowrap overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory gap-2 pb-1 lg:pb-0 lg:overflow-visible lg:flex-col lg:space-y-[5.6px] lg:gap-0 w-full lg:w-fit" aria-label="Settings navigation">
-            {[
-              { id: "profile", label: "Personal Details", icon: User },
-              { id: "skills", label: "Skills & Competencies", icon: Award },
-              { id: "security", label: "Security & Password", icon: Lock },
-              { id: "notifications", label: "Alerts & Notifications", icon: Bell },
-              { id: "badge", label: "Digital ID Card", icon: ShieldCheck },
-            ].map((tab) => {
-              const isActive = profileActiveTab === tab.id;
-              const IconComponent = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={(e) => {
-                    setProfileActiveTab(tab.id as any);
-                    e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-                  }}
-                  className={`group/pill shrink-0 snap-start w-auto lg:w-full flex items-center gap-1.5 sm:gap-2 lg:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs lg:text-[15px] font-semibold transition-all duration-200 cursor-pointer whitespace-nowrap select-none border ${
-                    isActive
-                      ? "bg-[#0A6B43] text-white shadow-xs border-transparent"
-                      : "bg-white text-gray-700 border-gray-200/70 lg:border-transparent hover:border-gray-300 hover:text-[#0A6B43] hover:bg-emerald-50/70 shadow-2xs hover:shadow-xs lg:hover:translate-x-0.5"
-                  }`}
-                >
-                  <IconComponent
-                    fill={isActive ? "currentColor" : "none"}
-                    className={`w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0 transition-transform duration-200 ${
-                      isActive ? "text-white" : "text-gray-400 group-hover/pill:text-[#0A6B43] group-hover/pill:scale-110"
-                    }`}
-                  />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+        <SettingsSidebarNav
+          tabs={[
+            { id: "profile", label: "Personal Details", icon: User },
+            { id: "skills", label: "Skills & Competencies", icon: Award },
+            { id: "security", label: "Security & Password", icon: Lock },
+            { id: "notifications", label: "Alerts & Notifications", icon: Bell },
+            { id: "badge", label: "Digital ID Card", icon: ShieldCheck },
+          ]}
+          activeTab={profileActiveTab}
+          onTabChange={(tabId) => setProfileActiveTab(tabId as any)}
+        />
 
         {/* Right Main Content Area */}
         <main className="flex-1 min-w-0 w-full">
@@ -5647,6 +5622,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           addToast("Cannot edit profile details while awaiting SK Verification", "error");
                           return;
                         }
+                        handleCancelEdit();
                         setIsEditingProfile(true);
                       }}
                       disabled={isUnverified}
@@ -5989,21 +5965,70 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </div>
                       )}
 
-                      <div className="flex justify-between items-center text-xs sm:text-sm">
-                        <span className="text-gray-500 font-medium">ID Photo Attached:</span>
-                        {youthProfile.verificationIdImage ? (
-                          <div
-                            className="w-13 h-9 sm:w-16 sm:h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
-                            onClick={() => setShowIdPhotoModal(true)}
-                            title="Click to view full ID photo"
-                          >
-                            <img
-                              src={youthProfile.verificationIdImage}
-                              alt="ID Preview"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
+                      <div className="flex justify-between items-center text-xs sm:text-sm gap-2">
+                        <span className="text-gray-500 font-medium">ID Document Attached:</span>
+                        {youthProfile.verificationIdImage ? (() => {
+                          const parsedProfileId = parseVerificationIdImages(youthProfile.verificationIdImage);
+                          if (parsedProfileId.isDualPhoto && parsedProfileId.back) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="relative w-14 h-10 sm:w-16 sm:h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
+                                  onClick={() => {
+                                    setIdPhotoModalSide("front");
+                                    setShowIdPhotoModal(true);
+                                  }}
+                                  title="Click to view Front ID photo"
+                                >
+                                  <img src={parsedProfileId.front} alt="Front ID Preview" className="w-full h-full object-cover" />
+                                  <span className="absolute bottom-0.5 left-0.5 bg-black/70 text-white text-[8px] font-extrabold px-1 rounded">FRONT</span>
+                                </div>
+                                <div
+                                  className="relative w-14 h-10 sm:w-16 sm:h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
+                                  onClick={() => {
+                                    setIdPhotoModalSide("back");
+                                    setShowIdPhotoModal(true);
+                                  }}
+                                  title="Click to view Back ID photo"
+                                >
+                                  <img src={parsedProfileId.back} alt="Back ID Preview" className="w-full h-full object-cover" />
+                                  <span className="absolute bottom-0.5 left-0.5 bg-black/70 text-white text-[8px] font-extrabold px-1 rounded">BACK</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          if (parsedProfileId.isPdf) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIdPhotoModalSide("front");
+                                  setShowIdPhotoModal(true);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-emerald-100 transition-colors"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>View PDF Document</span>
+                              </button>
+                            );
+                          }
+                          return (
+                            <div
+                              className="w-13 h-9 sm:w-16 sm:h-11 rounded-lg bg-gray-200 overflow-hidden border border-gray-300 shadow-2xs shrink-0 cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-emerald-500 transition-all flex items-center justify-center"
+                              onClick={() => {
+                                setIdPhotoModalSide("front");
+                                setShowIdPhotoModal(true);
+                              }}
+                              title="Click to view full ID photo"
+                            >
+                              <img
+                                src={parsedProfileId.front}
+                                alt="ID Preview"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          );
+                        })() : (
                           <span className="text-[11px] sm:text-xs text-gray-400 italic">No image submitted</span>
                         )}
                       </div>
@@ -7699,55 +7724,95 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
   {/* Verification ID Full Photo Modal */ }
   {
-    showIdPhotoModal && youthProfile.verificationIdImage && (
-      <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
-        style={{ zIndex: 110 }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) setShowIdPhotoModal(false);
-        }}
-      >
-        <div className="bg-white rounded-2xl p-6 shadow-2xl space-y-4 max-w-lg w-full animate-in fade-in zoom-in-95 duration-200 ease-out border border-gray-200 max-h-[90vh] flex flex-col">
-          <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
-              <div>
-                <h4 className="font-extrabold text-gray-900 text-sm">{youthProfile.verificationIdType || "Government ID"} Attached</h4>
-                <p className="text-[11px] text-gray-500 font-medium">Uploaded for SK Verification</p>
+    showIdPhotoModal && youthProfile.verificationIdImage && (() => {
+      const parsedModalId = parseVerificationIdImages(youthProfile.verificationIdImage);
+      const activeSrc = parsedModalId.isDualPhoto && idPhotoModalSide === "back" && parsedModalId.back
+        ? parsedModalId.back
+        : parsedModalId.front;
+      return (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          style={{ zIndex: 110 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowIdPhotoModal(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-w-xl w-full animate-in fade-in zoom-in-95 duration-200 ease-out border border-gray-200 max-h-[90vh] flex flex-col">
+            <div className="flex flex-wrap justify-between items-center gap-2 border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
+                <div>
+                  <h4 className="font-extrabold text-gray-900 text-sm">{youthProfile.verificationIdType || "Government ID"} Attached</h4>
+                  <p className="text-[11px] text-gray-500 font-medium">Uploaded for SK Verification</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {parsedModalId.isDualPhoto && parsedModalId.back && (
+                  <div className="inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setIdPhotoModalSide("front")}
+                      className={`px-2.5 py-1 rounded-lg font-extrabold text-[11px] transition-all cursor-pointer ${
+                        idPhotoModalSide === "front" ? "bg-[#0A6B43] text-white shadow-2xs" : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Front Side
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIdPhotoModalSide("back")}
+                      className={`px-2.5 py-1 rounded-lg font-extrabold text-[11px] transition-all cursor-pointer ${
+                        idPhotoModalSide === "back" ? "bg-[#0A6B43] text-white shadow-2xs" : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Back Side
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowIdPhotoModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowIdPhotoModal(false)}
-              className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
 
-          <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center p-2 min-h-[260px]">
-            <img
-              src={youthProfile.verificationIdImage}
-              alt="Full Government ID"
-              className="max-h-[65vh] w-auto object-contain rounded-lg shadow-sm"
-            />
-          </div>
+            <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-gray-900 flex items-center justify-center p-2 min-h-[260px]">
+              {parsedModalId.isPdf ? (
+                <iframe
+                  src={parsedModalId.front}
+                  title="PDF Government ID"
+                  className="w-full h-[60vh] rounded-lg bg-white border-0"
+                />
+              ) : (
+                <img
+                  src={activeSrc}
+                  alt="Full Government ID"
+                  className="max-h-[62vh] w-auto object-contain rounded-lg shadow-sm"
+                />
+              )}
+            </div>
 
-          <div className="flex justify-between items-center pt-2 text-xs">
-            <span className="font-mono text-gray-600 font-bold">
-              {youthProfile.verificationIdNumber ? `ID No: ${youthProfile.verificationIdNumber}` : ""}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowIdPhotoModal(false)}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-            >
-              Close Preview
-            </button>
+            <div className="flex justify-between items-center pt-2 text-xs">
+              <span className="font-mono text-gray-600 font-bold">
+                {youthProfile.verificationIdNumber ? `ID No: ${youthProfile.verificationIdNumber}` : ""}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowIdPhotoModal(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )
+      );
+    })()
   }
 
         {/* Training Venue Interactive Map Viewer Modal */}

@@ -5,12 +5,12 @@ import {
   ArrowLeft, ArrowRight, MapPin, Check, Sparkles, Clock, CheckCircle,
   User, Mail, Phone, Calendar, Award, GraduationCap, Plus, X,
   Upload, ShieldAlert, FileDigit, FileCheck, ChevronRight, ChevronLeft, ChevronDown,
-  Eye, EyeOff, AlertCircle, ZoomIn, ShieldCheck, RefreshCw, FileText, Lock
+  Eye, EyeOff, AlertCircle, ZoomIn, ShieldCheck, RefreshCw, FileText, Lock, Loader2
 } from "lucide-react";
 import { YouthProfile, UserRole, EDUCATIONAL_ATTAINMENT_OPTIONS } from "../types";
 import { SAN_LUIS_BARANGAYS, getBarangayJurisdiction, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { SiKapDatePicker } from "./ReusableComponents";
-import { formatContactNumber, isValidContactNumber, calculateAge, sanitizeClientError } from "../lib/utils";
+import { formatContactNumber, isValidContactNumber, calculateAge, sanitizeClientError, serializeVerificationIdImages } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
 import { broadcastDataChange } from "../lib/realtime-sync";
@@ -306,12 +306,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   // ID Verification states
   const [regIdType, setRegIdType] = useState("");
   const [regIdNumber, setRegIdNumber] = useState("");
+  const [idUploadMode, setIdUploadMode] = useState<"dual_photo" | "single_doc">("dual_photo");
   const [regIdFileName, setRegIdFileName] = useState("");
   const [regIdImage, setRegIdImage] = useState<string>("");
+  const [regIdBackFileName, setRegIdBackFileName] = useState("");
+  const [regIdBackImage, setRegIdBackImage] = useState<string>("");
+  const [previewSide, setPreviewSide] = useState<"front" | "back">("front");
   const [showIdPreviewModal, setShowIdPreviewModal] = useState<boolean>(false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
   const [termsModalTab, setTermsModalTab] = useState<"terms" | "privacy">("terms");
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingBack, setIsDraggingBack] = useState(false);
   const [certifyAge, setCertifyAge] = useState(false);
   const [certifyResidency, setCertifyResidency] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -414,13 +419,43 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     setRegExperiences(regExperiences.filter(e => e !== exp));
   };
 
-  const processAndCompressIdFile = (file: File) => {
-    setRegIdFileName(file.name);
+  const handleIdTypeChange = (val: string) => {
+    setRegIdType(val);
+    if (val === "Barangay Clearance" || val === "Birth Certificate") {
+      setIdUploadMode("single_doc");
+    } else if (!regIdFileName.toLowerCase().endsWith(".pdf") && !regIdImage.startsWith("data:application/pdf")) {
+      setIdUploadMode("dual_photo");
+    }
+  };
+
+  const processAndCompressIdFile = (file: File, side: "front" | "back" = "front") => {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    if (side === "front") {
+      setRegIdFileName(file.name);
+      // If user uploads a PDF, automatically switch to single combined document mode
+      if (isPdf) {
+        setIdUploadMode("single_doc");
+        setRegIdBackFileName("");
+        setRegIdBackImage("");
+      }
+    } else {
+      setRegIdBackFileName(file.name);
+    }
+
+    const setTargetImage = (dataUrl: string) => {
+      if (side === "front") {
+        setRegIdImage(dataUrl);
+      } else {
+        setRegIdBackImage(dataUrl);
+      }
+    };
+
     const reader = new FileReader();
     reader.onloadend = () => {
       const rawDataUrl = reader.result as string;
       if (!file.type.startsWith("image/")) {
-        setRegIdImage(rawDataUrl);
+        setTargetImage(rawDataUrl);
         return;
       }
       const img = new Image();
@@ -443,49 +478,43 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
           const compressed = canvas.toDataURL("image/jpeg", 0.78);
-          setRegIdImage(compressed);
+          setTargetImage(compressed);
         } else {
-          setRegIdImage(rawDataUrl);
+          setTargetImage(rawDataUrl);
         }
       };
-      img.onerror = () => setRegIdImage(rawDataUrl);
+      img.onerror = () => setTargetImage(rawDataUrl);
       img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, side: "front" | "back" = "front") => {
     const file = e.target.files?.[0];
     if (file) {
-      processAndCompressIdFile(file); return; setRegIdFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setRegIdImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      processAndCompressIdFile(file, side);
     }
+    e.target.value = "";
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, side: "front" | "back" = "front") => {
     e.preventDefault();
-    setIsDragging(true);
+    if (side === "front") setIsDragging(true);
+    else setIsDraggingBack(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
+  const handleDragLeave = (side: "front" | "back" = "front") => {
+    if (side === "front") setIsDragging(false);
+    else setIsDraggingBack(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent, side: "front" | "back" = "front") => {
     e.preventDefault();
-    setIsDragging(false);
+    if (side === "front") setIsDragging(false);
+    else setIsDraggingBack(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      processAndCompressIdFile(file); return; setRegIdFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setRegIdImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      processAndCompressIdFile(file, side);
     }
   };
 
@@ -506,7 +535,12 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
     setIsRegistering(true);
 
-    const generatedIdImage = regIdImage || `https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600`;
+    const combinedIdImagePayload =
+      idUploadMode === "dual_photo" && regIdBackImage
+        ? serializeVerificationIdImages(regIdImage, regIdBackImage)
+        : regIdImage;
+
+    const generatedIdImage = combinedIdImagePayload || `https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?auto=format&fit=crop&q=80&w=600`;
 
     const payload = {
       email: regEmail,
@@ -576,8 +610,13 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         return !!regEdu && (regSolo || regPwd || regIndigenous || regNone);
       case 3:
         return !!regGoal.trim() && !!regSector.trim();
-      case 4:
-        return !!regIdType && !!regIdNumber.trim() && !!regIdFileName && certifyAge && certifyResidency;
+      case 4: {
+        const hasValidUpload =
+          idUploadMode === "dual_photo"
+            ? !!regIdFileName && !!regIdImage && !!regIdBackFileName && !!regIdBackImage
+            : !!regIdFileName && !!regIdImage;
+        return !!regIdType && !!regIdNumber.trim() && hasValidUpload && certifyAge && certifyResidency;
+      }
       default:
         return false;
     }
@@ -1518,7 +1557,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold">
                           <div className="space-y-1">
                             <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Verification ID Type *</label>
-                            <CustomSelect value={regIdType} onChange={setRegIdType} options={VERIFICATION_ID_TYPE_OPTIONS} placeholder="Select Verification ID Type" />
+                            <CustomSelect value={regIdType} onChange={handleIdTypeChange} options={VERIFICATION_ID_TYPE_OPTIONS} placeholder="Select Verification ID Type" />
                           </div>
 
                           <div className="space-y-1">
@@ -1534,129 +1573,381 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                           </div>
                         </div>
 
-                        {/* Drag and Drop Upload Zone */}
-                        <div className="space-y-1.5 text-xs font-semibold">
-                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
-                            Upload Proof of ID / Document Image *
-                          </label>
-                          <div
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                            className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${isDragging
-                              ? "border-[#0A6B43] bg-emerald-50/30"
-                              : regIdFileName
-                                ? "border-emerald-200 bg-emerald-50/5"
-                                : "border-gray-200 hover:border-emerald-300 bg-white"
-                              }`}
-                          >
-                            <input
-                              type="file"
-                              id="id-file-upload-input"
-                              accept="image/*,.pdf"
-                              onChange={handleFileChange}
-                              className="hidden"
-                            />
-
-                            {!regIdFileName ? (
-                              <label
-                                htmlFor="id-file-upload-input"
-                                className="flex flex-col items-center justify-center gap-2 cursor-pointer group"
-                              >
-                                <div className="w-10 h-10 rounded-full bg-gray-50 group-hover:bg-emerald-50 text-gray-400 group-hover:text-[#0A6B43] flex items-center justify-center transition-colors">
-                                  <Upload className="w-5 h-5" />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-bold text-gray-700">
-                                    Drag & drop your document here, or <span className="text-[#0A6B43] hover:underline">browse files</span>
-                                  </p>
-                                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                                    Supports PNG, JPG, or PDF up to 5MB
-                                  </p>
-                                </div>
+                        {/* Upload Mode Switcher & Drag-and-Drop Zones */}
+                        <div className="space-y-2.5 text-xs font-semibold">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                              <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">
+                                Upload Proof of ID / Document *
                               </label>
-                            ) : (
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between bg-white border border-gray-200 p-2.5 rounded-xl max-w-md mx-auto shadow-2xs">
-                                  <div
-                                    onClick={() => setShowIdPreviewModal(true)}
-                                    className="flex items-center gap-2.5 text-left cursor-pointer flex-1 min-w-0 group"
-                                    title="Click to check uploaded image"
-                                  >
-                                    <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
-                                      <FileCheck className="w-5 h-5" />
-                                    </div>
-                                    <div className="truncate flex-1 min-w-0">
-                                      <p className="text-xs font-bold text-gray-800 truncate group-hover:text-[#0A6B43] transition-colors">{regIdFileName}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0 ml-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowIdPreviewModal(true)}
-                                      className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                                      title="Check image"
-                                    >
-                                      <ZoomIn className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">Check</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRegIdFileName("");
-                                        setRegIdImage("");
-                                      }}
-                                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
-                                      title="Remove file"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
+                              <p className="text-[10px] text-gray-500 font-medium">
+                                {idUploadMode === "dual_photo"
+                                  ? "Upload clear photos of both the Front and Back sides of your ID."
+                                  : "Upload a single PDF or combined document containing your full ID details."}
+                              </p>
+                            </div>
+
+                            {/* Segmented Upload Format Switcher */}
+                            <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/80 shrink-0 self-start sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => setIdUploadMode("dual_photo")}
+                                className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  idUploadMode === "dual_photo"
+                                    ? "bg-[#0A6B43] text-white shadow-2xs"
+                                    : "text-gray-600 hover:text-gray-900"
+                                }`}
+                              >
+                                <span>2 Photos (Front & Back)</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setIdUploadMode("single_doc")}
+                                className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  idUploadMode === "single_doc"
+                                    ? "bg-[#0A6B43] text-white shadow-2xs"
+                                    : "text-gray-600 hover:text-gray-900"
+                                }`}
+                              >
+                                <span>Single PDF / Combined</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Hidden File Inputs */}
+                          <input
+                            type="file"
+                            id="id-file-upload-input"
+                            accept="image/*,.pdf"
+                            onChange={(e) => handleFileChange(e, "front")}
+                            className="hidden"
+                          />
+                          <input
+                            type="file"
+                            id="id-back-file-upload-input"
+                            accept="image/*"
+                            onChange={(e) => handleFileChange(e, "back")}
+                            className="hidden"
+                          />
+
+                          {idUploadMode === "dual_photo" ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* SLOT 1: FRONT OF ID */}
+                              <div
+                                onDragOver={(e) => handleDragOver(e, "front")}
+                                onDragLeave={() => handleDragLeave("front")}
+                                onDrop={(e) => handleDrop(e, "front")}
+                                className={`border-2 border-dashed rounded-xl p-3.5 text-center transition-all flex flex-col justify-between min-h-[185px] ${
+                                  isDragging
+                                    ? "border-[#0A6B43] bg-emerald-50/30"
+                                    : regIdFileName
+                                      ? "border-emerald-200 bg-emerald-50/10"
+                                      : "border-gray-200 hover:border-emerald-300 bg-white"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-1.5 border-b border-gray-100 pb-2 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                    1 · Front Side *
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 font-semibold truncate">
+                                    Photo & Full Name
+                                  </span>
                                 </div>
 
-                                {/* Clickable image preview thumbnail */}
-                                {regIdImage && (
-                                  <div
-                                    onClick={() => setShowIdPreviewModal(true)}
-                                    className="max-w-xs mx-auto border-2 border-emerald-100 hover:border-[#0A6B43] rounded-xl overflow-hidden shadow-xs relative group bg-slate-900/5 hover:bg-emerald-50/20 p-2 cursor-pointer transition-all hover:shadow-md"
-                                    title="Click to check and expand ID image"
-                                    role="button"
-                                    tabIndex={0}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        setShowIdPreviewModal(true);
-                                      }
-                                    }}
+                                {!regIdFileName ? (
+                                  <label
+                                    htmlFor="id-file-upload-input"
+                                    className="flex-1 flex flex-col items-center justify-center gap-1.5 cursor-pointer group py-2"
                                   >
-                                    {regIdImage.startsWith("data:application/pdf") || regIdFileName.toLowerCase().endsWith(".pdf") ? (
-                                      <div className="h-28 flex flex-col items-center justify-center gap-1 bg-white rounded-lg border border-slate-200">
-                                        <FileDigit className="w-8 h-8 text-emerald-600" />
-                                        <p className="text-[11px] font-bold text-slate-800">PDF Document Attached</p>
-                                        <p className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-1">
-                                          <ZoomIn className="w-3 h-3" /> Click to check preview
-                                        </p>
+                                    <div className="w-9 h-9 rounded-full bg-gray-50 group-hover:bg-emerald-50 text-gray-400 group-hover:text-[#0A6B43] flex items-center justify-center transition-colors">
+                                      <Upload className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[11px] font-bold text-gray-700">
+                                        Drop Front photo or <span className="text-[#0A6B43] underline">browse</span>
+                                      </p>
+                                      <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                        PNG, JPG (or PDF if combined)
+                                      </p>
+                                    </div>
+                                  </label>
+                                ) : (
+                                  <div className="space-y-2 flex-1 flex flex-col justify-between">
+                                    {regIdImage && (
+                                      <div
+                                        onClick={() => {
+                                          setPreviewSide("front");
+                                          setShowIdPreviewModal(true);
+                                        }}
+                                        className="border border-emerald-200 hover:border-[#0A6B43] rounded-lg overflow-hidden relative group bg-slate-900/5 p-1.5 cursor-pointer transition-all"
+                                        title="Click to inspect Front ID photo"
+                                      >
+                                        <img
+                                          src={regIdImage}
+                                          alt="Front ID Verification"
+                                          className="h-24 w-auto mx-auto rounded object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 bg-slate-950/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white text-[10px] font-bold">
+                                          <ZoomIn className="w-3.5 h-3.5" />
+                                          <span>Inspect Front</span>
+                                        </div>
                                       </div>
-                                    ) : (
-                                      <img
-                                        src={regIdImage}
-                                        alt="ID Verification Document"
-                                        className="max-h-28 w-auto mx-auto rounded-lg object-contain transition-transform duration-200 group-hover:scale-[1.03]"
-                                        referrerPolicy="no-referrer"
-                                      />
                                     )}
-                                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white p-2 rounded-xl">
-                                      <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
-                                        <ZoomIn className="w-4 h-4 text-white" />
+                                    <div className="flex items-center justify-between bg-white border border-gray-200 p-1.5 rounded-lg shadow-2xs">
+                                      <div
+                                        onClick={() => {
+                                          setPreviewSide("front");
+                                          setShowIdPreviewModal(true);
+                                        }}
+                                        className="flex items-center gap-1.5 text-left cursor-pointer flex-1 min-w-0"
+                                      >
+                                        <FileCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                                        <span className="text-[11px] font-bold text-gray-800 truncate">{regIdFileName}</span>
                                       </div>
-                                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-200">Click to Check</p>
-                                      <p className="text-[9px] text-slate-200 font-medium text-center">Inspect clarity before submitting</p>
+                                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPreviewSide("front");
+                                            setShowIdPreviewModal(true);
+                                          }}
+                                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] rounded text-[10px] font-bold cursor-pointer"
+                                        >
+                                          Check
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setRegIdFileName("");
+                                            setRegIdImage("");
+                                          }}
+                                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded cursor-pointer"
+                                          title="Remove Front photo"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
                                 )}
                               </div>
-                            )}
-                          </div>
+
+                              {/* SLOT 2: BACK OF ID */}
+                              <div
+                                onDragOver={(e) => handleDragOver(e, "back")}
+                                onDragLeave={() => handleDragLeave("back")}
+                                onDrop={(e) => handleDrop(e, "back")}
+                                className={`border-2 border-dashed rounded-xl p-3.5 text-center transition-all flex flex-col justify-between min-h-[185px] ${
+                                  isDraggingBack
+                                    ? "border-[#0A6B43] bg-emerald-50/30"
+                                    : regIdBackFileName
+                                      ? "border-emerald-200 bg-emerald-50/10"
+                                      : "border-gray-200 hover:border-emerald-300 bg-white"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-1.5 border-b border-gray-100 pb-2 mb-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                    2 · Back Side *
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 font-semibold truncate">
+                                    Address & Signature
+                                  </span>
+                                </div>
+
+                                {!regIdBackFileName ? (
+                                  <label
+                                    htmlFor="id-back-file-upload-input"
+                                    className="flex-1 flex flex-col items-center justify-center gap-1.5 cursor-pointer group py-2"
+                                  >
+                                    <div className="w-9 h-9 rounded-full bg-gray-50 group-hover:bg-emerald-50 text-gray-400 group-hover:text-[#0A6B43] flex items-center justify-center transition-colors">
+                                      <Upload className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[11px] font-bold text-gray-700">
+                                        Drop Back photo or <span className="text-[#0A6B43] underline">browse</span>
+                                      </p>
+                                      <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                        Shows Barangay Address / QR
+                                      </p>
+                                    </div>
+                                  </label>
+                                ) : (
+                                  <div className="space-y-2 flex-1 flex flex-col justify-between">
+                                    {regIdBackImage && (
+                                      <div
+                                        onClick={() => {
+                                          setPreviewSide("back");
+                                          setShowIdPreviewModal(true);
+                                        }}
+                                        className="border border-emerald-200 hover:border-[#0A6B43] rounded-lg overflow-hidden relative group bg-slate-900/5 p-1.5 cursor-pointer transition-all"
+                                        title="Click to inspect Back ID photo"
+                                      >
+                                        <img
+                                          src={regIdBackImage}
+                                          alt="Back ID Verification"
+                                          className="h-24 w-auto mx-auto rounded object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 bg-slate-950/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-white text-[10px] font-bold">
+                                          <ZoomIn className="w-3.5 h-3.5" />
+                                          <span>Inspect Back</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center justify-between bg-white border border-gray-200 p-1.5 rounded-lg shadow-2xs">
+                                      <div
+                                        onClick={() => {
+                                          setPreviewSide("back");
+                                          setShowIdPreviewModal(true);
+                                        }}
+                                        className="flex items-center gap-1.5 text-left cursor-pointer flex-1 min-w-0"
+                                      >
+                                        <FileCheck className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                                        <span className="text-[11px] font-bold text-gray-800 truncate">{regIdBackFileName}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPreviewSide("back");
+                                            setShowIdPreviewModal(true);
+                                          }}
+                                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] rounded text-[10px] font-bold cursor-pointer"
+                                        >
+                                          Check
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setRegIdBackFileName("");
+                                            setRegIdBackImage("");
+                                          }}
+                                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded cursor-pointer"
+                                          title="Remove Back photo"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            /* SINGLE PDF / COMBINED DOCUMENT ZONE */
+                            <div
+                              onDragOver={(e) => handleDragOver(e, "front")}
+                              onDragLeave={() => handleDragLeave("front")}
+                              onDrop={(e) => handleDrop(e, "front")}
+                              className={`border-2 border-dashed rounded-xl p-5 text-center transition-all ${
+                                isDragging
+                                  ? "border-[#0A6B43] bg-emerald-50/30"
+                                  : regIdFileName
+                                    ? "border-emerald-200 bg-emerald-50/5"
+                                    : "border-gray-200 hover:border-emerald-300 bg-white"
+                              }`}
+                            >
+                              {!regIdFileName ? (
+                                <label
+                                  htmlFor="id-file-upload-input"
+                                  className="flex flex-col items-center justify-center gap-2 cursor-pointer group py-2"
+                                >
+                                  <div className="w-10 h-10 rounded-full bg-gray-50 group-hover:bg-emerald-50 text-gray-400 group-hover:text-[#0A6B43] flex items-center justify-center transition-colors">
+                                    <Upload className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-700">
+                                      Drag & drop your combined PDF or single document here, or <span className="text-[#0A6B43] hover:underline">browse files</span>
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                      Supports PDF (with Front & Back) or single-page PNG/JPG up to 5MB
+                                    </p>
+                                  </div>
+                                </label>
+                              ) : (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between bg-white border border-gray-200 p-2.5 rounded-xl max-w-md mx-auto shadow-2xs">
+                                    <div
+                                      onClick={() => {
+                                        setPreviewSide("front");
+                                        setShowIdPreviewModal(true);
+                                      }}
+                                      className="flex items-center gap-2.5 text-left cursor-pointer flex-1 min-w-0 group"
+                                      title="Click to check uploaded document"
+                                    >
+                                      <div className="w-9 h-9 rounded-lg bg-emerald-100 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                                        <FileCheck className="w-5 h-5" />
+                                      </div>
+                                      <div className="truncate flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-gray-800 truncate group-hover:text-[#0A6B43] transition-colors">{regIdFileName}</p>
+                                        <p className="text-[10px] text-emerald-700 font-semibold">Combined / Single Document Attached</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPreviewSide("front");
+                                          setShowIdPreviewModal(true);
+                                        }}
+                                        className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                        title="Check document"
+                                      >
+                                        <ZoomIn className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Check</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setRegIdFileName("");
+                                          setRegIdImage("");
+                                        }}
+                                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                                        title="Remove file"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {regIdImage && (
+                                    <div
+                                      onClick={() => {
+                                        setPreviewSide("front");
+                                        setShowIdPreviewModal(true);
+                                      }}
+                                      className="max-w-xs mx-auto border-2 border-emerald-100 hover:border-[#0A6B43] rounded-xl overflow-hidden shadow-xs relative group bg-slate-900/5 hover:bg-emerald-50/20 p-2 cursor-pointer transition-all hover:shadow-md"
+                                    >
+                                      {regIdImage.startsWith("data:application/pdf") || regIdFileName.toLowerCase().endsWith(".pdf") ? (
+                                        <div className="h-28 flex flex-col items-center justify-center gap-1 bg-white rounded-lg border border-slate-200">
+                                          <FileDigit className="w-8 h-8 text-emerald-600" />
+                                          <p className="text-[11px] font-bold text-slate-800">PDF Document Attached</p>
+                                          <p className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-1">
+                                            <ZoomIn className="w-3 h-3" /> Click to check preview
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <img
+                                          src={regIdImage}
+                                          alt="ID Verification Document"
+                                          className="max-h-28 w-auto mx-auto rounded-lg object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      )}
+                                      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white p-2 rounded-xl">
+                                        <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                                          <ZoomIn className="w-4 h-4 text-white" />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-200">Click to Check</p>
+                                        <p className="text-[9px] text-slate-200 font-medium text-center">Inspect clarity before submitting</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Attestations */}
@@ -1800,8 +2091,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
               >
-                <span>{isRegistering ? "Submitting..." : "Submit Profiling"}</span>
-                <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isStepValid(4) && !isRegistering ? "group-hover:translate-x-1" : ""}`} />
+                {isRegistering ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    <span>Submitting Profiling...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit Profiling</span>
+                    <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isStepValid(4) && !isRegistering ? "group-hover:translate-x-1" : ""}`} />
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -1809,98 +2109,133 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       </div>
 
       {/* Expanded Document Check Modal */}
-      {mounted && showIdPreviewModal && regIdImage && typeof document !== "undefined" && createPortal(
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowIdPreviewModal(false);
-          }}
-          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-hidden animate-in fade-in duration-200"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="id-preview-modal-title"
-        >
+      {mounted && showIdPreviewModal && (regIdImage || regIdBackImage) && typeof document !== "undefined" && (() => {
+        const activeImage = previewSide === "back" && regIdBackImage ? regIdBackImage : regIdImage;
+        const activeFileName = previewSide === "back" && regIdBackFileName ? regIdBackFileName : regIdFileName;
+        const isPdfPreview = activeImage.startsWith("data:application/pdf") || activeFileName.toLowerCase().endsWith(".pdf");
+
+        return createPortal(
           <div
-            className="bg-white border border-gray-200/90 rounded-2xl sm:rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col text-slate-800 animate-in fade-in zoom-in-95 duration-200 ease-out relative"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowIdPreviewModal(false);
+            }}
+            className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-hidden animate-in fade-in duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="id-preview-modal-title"
           >
-            {/* Modal Top Header Banner */}
-            <div className="bg-white px-5 sm:px-6 py-4.5 sm:py-5 shrink-0 border-b border-gray-100">
-              <div className="flex items-center justify-between gap-4">
-                <h3 id="id-preview-modal-title" className="text-xl sm:text-2xl font-black text-[#0A6B43] tracking-tight truncate leading-tight">
+            <div
+              className="bg-white border border-gray-200/90 rounded-2xl sm:rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col text-slate-800 animate-in fade-in zoom-in-95 duration-200 ease-out relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Top Header Banner */}
+              <div className="bg-white px-5 sm:px-6 py-4 sm:py-4.5 shrink-0 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                <h3 id="id-preview-modal-title" className="text-lg sm:text-xl font-black text-[#0A6B43] tracking-tight truncate leading-tight">
                   Check Uploaded Document
                 </h3>
 
-                <button
-                  type="button"
-                  onClick={() => setShowIdPreviewModal(false)}
-                  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all cursor-pointer shrink-0"
-                  title="Close check"
-                  aria-label="Close check"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+                <div className="flex items-center gap-2">
+                  {idUploadMode === "dual_photo" && (regIdImage || regIdBackImage) && (
+                    <div className="inline-flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs">
+                      <button
+                        type="button"
+                        disabled={!regIdImage}
+                        onClick={() => setPreviewSide("front")}
+                        className={`px-2.5 py-1 rounded-lg font-extrabold text-[11px] transition-all cursor-pointer ${
+                          previewSide === "front"
+                            ? "bg-[#0A6B43] text-white shadow-2xs"
+                            : "text-gray-600 hover:text-gray-900 disabled:opacity-40"
+                        }`}
+                      >
+                        Front Side
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!regIdBackImage}
+                        onClick={() => setPreviewSide("back")}
+                        className={`px-2.5 py-1 rounded-lg font-extrabold text-[11px] transition-all cursor-pointer ${
+                          previewSide === "back"
+                            ? "bg-[#0A6B43] text-white shadow-2xs"
+                            : "text-gray-600 hover:text-gray-900 disabled:opacity-40"
+                        }`}
+                      >
+                        Back Side
+                      </button>
+                    </div>
+                  )}
 
-            {/* Modal Document Viewer Area */}
-            <div className="flex-1 bg-slate-950 p-2 sm:p-4 flex items-center justify-center overflow-auto min-h-[280px] max-h-[60vh] sm:max-h-[64vh]">
-              {regIdImage.startsWith("data:application/pdf") || regIdFileName.toLowerCase().endsWith(".pdf") ? (
-                <iframe
-                  src={regIdImage}
-                  title="PDF Document Preview"
-                  className="w-full h-[55vh] rounded-lg bg-white border-0"
-                />
-              ) : (
-                <img
-                  src={regIdImage}
-                  alt="Expanded ID Document Preview"
-                  className="max-h-[58vh] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-all"
-                  referrerPolicy="no-referrer"
-                />
-              )}
-            </div>
-
-            {/* Verification Metadata & Footer */}
-            <div className="px-5 sm:px-6 py-4 bg-white border-t border-gray-200 space-y-3 shrink-0">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Selected ID Type</span>
-                  <span className="font-extrabold text-gray-800 text-xs truncate block">{regIdType || "Not specified"}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Entered Reference / ID No.</span>
-                  <span className="font-mono font-bold text-gray-800 text-xs truncate block">{regIdNumber || "Not entered yet"}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
-                <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
-                  Ensure name and photo are clearly visible to avoid verification delays.
-                </p>
-                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
-                  <label
-                    htmlFor="id-file-upload-input"
-                    onClick={() => setShowIdPreviewModal(false)}
-                    className="group px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-gray-50 active:scale-95 text-gray-700 border border-gray-300 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <RefreshCw className="w-4 h-4 transition-transform duration-200 group-hover:rotate-45" />
-                    <span>Change File</span>
-                  </label>
                   <button
                     type="button"
                     onClick={() => setShowIdPreviewModal(false)}
-                    className="group px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all cursor-pointer shrink-0"
+                    title="Close check"
+                    aria-label="Close check"
                   >
-                    <span>Looks Good</span>
-                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
+
+              {/* Modal Document Viewer Area */}
+              <div className="flex-1 bg-slate-950 p-2 sm:p-4 flex items-center justify-center overflow-auto min-h-[260px] max-h-[58vh] sm:max-h-[62vh]">
+                {isPdfPreview ? (
+                  <iframe
+                    src={activeImage}
+                    title="PDF Document Preview"
+                    className="w-full h-[54vh] rounded-lg bg-white border-0"
+                  />
+                ) : (
+                  <img
+                    src={activeImage}
+                    alt="Expanded ID Document Preview"
+                    className="max-h-[56vh] max-w-full w-auto object-contain rounded-lg shadow-2xl transition-all"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+              </div>
+
+              {/* Verification Metadata & Footer */}
+              <div className="px-5 sm:px-6 py-4 bg-white border-t border-gray-200 space-y-3 shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Selected ID Type</span>
+                    <span className="font-extrabold text-gray-800 text-xs truncate block">{regIdType || "Not specified"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">Entered Reference / ID No.</span>
+                    <span className="font-mono font-bold text-gray-800 text-xs truncate block">{regIdNumber || "Not entered yet"}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                  <p className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                    Ensure name, photo, and residential address are clearly legible.
+                  </p>
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
+                    <label
+                      htmlFor={previewSide === "back" && idUploadMode === "dual_photo" ? "id-back-file-upload-input" : "id-file-upload-input"}
+                      onClick={() => setShowIdPreviewModal(false)}
+                      className="group px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white hover:bg-gray-50 active:scale-95 text-gray-700 border border-gray-300 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <RefreshCw className="w-4 h-4 transition-transform duration-200 group-hover:rotate-45" />
+                      <span>{idUploadMode === "dual_photo" ? (previewSide === "back" ? "Change Back" : "Change Front") : "Change File"}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowIdPreviewModal(false)}
+                      className="group px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>Looks Good</span>
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        );
+      })()}
 
       {/* Terms of Service & Privacy Policy Modal */}
       {mounted && showTermsModal && typeof document !== "undefined" && createPortal(

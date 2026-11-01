@@ -104,7 +104,31 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   });
   const [adminPhone, setAdminPhone] = useState("+63 917 123 4567");
   const [adminOffice, setAdminOffice] = useState("Municipal Youth Development Office (MYDO)");
+  const [savedAdminName, setSavedAdminName] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("sikap_superadmin_name");
+      if (cached) return cached;
+    }
+    return currentUser?.name || "System Super Administrator";
+  });
+  const [savedAdminEmail, setSavedAdminEmail] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("sikap_superadmin_email");
+      if (cached) return cached;
+    }
+    return currentUser?.email || "admin@sanluis.gov.ph";
+  });
+  const [savedAdminPhone, setSavedAdminPhone] = useState("+63 917 123 4567");
+  const [savedAdminOffice, setSavedAdminOffice] = useState("Municipal Youth Development Office (MYDO)");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const handleCancelProfileEdit = () => {
+    setAdminName(savedAdminName);
+    setAdminEmail(savedAdminEmail);
+    setAdminPhone(savedAdminPhone);
+    setAdminOffice(savedAdminOffice);
+    setIsEditingProfile(false);
+  };
 
   // Executive Municipal Report Generator State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -4491,7 +4515,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                               <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
                                 <button
                                   type="button"
-                                  onClick={() => setIsEditingProfile(false)}
+                                  onClick={handleCancelProfileEdit}
                                   disabled={isSavingProfile}
                                   className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
                                 >
