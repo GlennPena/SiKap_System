@@ -134,7 +134,12 @@ export function extractLocationCoords(str?: string | null): { lat: number; lng: 
  */
 export function extractLocationDisplay(str?: string | null): string {
   if (!str) return "";
-  return str.replace(/<!--\s*geo:[^>]*-->/gi, "").replace(/\[geo:[^\]]*\]/gi, "").trim();
+  return str
+    .replace(/<!--[\s\S]*?-->/gi, "") // strip any HTML comments such as <!-- geo: ... -->
+    .replace(/\[geo:[^\]]*\]/gi, "")
+    .replace(/\(?\s*geo:\s*-?\d+\.?\d*,\s*-?\d+\.?\d*\s*\)?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**

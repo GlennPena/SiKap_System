@@ -1,5 +1,7 @@
 "use client";
 
+import { extractLocationDisplay } from '../lib/training-venues';
+
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Award,
@@ -5613,7 +5615,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     {/* Row 5 (Both Columns): Location / Venue */}
                     <div
                       className="sm:col-span-2 flex items-center gap-2 text-gray-700 min-w-0"
-                      title={`${selectedProgram.location || "San Luis Training Center"}${selectedProgram.room ? ` · ${selectedProgram.room}` : ""}`}
+                      title={`${extractLocationDisplay(selectedProgram.location) || "San Luis Training Center"}${selectedProgram.room ? ` · ${selectedProgram.room}` : ""}`}
                     >
                       <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span className="truncate sm:whitespace-normal leading-snug">

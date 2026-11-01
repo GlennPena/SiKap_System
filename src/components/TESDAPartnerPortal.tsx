@@ -407,6 +407,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Program archive confirmation modal state
   const [programToArchive, setProgramToArchive] = useState<TESDAProgram | null>(null);
+  const [graduationEvaluations, setGraduationEvaluations] = useState<Record<string, "Graduated" | "Incomplete">>({});
 
   // Program restore confirmation modal state
   const [programToRestore, setProgramToRestore] = useState<TESDAProgram | null>(null);
@@ -664,7 +665,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
 
     setProgTrainingHours(prog.trainingHours || "");
-    setProgLocation(prog.location || "");
+    setProgLocation(extractLocationDisplay(prog.location) || "");
     const parsedCoords = extractLocationCoords(prog.location);
     setProgLat(prog.latitude || parsedCoords?.lat || 14.9833);
     setProgLng(prog.longitude || parsedCoords?.lng || 120.7333);
@@ -969,11 +970,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
-  const handleArchiveProgram = async (progId: string, title: string) => {
+  const handleArchiveProgram = async (progId: string, title: string, evaluations?: Record<string, "Graduated" | "Incomplete">) => {
     setIsArchivingProgram(true);
     setArchivingProgramId(progId);
     try {
-      const res = await fetch(`/api/programs?id=${progId}`, { method: "DELETE" });
+      const gradIds: string[] = [];
+      const incompIds: string[] = [];
+      if (evaluations) {
+        Object.entries(evaluations).forEach(([refId, status]) => {
+          if (status === "Graduated") gradIds.push(refId);
+          else if (status === "Incomplete") incompIds.push(refId);
+        });
+      }
+
+      const res = await fetch(`/api/programs?id=${progId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          graduatedReferralIds: gradIds,
+          incompleteReferralIds: incompIds
+        })
+      });
       const data = await res.json();
       if (data.success) {
         const archivedProg = programs.find(p => p.id === progId) || data.data;
@@ -981,9 +998,19 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           setArchivedProgramsList(prev => [{ ...archivedProg, activeStatus: "Closed" as any }, ...prev.filter(p => p.id !== progId)]);
         }
         setPrograms(prev => prev.filter(p => p.id !== progId));
-        setReferrals(prev => prev.filter(r => r.programTitle !== title && r.programId !== progId));
-        addToast(data.message || `Program "${title}" and enrolled students have been concluded & archived.`, "success");
+        
+        // Update local referrals: certified graduates become Archived, incomplete ones become Declined
+        setReferrals(prev => prev.map(r => {
+          if (r.programId === progId || r.programTitle.toLowerCase().trim() === title.toLowerCase().trim()) {
+            if (gradIds.includes(r.id)) return { ...r, status: "Archived" };
+            if (incompIds.includes(r.id) || r.status === "Pending") return { ...r, status: "Declined" };
+          }
+          return r;
+        }));
+
+        addToast(data.message || `Program "${title}" archived with certified graduates!`, "success");
         broadcastDataChange("programs", "archived");
+        broadcastDataChange("referrals", "status_updated");
         if (viewingProgram && viewingProgram.id === progId) {
           setViewingProgram(null);
         }
@@ -996,6 +1023,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     } finally {
       setIsArchivingProgram(false);
       setArchivingProgramId(null);
+      setProgramToArchive(null);
+      setGraduationEvaluations({});
     }
   };
 
@@ -1054,7 +1083,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setModalEditCategoryId(catId);
 
     setModalEditTrainingHours(prog.trainingHours || "");
-    setModalEditLocation(prog.location || "");
+    setModalEditLocation(extractLocationDisplay(prog.location) || "");
     setModalEditCost(prog.cost || "Free");
     setModalEditSlotsTotal(prog.slotsTotal || 25);
     setModalEditEligibility(prog.eligibility || "");
@@ -2206,7 +2235,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   {originalProgram?.location && (
                                     <span className="truncate max-w-[200px] sm:max-w-none flex items-center gap-1">
                                       <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                                      <span>{originalProgram.location}</span>
+                                      <span>{extractLocationDisplay(originalProgram.location)}</span>
                                     </span>
                                   )}
                                 </div>
@@ -2549,7 +2578,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
                           <div className="flex items-center gap-2">
                             <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            <span className="break-words sm:truncate font-medium">{prog.location || "San Luis Municipal Center"}</span>
+                            <span className="break-words sm:truncate font-medium">{extractLocationDisplay(prog.location) || "San Luis Municipal Center"}</span>
                           </div>
                           {prog.instructor && (
                             <div className="flex items-center gap-2">
@@ -2789,7 +2818,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     {prog.location && (
                                       <p className="truncate flex items-center gap-1 font-medium">
                                         <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                                        <span>{prog.location}</span>
+                                        <span>{extractLocationDisplay(prog.location)}</span>
                                       </p>
                                     )}
                                     {prog.endDate && (
@@ -6469,26 +6498,253 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       />
 
       {/* ============================================================ */}
-      {/* ARCHIVE PROGRAM / CONCLUDE TERM CONFIRMATION MODAL */}
+      {/* COHORT GRADUATION & ARCHIVAL VERIFICATION MODAL              */}
       {/* ============================================================ */}
-      <ConfirmationModal
-        isOpen={!!programToArchive}
-        title={`Conclude & Archive Program Term: "${programToArchive?.title}"?`}
-        description={`Archiving will remove "${programToArchive?.title}" and its enrollees from this active dashboard to make way for future terms, and safely preserve all student records in the database. You can review them anytime under Archived History.`}
-        confirmText="Conclude & Archive Term"
-        confirmVariant="green"
-        isLoading={isArchivingProgram}
-        loadingText="Archiving Term..."
-        onConfirm={async () => {
-          if (programToArchive) {
-            await handleArchiveProgram(programToArchive.id, programToArchive.title);
-            setProgramToArchive(null);
-          }
-        }}
-        onCancel={() => {
-          if (!isArchivingProgram) setProgramToArchive(null);
-        }}
-      />
+      {programToArchive && (() => {
+        const enrollees = referrals.filter(
+          r => (r.programId === programToArchive.id || r.programTitle.toLowerCase().trim() === programToArchive.title.toLowerCase().trim()) && r.status === "Enrolled"
+        );
+        const evaluatedCount = enrollees.filter(e => graduationEvaluations[e.id]).length;
+        const graduatedCount = enrollees.filter(e => graduationEvaluations[e.id] === "Graduated").length;
+        const incompleteCount = enrollees.filter(e => graduationEvaluations[e.id] === "Incomplete").length;
+        const isAllEvaluated = enrollees.length === 0 || evaluatedCount === enrollees.length;
+
+        const markAll = (status: "Graduated" | "Incomplete") => {
+          const next: Record<string, "Graduated" | "Incomplete"> = {};
+          enrollees.forEach(e => { next[e.id] = status; });
+          setGraduationEvaluations(next);
+        };
+
+        return (
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isArchivingProgram) {
+                setProgramToArchive(null);
+                setGraduationEvaluations({});
+              }
+            }}
+          >
+            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] animate-in fade-in zoom-in-95 duration-200 ease-out">
+              
+              {/* Modal Top Header */}
+              <div className="bg-gradient-to-r from-[#112F24] via-[#163D2F] to-[#1A4234] text-white p-4 sm:p-5 shrink-0 border-b border-emerald-950/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block">
+                        Cohort Graduation Verification
+                      </span>
+                      <h3 className="font-black text-sm sm:text-base text-white tracking-tight leading-snug truncate">
+                        Conclude & Archive: {programToArchive.title}
+                      </h3>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isArchivingProgram}
+                    onClick={() => {
+                      setProgramToArchive(null);
+                      setGraduationEvaluations({});
+                    }}
+                    className="text-emerald-200/70 hover:text-white p-1 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar text-xs">
+                
+                {/* Information Note */}
+                <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-xl p-3 flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
+                  <p className="text-gray-700 leading-relaxed font-medium">
+                    To keep institutional records accurate, identify which trainees successfully completed the course. Only trainees marked as <strong>Graduated</strong> will receive certified qualifications in their Katipunan ng Kabataan credentials folder.
+                  </p>
+                </div>
+
+                {enrollees.length > 0 ? (
+                  <div className="space-y-3">
+                    {/* Evaluation Status & Quick Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 pb-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-gray-900 uppercase tracking-wider text-[11px]">
+                          Enrolled Trainees ({enrollees.length})
+                        </span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                          isAllEvaluated
+                            ? "bg-emerald-50 text-[#0A6B43] border-emerald-300"
+                            : "bg-amber-50 text-amber-800 border-amber-300"
+                        }`}>
+                          {isAllEvaluated ? `✓ All Evaluated (${graduatedCount} Graduated · ${incompleteCount} Incomplete)` : `Evaluated: ${evaluatedCount} of ${enrollees.length}`}
+                        </span>
+                      </div>
+
+                      {/* Quick Bulk Action Buttons */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => markAll("Graduated")}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Mark All Graduated
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => markAll("Incomplete")}
+                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          Mark All Incomplete
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Trainee Evaluation Cards List */}
+                    <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                      {enrollees.map(item => {
+                        const currentEval = graduationEvaluations[item.id];
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                              currentEval === "Graduated"
+                                ? "bg-emerald-50/40 border-emerald-300 shadow-2xs"
+                                : currentEval === "Incomplete"
+                                  ? "bg-amber-50/30 border-amber-300 shadow-2xs"
+                                  : "bg-gray-50/70 border-gray-200 hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
+                                currentEval === "Graduated"
+                                  ? "bg-emerald-600 text-white"
+                                  : currentEval === "Incomplete"
+                                    ? "bg-amber-600 text-white"
+                                    : "bg-gray-200 text-gray-700"
+                              }`}>
+                                {item.youthName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm truncate">
+                                  {item.youthName}
+                                </h4>
+                                <p className="text-[11px] text-gray-500 truncate">
+                                  Purok {item.purok}, Brgy. {item.barangay.replace(/^Barangay\s+/i, "")}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Evaluation Toggle Buttons */}
+                            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setGraduationEvaluations(prev => ({ ...prev, [item.id]: "Graduated" }))}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                  currentEval === "Graduated"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 border border-gray-200"
+                                }`}
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                <span>Graduated</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setGraduationEvaluations(prev => ({ ...prev, [item.id]: "Incomplete" }))}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                  currentEval === "Incomplete"
+                                    ? "bg-amber-600 text-white shadow-xs"
+                                    : "bg-white hover:bg-amber-50 text-gray-600 hover:text-amber-800 border border-gray-200"
+                                }`}
+                              >
+                                <X className="w-3.5 h-3.5 stroke-[3]" />
+                                <span>Incomplete</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Incomplete Warning Message if any un-evaluated */}
+                    {!isAllEvaluated && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 flex items-start gap-2 text-amber-900">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <span className="text-[11px] leading-relaxed">
+                          <strong>Archive Locked:</strong> Please evaluate all {enrollees.length} enrolled trainees ({enrollees.length - evaluatedCount} remaining) before confirming. The archive button will unlock once all are evaluated.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-gray-500 font-medium">
+                    No active enrolled trainees in this cohort. Archiving will safely move this program term to Archived History.
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="p-3.5 sm:p-4 bg-gray-50/90 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+                <span className="text-[11px] text-gray-500 text-center sm:text-left">
+                  {enrollees.length > 0 && isAllEvaluated
+                    ? `Ready to conclude: ${graduatedCount} certified graduate(s), ${incompleteCount} non-completer(s).`
+                    : enrollees.length === 0
+                      ? "Ready to archive empty program term."
+                      : `${enrollees.length - evaluatedCount} trainee(s) left to evaluate.`}
+                </span>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    disabled={isArchivingProgram}
+                    onClick={() => {
+                      setProgramToArchive(null);
+                      setGraduationEvaluations({});
+                    }}
+                    className="flex-1 sm:flex-none px-4 py-2 border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!isAllEvaluated || isArchivingProgram}
+                    onClick={async () => {
+                      if (programToArchive) {
+                        await handleArchiveProgram(programToArchive.id, programToArchive.title, graduationEvaluations);
+                      }
+                    }}
+                    className={`flex-1 sm:flex-none px-5 py-2.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 text-center ${
+                      isAllEvaluated && !isArchivingProgram
+                        ? "bg-[#0A6B43] hover:bg-[#075332] active:scale-95 cursor-pointer"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                    }`}
+                  >
+                    {isArchivingProgram ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                        <span>Archiving Term...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="w-3.5 h-3.5 shrink-0" />
+                        <span>Conclude & Archive Term</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ============================================================ */}
       {/* DELETE PROGRAM CONFIRMATION MODAL */}

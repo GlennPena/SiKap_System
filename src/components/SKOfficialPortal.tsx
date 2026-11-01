@@ -10707,7 +10707,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     >
                       <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span className="truncate sm:whitespace-normal leading-snug">
-                        {selectedProgramForModal.location || "San Luis Training Center"}
+                        {extractLocationDisplay(selectedProgramForModal.location) || "San Luis Training Center"}
                         {selectedProgramForModal.room ? ` · ${selectedProgramForModal.room}` : ""}
                       </span>
                     </div>

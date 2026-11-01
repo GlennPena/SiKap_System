@@ -690,6 +690,11 @@ interface KKYouthPortalProps {
   currentUser?: any;
 }
 
+export interface StoredCareerRoadmap extends GeminiLongTermCareerPlan {
+  id: string;
+  isPrimary: boolean;
+}
+
 export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   youthProfile,
   setYouthProfiles,
@@ -1042,6 +1047,43 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return null;
   };
 
+  // Helper to parse multiple saved career plans (supports both array and legacy single object)
+  const parseCareerPlansList = (raw: any): StoredCareerRoadmap[] => {
+    if (!raw) return [];
+    let obj = raw;
+    if (typeof obj === "string") {
+      try { obj = JSON.parse(obj); } catch { return []; }
+    }
+    if (typeof obj === "string") {
+      try { obj = JSON.parse(obj); } catch { return []; }
+    }
+    if (!obj) return [];
+
+    if (Array.isArray(obj)) {
+      return obj
+        .map((item, idx) => {
+          const parsed = parseCareerPlan(item);
+          if (!parsed) return null;
+          return {
+            ...parsed,
+            id: item.id || `roadmap-${idx}-${(item.programTitle || 'plan').replace(/\s+/g, '-').toLowerCase()}`,
+            isPrimary: item.isPrimary !== undefined ? Boolean(item.isPrimary) : idx === 0
+          };
+        })
+        .filter((item): item is StoredCareerRoadmap => item !== null);
+    }
+
+    const single = parseCareerPlan(obj);
+    if (single) {
+      return [{
+        ...single,
+        id: (obj as any).id || "primary-roadmap",
+        isPrimary: true
+      }];
+    }
+    return [];
+  };
+
   // Helper to extract cached/saved Tagalog plan from database object or localStorage
   const getInitialTagalogPlan = (): GeminiLongTermCareerPlan | null => {
     // 1. From database youthProfile.savedCareerPlan
@@ -1068,13 +1110,37 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   };
 
   // Step 4 Gemini Long-Term Career Plan states
-  const currentSavedPlan = parseCareerPlan(youthProfile.savedCareerPlan);
+  const [savedRoadmaps, setSavedRoadmaps] = useState<StoredCareerRoadmap[]>(() => {
+    return parseCareerPlansList(youthProfile.savedCareerPlan);
+  });
+  const currentSavedPlan = savedRoadmaps.find(r => r.isPrimary) || savedRoadmaps[0] || parseCareerPlan(youthProfile.savedCareerPlan);
+  const [selectedRoadmapId, setSelectedRoadmapId] = useState<string | null>(() => {
+    const list = parseCareerPlansList(youthProfile.savedCareerPlan);
+    const primary = list.find(r => r.isPrimary) || list[0];
+    return primary?.id || null;
+  });
+
+  const [credentialsCompartment, setCredentialsCompartment] = useState<"id_card" | "training_history" | "roadmaps">("id_card");
+  const [credentialsHistoryFilter, setCredentialsHistoryFilter] = useState<"all" | "completed" | "enrolled">("all");
+  const [viewingCertificateApp, setViewingCertificateApp] = useState<ReferralPipelineItem | null>(null);
+  const [selectedPathwayAppId, setSelectedPathwayAppId] = useState<string | null>(null);
+
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeminiLongTermCareerPlan | null>(currentSavedPlan);
   const [isSavingPlan, setIsSavingPlan] = useState(false);
   const [careerPlanLang, setCareerPlanLang] = useState<"en" | "tl">("en");
   const [translatedPlanTl, setTranslatedPlanTl] = useState<GeminiLongTermCareerPlan | null>(() => getInitialTagalogPlan());
   const [isTranslatingPlan, setIsTranslatingPlan] = useState<boolean>(false);
+
+  // Sync savedRoadmaps whenever youthProfile.savedCareerPlan changes
+  useEffect(() => {
+    const list = parseCareerPlansList(youthProfile.savedCareerPlan);
+    setSavedRoadmaps(list);
+    if (!selectedRoadmapId || !list.some(r => r.id === selectedRoadmapId)) {
+      const primary = list.find(r => r.isPrimary) || list[0];
+      setSelectedRoadmapId(primary?.id || null);
+    }
+  }, [youthProfile.savedCareerPlan]);
 
   // Map Modal State for Viewing Training Provider Venue
   const [mapModalProgram, setMapModalProgram] = useState<TESDAProgram | null>(null);
@@ -1272,39 +1338,102 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   const handleSaveCareerPlanToIDCard = async (planToSave: GeminiLongTermCareerPlan) => {
     if (!planToSave) return;
     setIsSavingPlan(true);
-    // Ensure existing Tagalog translation is preserved when saving to Digital ID Card
-    const fullPlanToSave: GeminiLongTermCareerPlan = {
+
+    const newId = `roadmap-${Date.now()}`;
+    const newRoadmapItem: StoredCareerRoadmap = {
       ...planToSave,
-      translatedPlanTl: translatedPlanTl || planToSave.translatedPlanTl
+      id: newId,
+      isPrimary: savedRoadmaps.length === 0,
+      generatedDate: planToSave.generatedDate || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+      translatedPlanTl: translatedPlanTl || planToSave.translatedPlanTl || undefined
     };
+
+    const existingFiltered = savedRoadmaps.filter(r => 
+      !r.programTitle || !planToSave.programTitle || r.programTitle.toLowerCase().trim() !== planToSave.programTitle.toLowerCase().trim()
+    );
+    const updatedList: StoredCareerRoadmap[] = [...existingFiltered, newRoadmapItem];
+
     try {
       const res = await fetch("/api/youth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: youthProfile.id,
-          savedCareerPlan: fullPlanToSave
+          savedCareerPlan: updatedList
         })
       });
       const data = await res.json();
       if (data.success) {
-        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: fullPlanToSave } : y));
-        setGeneratedPlan(fullPlanToSave);
-        addToast("Career Roadmap successfully saved to your Digital ID Card!", "success");
+        setSavedRoadmaps(updatedList);
+        setSelectedRoadmapId(newId);
+        setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: JSON.stringify(updatedList) } : y));
+        addToast("Career Roadmap saved to your Digital ID & Credentials Hub!", "success");
       } else {
         addToast(data.error || "Failed to save career plan", "error");
       }
     } catch (err) {
-      console.error("Error saving career plan:", err);
-      addToast("Network error: Could not save plan.", "error");
+      console.error("Save career plan error:", err);
+      addToast("Failed to save career plan. Please try again.", "error");
     } finally {
       setIsSavingPlan(false);
     }
   };
 
-  // Render Step 4 Gemini AI Career & Livelihood Guide (unlocked during Pending & Enrolled stages for motivation)
+  const handleSetPrimaryRoadmap = async (roadmapId: string) => {
+    const updated = savedRoadmaps.map(r => ({
+      ...r,
+      isPrimary: r.id === roadmapId
+    }));
+    setSavedRoadmaps(updated);
+    const chosen = updated.find(r => r.id === roadmapId);
+    if (chosen) setGeneratedPlan(chosen);
+
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: youthProfile.id,
+          savedCareerPlan: updated
+        })
+      });
+      setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: JSON.stringify(updated) } : y));
+      addToast(`"${chosen?.roadmapTitle || 'Roadmap'}" set as primary career focus!`, "success");
+    } catch (e) {
+      console.error("Failed to update primary roadmap:", e);
+    }
+  };
+
+  const handleDeleteRoadmap = async (roadmapId: string) => {
+    const updated = savedRoadmaps.filter(r => r.id !== roadmapId);
+    if (updated.length > 0 && !updated.some(r => r.isPrimary)) {
+      updated[0].isPrimary = true;
+    }
+    setSavedRoadmaps(updated);
+    const nextPrimary = updated.find(r => r.isPrimary) || updated[0] || null;
+    setSelectedRoadmapId(nextPrimary?.id || null);
+    if (nextPrimary) setGeneratedPlan(nextPrimary);
+
+    try {
+      await fetch("/api/youth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: youthProfile.id,
+          savedCareerPlan: updated
+        })
+      });
+      setYouthProfiles(prev => prev.map(y => y.id === youthProfile.id ? { ...y, savedCareerPlan: JSON.stringify(updated) } : y));
+      addToast("Career roadmap removed from your portfolio.", "info");
+    } catch (e) {
+      console.error("Failed to delete roadmap:", e);
+    }
+  };
+
+  // Render Step 4 Gemini AI Career & Livelihood Guide (unlocked during Enrolled stage for active trainees)
   const renderMotivationalCareerGuideCard = (programTitle: string, prog?: TESDAProgram | null) => {
-    const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
+    const matchingRoadmap = savedRoadmaps.find(r => r.programTitle?.toLowerCase().trim() === programTitle?.toLowerCase().trim());
+    const planToShow = matchingRoadmap || generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
     const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
     const displayPlan = (careerPlanLang === "tl" && planToShow)
       ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
@@ -1319,8 +1448,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
                 Google Gemini AI • Step 4 Future Career & Livelihood Guide
               </span>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-400/20 text-amber-200 border border-amber-300/30 px-2 py-0.5 rounded-full">
-                {careerPlanLang === "tl" ? "Pang-Motibasyon ✨" : "Motivational Preview ✨"}
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400/20 text-emerald-200 border border-emerald-300/30 px-2 py-0.5 rounded-full">
+                {careerPlanLang === "tl" ? "Bukas para sa Naka-Enroll ✨" : "Unlocked for Enrolled Trainee ✨"}
               </span>
               {planToShow && (
                 <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
@@ -1362,18 +1491,32 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
               {displayPlan?.summary || (
                 careerPlanLang === "tl"
-                  ? `Silipin ngayon pa lang ang mga trabaho, suweldo, at negosyong pwede mong makamit sa San Luis, Pampanga kapag natapos mo ang ${programTitle}.`
-                  : `See what awaits you after completing ${programTitle}! Gemini AI suggests a personalized guide plan showing the jobs, estimated salary, and local business opportunities you can unlock.`
+                  ? `Dahil opisyal ka nang naka-enroll sa ${programTitle}, buuin ang iyong praktikal na gabay sa trabaho, suweldo, at pagnenegosyo sa San Luis, Pampanga habang nagsasanay.`
+                  : `Now that you are officially enrolled in ${programTitle}, generate your personalized career action plan showing entry job roles, realistic Pampanga salary outlook, and local entrepreneurship pathways.`
               )}
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
             {isSaved ? (
-              <span className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
-                <BookmarkCheck className="w-4 h-4 text-emerald-300" />
-                {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
-              </span>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <span className="w-full sm:w-auto justify-center px-3.5 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
+                  <BookmarkCheck className="w-4 h-4 text-emerald-300" />
+                  {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileActiveTab("badge");
+                    setCredentialsCompartment("roadmaps");
+                    setActiveTab(YouthScreen.PROFILE);
+                  }}
+                  className="w-full sm:w-auto justify-center px-3 py-2.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-1.5 cursor-pointer text-center border border-white/20"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>View in Credentials Hub →</span>
+                </button>
+              </div>
             ) : planToShow ? (
               <button
                 onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
@@ -1406,7 +1549,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    {careerPlanLang === "tl" ? "Silipin ang Plano sa Gemini AI" : "Preview My Future Career Guide with Gemini AI"}
+                    {careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}
                   </>
                 )}
               </button>
@@ -3490,7 +3633,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       const room = program?.room || "Main Training Facility";
                       const instructor = program?.instructor || "TESDA Certified Instructor";
                       const provider = program?.provider || "TESDA Training Center";
-                      const location = program?.location || "San Luis, Pampanga";
+                      const location = extractLocationDisplay(program?.location) || "San Luis, Pampanga";
 
                       return (
                         <div key={ref.id} className="py-4 first:pt-0 last:pb-0 space-y-3.5">
@@ -4659,39 +4802,127 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                             );
                           }
 
+                          const activeApp = (selectedPathwayAppId && userApps.find(a => a.id === selectedPathwayAppId))
+                            || userApps.find(a => a.status === "Enrolled")
+                            || userApps.find(a => a.status === "Pending")
+                            || userApps[0];
+
+                          const app = activeApp;
+                          const isEnrolled = app.status === "Enrolled";
+                          const isPending = app.status === "Pending";
+                          const isDeclined = app.status === "Declined";
+                          const isArchived = app.status === "Archived";
+
+                          const program = programs.find(p => p.title === app.programTitle);
+                          const provider = program?.provider || "TESDA Partner Training Center";
+                          const location = extractLocationDisplay(program?.location) || "San Luis, Pampanga";
+                          const scheduleDays = formatTrainingDays(program?.trainingDays);
+                          const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
+
+                          const room = program?.room || "Main Training Facility";
+                          const instructor = program?.instructor || "TESDA Certified Instructor";
+                          const contactPerson = program?.contactPerson || "TESDA Registrar";
+                          const contactNumber = program?.contactNumber || "N/A";
+                          const trainingHours = program?.trainingHours ? `${program.trainingHours} hours` : "Standard Duration";
+                          const dateRange = (program?.startDate || program?.endDate)
+                            ? ` (${formatProgramDateRange(program.startDate, program.endDate)})`
+                            : "";
+                          const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
+                            ? program.requiredDocuments
+                            : [
+                              "Original & Photocopy of Birth Certificate (PSA)",
+                              "2 copies of 2x2 / 1x1 ID Pictures (white background, with name tag)",
+                              "High School Diploma or Form 137 / Report Card",
+                              "Certificate of Barangay Residency (San Luis, Pampanga)"
+                            ];
+
                           return (
-                            <div className="space-y-8">
-                              {userApps.map((app) => {
-                                const isEnrolled = app.status === "Enrolled";
-                                const isPending = app.status === "Pending";
-                                const isDeclined = app.status === "Declined";
-                                const isArchived = app.status === "Archived";
+                            <div className="space-y-6">
+                              {/* Pathway Selector Bar (when 2 or more applications exist) */}
+                              {userApps.length > 1 && (
+                                <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-3">
+                                  <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <Compass className="w-4.5 h-4.5 text-[#0A6B43]" />
+                                      <span className="text-xs sm:text-sm font-extrabold text-gray-900 tracking-tight">
+                                        Select Livelihood Pathway ({userApps.length})
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                                      className="text-xs font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                      <span>Apply to Another Program</span>
+                                    </button>
+                                  </div>
 
-                                const program = programs.find(p => p.title === app.programTitle);
-                                const provider = program?.provider || "TESDA Partner Training Center";
-                                const location = program?.location || "San Luis, Pampanga";
-                                const scheduleDays = formatTrainingDays(program?.trainingDays);
-                                const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
+                                  {/* Horizontal Chips Switcher */}
+                                  <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-thin">
+                                    {userApps.map((item) => {
+                                      const isSelected = activeApp.id === item.id;
+                                      const itemArchived = item.status === "Archived";
+                                      const itemEnrolled = item.status === "Enrolled";
+                                      const itemDeclined = item.status === "Declined";
+                                      const matchingRoadmap = savedRoadmaps.find(r => r.programTitle?.toLowerCase().trim() === item.programTitle?.toLowerCase().trim());
+                                      const isPrimary = matchingRoadmap?.isPrimary;
 
-                                const room = program?.room || "Main Training Facility";
-                                const instructor = program?.instructor || "TESDA Certified Instructor";
-                                const contactPerson = program?.contactPerson || "TESDA Registrar";
-                                const contactNumber = program?.contactNumber || "N/A";
-                                const trainingHours = program?.trainingHours ? `${program.trainingHours} hours` : "Standard Duration";
-                                const dateRange = (program?.startDate || program?.endDate)
-                                  ? ` (${formatProgramDateRange(program.startDate, program.endDate)})`
-                                  : "";
-                                const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
-                                  ? program.requiredDocuments
-                                  : [
-                                    "Original & Photocopy of Birth Certificate (PSA)",
-                                    "2 copies of 2x2 / 1x1 ID Pictures (white background, with name tag)",
-                                    "High School Diploma or Form 137 / Report Card",
-                                    "Certificate of Barangay Residency (San Luis, Pampanga)"
-                                  ];
+                                      return (
+                                        <button
+                                          key={item.id}
+                                          type="button"
+                                          onClick={() => setSelectedPathwayAppId(item.id)}
+                                          className={`shrink-0 px-3.5 py-2.5 rounded-xl text-left border transition-all cursor-pointer flex items-center gap-3 ${
+                                            isSelected
+                                              ? "bg-emerald-50 border-[#0A6B43] text-[#0A6B43] shadow-xs ring-2 ring-[#0A6B43]/15 font-black"
+                                              : "bg-gray-50/80 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
+                                          }`}
+                                        >
+                                          <div className="space-y-1">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-xs font-extrabold truncate max-w-[180px] sm:max-w-[240px]">
+                                                {item.programTitle}
+                                              </span>
+                                              {isPrimary && (
+                                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                                                  ⭐ Primary
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[10px]">
+                                              {itemArchived ? (
+                                                <span className="text-purple-700 font-bold flex items-center gap-1">
+                                                  <CheckCircle className="w-3 h-3 text-purple-600" />
+                                                  <span>Graduate ✓</span>
+                                                </span>
+                                              ) : itemEnrolled ? (
+                                                <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                                  <Clock className="w-3 h-3 text-emerald-600" />
+                                                  <span>Enrolled & Active</span>
+                                                </span>
+                                              ) : itemDeclined ? (
+                                                <span className="text-red-700 font-bold flex items-center gap-1">
+                                                  <XCircle className="w-3 h-3 text-red-600" />
+                                                  <span>Declined</span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-blue-700 font-bold flex items-center gap-1">
+                                                  <Clock className="w-3 h-3 text-blue-600" />
+                                                  <span>Under Review</span>
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
 
-                                return (
-                                  <div key={app.id} className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden">
+                              {/* Focused Active Pathway Card */}
+                              <div key={app.id} className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden animate-in fade-in duration-200">
                                     {/* Top Tag indicating Program - Mobile Optimized Responsive Header */}
                                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-gray-100">
                                       <div className="space-y-1.5 flex-1 min-w-0">
@@ -4903,11 +5134,49 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       Once your physical documents are verified by the TESDA registrar, your enrollment will be officially approved and this pathway will advance to <strong>Step 3: Officially Enrolled & Active Training</strong>!
                                     </p>
                                   </div>
-                                  {renderMotivationalCareerGuideCard(app.programTitle, program)}
-                                  <div className="hidden">
-                                    <p>
+                                  {/* Step 4: Locked Milestone during Pending Stage */}
+                                  <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                                      <div className="flex items-start sm:items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 shadow-2xs">
+                                          <Lock className="w-4 h-4 text-slate-600" />
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-200/70 px-2.5 py-0.5 rounded-full border border-slate-300/60">
+                                              Locked Milestone • Unlocks Upon Enrollment
+                                            </span>
+                                          </div>
+                                          <h5 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight mt-1">
+                                            Step 4: AI Career & Livelihood Guide Plan
+                                          </h5>
+                                        </div>
+                                      </div>
+                                      <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg shrink-0 self-start sm:self-auto flex items-center gap-1.5 shadow-2xs">
+                                        <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                        <span>Pending Step 2 Verification</span>
+                                      </span>
+                                    </div>
+
+                                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                                      Your personalized <strong>Google Gemini Career & Livelihood Guide Plan</strong> will unlock automatically as soon as your physical documents are verified and your enrollment is officially accepted by the training center (Step 2 Completed).
                                     </p>
-                                  </div >
+
+                                    <div className="bg-white rounded-xl p-3 border border-slate-200/70 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+                                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                                        <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>Pampanga Wage Job Matches</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                                        <TrendingUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>Self-Employment & Grants</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                                        <Compass className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>PESO & SK Direct Linkages</span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div >
                               );
                             } else if (isDeclined) {
@@ -4938,7 +5207,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
   );
 } else if (isArchived) {
   // STEP 4 IS UNLOCKED: Step 3 is completed!
-  const planToShow = generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
+  const matchingRoadmap = savedRoadmaps.find(r => r.programTitle?.toLowerCase().trim() === app.programTitle?.toLowerCase().trim());
+  const planToShow = matchingRoadmap || generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
   const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
   const displayPlan = (careerPlanLang === "tl" && planToShow)
     ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
@@ -5288,41 +5558,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </div>
       </div>
 
-      {/* Step 4 Gemini AI Career & Livelihood Guide is now unlocked below for motivation */}
-      {false && (
-      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-600">
-        <div className="flex items-start sm:items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center font-bold shrink-0">
-            <Lock className="w-3.5 h-3.5" />
-          </div>
-          <div>
-            <span className="font-extrabold text-slate-800 block text-xs">
-              Step 4: AI Career & Livelihood Guide Plan
-            </span>
-            <span className="text-[11px] text-slate-500 font-medium">
-              Unlocks after Step 3 with a Gemini AI guide on your next steps after training.
-            </span>
-          </div>
-        </div>
-        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-200/60 px-2.5 py-1 rounded-md shrink-0 self-start sm:self-auto" />
-      </div>
-      )}
+      {/* Step 4: Unlocked for Enrolled Trainee */}
       {renderMotivationalCareerGuideCard(app.programTitle, program)}
-      <div className="hidden">
-        <span>
-          Locked Milestone
-        </span>
-      </div>
     </div>
   );
 }
                           }) ()}
                         </div >
-                      );
-                    })}
-                  </div >
-                );
-              }) ()}
+                      </div>
+                    );
+                  }) ()}
 
               {/* Goals segment - Livelihood Goal */}
               <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-3.5 sm:space-y-4">
@@ -6662,11 +6907,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           </motion.div>
         )}
 
-        {/* Sub-Tab 4: Digital ID Card */}
+        {/* Sub-Tab 4: Digital ID & Credentials Hub */}
         {profileActiveTab === "badge" && (() => {
           const userCompletedApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Archived") || [];
           const userEnrolledApps = referrals?.filter(r => r.youthName === youthProfile.name && r.status === "Enrolled") || [];
-          const savedPlan = currentSavedPlan || generatedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
           const cardGender = spellOutGender(youthProfile.gender);
           const formattedBirthdate = youthProfile.birthdate
             ? (() => {
@@ -6681,6 +6925,22 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             })()
             : "Not recorded";
 
+          const totalCertifiedHours = userCompletedApps.reduce((acc, app) => {
+            const prog = programs.find(p => p.id === app.programId || p.title === app.programTitle);
+            return acc + (prog?.trainingHours || 0);
+          }, 0);
+
+          const activeRoadmap: StoredCareerRoadmap | null = savedRoadmaps.find(r => r.id === selectedRoadmapId)
+            || savedRoadmaps.find(r => r.isPrimary)
+            || savedRoadmaps[0]
+            || (currentSavedPlan ? { ...currentSavedPlan, id: "primary-roadmap", isPrimary: true } : null);
+
+          const historyRecords = credentialsHistoryFilter === "completed"
+            ? userCompletedApps
+            : credentialsHistoryFilter === "enrolled"
+              ? userEnrolledApps
+              : [...userCompletedApps, ...userEnrolledApps];
+
           return (
             <motion.div
               key="badge"
@@ -6690,236 +6950,813 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="space-y-6 w-full pb-6"
             >
-              <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4 sm:space-y-5">
-                <div className="border-b border-gray-100 pb-3">
-                  <h3 className="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#0A6B43]" />
-                    Digital ID Card
-                  </h3>
-                  <p className="text-[11px] sm:text-xs text-gray-400 font-medium mt-0.5">
-                    Official Katipunan ng Kabataan identification credential for San Luis, Pampanga
-                  </p>
+              {/* Compartment Navigation Header */}
+              <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
+                  <div>
+                    <h3 className="font-extrabold text-gray-900 text-base sm:text-lg flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-[#0A6B43]" />
+                      Digital ID & Credentials Hub
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                      Unified repository for your Katipunan ng Kabataan identity, accredited TVET certifications, and personalized career roadmaps.
+                    </p>
+                  </div>
+                  <span className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Verified Citizen Record
+                  </span>
                 </div>
 
-                {/* Official Digital ID Card */}
-                <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
-                  {/* Top Section: Organization Header */}
-                  <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
-                    {/* Left Logo: Municipality of San Luis Seal */}
-                    <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
-                      <img
-                        src="/san-luis-seal.png"
-                        alt="Municipality of San Luis Seal"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-
-                    {/* Centered Institutional Information */}
-                    <div className="text-center flex-1 px-1 min-w-0">
-                      <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
-                        Republic of the Philippines
-                      </p>
-                      <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
-                        Municipality of San Luis
-                      </p>
-                      <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
-                        Sangguniang Kabataan
-                      </p>
-                    </div>
-
-                    {/* Right Logo: Sangguniang Kabataan */}
-                    <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
-                      <img
-                        src="/sk-logo.png"
-                        alt="Sangguniang Kabataan Logo"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Second Section: Full-Width Title Bar */}
-                  <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
-                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
-                      Katipunan ng Kabataan Identification Card
-                    </span>
-                  </div>
-
-                  {/* Main Content Area: Two Columns */}
-                  <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
-                    {/* Left Column: Rectangular Profile Avatar Area + Complete ID Number in One Row */}
-                    <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
-                      <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-gray-200 bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
-                        <div className="flex flex-col items-center justify-center p-2 text-center">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
-                            <User className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
-                          </div>
-                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1.5">KK Member</span>
-                        </div>
-                      </div>
-
-                      {/* ID Number in one row without ellipsis */}
-                      <div className="mt-2 text-center w-full">
-                        <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
-                          ID: {youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Right Column: Member's Information in compact rows and columns */}
-                    <div className="flex-1 w-full space-y-2.5 min-w-0">
-                      {/* Member Name (Uppercase) */}
-                      <div className="border-b border-gray-100 pb-1.5">
-                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Name</span>
-                        <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
-                          {youthProfile.name}
-                        </h4>
-                      </div>
-
-                      {/* Compact Grid: Phone Number (5 cols), Gender (3 cols), Birthday (4 cols) */}
-                      <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-5 min-w-0">
-                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
-                          <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                            {youthProfile.contactNumber || "N/A"}
-                          </span>
-                        </div>
-
-                        <div className="col-span-3 min-w-0">
-                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block whitespace-nowrap">Gender</span>
-                          <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                            {cardGender}
-                          </span>
-                        </div>
-
-                        <div className="col-span-4 min-w-0">
-                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Birthday</span>
-                          <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
-                            {formattedBirthdate}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Address */}
-                      <div className="border-t border-gray-100 pt-1.5">
-                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Address</span>
-                        <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
-                          {youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay {youthProfile.barangay || "San Isidro"}, San Luis, Pampanga
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Completed TESDA Programs Section on ID Card if any */}
-                  {userCompletedApps.length > 0 && (
-                    <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
-                        <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <span className="text-[10px] uppercase tracking-wider">TVET Qualifications:</span>
-                        <span className="font-semibold text-gray-800 text-[11px] truncate">{userCompletedApps.map(a => a.programTitle).join(", ")}</span>
-                      </div>
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
-                        Graduate ✓
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Button: Moved to Bottom Right */}
-                <div className="flex justify-end pt-3 w-full">
+                {/* 3 Navigations directly inside Digital ID & Credentials Hub box, each with its own box */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Official Digital ID */}
                   <button
-                    onClick={() => {
-                      const fullIdStr = youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`;
-                      const completedStr = userCompletedApps.length > 0 ? `\nCertified Programs: ${userCompletedApps.map(a => a.programTitle).join(", ")}` : "";
-                      navigator.clipboard?.writeText(
-                        `Katipunan ng Kabataan Digital ID Card:\nName: ${youthProfile.name.toUpperCase()}\nID: ${fullIdStr}\nPhone: ${youthProfile.contactNumber || "N/A"}\nGender: ${cardGender}\nBirthday: ${formattedBirthdate}\nAddress: ${youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay ${youthProfile.barangay || "San Isidro"}, San Luis, Pampanga${completedStr}`
-                      );
-                      addToast("Digital ID Card information copied to clipboard!", "success");
-                    }}
-                    className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs sm:text-sm rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => setCredentialsCompartment("id_card")}
+                    className={`flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
+                      credentialsCompartment === "id_card"
+                        ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs font-extrabold"
+                        : "bg-gray-50/80 text-gray-700 border-gray-200 shadow-2xs hover:border-gray-300 hover:text-gray-900 hover:bg-gray-100/80"
+                    }`}
                   >
-                    <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43]" />
-                    Copy Digital ID Info
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <span>Official Digital ID</span>
+                  </button>
+
+                  {/* Training Credentials */}
+                  <button
+                    type="button"
+                    onClick={() => setCredentialsCompartment("training_history")}
+                    className={`flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
+                      credentialsCompartment === "training_history"
+                        ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs font-extrabold"
+                        : "bg-gray-50/80 text-gray-700 border-gray-200 shadow-2xs hover:border-gray-300 hover:text-gray-900 hover:bg-gray-100/80"
+                    }`}
+                  >
+                    <Award className="w-4 h-4 shrink-0" />
+                    <span className="truncate">Training Credentials</span>
+                    {userCompletedApps.length > 0 && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                        credentialsCompartment === "training_history"
+                          ? "bg-white text-[#0A6B43]"
+                          : "bg-emerald-100 text-[#0A6B43]"
+                      }`}>
+                        {userCompletedApps.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Career Roadmaps */}
+                  <button
+                    type="button"
+                    onClick={() => setCredentialsCompartment("roadmaps")}
+                    className={`flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
+                      credentialsCompartment === "roadmaps"
+                        ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs font-extrabold"
+                        : "bg-gray-50/80 text-gray-700 border-gray-200 shadow-2xs hover:border-gray-300 hover:text-gray-900 hover:bg-gray-100/80"
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 shrink-0" />
+                    <span className="truncate">Career Roadmaps</span>
+                    {savedRoadmaps.length > 0 && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                        credentialsCompartment === "roadmaps"
+                          ? "bg-white text-[#0A6B43]"
+                          : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {savedRoadmaps.length}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
 
-              {/* Saved Gemini Career Plan Section under ID Card */}
-              {savedPlan ? (
-                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
+              {/* COMPARTMENT 1: Official Digital ID Card */}
+              {credentialsCompartment === "id_card" && (
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 animate-in fade-in duration-200">
                   <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <div className="flex items-start sm:items-center gap-2.5">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold">
-                        <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600" />
-                      </div>
-                      <div>
-                        <span className="text-[10px] sm:text-xs font-black uppercase text-[#0A6B43] tracking-wider block">
-                          Verified Career Roadmap
-                        </span>
-                        <h4 className="font-extrabold text-gray-900 text-sm sm:text-lg">
-                          {savedPlan.roadmapTitle}
-                        </h4>
-                      </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-2">
+                        <Shield className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#0A6B43]" />
+                        Official Katipunan ng Kabataan Identification Card
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-gray-400 font-medium mt-0.5">
+                        Municipality of San Luis, Pampanga • Certified Youth Member
+                      </p>
                     </div>
-                    <span className="text-[10px] sm:text-xs text-gray-400 font-medium">
-                      Saved on: {savedPlan.generatedDate || "Recently"}
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Active Member
                     </span>
                   </div>
 
-                  <p className="text-xs sm:text-sm text-gray-600 leading-relaxed font-medium">
-                    {savedPlan.summary}
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div className="bg-emerald-50/70 p-3 sm:p-3.5 rounded-xl border border-emerald-100 space-y-1.5 text-xs sm:text-sm">
-                      <span className="text-[10px] sm:text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1.5">
-                        <Briefcase className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                        <span>Wage Employment Track</span>
-                      </span>
-                      <p className="text-emerald-950 font-bold text-xs sm:text-sm">
-                        {savedPlan.employmentTrack?.targetRoles?.join(", ")}
-                      </p>
-                      <p className="text-emerald-800 text-[11px] sm:text-[13px]">
-                        Est. Salary: <strong className="text-emerald-900">{savedPlan.employmentTrack?.estimatedSalary}</strong>
-                      </p>
+                  {/* The Physical-Style Digital ID Card */}
+                  <div className="w-full max-w-[480px] sm:max-w-[500px] mx-auto bg-white rounded-2xl border-2 border-emerald-800/20 shadow-md overflow-hidden relative">
+                    {/* Top Section: Organization Header */}
+                    <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-gray-100 gap-2 sm:gap-3">
+                      <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                        <img src="/san-luis-seal.png" alt="San Luis Seal" className="w-full h-full object-contain" />
+                      </div>
+                      <div className="text-center flex-1 px-1 min-w-0">
+                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                          Republic of the Philippines
+                        </p>
+                        <p className="text-xs sm:text-sm md:text-[15px] font-black uppercase tracking-wide text-gray-900 leading-tight my-0.5">
+                          Municipality of San Luis
+                        </p>
+                        <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500 leading-tight">
+                          Sangguniang Kabataan
+                        </p>
+                      </div>
+                      <div className="w-11 h-11 sm:w-14 sm:h-14 shrink-0 flex items-center justify-center">
+                        <img src="/sk-logo.png" alt="SK Logo" className="w-full h-full object-contain" />
+                      </div>
                     </div>
 
-                    <div className="bg-amber-50/70 p-3 sm:p-3.5 rounded-xl border border-amber-100 space-y-1.5 text-xs sm:text-sm">
-                      <span className="text-[10px] sm:text-xs font-black uppercase text-amber-800 tracking-wider flex items-center gap-1.5">
-                        <Wrench className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                        <span>Freelance & Enterprise Track</span>
+                    {/* Second Section: Title Bar */}
+                    <div className="bg-[#0A6B43] text-white py-1 px-3 text-center shadow-xs">
+                      <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest block">
+                        Katipunan ng Kabataan Identification Card
                       </span>
-                      <p className="text-amber-950 font-bold text-xs sm:text-sm">
-                        {savedPlan.entrepreneurshipTrack?.businessConcept}
-                      </p>
-                      <p className="text-amber-800 text-[11px] sm:text-[13px]">
-                        {savedPlan.entrepreneurshipTrack?.starterFunding}
-                      </p>
                     </div>
+
+                    {/* Main Content Area */}
+                    <div className="p-3.5 sm:p-4 flex flex-row items-start gap-3.5 sm:gap-4.5 bg-gradient-to-b from-white to-gray-50/60">
+                      <div className="flex flex-col items-center shrink-0 w-32 sm:w-36">
+                        <div className="w-24 sm:w-28 h-30 sm:h-34 rounded-xl border-2 border-gray-200 bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden shadow-2xs">
+                          <div className="flex flex-col items-center justify-center p-2 text-center">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
+                              <User className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400" />
+                            </div>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1.5">KK Member</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-center w-full">
+                          <span className="font-mono text-[9px] sm:text-[9.5px] font-bold text-[#0A6B43] tracking-tight bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap inline-block">
+                            ID: {youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 w-full space-y-2.5 min-w-0">
+                        <div className="border-b border-gray-100 pb-1.5">
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Name</span>
+                          <h4 className="text-sm sm:text-base font-black uppercase text-gray-900 tracking-tight leading-tight mt-0.5 truncate">
+                            {youthProfile.name}
+                          </h4>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-5 min-w-0">
+                            <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
+                            <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                              {youthProfile.contactNumber || "N/A"}
+                            </span>
+                          </div>
+                          <div className="col-span-3 min-w-0">
+                            <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block whitespace-nowrap">Gender</span>
+                            <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                              {cardGender}
+                            </span>
+                          </div>
+                          <div className="col-span-4 min-w-0">
+                            <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Birthday</span>
+                            <span className="text-xs font-bold text-gray-800 block truncate mt-0.5">
+                              {formattedBirthdate}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-1.5">
+                          <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Address</span>
+                          <span className="text-xs font-bold text-gray-800 block leading-snug mt-0.5">
+                            {youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay {youthProfile.barangay || "San Isidro"}, San Luis, Pampanga
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {userCompletedApps.length > 0 && (
+                      <div className="px-4 py-2 bg-emerald-50/70 border-t border-emerald-200 flex items-center justify-between gap-2 flex-wrap text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-[#0A6B43] min-w-0">
+                          <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span className="text-[10px] uppercase tracking-wider">TVET Qualifications:</span>
+                          <span className="font-semibold text-gray-800 text-[11px] truncate">{userCompletedApps.map(a => a.programTitle).join(", ")}</span>
+                        </div>
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-[#0A6B43] text-white shrink-0">
+                          Graduate ✓
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex justify-between items-center pt-2 border-t border-gray-100 text-xs sm:text-sm">
-                    <button
-                      onClick={() => setActiveTab(YouthScreen.PATHWAY)}
-                      className="text-[#0A6B43] hover:text-[#075332] font-bold text-xs sm:text-sm flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>View Full Pathway & Steps</span>
-                      <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
+                  {/* ID Actions */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-gray-500">
+                    <p className="text-[11px] text-gray-400 text-center sm:text-left">
+                      Official credentials recognized across municipal youth programs and TESDA partner centers.
+                    </p>
                     <button
                       onClick={() => {
+                        const fullIdStr = youthProfile.id.toUpperCase().startsWith("KK-") ? youthProfile.id.toUpperCase() : `KK-SANLUIS-${youthProfile.id.length > 8 ? youthProfile.id.slice(-6).toUpperCase() : youthProfile.id.toUpperCase()}`;
+                        const completedStr = userCompletedApps.length > 0 ? `\nCertified Programs: ${userCompletedApps.map(a => a.programTitle).join(", ")}` : "";
                         navigator.clipboard?.writeText(
-                          `Career Roadmap: ${savedPlan.roadmapTitle}\nSummary: ${savedPlan.summary}\nTarget Salary: ${savedPlan.employmentTrack?.estimatedSalary}\nRoles: ${savedPlan.employmentTrack?.targetRoles?.join(", ")}`
+                          `Katipunan ng Kabataan Digital ID Card:\nName: ${youthProfile.name.toUpperCase()}\nID: ${fullIdStr}\nPhone: ${youthProfile.contactNumber || "N/A"}\nGender: ${cardGender}\nBirthday: ${formattedBirthdate}\nAddress: ${youthProfile.purok ? `${youthProfile.purok}, ` : ""}Barangay ${youthProfile.barangay || "San Isidro"}, San Luis, Pampanga${completedStr}`
                         );
-                        addToast("Career Plan summary copied to clipboard!", "success");
+                        addToast("Digital ID Card information copied to clipboard!", "success");
                       }}
-                      className="text-gray-500 hover:text-gray-700 font-bold text-xs sm:text-sm flex items-center gap-1 cursor-pointer"
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs sm:text-sm rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                     >
-                      <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span>Copy Summary</span>
+                      <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43]" />
+                      Copy Digital ID Info
                     </button>
                   </div>
                 </div>
-              ) : null}
+              )}
+
+              {/* COMPARTMENT 2: Training Credentials & History Folder */}
+              {credentialsCompartment === "training_history" && (
+                <div className="space-y-5 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-xs flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
+                        <Award className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">
+                          {userCompletedApps.length}
+                        </div>
+                        <div className="text-xs font-bold text-gray-500">
+                          Certified Qualifications
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-amber-100 shadow-xs flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">
+                          {totalCertifiedHours}
+                        </div>
+                        <div className="text-xs font-bold text-gray-500">
+                          Total Certified Hours
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-2xl border border-blue-100 shadow-xs flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-200">
+                        <GraduationCap className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">
+                          {userEnrolledApps.length}
+                        </div>
+                        <div className="text-xs font-bold text-gray-500">
+                          Ongoing Programs
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
+                      <div>
+                        <h4 className="font-extrabold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                          <GraduationCap className="w-4.5 h-4.5 text-[#0A6B43]" />
+                          TVET History & Credentials Portfolio
+                        </h4>
+                        <p className="text-xs text-gray-400 font-medium mt-0.5">
+                          Verified records of completed technical-vocational programs and training certifications.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-gray-100/80 p-1 rounded-xl self-start sm:self-auto text-xs font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setCredentialsHistoryFilter("all")}
+                          className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                            credentialsHistoryFilter === "all"
+                              ? "bg-white text-gray-900 shadow-2xs font-extrabold"
+                              : "text-gray-500 hover:text-gray-800"
+                          }`}
+                        >
+                          All ({userCompletedApps.length + userEnrolledApps.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCredentialsHistoryFilter("completed")}
+                          className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                            credentialsHistoryFilter === "completed"
+                              ? "bg-white text-emerald-800 shadow-2xs font-extrabold"
+                              : "text-gray-500 hover:text-gray-800"
+                          }`}
+                        >
+                          Graduates ({userCompletedApps.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCredentialsHistoryFilter("enrolled")}
+                          className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                            credentialsHistoryFilter === "enrolled"
+                              ? "bg-white text-blue-800 shadow-2xs font-extrabold"
+                              : "text-gray-500 hover:text-gray-800"
+                          }`}
+                        >
+                          Enrolled ({userEnrolledApps.length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {historyRecords.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-4">
+                        {historyRecords.map(app => {
+                          const prog = programs.find(p => p.id === app.programId || p.title === app.programTitle);
+                          const isCompleted = app.status === "Archived";
+                          const categoryName = typeof prog?.category === "string"
+                            ? prog.category
+                            : (prog?.category?.name || "Technical Vocational");
+
+                          return (
+                            <div
+                              key={app.id}
+                              className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                                isCompleted
+                                  ? "bg-emerald-50/20 border-emerald-200/80 hover:border-emerald-300 hover:shadow-xs"
+                                  : "bg-blue-50/20 border-blue-200/80 hover:border-blue-300 hover:shadow-xs"
+                              }`}
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                <div className="space-y-1.5 flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {isCompleted ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        <CheckCircle className="w-3 h-3 text-[#0A6B43]" />
+                                        Official TVET Graduate ✓
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-300">
+                                        <Clock className="w-3 h-3 text-blue-700" />
+                                        Currently In-Training
+                                      </span>
+                                    )}
+                                    <span className="text-xs text-gray-500 font-medium">
+                                      {isCompleted ? "Completed" : "Enrolled"}: {app.applicationDate || "Verified Term"}
+                                    </span>
+                                  </div>
+
+                                  <h4 className="text-base sm:text-lg font-black text-gray-900 leading-snug">
+                                    {app.programTitle}
+                                  </h4>
+                                  <p className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                                    <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                    <span>{prog?.provider || "TESDA Partner Training Center"}</span>
+                                  </p>
+                                </div>
+
+                                <div className="shrink-0 text-left sm:text-right bg-white px-3 py-1.5 rounded-xl border border-gray-200/80 shadow-2xs self-start">
+                                  <div className="text-xs font-extrabold text-[#0A6B43]">
+                                    {prog?.trainingHours || 0} Training Hours
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                    {categoryName}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3 mt-3 border-t border-gray-100 text-xs">
+                                <div className="text-gray-600 flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                  <span className="truncate">{extractLocationDisplay(prog?.location) || "San Luis, Pampanga"}</span>
+                                </div>
+                                <div className="text-gray-600 flex items-center gap-1.5">
+                                  <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                  <span className="truncate">Trainer: {prog?.instructor || "TESDA Certified Trainer"}</span>
+                                </div>
+                                <div className="text-gray-600 flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                  <span className="truncate">Schedule: {prog?.trainingDays ? formatTrainingDays(prog.trainingDays) : "Regular Cohort"}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 mt-3 border-t border-gray-100">
+                                {isCompleted ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewingCertificateApp(app)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-colors cursor-pointer"
+                                    >
+                                      <Award className="w-3.5 h-3.5 text-amber-300" />
+                                      <span>View Official Certificate</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const prog = programs.find(p => p.id === app.programId || p.title === app.programTitle);
+                                        const certStatement = `Official TVET Credential:\nTrainee: ${youthProfile.name.toUpperCase()}\nProgram: ${app.programTitle}\nProvider: ${prog?.provider || 'TESDA Partner Center'}\nHours: ${prog?.trainingHours || 0} Hours\nStatus: Verified Graduate ✓`;
+                                        navigator.clipboard?.writeText(certStatement);
+                                        addToast("TVET Credential details copied to clipboard!", "success");
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                                    >
+                                      <Copy className="w-3.5 h-3.5 text-gray-500" />
+                                      <span>Copy Credential Info</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-xs text-blue-700 font-semibold flex items-center gap-1">
+                                      <Activity className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+                                      <span>Training is active. Complete this program to receive your official certificate.</span>
+                                    </span>
+                                    {prog && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenVenueMap(prog)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition-colors cursor-pointer"
+                                      >
+                                        <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                                        <span>View Venue Map</span>
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-8 sm:p-10 text-center rounded-2xl bg-gray-50/70 border border-dashed border-gray-200 space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center mx-auto border border-emerald-100">
+                          <GraduationCap className="w-6 h-6" />
+                        </div>
+                        <h5 className="font-extrabold text-gray-900 text-sm sm:text-base">
+                          {credentialsHistoryFilter === "completed"
+                            ? "No Completed Programs Yet"
+                            : credentialsHistoryFilter === "enrolled"
+                              ? "No Current Enrolled Programs"
+                              : "No Training Program Records Yet"}
+                        </h5>
+                        <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                          {credentialsHistoryFilter === "completed"
+                            ? "When your training program concludes and TESDA certifies your graduation, your official TVET Certificate of Completion will be archived here."
+                            : "Explore our catalog of free TESDA-certified skills training and livelihood programs matching your profile to get started."}
+                        </p>
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                          >
+                            <span>Browse Matched Programs</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* COMPARTMENT 3: Verified Career Roadmaps */}
+              {credentialsCompartment === "roadmaps" && (
+                <div className="space-y-5 animate-in fade-in duration-200">
+                  {savedRoadmaps.length > 0 && (
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          Your Saved Career Roadmaps ({savedRoadmaps.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                          className="text-xs font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Generate Another Roadmap</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-thin">
+                        {savedRoadmaps.map((r) => {
+                          const isSelected = (activeRoadmap?.id === r.id) || (selectedRoadmapId === r.id);
+                          return (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => setSelectedRoadmapId(r.id)}
+                              className={`shrink-0 px-3.5 py-2 rounded-xl text-left border transition-all cursor-pointer flex items-center gap-2.5 ${
+                                isSelected
+                                  ? "bg-emerald-50 border-[#0A6B43] text-[#0A6B43] shadow-xs ring-2 ring-[#0A6B43]/10"
+                                  : "bg-gray-50/70 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
+                              }`}
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-extrabold truncate max-w-[200px] sm:max-w-[260px]">
+                                    {r.roadmapTitle}
+                                  </span>
+                                  {r.isPrimary && (
+                                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                                      ⭐ Primary
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-medium">
+                                  {r.generatedDate || "Saved Plan"}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeRoadmap ? (
+                    <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
+                        <div className="flex items-start sm:items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-bold shrink-0">
+                            <Sparkles className="w-4.5 h-4.5 text-amber-600" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] sm:text-xs font-black uppercase text-[#0A6B43] tracking-wider">
+                                Verified Career Roadmap
+                              </span>
+                              {activeRoadmap.isPrimary ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                                  ⭐ Primary Focus
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetPrimaryRoadmap(activeRoadmap.id)}
+                                  className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 hover:bg-emerald-50 text-gray-600 hover:text-[#0A6B43] border border-gray-200 transition-colors cursor-pointer"
+                                >
+                                  Set as Primary
+                                </button>
+                              )}
+                            </div>
+                            <h4 className="font-extrabold text-gray-900 text-base sm:text-lg">
+                              {activeRoadmap.roadmapTitle}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <span className="text-[10px] sm:text-xs text-gray-400 font-medium">
+                            Saved on: {activeRoadmap.generatedDate || "Recently"}
+                          </span>
+                          {savedRoadmaps.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRoadmap(activeRoadmap.id)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete this roadmap"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs sm:text-sm text-gray-600 leading-relaxed font-medium">
+                        {activeRoadmap.summary}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="bg-emerald-50/70 p-3.5 sm:p-4 rounded-xl border border-emerald-100 space-y-1.5 text-xs sm:text-sm">
+                          <span className="text-[10px] sm:text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                            <span>Wage Employment Track</span>
+                          </span>
+                          <p className="text-emerald-950 font-bold text-xs sm:text-sm">
+                            {activeRoadmap.employmentTrack?.targetRoles?.join(", ")}
+                          </p>
+                          <p className="text-emerald-800 text-[11px] sm:text-[13px]">
+                            Est. Salary: <strong className="text-emerald-900">{activeRoadmap.employmentTrack?.estimatedSalary}</strong>
+                          </p>
+                        </div>
+
+                        <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-xl border border-amber-100 space-y-1.5 text-xs sm:text-sm">
+                          <span className="text-[10px] sm:text-xs font-black uppercase text-amber-800 tracking-wider flex items-center gap-1.5">
+                            <Wrench className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                            <span>Freelance & Enterprise Track</span>
+                          </span>
+                          <p className="text-amber-950 font-bold text-xs sm:text-sm">
+                            {activeRoadmap.entrepreneurshipTrack?.businessConcept}
+                          </p>
+                          <p className="text-amber-800 text-[11px] sm:text-[13px]">
+                            {activeRoadmap.entrepreneurshipTrack?.starterFunding}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Milestone Horizon Preview */}
+                      {(activeRoadmap.immediate30Days?.length > 0 || activeRoadmap.longTerm1To2Years?.length > 0) && (
+                        <div className="pt-2 border-t border-gray-100 space-y-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-gray-400 block">
+                            Pathway Horizons
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {activeRoadmap.immediate30Days?.length > 0 && (
+                              <div className="p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100 text-xs">
+                                <span className="font-extrabold text-[#0A6B43] block">Phase 1: Immediate 30 Days</span>
+                                <span className="font-semibold text-gray-800 block text-[11px] mt-0.5 line-clamp-2">{activeRoadmap.immediate30Days[0]}</span>
+                              </div>
+                            )}
+                            {activeRoadmap.longTerm1To2Years?.length > 0 && (
+                              <div className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-100 text-xs">
+                                <span className="font-extrabold text-amber-800 block">Phase 2: 1 to 2 Years Horizon</span>
+                                <span className="font-semibold text-gray-800 block text-[11px] mt-0.5 line-clamp-2">{activeRoadmap.longTerm1To2Years[0]}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap justify-between items-center gap-2 pt-3 border-t border-gray-100 text-xs sm:text-sm">
+                        <button
+                          onClick={() => setActiveTab(YouthScreen.PATHWAY)}
+                          className="text-[#0A6B43] hover:text-[#075332] font-bold text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>View Full Pathway & Next Steps</span>
+                          <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard?.writeText(
+                              `Career Roadmap: ${activeRoadmap.roadmapTitle}\nSummary: ${activeRoadmap.summary}\nTarget Salary: ${activeRoadmap.employmentTrack?.estimatedSalary}\nRoles: ${activeRoadmap.employmentTrack?.targetRoles?.join(", ")}`
+                            );
+                            addToast("Career Plan summary copied to clipboard!", "success");
+                          }}
+                          className="text-gray-500 hover:text-gray-700 font-bold text-xs sm:text-sm flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span>Copy Summary</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-center border border-dashed border-gray-200 space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+                        <Sparkles className="w-6 h-6" />
+                      </div>
+                      <h5 className="font-extrabold text-gray-900 text-base">
+                        No Saved Career Roadmaps Yet
+                      </h5>
+                      <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                        Generate personalized AI Career Roadmaps tailored to your vocational interests and skills. You can save multiple roadmaps and designate your primary career focus here.
+                      </p>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab(YouthScreen.MATCHES)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Explore Matched Programs & Create Roadmap</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Official Certificate of Training Completion Modal */}
+              {viewingCertificateApp && (() => {
+                const certProg = programs.find(p => p.id === viewingCertificateApp.programId || p.title === viewingCertificateApp.programTitle);
+                const certSerial = `CERT-SLP-${viewingCertificateApp.id.length > 8 ? viewingCertificateApp.id.slice(-8).toUpperCase() : viewingCertificateApp.id.toUpperCase()}`;
+                const certDate = viewingCertificateApp.applicationDate || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+                const certHours = certProg?.trainingHours || 240;
+
+                return (
+                  <div
+                    className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) setViewingCertificateApp(null);
+                    }}
+                  >
+                    <div className="bg-white w-full max-w-2xl rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border-4 border-emerald-800/20 relative animate-in zoom-in-95 duration-200">
+                      <div className="bg-[#0A6B43] px-4 sm:px-6 py-3 flex items-center justify-between text-white">
+                        <div className="flex items-center gap-2">
+                          <Award className="w-5 h-5 text-amber-300" />
+                          <span className="font-extrabold text-xs sm:text-sm uppercase tracking-wider">
+                            Official Training Completion Certificate
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setViewingCertificateApp(null)}
+                          className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <div className="p-6 sm:p-10 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-center space-y-6">
+                        <div className="border-4 border-double border-emerald-900/40 p-6 sm:p-8 rounded-2xl bg-white shadow-xs space-y-6 relative overflow-hidden">
+                          <div className="absolute top-2 left-2 text-[#0A6B43]/30 font-serif text-lg">❖</div>
+                          <div className="absolute top-2 right-2 text-[#0A6B43]/30 font-serif text-lg">❖</div>
+                          <div className="absolute bottom-2 left-2 text-[#0A6B43]/30 font-serif text-lg">❖</div>
+                          <div className="absolute bottom-2 right-2 text-[#0A6B43]/30 font-serif text-lg">❖</div>
+
+                          <div className="flex items-center justify-center gap-4 sm:gap-6 border-b border-gray-100 pb-4">
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 flex items-center justify-center">
+                              <img src="/san-luis-seal.png" alt="San Luis Seal" className="w-full h-full object-contain" />
+                            </div>
+                            <div>
+                              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                                Republic of the Philippines • Province of Pampanga
+                              </p>
+                              <h3 className="text-sm sm:text-lg font-black uppercase text-gray-900 tracking-wide">
+                                Municipality of San Luis
+                              </h3>
+                              <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#0A6B43]">
+                                Sangguniang Kabataan • Technical Vocational Education & Training
+                              </p>
+                            </div>
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 flex items-center justify-center">
+                              <img src="/sk-logo.png" alt="SK Logo" className="w-full h-full object-contain" />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 inline-block">
+                              Certificate of Training Completion
+                            </span>
+                            <p className="text-xs text-gray-500 font-medium pt-2">
+                              This is to proudly certify that
+                            </p>
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-[#0A6B43] tracking-tight uppercase underline decoration-2 decoration-emerald-600/30 underline-offset-4 py-1">
+                              {youthProfile.name}
+                            </h2>
+                            <p className="text-xs text-gray-600 max-w-lg mx-auto leading-relaxed pt-1">
+                              has successfully completed all prescribed coursework, competencies, and practical requirements for the Technical-Vocational skills program:
+                            </p>
+                            <div className="py-2">
+                              <div className="text-base sm:text-xl font-black text-gray-900 uppercase bg-gray-50 py-2 px-4 rounded-xl border border-gray-200/80 inline-block">
+                                {viewingCertificateApp.programTitle}
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              Administered by <strong className="text-gray-800">{certProg?.provider || "TESDA Partner Training Center"}</strong> with a certified duration of <strong className="text-emerald-800">{certHours} Training Hours</strong>.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-6 pt-6 border-t border-gray-100">
+                            <div className="text-center space-y-1">
+                              <div className="w-32 sm:w-40 h-8 mx-auto border-b border-gray-400 flex items-end justify-center pb-0.5">
+                                <span className="text-[10px] font-serif italic text-gray-600">Official Municipal Seal</span>
+                              </div>
+                              <span className="text-xs font-black text-gray-900 block">Sangguniang Kabataan</span>
+                              <span className="text-[10px] text-gray-500 block uppercase font-bold">Municipal Chairperson</span>
+                            </div>
+
+                            <div className="text-center space-y-1">
+                              <div className="w-32 sm:w-40 h-8 mx-auto border-b border-gray-400 flex items-end justify-center pb-0.5">
+                                <span className="text-[10px] font-serif italic text-gray-600">TESDA Accredited</span>
+                              </div>
+                              <span className="text-xs font-black text-gray-900 block">{certProg?.instructor || "Vocational Lead Trainer"}</span>
+                              <span className="text-[10px] text-gray-500 block uppercase font-bold">Training Center Administrator</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t border-dashed border-gray-200 text-[10px] text-gray-400 font-mono">
+                            <span>Reference No: {certSerial}</span>
+                            <span>Date of Issuance: {certDate}</span>
+                            <span className="text-emerald-700 font-bold">Status: Verified & Concluded ✓</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-center gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => window.print()}
+                            className="px-5 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+                          >
+                            <FileCheck className="w-4 h-4" />
+                            <span>Print / Save as PDF</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setViewingCertificateApp(null)}
+                            className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-bold transition-colors cursor-pointer"
+                          >
+                            Close Preview
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </motion.div>
           );
         })()}

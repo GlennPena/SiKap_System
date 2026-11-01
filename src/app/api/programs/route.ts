@@ -166,26 +166,67 @@ export async function DELETE(request: Request) {
       });
     }
 
+    // Read selective graduation evaluation from body if provided
+    let body: any = null;
+    try {
+      body = await request.json();
+    } catch {
+      // Body may be empty on query-only calls
+    }
+
     // 1. Soft delete / archive program
     const updated = await db.tESDAProgram.update({
       where: { id },
       data: { activeStatus: "Closed" }
     });
 
-    // 2. Archive all enrolled and pending students/referrals in this program
-    const archivedRefs = await db.referral.updateMany({
-      where: {
-        programId: id,
-        status: { in: ["Enrolled", "Pending"] }
-      },
-      data: { status: "Archived" }
-    });
+    let graduatedCount = 0;
+    let incompleteCount = 0;
+
+    if (body && Array.isArray(body.graduatedReferralIds)) {
+      const gradIds: string[] = body.graduatedReferralIds;
+      const incompIds: string[] = Array.isArray(body.incompleteReferralIds) ? body.incompleteReferralIds : [];
+
+      if (gradIds.length > 0) {
+        const resGrad = await db.referral.updateMany({
+          where: { id: { in: gradIds }, programId: id },
+          data: { status: "Archived" }
+        });
+        graduatedCount = resGrad.count;
+      }
+
+      if (incompIds.length > 0) {
+        const resIncomp = await db.referral.updateMany({
+          where: { id: { in: incompIds }, programId: id },
+          data: { status: "Declined" }
+        });
+        incompleteCount = resIncomp.count;
+      }
+
+      // Close any remaining Pending applications
+      await db.referral.updateMany({
+        where: { programId: id, status: "Pending" },
+        data: { status: "Declined" }
+      });
+    } else {
+      // Fallback for legacy calls without body
+      const archivedRefs = await db.referral.updateMany({
+        where: {
+          programId: id,
+          status: { in: ["Enrolled", "Pending"] }
+        },
+        data: { status: "Archived" }
+      });
+      graduatedCount = archivedRefs.count;
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Program "${prog.title}" and ${archivedRefs.count} enrollee record(s) archived successfully.`,
+      message: `Program "${prog.title}" archived successfully: ${graduatedCount} graduate(s) certified${incompleteCount > 0 ? `, ${incompleteCount} marked incomplete` : ""}.`,
       data: updated,
-      archivedStudentsCount: archivedRefs.count
+      graduatedCount,
+      incompleteCount,
+      archivedStudentsCount: graduatedCount
     });
   } catch (error: any) {
     console.error("Programs DELETE Error:", error);

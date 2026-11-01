@@ -1,5 +1,7 @@
 "use client";
 
+import { extractLocationDisplay } from '../lib/training-venues';
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Flame, Check, CheckCircle2, AlertCircle, ArrowRight, X, AlertTriangle, Lightbulb, Info, Sparkles, ChevronDown, ChevronUp, Clock, Calendar, ChevronLeft, ChevronRight, Bell, UserCheck, Briefcase, Award, TrendingUp, MapPin, Timer, Coins, Users, Sun, Moon, Loader2, FileCheck, FileText, GraduationCap, Lock, XCircle, ShieldCheck } from "lucide-react";
 import { TESDAProgram } from "../types";
@@ -865,7 +867,7 @@ export const OpportunityCard: React.FC<{
           </span>
           <span className="text-[11px] text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full flex items-center gap-1">
             <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-            <span>{program.location?.includes("PTC") ? "TESDA GPSAT Campus" : (program.location || "San Luis Satellite")}</span>
+            <span>{program.location?.includes("PTC") ? "TESDA GPSAT Campus" : (extractLocationDisplay(program.location) || "San Luis Satellite")}</span>
           </span>
           <span className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
             <Clock className="w-3 h-3 text-[#0A6B43]" /> {getProgramFullSchedule(program)}
