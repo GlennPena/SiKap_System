@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 function mapToPipelineItem(r: any) {
   const formattedDate = r.referralDate ? r.referralDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const rawDate = r.referralDate ? new Date(r.referralDate).toISOString() : "";
   const youthEmail = r.youth?.user?.email || r.youth?.email || "";
   return {
     id: r.id,
@@ -22,6 +23,7 @@ function mapToPipelineItem(r: any) {
     matchScore: r.matchScore,
     applicationDate: formattedDate,
     referralDate: formattedDate,
+    rawDate: rawDate,
     status: r.status,
     program: r.program ? {
       id: r.program.id,
@@ -362,10 +364,13 @@ export async function PATCH(request: Request) {
       });
     }
 
+    const requestedStatus = body.status;
+    const dbStatus = requestedStatus === "Approved" ? "Enrolled" : requestedStatus;
+
     // Manage slotsRemaining based on status transition + any cleaned duplicate slots
     if (currentRef.program) {
       const wasHoldingSlot = currentRef.status === "Pending" || currentRef.status === "Enrolled";
-      const willHoldSlot = body.status === "Pending" || body.status === "Enrolled";
+      const willHoldSlot = dbStatus === "Pending" || dbStatus === "Enrolled";
 
       let slotDelta = duplicateSlotsHeld;
       if (!wasHoldingSlot && willHoldSlot) {
@@ -391,7 +396,7 @@ export async function PATCH(request: Request) {
 
     const updated = await db.referral.update({
       where: { id: body.id },
-      data: { status: body.status },
+      data: { status: dbStatus },
       include: {
         youth: { include: { barangay: true, user: true } },
         program: true
@@ -402,11 +407,15 @@ export async function PATCH(request: Request) {
     notifyReferralStatusChanged({
       referralId: updated.id,
       youthProfileId: updated.youthId,
-      status: updated.status,
+      status: requestedStatus,
       programTitle: updated.program?.title || "TESDA Program"
     }).catch((err) => console.error("[Referral Notification Error]:", err));
 
-    return NextResponse.json({ success: true, data: mapToPipelineItem(updated) });
+    const mapped = mapToPipelineItem(updated);
+    if (requestedStatus === "Approved") {
+      mapped.status = "Approved";
+    }
+    return NextResponse.json({ success: true, data: mapped });
   } catch (error: any) {
     console.error("Referrals PATCH Error:", error);
     return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });

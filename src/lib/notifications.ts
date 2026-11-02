@@ -31,9 +31,12 @@ export async function notifyReferralStatusChanged(params: {
     let pushTitle = "Application Update";
     let pushBody = `Your application for "${params.programTitle}" has been updated to: ${params.status}.`;
 
-    if (params.status === "Enrolled") {
-      pushTitle = "Enrollment Approved!";
-      pushBody = `You are officially accepted into "${params.programTitle}". Training sessions will begin soon.`;
+    if (params.status === "Approved") {
+      pushTitle = "Application Approved!";
+      pushBody = `Your application for "${params.programTitle}" has been approved by TESDA. Please await final cohort enrollment confirmation.`;
+    } else if (params.status === "Enrolled") {
+      pushTitle = "Enrollment Confirmed!";
+      pushBody = `You are officially enrolled in "${params.programTitle}". Training sessions will begin soon.`;
     } else if (params.status === "Declined") {
       pushTitle = "Application Declined";
       pushBody = `Your application for "${params.programTitle}" was not accepted. Check dashboard for alternatives.`;

@@ -2,24 +2,26 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import {
-  Briefcase, Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
-  Search, ChevronDown, ChevronUp, BookOpen, SlidersHorizontal, Eye, MapPin, GraduationCap, Info, User,
-  Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, Filter, ChevronRight, ChevronLeft, CheckCircle2,
-  Lock, EyeOff, Edit, ShieldAlert, Copy, Menu, Loader2,
-  Sun, Moon, Building2, Timer, Zap, Archive, Calculator, ShieldCheck,
-  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw, Compass
+  Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
+  Search, ChevronDown, ChevronUp, BookOpen, Eye, MapPin, GraduationCap, Info, User,
+  Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, ChevronRight, ChevronLeft, CheckCircle2,
+  Lock, EyeOff, Edit, Copy, Menu, Loader2,
+  Sun, Moon, Building2, Zap, Archive, Calculator, ShieldCheck,
+  LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw, Compass,
+  BarChart2
 } from "lucide-react";
+import { SAN_LUIS_BARANGAYS, normalizeBarangayName } from "../lib/barangay-data";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
-import { formatLocationWithCoords, extractLocationDisplay, extractLocationCoords } from "../lib/training-venues";
-import { MetricCard, SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
+import { formatLocationWithCoords, extractLocationDisplay } from "../lib/training-venues";
+import { SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
 import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard } from "./SettingsShared";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
-import { formatProgramTime, formatTrainingDays, formatProgramTimeslot, getProgramFullSchedule, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
+import { formatTrainingDays, formatProgramTimeslot, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
 import { toTitleCase, isProgramEnded } from "../lib/utils";
 import { broadcastDataChange } from "../lib/realtime-sync";
 
@@ -100,8 +102,51 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
-  // Dashboard Sub-tabs
-  const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "enrolled" | "programs" | "archived">("all");
+  // Role-based access control for applicant management actions
+  const canManageApplicants = useMemo(() => {
+    if (!currentUser?.role) return true;
+    const r = String(currentUser.role).toUpperCase();
+    return r.includes("TESDA") || r.includes("ADMIN");
+  }, [currentUser?.role]);
+
+  // Applicants & Dashboard Sub-tabs
+  const [dashboardTab, setDashboardTab] = useState<"all" | "pending" | "approved" | "enrolled" | "declined" | "programs" | "archived">("all");
+  const APPLICANTS_TABLE_PER_PAGE = 10;
+  const [applicantTablePage, setApplicantTablePage] = useState(1);
+
+  // Track Approved (pre-enrollment) stage IDs in localStorage so Approved vs Enrolled distinction persists
+  const [approvedStageIds, setApprovedStageIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("sikap_tesda_approved_stage_ids");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch { }
+    }
+    return [];
+  });
+
+  const updateApprovedStageIds = (updater: (prev: string[]) => string[]) => {
+    setApprovedStageIds(prev => {
+      const next = Array.from(new Set(updater(prev)));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("sikap_tesda_approved_stage_ids", JSON.stringify(next));
+        } catch { }
+      }
+      return next;
+    });
+  };
+
+  // Review Application Modal State (with Confirmation Step)
+  const [reviewingApplication, setReviewingApplication] = useState<ReferralPipelineItem | null>(null);
+  const [pendingReviewDecision, setPendingReviewDecision] = useState<"Approved" | "Enrolled" | "Declined" | null>(null);
+
+  // Applicants loading & error states
+  const [isLoadingApplicants, setIsLoadingApplicants] = useState(false);
+  const [applicantsError, setApplicantsError] = useState<string | null>(null);
 
   // Profile & Settings Sub-tabs
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
@@ -255,7 +300,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) return parsed;
         }
-      } catch {}
+      } catch { }
     }
     return [];
   });
@@ -386,7 +431,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       const updated = Array.from(new Set([...prev, ...allIds]));
       try {
         localStorage.setItem(getReadStorageKey(), JSON.stringify(updated));
-      } catch {}
+      } catch { }
       return updated;
     });
     addToast("All notifications cleared", "info");
@@ -398,9 +443,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Selected program for detail view modal
   const [viewingProgram, setViewingProgram] = useState<TESDAProgram | null>(null);
-
-  // Program edit modal state (stays on current screen)
-  const [editingProgramModal, setEditingProgramModal] = useState<TESDAProgram | null>(null);
 
   // Program delete confirmation modal state
   const [programToDelete, setProgramToDelete] = useState<TESDAProgram | null>(null);
@@ -422,9 +464,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Action loading states for referral status updates and program forms
   const [processingReferralId, setProcessingReferralId] = useState<string | null>(null);
-  const [processingReferralStatus, setProcessingReferralStatus] = useState<"Enrolled" | "Declined" | null>(null);
+  const [processingReferralStatus, setProcessingReferralStatus] = useState<"Approved" | "Enrolled" | "Declined" | null>(null);
   const [isSubmittingProgram, setIsSubmittingProgram] = useState(false);
-  const [isSubmittingModalProgram, setIsSubmittingModalProgram] = useState(false);
 
   // Archived records state for the Archived History tab & Catalog Archive View
   const [archivedProgramsList, setArchivedProgramsList] = useState<TESDAProgram[]>([]);
@@ -495,31 +536,63 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
-  // Pipeline Search & Filter states
+  // Pipeline Search, Filter & Sort states
   const [pipelineSearch, setPipelineSearch] = useState("");
   const [pipelineStatusFilter, setPipelineStatusFilter] = useState<string>("All");
   const [pipelineProgramFilter, setPipelineProgramFilter] = useState<string>("All");
   const [pipelineBarangayFilter, setPipelineBarangayFilter] = useState<string>("All");
-  const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
+  const [pipelineDateRangeFilter, setPipelineDateRangeFilter] = useState<string>("All");
+  const [applicantSortCol, setApplicantSortCol] = useState<"applicant" | "program" | "matchScore" | "appliedDate" | "status">("appliedDate");
+  const [applicantSortDir, setApplicantSortDir] = useState<"asc" | "desc">("desc");
 
-  // Dashboard Program Pagination:
-  // Pipeline referrals list (Tabs 1-3) displays max 3 programs per page
-  const DASHBOARD_PROGRAMS_PER_PAGE = 3;
-  const [dashboardProgramPage, setDashboardProgramPage] = useState(1);
+  const handleApplicantSort = (col: "applicant" | "program" | "matchScore" | "appliedDate" | "status") => {
+    if (applicantSortCol === col) {
+      setApplicantSortDir(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setApplicantSortCol(col);
+      setApplicantSortDir(col === "applicant" || col === "program" || col === "status" ? "asc" : "desc");
+    }
+  };
 
-  // Program Roster Grid (Tab 4) displays max 6 programs per page
-  const DASHBOARD_ROSTER_PER_PAGE = 6;
-  const [dashboardRosterPage, setDashboardRosterPage] = useState(1);
+  const refreshApplicantsData = async () => {
+    setIsLoadingApplicants(true);
+    setApplicantsError(null);
+    try {
+      const [activeRes, archRes, progRes] = await Promise.all([
+        fetch("/api/referrals"),
+        fetch("/api/referrals?archived=true"),
+        fetch("/api/programs")
+      ]);
+      const activeData = await activeRes.json();
+      const archData = await archRes.json();
+      const progData = await progRes.json();
+
+      if (!activeRes.ok || !activeData.success) {
+        throw new Error(activeData.error || activeData.message || "Failed to load applicant records.");
+      }
+      setReferrals(activeData.data || []);
+      if (archData.success && archData.data) {
+        setArchivedReferralsList(archData.data);
+      }
+      if (progData.success && progData.data) {
+        setPrograms(progData.data);
+      }
+    } catch (err: any) {
+      console.error("Error refreshing applicants:", err);
+      setApplicantsError(err.message || "Unable to fetch latest applications. Please try again.");
+    } finally {
+      setIsLoadingApplicants(false);
+    }
+  };
 
   // Programs Screen Catalog displays max 6 programs per page
   const PROGRAMS_CATALOG_PER_PAGE = 6;
   const [programsCatalogPage, setProgramsCatalogPage] = useState(1);
 
-  // Reset dashboard program pagination when filters or tab change
+  // Reset applicant pagination when filters or tab change
   useEffect(() => {
-    setDashboardProgramPage(1);
-    setDashboardRosterPage(1);
-  }, [pipelineSearch, pipelineStatusFilter, pipelineProgramFilter, pipelineBarangayFilter, dashboardTab]);
+    setApplicantTablePage(1);
+  }, [pipelineSearch, pipelineStatusFilter, pipelineProgramFilter, pipelineBarangayFilter, pipelineDateRangeFilter, dashboardTab, applicantSortCol, applicantSortDir]);
 
   // Programs Screen Search & Filter
   const [programSearchQuery, setProgramSearchQuery] = useState("");
@@ -533,13 +606,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   useEffect(() => {
     setProgramsCatalogPage(1);
   }, [programSearchQuery, programLevelFilter, programCategoryFilter, programStatusFilter, programCostFilter, viewingArchivedPrograms]);
-
-  const toggleProgramExpand = (title: string) => {
-    setExpandedPrograms(prev => ({
-      ...prev,
-      [title]: prev[title] === false ? true : false
-    }));
-  };
 
   // Form states for adding/editing program
   const [progTitle, setProgTitle] = useState("");
@@ -650,53 +716,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   }, [computedTrainingHours]);
 
-  const handleOpenEditModal = (prog: TESDAProgram) => {
-    setEditingProgramId(prog.id);
-    setProgCategoryId(prog.categoryId || "1");
-
-    // Parse title & level (e.g. "Food Processing NC II" -> "Food Processing" & "NC II")
-    const match = prog.title.match(/(.*)\s+(NC\s+I|NC\s+II|NC\s+III)$/i);
-    if (match) {
-      setProgTitle(match[1].trim());
-      setProgLevel(match[2]);
-    } else {
-      setProgTitle(prog.title);
-      setProgLevel("NC II");
-    }
-
-    setProgTrainingHours(prog.trainingHours || "");
-    setProgLocation(extractLocationDisplay(prog.location) || "");
-    const parsedCoords = extractLocationCoords(prog.location);
-    setProgLat(prog.latitude || parsedCoords?.lat || 14.9833);
-    setProgLng(prog.longitude || parsedCoords?.lng || 120.7333);
-    setProgCost(prog.cost || "Free");
-    setProgSlots(prog.slotsTotal || 30);
-    setProgEligibility(prog.eligibility || "");
-    setProgRequiredDocuments(prog.requiredDocuments ? prog.requiredDocuments.join(', ') : "");
-    setProgRequiredSkills(prog.requiredSkills ? prog.requiredSkills.join(', ') : "");
-    setProgContactName(prog.contactPerson || "");
-    setProgContactPhone(prog.contactNumber || "");
-    setProgTrainingDays(prog.trainingDays || []);
-
-    // Format times cleanly without timezone shift
-    setProgStartTime(parseTimeForInput(prog.startTime));
-    setProgEndTime(parseTimeForInput(prog.endTime));
-
-    setProgRoom(prog.room || "");
-    setProgInstructor(prog.instructor || "");
-
-    // Format dates
-    if (prog.startDate) {
-      setProgStartDate(new Date(prog.startDate).toISOString().split('T')[0]);
-    } else setProgStartDate("");
-
-    if (prog.endDate) {
-      setProgEndDate(new Date(prog.endDate).toISOString().split('T')[0]);
-    } else setProgEndDate("");
-
-    setEditingProgramModal(prog);
-  };
-
   // Form submission for Add Program (Screen)
   const handleAddProgramSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -726,7 +745,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
 
     setIsSubmittingProgram(true);
-    setIsSubmittingModalProgram(true);
     const fullTitle = `${progTitle.trim()} ${progLevel}`.trim();
 
     const payload = {
@@ -773,91 +791,31 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
-  // Form submission for Edit Program (Popup Modal)
-  const handleEditModalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProgramModal) return;
-
-    if (!progTitle.trim()) {
-      addToast("Please fill in the program title", "error");
-      return;
+  // Change application status (supports Pending -> Approved -> Enrolled, or Declined)
+  const handleUpdateReferralStatus = async (refId: string, newStatus: "Approved" | "Enrolled" | "Declined"): Promise<boolean> => {
+    if (!canManageApplicants) {
+      addToast("Unauthorized: Only TESDA Partner Representatives can update application statuses.", "error");
+      return false;
     }
 
-    if (!progTrainingHours || Number(progTrainingHours) <= 0) {
-      addToast("Training hours must be greater than 0", "error");
-      return;
-    }
-
-    if (progTrainingDays.length === 0) {
-      addToast("Please select at least one training day", "error");
-      return;
-    }
-
-    if (progStartTime && progEndTime && progStartTime >= progEndTime) {
-      addToast("Start time must be before end time", "error");
-      return;
-    }
-
-    if (progStartDate && progEndDate && new Date(progStartDate) > new Date(progEndDate)) {
-      addToast("Start date must be before or equal to end date", "error");
-      return;
-    }
-
-    const fullTitle = `${progTitle.trim()} ${progLevel}`.trim();
-
-    const payload = {
-      title: fullTitle,
-      categoryId: progCategoryId,
-      location: progLocation,
-      trainingHours: Number(progTrainingHours),
-      cost: progCost,
-      slotsTotal: Number(progSlots),
-      eligibility: progEligibility,
-      requiredDocuments: progRequiredDocuments ? progRequiredDocuments.split(',').map(s => s.trim()).filter(Boolean) : [],
-      requiredSkills: progRequiredSkills ? progRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
-      contactPerson: progContactName,
-      contactNumber: progContactPhone,
-      trainingDays: progTrainingDays,
-      startTime: progStartTime || undefined,
-      endTime: progEndTime || undefined,
-      room: progRoom,
-      instructor: progInstructor,
-      startDate: progStartDate || undefined,
-      endDate: progEndDate || undefined,
-      id: editingProgramModal.id
-    };
-
-    try {
-      const res = await fetch("/api/programs", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || data.error || "Failed to update program");
-      }
-
-      setPrograms(prev => prev.map(p => p.id === editingProgramModal.id ? data.data : p));
-      addToast("TESDA training program updated successfully!", "success");
-      broadcastDataChange("programs", "updated");
-      setEditingProgramModal(null);
-      setEditingProgramId(null);
-    } catch (err: any) {
-      addToast(err.message || "An error occurred", "error");
-    }
-  };
-
-  // Change application status
-  const handleUpdateReferralStatus = async (refId: string, newStatus: "Enrolled" | "Declined"): Promise<boolean> => {
     const targetReferral = referrals.find(item => item.id === refId);
     if (!targetReferral) return false;
 
-    if (newStatus === "Enrolled") {
-      const associatedProgram = programs.find(p => p.title === targetReferral.programTitle);
+    const currentEffectiveStatus =
+      targetReferral.status === "Enrolled" && approvedStageIds.includes(targetReferral.id)
+        ? "Approved"
+        : targetReferral.status;
+
+    const wasHoldingSlot =
+      currentEffectiveStatus === "Pending" ||
+      currentEffectiveStatus === "Approved" ||
+      currentEffectiveStatus === "Enrolled";
+    const willHoldSlot = newStatus === "Approved" || newStatus === "Enrolled";
+
+    if (!wasHoldingSlot && willHoldSlot) {
+      const associatedProgram = programs.find(p => p.title === targetReferral.programTitle || p.id === targetReferral.programId);
       if (associatedProgram && associatedProgram.slotsRemaining <= 0) {
-        addToast(`Cannot accept: "${targetReferral.programTitle}" is already at full capacity!`, "error");
+        addToast(`Cannot approve: "${targetReferral.programTitle}" is already at full capacity!`, "error");
         return false;
       }
     }
@@ -873,6 +831,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       });
       const data = await res.json();
       if (data.success && data.data) {
+        if (newStatus === "Approved") {
+          updateApprovedStageIds(prev => [...prev, refId]);
+        } else {
+          updateApprovedStageIds(prev => prev.filter(id => id !== refId));
+        }
+
         setReferrals(prev =>
           prev
             .filter(item => {
@@ -885,14 +849,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               return !isSameYouthAndProg;
             })
             .map(item => {
-          if (item.id === refId) {
-            return { ...item, status: newStatus };
-          }
-          return item;
-        }));
-
-        const wasHoldingSlot = targetReferral.status === "Pending" || targetReferral.status === "Enrolled";
-        const willHoldSlot = newStatus === "Enrolled";
+              if (item.id === refId) {
+                return { ...item, status: newStatus };
+              }
+              return item;
+            })
+        );
 
         if (!wasHoldingSlot && willHoldSlot) {
           setPrograms(prev => prev.map(p => {
@@ -917,10 +879,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         }
 
         addToast(
-          newStatus === "Enrolled"
-            ? `Accepted & enrolled "${targetReferral.youthName}" into "${targetReferral.programTitle}"!`
-            : `Declined application for "${targetReferral.youthName}".`,
-          newStatus === "Enrolled" ? "success" : "info"
+          newStatus === "Approved"
+            ? `Approved application for "${targetReferral.youthName}" in "${targetReferral.programTitle}"!`
+            : newStatus === "Enrolled"
+              ? `Officially enrolled "${targetReferral.youthName}" into "${targetReferral.programTitle}"!`
+              : `Declined application for "${targetReferral.youthName}".`,
+          newStatus === "Declined" ? "info" : "success"
         );
         broadcastDataChange("referrals", "status_updated");
         broadcastDataChange("programs", "slots_updated");
@@ -998,7 +962,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           setArchivedProgramsList(prev => [{ ...archivedProg, activeStatus: "Closed" as any }, ...prev.filter(p => p.id !== progId)]);
         }
         setPrograms(prev => prev.filter(p => p.id !== progId));
-        
+
         // Update local referrals: certified graduates become Archived, incomplete ones become Declined
         setReferrals(prev => prev.map(r => {
           if (r.programId === progId || r.programTitle.toLowerCase().trim() === title.toLowerCase().trim()) {
@@ -1221,26 +1185,538 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     return activePrograms.filter(p => isProgramDurationDone(p));
   }, [activePrograms]);
 
-  // Active referrals: only non-archived referrals belonging to active programs
+  // Active referrals: only non-archived referrals belonging to active programs (preserving Approved stage distinction)
   const activeReferrals = useMemo(() => {
     const seenApplicantProg = new Set<string>();
-    return referrals.filter(item => {
-      const youthKey = (item.youthId || item.youthEmail || item.youthName || item.id).toLowerCase().trim();
-      const progKey = (item.programId || item.programTitle || item.id).toLowerCase().trim();
-      const compositeKey = `${youthKey}::${progKey}`;
-      if (seenApplicantProg.has(compositeKey)) return false;
-      seenApplicantProg.add(compositeKey);
-      if (item.status === "Archived") return false;
-      const prog = activePrograms.find(p => p.title === item.programTitle || p.id === item.programId);
-      return !!prog;
-    });
-  }, [referrals, activePrograms]);
+    return referrals
+      .filter(item => {
+        const youthKey = (item.youthId || item.youthEmail || item.youthName || item.id).toLowerCase().trim();
+        const progKey = (item.programId || item.programTitle || item.id).toLowerCase().trim();
+        const compositeKey = `${youthKey}::${progKey}`;
+        if (seenApplicantProg.has(compositeKey)) return false;
+        seenApplicantProg.add(compositeKey);
+        if (item.status === "Archived") return false;
+        const prog = activePrograms.find(p => p.title === item.programTitle || p.id === item.programId);
+        return !!prog;
+      })
+      .map(item => {
+        if (item.status === "Enrolled" && approvedStageIds.includes(item.id)) {
+          return { ...item, status: "Approved" as const };
+        }
+        return item;
+      });
+  }, [referrals, activePrograms, approvedStageIds]);
+
+  // Normalized archived referrals list (deduplicated)
+  const normalizedArchivedReferrals = useMemo(() => {
+    const seen = new Set<string>();
+    return archivedReferralsList
+      .filter(item => {
+        const youthKey = (item.youthId || item.youthEmail || item.youthName || item.id).toLowerCase().trim();
+        const progKey = (item.programId || item.programTitle || item.id).toLowerCase().trim();
+        const key = `${youthKey}::${progKey}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(item => ({
+        ...item,
+        status: (item.status === "Archived" ? "Archived" : item.status) as ReferralPipelineItem["status"]
+      }));
+  }, [archivedReferralsList]);
 
   // Computed Metrics based on active catalog
   const totalSlotsRemaining = useMemo(() => activePrograms.reduce((acc, curr) => acc + curr.slotsRemaining, 0), [activePrograms]);
   const totalSlotsAllocated = useMemo(() => activePrograms.reduce((acc, curr) => acc + (curr.slotsTotal || 30), 0), [activePrograms]);
   const pendingReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Pending").length, [activeReferrals]);
+  const approvedReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Approved").length, [activeReferrals]);
   const enrolledReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Enrolled").length, [activeReferrals]);
+  const declinedReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Declined").length, [activeReferrals]);
+
+  // Dashboard Analytics & Activity UI states
+  const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null);
+  const [programDemandSort, setProgramDemandSort] = useState<"demand" | "slots" | "title">("demand");
+  const [trendTimeframe, setTrendTimeframe] = useState<"weekly" | "6m" | "12m">("6m");
+  const [hoveredTrendIdx, setHoveredTrendIdx] = useState<number | null>(null);
+  const [barangayChartMode, setBarangayChartMode] = useState<"all" | "active">("all");
+  const [barangayCountMetric, setBarangayCountMetric] = useState<"applications" | "uniqueYouth">("applications");
+  const [hoveredBarangayIdx, setHoveredBarangayIdx] = useState<number | null>(null);
+  const [sectorSupplyMetric, setSectorSupplyMetric] = useState<"programs" | "slots">("slots");
+  const [hoveredSectorIdx, setHoveredSectorIdx] = useState<number | null>(null);
+  const recentActivityLimit = 5;
+
+  // All consolidated applications (active + archived, deduplicated)
+  const allConsolidatedReferrals = useMemo(() => {
+    const map = new Map<string, ReferralPipelineItem>();
+    [...activeReferrals, ...normalizedArchivedReferrals].forEach(item => {
+      const youthKey = (item.youthId || item.youthEmail || item.youthName || item.id).toLowerCase().trim();
+      const progKey = (item.programId || item.programTitle || item.id).toLowerCase().trim();
+      const key = `${youthKey}::${progKey}`;
+      if (!map.has(key)) {
+        map.set(key, item);
+      }
+    });
+    return Array.from(map.values());
+  }, [activeReferrals, normalizedArchivedReferrals]);
+
+  const totalApplicationsCount = allConsolidatedReferrals.length;
+
+  // Unique youth count (prevents duplicate youth from being counted as separate individuals)
+  const uniqueApplicantYouthCount = useMemo(() => {
+    const set = new Set<string>();
+    allConsolidatedReferrals.forEach(r => {
+      const key = (r.youthId || r.youthEmail || r.youthName || r.id).toLowerCase().trim();
+      if (key) set.add(key);
+    });
+    return set.size;
+  }, [allConsolidatedReferrals]);
+
+  const uniqueEnrolledYouthCount = useMemo(() => {
+    const set = new Set<string>();
+    activeReferrals
+      .filter(r => r.status === "Enrolled")
+      .forEach(r => {
+        const key = (r.youthId || r.youthEmail || r.youthName || r.id).toLowerCase().trim();
+        if (key) set.add(key);
+      });
+    return set.size;
+  }, [activeReferrals]);
+
+  // CHART 1: Application Status Distribution (Donut Chart)
+  const statusDistributionData = useMemo(() => {
+    const rawSlices = [
+      { label: "Pending", count: pendingReferralsCount, color: "#F59E0B", tab: "pending" as const, filter: "Pending" },
+      { label: "Approved", count: approvedReferralsCount, color: "#3B82F6", tab: "approved" as const, filter: "Approved" },
+      { label: "Enrolled", count: enrolledReferralsCount, color: "#0A6B43", tab: "enrolled" as const, filter: "Enrolled" },
+      { label: "Declined", count: declinedReferralsCount, color: "#EF4444", tab: "declined" as const, filter: "Declined" },
+      { label: "Archived", count: normalizedArchivedReferrals.length, color: "#64748B", tab: "archived" as const, filter: "Archived" }
+    ];
+    const total = rawSlices.reduce((sum, s) => sum + s.count, 0);
+    const slices = rawSlices.map(s => ({
+      ...s,
+      pct: total > 0 ? Math.round((s.count / total) * 100) : 0
+    }));
+    return { slices, total };
+  }, [
+    pendingReferralsCount,
+    approvedReferralsCount,
+    enrolledReferralsCount,
+    declinedReferralsCount,
+    normalizedArchivedReferrals.length
+  ]);
+
+  // CHART 2: Program Demand vs. Available Slots (Horizontal Bar Chart)
+  const programDemandData = useMemo(() => {
+    const items = activePrograms.map(prog => {
+      const progApps = activeReferrals.filter(
+        r => r.programId === prog.id || r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim()
+      );
+      const activeDemand = progApps.filter(r => r.status !== "Declined").length;
+      const pending = progApps.filter(r => r.status === "Pending").length;
+      const approved = progApps.filter(r => r.status === "Approved").length;
+      const enrolled = progApps.filter(r => r.status === "Enrolled").length;
+      const slotsRemaining = Math.max(0, prog.slotsRemaining || 0);
+      const slotsTotal = Math.max(1, prog.slotsTotal || 25);
+
+      return {
+        id: prog.id,
+        title: prog.title,
+        category: getProgramCategory(prog),
+        demand: activeDemand,
+        totalApps: progApps.length,
+        pending,
+        approved,
+        enrolled,
+        slotsRemaining,
+        slotsTotal
+      };
+    });
+
+    const sorted = [...items].sort((a, b) => {
+      if (programDemandSort === "demand") {
+        if (b.demand !== a.demand) return b.demand - a.demand;
+        return a.slotsRemaining - b.slotsRemaining;
+      }
+      if (programDemandSort === "slots") {
+        if (a.slotsRemaining !== b.slotsRemaining) return a.slotsRemaining - b.slotsRemaining;
+        return b.demand - a.demand;
+      }
+      return a.title.localeCompare(b.title);
+    });
+
+    const maxScale = Math.max(
+      10,
+      ...sorted.map(i => Math.max(i.demand, i.slotsRemaining, i.slotsTotal))
+    );
+
+    return { items: sorted, maxScale };
+  }, [activePrograms, activeReferrals, programDemandSort]);
+
+  // CHART 3: Application Trends Over Time (Weekly / 6M / 12M Line Chart)
+  const applicationTrendsData = useMemo(() => {
+    const getTs = (item: ReferralPipelineItem): number => {
+      const raw = (item as any).rawDate || item.applicationDate || item.referralDate;
+      if (!raw) return 0;
+      const t = new Date(raw).getTime();
+      return isNaN(t) ? 0 : t;
+    };
+
+    const validTimestamps = allConsolidatedReferrals
+      .map(getTs)
+      .filter(ts => ts > 0);
+
+    // Anchor timeline to latest application date or current date so real database timestamps always fall cleanly in range
+    const latestDataTime = validTimestamps.length > 0 ? Math.max(...validTimestamps) : Date.now();
+    const anchorDate = new Date(Math.max(Date.now(), latestDataTime));
+
+    if (trendTimeframe === "weekly") {
+      const buckets: Array<{ key: string; label: string; fullLabel: string; count: number; uniqueYouth: number }> = [];
+      const dayMs = 24 * 60 * 60 * 1000;
+      const endOfCurrentWeek = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate(), 23, 59, 59, 999).getTime();
+
+      for (let i = 7; i >= 0; i--) {
+        const bucketEnd = endOfCurrentWeek - i * 7 * dayMs;
+        const bucketStart = bucketEnd - 7 * dayMs + 1;
+        const startD = new Date(bucketStart);
+        const endD = new Date(bucketEnd);
+        const shortLabel = startD.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const fullLabel = `${startD.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endD.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+
+        const matching = allConsolidatedReferrals.filter(r => {
+          const ts = getTs(r);
+          return ts >= bucketStart && ts <= bucketEnd;
+        });
+        const youthSet = new Set(matching.map(r => (r.youthId || r.youthEmail || r.youthName || r.id).toLowerCase().trim()));
+
+        buckets.push({
+          key: `wk-${i}`,
+          label: shortLabel,
+          fullLabel,
+          count: matching.length,
+          uniqueYouth: youthSet.size
+        });
+      }
+
+      const maxCount = Math.max(4, ...buckets.map(b => b.count));
+      const totalInPeriod = buckets.reduce((sum, b) => sum + b.count, 0);
+      return { buckets, maxCount, totalInPeriod };
+    } else {
+      const monthCount = trendTimeframe === "12m" ? 12 : 6;
+      const buckets: Array<{ key: string; label: string; fullLabel: string; count: number; uniqueYouth: number }> = [];
+
+      for (let i = monthCount - 1; i >= 0; i--) {
+        const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        const shortLabel = d.toLocaleDateString("en-US", { month: "short" });
+        const fullLabel = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+        const matching = allConsolidatedReferrals.filter(r => {
+          const ts = getTs(r);
+          if (!ts) return false;
+          const rd = new Date(ts);
+          return rd.getFullYear() === year && rd.getMonth() === month;
+        });
+        const youthSet = new Set(matching.map(r => (r.youthId || r.youthEmail || r.youthName || r.id).toLowerCase().trim()));
+
+        buckets.push({
+          key: `${year}-${String(month + 1).padStart(2, "0")}`,
+          label: shortLabel,
+          fullLabel,
+          count: matching.length,
+          uniqueYouth: youthSet.size
+        });
+      }
+
+      const maxCount = Math.max(4, ...buckets.map(b => b.count));
+      const totalInPeriod = buckets.reduce((sum, b) => sum + b.count, 0);
+      return { buckets, maxCount, totalInPeriod };
+    }
+  }, [allConsolidatedReferrals, trendTimeframe]);
+
+  // CHART 4: Applications by Barangay (Top 6 Barangays of San Luis, Pampanga)
+  const barangayApplicationsData = useMemo(() => {
+    const statsMap = new Map<string, {
+      barangay: string;
+      applications: number;
+      uniqueYouthSet: Set<string>;
+      pending: number;
+      approved: number;
+      enrolled: number;
+    }>();
+
+    SAN_LUIS_BARANGAYS.forEach(brgy => {
+      statsMap.set(brgy, {
+        barangay: brgy,
+        applications: 0,
+        uniqueYouthSet: new Set<string>(),
+        pending: 0,
+        approved: 0,
+        enrolled: 0
+      });
+    });
+
+    allConsolidatedReferrals.forEach(r => {
+      const normalized = normalizeBarangayName(r.barangay || "");
+      const matchedBrgy = SAN_LUIS_BARANGAYS.find(
+        b => normalizeBarangayName(b).toLowerCase() === normalized.toLowerCase()
+      ) || normalized || "San Sebastian";
+
+      if (!statsMap.has(matchedBrgy)) {
+        statsMap.set(matchedBrgy, {
+          barangay: matchedBrgy,
+          applications: 0,
+          uniqueYouthSet: new Set<string>(),
+          pending: 0,
+          approved: 0,
+          enrolled: 0
+        });
+      }
+
+      const entry = statsMap.get(matchedBrgy)!;
+      entry.applications += 1;
+      const youthKey = (r.youthId || r.youthEmail || r.youthName || r.id).toLowerCase().trim();
+      if (youthKey) entry.uniqueYouthSet.add(youthKey);
+      if (r.status === "Pending") entry.pending += 1;
+      else if (r.status === "Approved") entry.approved += 1;
+      else if (r.status === "Enrolled") entry.enrolled += 1;
+    });
+
+    const allItems = Array.from(statsMap.values()).map(item => ({
+      barangay: item.barangay,
+      applications: item.applications,
+      uniqueYouth: item.uniqueYouthSet.size,
+      pending: item.pending,
+      approved: item.approved,
+      enrolled: item.enrolled
+    }));
+
+    const getVal = (i: { applications: number; uniqueYouth: number }) =>
+      barangayCountMetric === "uniqueYouth" ? i.uniqueYouth : i.applications;
+
+    const scopedItems = barangayChartMode === "active"
+      ? allItems.filter(i => getVal(i) > 0)
+      : allItems;
+
+    // Exclude barangays with zero applications when positive values are available;
+    // if fewer than 6 barangays have applications, display only those with actual applications.
+    const positiveItems = scopedItems.filter(i => getVal(i) > 0);
+
+    const sortedTop6 = [...positiveItems]
+      .sort((a, b) => {
+        const valA = getVal(a);
+        const valB = getVal(b);
+        if (valB !== valA) return valB - valA;
+        return a.barangay.localeCompare(b.barangay);
+      })
+      .slice(0, 6);
+
+    const maxVal = Math.max(
+      1,
+      ...sortedTop6.map(i => getVal(i))
+    );
+    const activeBarangayCount = allItems.filter(i => getVal(i) > 0).length;
+    const scopeTotalCount = barangayChartMode === "active" ? activeBarangayCount : SAN_LUIS_BARANGAYS.length;
+
+    return {
+      items: sortedTop6,
+      maxVal,
+      activeBarangayCount,
+      scopeTotalCount,
+      totalBarangays: SAN_LUIS_BARANGAYS.length
+    };
+  }, [allConsolidatedReferrals, barangayChartMode, barangayCountMetric]);
+
+  // CHART 5: Youth Interests vs. Training Supply by Vocational Sector (Grouped Bar Chart)
+  const sectorInterestVsSupplyData = useMemo(() => {
+    const sectorDefinitions = [
+      {
+        id: "ict",
+        shortLabel: "ICT & Digital",
+        fullName: "Information & Communication Technology",
+        keywords: ["ict", "computer", "information", "programming", "web", "digital", "software", "hardware", "networking", "tech", "data", "encoding"]
+      },
+      {
+        id: "construction",
+        shortLabel: "Construction & Welding",
+        fullName: "Construction & Metal Trades",
+        keywords: ["construction", "welding", "smaw", "carpentry", "masonry", "plumbing", "tile", "metal", "pipe", "scaffold"]
+      },
+      {
+        id: "food",
+        shortLabel: "Food & Culinary",
+        fullName: "Process Food & Beverages",
+        keywords: ["food", "cook", "cooking", "culinary", "baking", "pastry", "bread", "beverage", "kitchen", "catering"]
+      },
+      {
+        id: "electrical",
+        shortLabel: "Electrical & Electronics",
+        fullName: "Electrical & Electronics",
+        keywords: ["electrical", "electric", "wiring", "electronics", "solar", "eim", "appliance", "mechatronics"]
+      },
+      {
+        id: "automotive",
+        shortLabel: "Automotive",
+        fullName: "Automotive & Land Transport",
+        keywords: ["automotive", "mechanic", "driving", "motorcycle", "vehicle", "engine", "transport", "chassis"]
+      },
+      {
+        id: "agriculture",
+        shortLabel: "Agriculture",
+        fullName: "Agriculture & Agri-Fishery",
+        keywords: ["agriculture", "agri", "farm", "farming", "crop", "organic", "livestock", "poultry", "aquaculture", "horticulture"]
+      },
+      {
+        id: "tourism",
+        shortLabel: "Tourism & Hospitality",
+        fullName: "Tourism & Hospitality",
+        keywords: ["tourism", "hotel", "hospitality", "housekeeping", "bartending", "barista", "front office", "events", "travel"]
+      },
+      {
+        id: "healthcare",
+        shortLabel: "Health Care",
+        fullName: "Human Health / Health Care",
+        keywords: ["health", "caregiving", "caregiver", "nursing", "medical", "wellness", "massage", "hilots", "first aid"]
+      },
+      {
+        id: "entrepreneurship",
+        shortLabel: "Entrepreneurship",
+        fullName: "Entrepreneurship & Business",
+        keywords: ["entrepreneurship", "business", "bookkeeping", "accounting", "retail", "selling", "commerce", "livelihood"]
+      }
+    ];
+
+    const items = sectorDefinitions.map(sec => {
+      // Unique youth interested in this sector (deduplicated by youth ID/name)
+      const interestedYouthSet = new Set<string>();
+      youthProfiles.forEach(y => {
+        if (y.approvalStatus && y.approvalStatus !== "Approved") return;
+        const textPool = [
+          y.sectorPreference || "",
+          y.livelihoodGoal || "",
+          ...(y.interests || []),
+          ...(y.skills || [])
+        ].join(" ").toLowerCase();
+
+        if (sec.keywords.some(kw => textPool.includes(kw))) {
+          const uniqueKey = (y.id || y.email || y.name).toLowerCase().trim();
+          if (uniqueKey) interestedYouthSet.add(uniqueKey);
+        }
+      });
+
+      // Active TESDA programs in this sector
+      const matchingPrograms = activePrograms.filter(p => {
+        const cat = getProgramCategory(p).toLowerCase();
+        const title = (p.title || "").toLowerCase();
+        return sec.keywords.some(kw => cat.includes(kw) || title.includes(kw));
+      });
+
+      const availableSlots = matchingPrograms.reduce((sum, p) => sum + Math.max(0, p.slotsRemaining || 0), 0);
+      const totalSlots = matchingPrograms.reduce((sum, p) => sum + Math.max(0, p.slotsTotal || 0), 0);
+
+      return {
+        id: sec.id,
+        shortLabel: sec.shortLabel,
+        fullName: sec.fullName,
+        youthInterested: interestedYouthSet.size,
+        programCount: matchingPrograms.length,
+        availableSlots,
+        totalSlots
+      };
+    });
+
+    const activeItems = items
+      .filter(i => i.youthInterested > 0 || i.programCount > 0)
+      .sort((a, b) => (b.youthInterested + b.programCount * 3) - (a.youthInterested + a.programCount * 3));
+
+    const finalItems = activeItems.length > 0 ? activeItems.slice(0, 7) : items.slice(0, 6);
+
+    const maxYouth = Math.max(5, ...finalItems.map(i => i.youthInterested));
+    const maxSupply = Math.max(
+      5,
+      ...finalItems.map(i => (sectorSupplyMetric === "programs" ? i.programCount : i.availableSlots))
+    );
+    const maxCombined = Math.max(maxYouth, maxSupply, 5);
+
+    return { items: finalItems, maxYouth, maxSupply, maxCombined };
+  }, [youthProfiles, activePrograms, sectorSupplyMetric]);
+
+  // SECTION 4: Recent Applicant Activity (Compact Timeline with Relative & Exact Timestamps)
+  const recentApplicantActivities = useMemo(() => {
+    const getTs = (item: ReferralPipelineItem): number => {
+      const raw = (item as any).rawDate || item.applicationDate || item.referralDate;
+      if (!raw) return 0;
+      const t = new Date(raw).getTime();
+      return isNaN(t) ? 0 : t;
+    };
+
+    const formatRelativeTimestamp = (ts: number, fallback: string): string => {
+      if (!ts || ts <= 0) return fallback || "Recently";
+      const diffMs = Date.now() - ts;
+      if (diffMs < 60 * 1000) return "Just now";
+      const diffMins = Math.floor(diffMs / (60 * 1000));
+      if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? "min" : "mins"} ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? "hour" : "hours"} ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return "Yesterday";
+      if (diffDays < 7) return `${diffDays} days ago`;
+      const diffWeeks = Math.floor(diffDays / 7);
+      if (diffDays < 30) return `${diffWeeks} ${diffWeeks === 1 ? "week" : "weeks"} ago`;
+      const diffMonths = Math.floor(diffDays / 30);
+      if (diffMonths < 12) return `${diffMonths} ${diffMonths === 1 ? "month" : "months"} ago`;
+      const diffYears = Math.floor(diffDays / 365);
+      return `${diffYears} ${diffYears === 1 ? "year" : "years"} ago`;
+    };
+
+    return [...allConsolidatedReferrals]
+      .sort((a, b) => getTs(b) - getTs(a))
+      .slice(0, recentActivityLimit)
+      .map(item => {
+        const ts = getTs(item);
+        const fallbackDate = item.applicationDate || item.referralDate || "Recently";
+        let exactDateTime = fallbackDate;
+        let shortExactDate = fallbackDate;
+
+        if (ts > 0) {
+          const d = new Date(ts);
+          shortExactDate = d.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          });
+          if ((item as any).rawDate) {
+            exactDateTime = `${shortExactDate} at ${d.toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit"
+            })}`;
+          } else {
+            exactDateTime = shortExactDate;
+          }
+        }
+
+        const relativeTime = formatRelativeTimestamp(ts, fallbackDate);
+
+        let activityType = "Application Submitted";
+        if (item.status === "Approved") {
+          activityType = "Application Approved";
+        } else if (item.status === "Enrolled") {
+          activityType = "Enrollment Completed";
+        } else if (item.status === "Declined") {
+          activityType = "Application Declined";
+        } else if (item.status === "Archived") {
+          activityType = "Cohort Completed";
+        }
+
+        return {
+          ...item,
+          activityType,
+          relativeTime,
+          exactDateTime,
+          shortExactDate
+        };
+      });
+  }, [allConsolidatedReferrals, recentActivityLimit]);
 
   // Memoized TESDA notifications
   const tesdaNotifications = useMemo(() => {
@@ -1261,8 +1737,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         icon: <Clock className="w-4 h-4 text-amber-800" />,
         bg: "bg-amber-100",
         action: () => {
-          setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
+          setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
           setDashboardTab("pending");
+          setPipelineStatusFilter("Pending");
         }
       });
     }
@@ -1287,80 +1764,138 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     return tesdaNotifications.filter(n => !clearedNotificationIds.includes(n.id));
   }, [tesdaNotifications, clearedNotificationIds]);
 
-  // Unique Barangays from active referrals
+  // Unique Barangays from active + archived referrals
   const uniqueBarangays = useMemo(() => {
-    const set = new Set(activeReferrals.map(r => r.barangay).filter(Boolean));
+    const set = new Set(
+      [...activeReferrals, ...normalizedArchivedReferrals]
+        .map(r => r.barangay)
+        .filter(Boolean)
+    );
     return Array.from(set).sort();
-  }, [activeReferrals]);
+  }, [activeReferrals, normalizedArchivedReferrals]);
 
-  // Filter referrals based on search, status, program, barangay, and dashboardTab
+  // Unique Program options for Applicants filter dropdown
+  const applicantProgramOptions = useMemo(() => {
+    const set = new Set<string>();
+    activePrograms.forEach(p => { if (p.title) set.add(p.title); });
+    activeReferrals.forEach(r => { if (r.programTitle) set.add(r.programTitle); });
+    if (dashboardTab === "archived" || pipelineStatusFilter === "Archived") {
+      archivedProgramsList.forEach(p => { if (p.title) set.add(p.title); });
+      normalizedArchivedReferrals.forEach(r => { if (r.programTitle) set.add(r.programTitle); });
+    }
+    return Array.from(set).sort();
+  }, [activePrograms, activeReferrals, archivedProgramsList, normalizedArchivedReferrals, dashboardTab, pipelineStatusFilter]);
+
+  // Parse application date helper
+  const parseReferralTimestamp = (item: ReferralPipelineItem): number => {
+    const raw = (item as any).rawDate || item.applicationDate || item.referralDate;
+    if (!raw) return 0;
+    const t = new Date(raw).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  // Filter and sort referrals based on search, status tab, status dropdown, program, barangay, date range, and sort column
   const filteredReferrals = useMemo(() => {
-    return activeReferrals.filter(item => {
-      const matchesSearch =
-        item.youthName.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
-        item.barangay.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
-        item.purok.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
-        item.programTitle.toLowerCase().includes(pipelineSearch.toLowerCase());
+    const isArchivedMode = dashboardTab === "archived" || pipelineStatusFilter === "Archived";
+    const sourceList = isArchivedMode
+      ? normalizedArchivedReferrals.map(r => ({ ...r, status: "Archived" as const }))
+      : activeReferrals;
 
-      let matchesStatus = pipelineStatusFilter === "All" || item.status === pipelineStatusFilter;
-      if (dashboardTab === "pending") matchesStatus = item.status === "Pending";
-      else if (dashboardTab === "enrolled") matchesStatus = item.status === "Enrolled";
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const filtered = sourceList.filter(item => {
+      const q = pipelineSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        item.youthName.toLowerCase().includes(q) ||
+        item.barangay.toLowerCase().includes(q) ||
+        item.purok.toLowerCase().includes(q) ||
+        item.programTitle.toLowerCase().includes(q) ||
+        (item.youthEmail && item.youthEmail.toLowerCase().includes(q));
+
+      let matchesStatus = true;
+      if (!isArchivedMode) {
+        if (dashboardTab === "pending") matchesStatus = item.status === "Pending";
+        else if (dashboardTab === "approved") matchesStatus = item.status === "Approved";
+        else if (dashboardTab === "enrolled") matchesStatus = item.status === "Enrolled";
+        else if (dashboardTab === "declined") matchesStatus = item.status === "Declined";
+
+        if (matchesStatus && pipelineStatusFilter !== "All" && pipelineStatusFilter !== "Archived") {
+          matchesStatus = item.status === pipelineStatusFilter;
+        }
+      }
 
       const matchesProgram = pipelineProgramFilter === "All" || item.programTitle === pipelineProgramFilter;
       const matchesBarangay = pipelineBarangayFilter === "All" || item.barangay === pipelineBarangayFilter;
 
-      return matchesSearch && matchesStatus && matchesProgram && matchesBarangay;
-    });
-  }, [activeReferrals, pipelineSearch, pipelineStatusFilter, pipelineProgramFilter, pipelineBarangayFilter, dashboardTab]);
-
-  // Active program titles ONLY (never display closed or deleted program titles)
-  const allProgramTitles = useMemo(() => {
-    return activePrograms.map(p => p.title);
-  }, [activePrograms]);
-
-  // Group the filtered referrals by active program title
-  const groupedReferrals: Record<string, ReferralPipelineItem[]> = useMemo(() => {
-    const grouped: Record<string, ReferralPipelineItem[]> = {};
-    allProgramTitles.forEach(title => {
-      grouped[title] = [];
-    });
-
-    filteredReferrals.forEach(item => {
-      if (grouped[item.programTitle]) {
-        grouped[item.programTitle].push(item);
+      let matchesDateRange = true;
+      if (pipelineDateRangeFilter !== "All") {
+        const ts = parseReferralTimestamp(item);
+        if (!ts) {
+          matchesDateRange = false;
+        } else if (pipelineDateRangeFilter === "today") {
+          matchesDateRange = ts >= startOfToday;
+        } else if (pipelineDateRangeFilter === "7d") {
+          matchesDateRange = ts >= now.getTime() - 7 * 24 * 60 * 60 * 1000;
+        } else if (pipelineDateRangeFilter === "30d") {
+          matchesDateRange = ts >= now.getTime() - 30 * 24 * 60 * 60 * 1000;
+        } else if (pipelineDateRangeFilter === "month") {
+          matchesDateRange = ts >= startOfMonth;
+        } else if (pipelineDateRangeFilter === "90d") {
+          matchesDateRange = ts >= now.getTime() - 90 * 24 * 60 * 60 * 1000;
+        }
       }
+
+      return matchesSearch && matchesStatus && matchesProgram && matchesBarangay && matchesDateRange;
     });
-    return grouped;
-  }, [allProgramTitles, filteredReferrals]);
 
-  const isSearchActive = pipelineSearch !== "" || pipelineStatusFilter !== "All" || pipelineProgramFilter !== "All" || pipelineBarangayFilter !== "All" || (dashboardTab !== "all" && dashboardTab !== "archived");
+    const statusOrder: Record<string, number> = {
+      Pending: 1,
+      Approved: 2,
+      Enrolled: 3,
+      Declined: 4,
+      Archived: 5
+    };
 
-  // Filter program titles to display in pipeline list
-  const programTitlesToDisplay = useMemo(() => {
-    return allProgramTitles.filter(title => {
-      const applicantsCount = groupedReferrals[title]?.length || 0;
-      if (isSearchActive) {
-        return applicantsCount > 0;
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (applicantSortCol === "applicant") {
+        cmp = a.youthName.localeCompare(b.youthName);
+      } else if (applicantSortCol === "program") {
+        cmp = a.programTitle.localeCompare(b.programTitle);
+      } else if (applicantSortCol === "matchScore") {
+        cmp = (a.matchScore || 0) - (b.matchScore || 0);
+      } else if (applicantSortCol === "appliedDate") {
+        cmp = parseReferralTimestamp(a) - parseReferralTimestamp(b);
+      } else if (applicantSortCol === "status") {
+        cmp = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
       }
-      return true;
+      return applicantSortDir === "asc" ? cmp : -cmp;
     });
-  }, [allProgramTitles, groupedReferrals, isSearchActive]);
+  }, [
+    activeReferrals,
+    normalizedArchivedReferrals,
+    pipelineSearch,
+    pipelineStatusFilter,
+    pipelineProgramFilter,
+    pipelineBarangayFilter,
+    pipelineDateRangeFilter,
+    dashboardTab,
+    applicantSortCol,
+    applicantSortDir
+  ]);
 
-  // Pagination calculations for Grouped Pipeline Lists (Tab 1, 2, 3)
-  const totalPipelineProgramPages = Math.ceil(programTitlesToDisplay.length / DASHBOARD_PROGRAMS_PER_PAGE) || 1;
-  const currentPipelineProgramPage = Math.min(dashboardProgramPage, totalPipelineProgramPages);
-  const paginatedProgramTitles = useMemo(() => {
-    const start = (currentPipelineProgramPage - 1) * DASHBOARD_PROGRAMS_PER_PAGE;
-    return programTitlesToDisplay.slice(start, start + DASHBOARD_PROGRAMS_PER_PAGE);
-  }, [programTitlesToDisplay, currentPipelineProgramPage]);
+  // Pagination for flat All Applicants Table View
+  const totalApplicantTablePages = Math.ceil(filteredReferrals.length / APPLICANTS_TABLE_PER_PAGE) || 1;
+  const currentApplicantTablePage = Math.min(applicantTablePage, totalApplicantTablePages);
+  const paginatedFlatApplicants = useMemo(() => {
+    const start = (currentApplicantTablePage - 1) * APPLICANTS_TABLE_PER_PAGE;
+    return filteredReferrals.slice(start, start + APPLICANTS_TABLE_PER_PAGE);
+  }, [filteredReferrals, currentApplicantTablePage]);
 
-  // Pagination calculations for Program Roster Grid (Tab 4) - 6 programs per page
-  const totalRosterProgramPages = Math.ceil(activePrograms.length / DASHBOARD_ROSTER_PER_PAGE) || 1;
-  const currentRosterProgramPage = Math.min(dashboardRosterPage, totalRosterProgramPages);
-  const paginatedRosterPrograms = useMemo(() => {
-    const start = (currentRosterProgramPage - 1) * DASHBOARD_ROSTER_PER_PAGE;
-    return activePrograms.slice(start, start + DASHBOARD_ROSTER_PER_PAGE);
-  }, [activePrograms, currentRosterProgramPage]);
+  const isSearchActive = pipelineSearch !== "" || pipelineStatusFilter !== "All" || pipelineProgramFilter !== "All" || pipelineBarangayFilter !== "All" || pipelineDateRangeFilter !== "All" || dashboardTab !== "all";
 
   // Pagination page numbers generator helper
   const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
@@ -1374,6 +1909,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
     }
     return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+  };
+
+  // Extract 1-2 character initials from an applicant's full name
+  const getApplicantInitials = (fullName?: string): string => {
+    if (!fullName) return "?";
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   };
 
   // Unique TESDA categories for filtering (derived from taxonomy CATEGORIES and existing programs)
@@ -1459,7 +2003,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         sectorPreference: "Technical-Vocational",
         livelihoodGoal: `Acquire certification in ${item.programTitle} for gainful employment.`,
         contactNumber: "+63 917 000 0000",
-        registeredDate: item.referralDate,
+        registeredDate: item.referralDate || item.applicationDate || "",
         matchScore: item.matchScore,
         soloParent: false,
         pwd: false,
@@ -1530,9 +2074,34 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <rect width="7" height="7" x="3" y="14" rx="2" />
                   </svg>
                 ),
+                badge: undefined as number | undefined,
                 onClick: () => {
                   setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
-                  setDashboardTab("all");
+                }
+              },
+              {
+                id: TESDAPartnerScreen.APPLICANTS,
+                label: "Applicants",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6.5" r="3.5" />
+                    <path d="M9 12c-3.1 0-6 2.2-6 5.5V20h12v-2.5c0-3.3-2.9-5.5-6-5.5z" />
+                    <circle cx="16.5" cy="7.5" r="2.8" />
+                    <path d="M16.5 12.5c-.4 0-.8.05-1.2.14 1.4 1.1 2.2 2.7 2.2 4.86V20h4.5v-2c0-3-2.5-5.5-5.5-5.5z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                ),
+                badge: pendingReferralsCount > 0 ? pendingReferralsCount : undefined,
+                onClick: () => {
+                  setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                  if (dashboardTab === "programs") setDashboardTab("all");
                 }
               },
               {
@@ -1550,6 +2119,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
                   </svg>
                 ),
+                badge: undefined as number | undefined,
                 onClick: () => {
                   setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
                 }
@@ -1572,6 +2142,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 ),
+                badge: undefined as number | undefined,
                 onClick: () => {
                   setCurrentScreen(TESDAPartnerScreen.SETTINGS);
                 }
@@ -1611,19 +2182,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       setIsMobileNavOpen(false);
                     }}
                     className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${isActive
-                        ? "text-emerald-300 cursor-pointer"
-                        : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
+                      ? "text-emerald-300 cursor-pointer"
+                      : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
                       }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <span className={`transition-colors duration-200 shrink-0 ${isActive
-                          ? "text-emerald-300"
-                          : "text-gray-400 group-hover:text-gray-200"
+                        ? "text-emerald-300"
+                        : "text-gray-400 group-hover:text-gray-200"
                         }`}>
                         {isActive ? tab.activeIcon : tab.inactiveIcon}
                       </span>
                       <span className="truncate">{tab.label}</span>
                     </div>
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
+                        {tab.badge}
+                      </span>
+                    )}
                   </button>
                 </div>
               );
@@ -1702,6 +2278,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
             <div className="min-w-0 flex-1">
               <h1 className="text-[24px] xl:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
                 {currentScreen === TESDAPartnerScreen.DASHBOARD && "Dashboard"}
+                {currentScreen === TESDAPartnerScreen.APPLICANTS && "Applicants"}
                 {currentScreen === TESDAPartnerScreen.PROGRAMS && "Programs"}
                 {currentScreen === TESDAPartnerScreen.ADD_PROGRAM && "Post New Program"}
                 {currentScreen === TESDAPartnerScreen.EDIT_PROGRAM && "Edit Program"}
@@ -1783,9 +2360,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 n.action();
                                 setShowNotifications(false);
                               }}
-                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${
-                                isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
-                              }`}
+                              className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 group relative ${isRead ? "bg-white hover:bg-gray-50/80" : "bg-emerald-50/30 hover:bg-emerald-50/60"
+                                }`}
                             >
                               <div className={`p-2 rounded-xl ${n.bg} shrink-0 mt-0.5 relative`}>
                                 {n.icon}
@@ -1847,35 +2423,37 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         <div className="px-2 sm:px-3 lg:px-4 py-4 sm:py-6 space-y-6 max-w-[1420px] w-full mx-auto">
 
           {/* ============================================================ */}
-          {/* SCREEN 1: DASHBOARD & PIPELINE */}
+          {/* SCREEN 1: TESDA OVERVIEW DASHBOARD                           */}
           {/* ============================================================ */}
           {currentScreen === TESDAPartnerScreen.DASHBOARD && (
             <div className="space-y-6">
-              {/* Full-Width Rectangular Greeting Card Banner with Circular Gradient Background & Botanical Plant Growth */}
-              <div
+              {/* PAGE HEADER: Greeting Card Banner matching KK Youth & SK Official Dashboards */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
                 style={{
                   background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
                 }}
               >
-                {/* Animated Botanical Growth / Plant Leaves on the Right, Facing Left */}
                 <GrowthPlantAnimation />
 
-                {/* Content - Header and Subheader Only */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
                     Mabuhay, {currentUser?.name || repName || "TESDA Partner"}!
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Manage training listings and connect youth with programs suited to their skills and goals.
+                    Monitor training capacity, track youth application analytics, and manage technical-vocational programs across San Luis, Pampanga.
                   </p>
                 </div>
-              </div>
-              {/* Alert Banner if Programs have reached end date */}
+              </motion.div>
+
+              {/* Alert Banner if Programs have reached end date */}
               {completedPrograms.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-500/10 via-purple-50 to-indigo-50 border border-purple-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div className="bg-white border border-purple-200/90 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                   <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black shadow-xs shrink-0 mt-0.5 sm:mt-0">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
                       <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1883,37 +2461,35 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <h4 className="text-[11px] sm:text-xs font-black text-purple-950 uppercase tracking-wider">
                           Training Term Concluded ({completedPrograms.length})
                         </h4>
-                        <span className="text-[9.5px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-200/90 text-purple-800 border border-purple-300/40">
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
                           Ready to Archive
                         </span>
                       </div>
-                      <p className="text-[11.5px] sm:text-xs text-slate-700 font-medium mt-1 leading-relaxed">
+                      <p className="text-xs text-gray-600 font-medium mt-0.5 leading-relaxed">
                         {completedPrograms.length === 1 ? (
                           <>
-                            <strong>"{completedPrograms[0].title}"</strong> training schedule has ended. Click below to archive the program and graduate its enrollees.
+                            <strong>&ldquo;{completedPrograms[0].title}&rdquo;</strong> has concluded its training schedule. Archive the term to certify graduates.
                           </>
                         ) : (
                           <>
-                            {completedPrograms.length} training programs have concluded their schedules. You can archive them to graduate their enrollees.
+                            {completedPrograms.length} training programs have concluded their schedules and are ready for cohort graduation verification.
                           </>
                         )}
                       </p>
                     </div>
                   </div>
 
-                  {/* Action Buttons: Clean Responsive Layout on Mobile & Desktop */}
-                  <div className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2 shrink-0 pt-2 md:pt-0 border-t border-purple-200/60 md:border-t-0">
+                  <div className="w-full md:w-auto flex flex-wrap items-center gap-2 shrink-0 pt-2 md:pt-0 border-t border-gray-100 md:border-t-0">
                     {completedPrograms.map(prog => (
                       <button
                         key={prog.id}
                         type="button"
                         onClick={() => setProgramToArchive(prog)}
-                        className="w-full md:w-auto h-[38px] sm:h-auto px-3.5 py-2 bg-purple-700 hover:bg-purple-800 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center md:justify-start gap-1.5 cursor-pointer"
-                        title={`Archive "${prog.title}" and record enrollees as completed/graduated`}
+                        className="w-full sm:w-auto px-3.5 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <Archive className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate max-w-[260px] sm:max-w-[200px] md:max-w-none">
-                          Archive {completedPrograms.length > 1 ? prog.title : 'Term & Enrollees'}
+                        <span className="truncate max-w-[220px]">
+                          Archive {completedPrograms.length > 1 ? prog.title : "Term & Enrollees"}
                         </span>
                       </button>
                     ))}
@@ -1921,142 +2497,1555 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               )}
 
-              {/* Alert Banner if Pending Applicants */}
-              {pendingReferralsCount > 0 && (
-                <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-emerald-50 border border-amber-200/80 rounded-2xl p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0 mt-0.5 sm:mt-0">
-                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-[11px] sm:text-xs font-black text-amber-950 uppercase tracking-wider">Action Required: New Applicants</h4>
-                      <p className="text-[11.5px] sm:text-xs text-slate-700 font-medium mt-1 leading-relaxed">
-                        You have <span className="font-bold text-amber-800">{pendingReferralsCount} Katipunan ng Kabataan</span> candidate(s) awaiting enrollment review.
-                      </p>
+              {/* ============================================================ */}
+              {/* 1. DASHBOARD STATISTICS CARDS (5 COMPACT CARDS)               */}
+              {/* ============================================================ */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                {/* Card 1: Total Applications */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                    setDashboardTab("all");
+                    setPipelineStatusFilter("All");
+                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="col-span-2 sm:col-span-1 text-left rounded-2xl p-4 sm:p-5 shadow-[0_10px_28px_-6px_rgba(4,26,19,0.28)] hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
+                  style={{
+                    background: "linear-gradient(to right, #041A13 0%, #082D21 45%, #106348 100%)",
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-white/95 leading-snug">
+                      Total Applications
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-emerald-300 shrink-0">
+                      <FileText className="w-4 h-4" />
                     </div>
                   </div>
-                  <button
-                    onClick={() => setDashboardTab("pending")}
-                    className="w-full md:w-auto h-[38px] sm:h-auto px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl transition-all shadow-xs shrink-0 cursor-pointer flex items-center justify-center"
-                  >
-                    Review Pending ({pendingReferralsCount})
-                  </button>
-                </div>
-              )}
+                  <div className="text-3xl sm:text-4xl font-black text-white tracking-tight my-1.5 tabular-nums">
+                    {totalApplicationsCount}
+                  </div>
+                  <p className="text-[11px] text-emerald-100/85 font-medium truncate">
+                    {uniqueApplicantYouthCount} unique youth applicant{uniqueApplicantYouthCount !== 1 ? "s" : ""}
+                  </p>
+                </button>
 
-              {/* KPI Metric Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                <MetricCard
-                  title="Published Programs"
-                  value={activePrograms.length}
-                  subtitle={`${activePrograms.filter(p => p.slotsRemaining > 0).length} active · ${activePrograms.filter(p => p.slotsRemaining === 0).length} full`}
-                  icon={<BookOpen className="w-5 h-5" />}
-                  accent="teal"
-                />
-                <MetricCard
-                  title="Available Capacity"
-                  value={totalSlotsRemaining}
-                  subtitle={`out of ${totalSlotsAllocated} total slots`}
-                  icon={<Target className="w-5 h-5" />}
-                  accent="green"
-                />
-                <MetricCard
-                  title="Active Pipeline"
-                  value={activeReferrals.length}
-                  subtitle="registered applicants"
-                  icon={<Users className="w-5 h-5" />}
-                  accent="gold"
-                />
-                <MetricCard
-                  title="Enrolled Trainees"
-                  value={enrolledReferralsCount}
-                  subtitle="confirmed cohort members"
-                  icon={<CheckCircle2 className="w-5 h-5" />}
-                  accent="charcoal"
-                />
+                {/* Card 2: Pending Review */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                    setDashboardTab("pending");
+                    setPipelineStatusFilter("Pending");
+                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+                      Pending Review
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {pendingReferralsCount}
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    {pendingReferralsCount > 0 ? "Awaiting TESDA decision →" : "All applications reviewed"}
+                  </p>
+                </button>
+
+                {/* Card 3: Approved Applications */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                    setDashboardTab("approved");
+                    setPipelineStatusFilter("Approved");
+                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+                      Approved Applications
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-700 shrink-0">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {approvedReferralsCount}
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    Approved for cohort admission
+                  </p>
+                </button>
+
+                {/* Card 4: Enrolled Trainees */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                    setDashboardTab("enrolled");
+                    setPipelineStatusFilter("Enrolled");
+                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+                      Enrolled Trainees
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-[#0A6B43] shrink-0">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {enrolledReferralsCount}
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    {uniqueEnrolledYouthCount} unique active trainee{uniqueEnrolledYouthCount !== 1 ? "s" : ""}
+                  </p>
+                </button>
+
+                {/* Card 5: Active Training Programs */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                    setViewingArchivedPrograms(false);
+                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+                      Active Programs
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-[#0A6B43] shrink-0">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {activePrograms.length}
+                  </div>
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    {totalSlotsRemaining} of {totalSlotsAllocated} slots available
+                  </p>
+                </button>
               </div>
 
-              {/* View Selector Tabs & Global Search - Standardized Main Card Container */}
-              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                  {/* Segment Tabs */}
-                  <div className="h-[38px] p-1 bg-gray-50/70 border border-gray-200 rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0 max-w-full">
+              {/* ============================================================ */}
+              {/* 2. QUICK ACTIONS SECTION                                      */}
+              {/* ============================================================ */}
+              <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 space-y-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-extrabold text-gray-900 tracking-tight">
+                      Quick Actions
+                    </h3>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Direct shortcuts to common TESDA applicant and training program management tasks
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
+                  {/* Action 1: Manage Applicants */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                      setDashboardTab("all");
+                      setPipelineStatusFilter("All");
+                      document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                          Manage Applicants
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
+                        View and filter all applications
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Action 2: Manage Programs */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                      setViewingArchivedPrograms(false);
+                      document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                          Manage Programs
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
+                        Update courses and schedules
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Action 3: Review Pending Applications */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                      setDashboardTab("pending");
+                      setPipelineStatusFilter("Pending");
+                      document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                          Review Pending
+                        </span>
+                        {pendingReferralsCount > 0 ? (
+                          <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black shrink-0">
+                            {pendingReferralsCount}
+                          </span>
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
+                        Process awaiting decisions
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Action 4: Add Training Program */}
+                  <button
+                    type="button"
+                    onClick={handleNewProgramClick}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                          Add Training Program
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
+                        Publish a new TVET course
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Action 5: View Analytics */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document.getElementById("tesda-dashboard-analytics")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
+                      <BarChart2 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                          View Analytics
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
+                        Explore demand & sector insights
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* ============================================================ */}
+              {/* 3. DASHBOARD ANALYTICS (5 DECISION-SUPPORT CHARTS)            */}
+              {/* ============================================================ */}
+              <div id="tesda-dashboard-analytics" className="space-y-5 sm:space-y-6 scroll-mt-20">
+                {/* Analytics Row 1: Application Status Distribution (Donut) + Application Trends (Line Chart) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                  {/* CHART 1 (5 cols): Application Status Distribution Donut Chart */}
+                  <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
+                    <div className="flex flex-col flex-1">
+                      <div className="pb-3 border-b border-gray-100 flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Application Status Distribution
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Breakdown of Pending, Approved, Enrolled, Declined, and Archived records
+                          </p>
+                        </div>
+                      </div>
+
+                      {statusDistributionData.total === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                            <Users className="w-6 h-6" />
+                          </div>
+                          <h5 className="text-sm font-bold text-gray-800">No Application Records Yet</h5>
+                          <p className="text-xs text-gray-400 max-w-xs font-medium">
+                            Status distribution will appear once youth applications are submitted.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-6 py-5 flex-1">
+                          {/* Donut SVG */}
+                          <div className="relative w-36 h-36 sm:w-40 sm:h-40 shrink-0 flex items-center justify-center">
+                            {(() => {
+                              const R = 44;
+                              const C = 2 * Math.PI * R;
+                              const total = statusDistributionData.total || 1;
+                              let accumulated = 0;
+
+                              return (
+                                <svg className="w-36 h-36 sm:w-40 sm:h-40 -rotate-90 transform" viewBox="0 0 120 120">
+                                  <circle cx="60" cy="60" r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+                                  {statusDistributionData.slices.map((s, idx) => {
+                                    if (s.count <= 0) return null;
+                                    const sliceLen = (s.count / total) * C;
+                                    const strokeDash = `${sliceLen} ${C - sliceLen}`;
+                                    const offset = -accumulated;
+                                    accumulated += sliceLen;
+                                    const isHovered = hoveredStatusSlice === idx;
+
+                                    return (
+                                      <circle
+                                        key={s.label}
+                                        cx="60"
+                                        cy="60"
+                                        r={R}
+                                        fill="none"
+                                        stroke={s.color}
+                                        strokeWidth={isHovered ? 20 : 16}
+                                        strokeDasharray={strokeDash}
+                                        strokeDashoffset={offset}
+                                        style={{
+                                          transition: "stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1), stroke-width 0.2s ease"
+                                        }}
+                                        className="cursor-pointer"
+                                        onMouseEnter={() => setHoveredStatusSlice(idx)}
+                                        onMouseLeave={() => setHoveredStatusSlice(null)}
+                                        onClick={() => {
+                                          setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                                          setDashboardTab(s.tab);
+                                          setPipelineStatusFilter(s.filter === "Archived" ? "All" : s.filter);
+                                          if (s.tab === "archived") fetchArchivedData();
+                                          document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </svg>
+                              );
+                            })()}
+
+                            {/* Center Text */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                              {hoveredStatusSlice !== null && statusDistributionData.slices[hoveredStatusSlice] ? (
+                                <div className="animate-in fade-in duration-150">
+                                  <span
+                                    className="text-lg font-black leading-none block tabular-nums"
+                                    style={{ color: statusDistributionData.slices[hoveredStatusSlice].color }}
+                                  >
+                                    {statusDistributionData.slices[hoveredStatusSlice].pct}%
+                                  </span>
+                                  <span className="text-[11px] font-bold text-gray-800 mt-1 block">
+                                    {statusDistributionData.slices[hoveredStatusSlice].count} {statusDistributionData.slices[hoveredStatusSlice].label}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="text-2xl font-black text-gray-900 leading-none block tabular-nums">
+                                    {statusDistributionData.total}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500 font-semibold mt-1 block uppercase tracking-wider">
+                                    Applications
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Interactive Legend */}
+                          <div className="space-y-1.5 w-full sm:w-auto min-w-[175px]">
+                            {statusDistributionData.slices.map((s, idx) => {
+                              const isHovered = hoveredStatusSlice === idx;
+                              return (
+                                <button
+                                  key={s.label}
+                                  type="button"
+                                  onMouseEnter={() => setHoveredStatusSlice(idx)}
+                                  onMouseLeave={() => setHoveredStatusSlice(null)}
+                                  onClick={() => {
+                                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                                    setDashboardTab(s.tab);
+                                    setPipelineStatusFilter(s.filter === "Archived" ? "All" : s.filter);
+                                    if (s.tab === "archived") fetchArchivedData();
+                                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                  }}
+                                  className={`w-full flex items-center justify-between gap-3 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer text-left ${isHovered ? "bg-gray-100 scale-[1.01]" : "hover:bg-gray-50"
+                                    }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                                      style={{ backgroundColor: s.color }}
+                                    />
+                                    <span className={`text-xs ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
+                                      {s.label}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-900 tabular-nums">
+                                    {s.count} <span className="text-gray-400 font-normal">({s.pct}%)</span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                      <span>Click any status segment to filter applicants</span>
+                      <span className="font-semibold text-gray-700">{uniqueApplicantYouthCount} unique youth</span>
+                    </div>
+                  </div>
+
+                  {/* CHART 3 (7 cols): Application Trends Over Time (Line Chart with Weekly / Monthly Filters) */}
+                  <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
+                    <div className="space-y-4 flex-1 flex flex-col justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Application Trends
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Application submission volume over time from official timestamps
+                          </p>
+                        </div>
+
+                        {/* Weekly / 6M / 12M Time Range Filter */}
+                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTrendTimeframe("weekly");
+                              setHoveredTrendIdx(null);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${trendTimeframe === "weekly" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            Weekly
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTrendTimeframe("6m");
+                              setHoveredTrendIdx(null);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${trendTimeframe === "6m" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            6 Months
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTrendTimeframe("12m");
+                              setHoveredTrendIdx(null);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${trendTimeframe === "12m" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            12 Months
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* SVG Line Chart */}
+                      <div className="pt-2 flex-1 flex flex-col justify-end">
+                        {(() => {
+                          const buckets = applicationTrendsData.buckets;
+                          const maxVal = applicationTrendsData.maxCount;
+                          const n = buckets.length;
+                          const W = 560;
+                          const H = 165;
+                          const padX = 24;
+                          const padTop = 22;
+                          const padBottom = 18;
+                          const usableW = W - padX * 2;
+                          const usableH = H - padTop - padBottom;
+
+                          const coords = buckets.map((b, idx) => {
+                            const x = n > 1 ? padX + (idx / (n - 1)) * usableW : W / 2;
+                            const y = padTop + usableH - (b.count / Math.max(1, maxVal)) * usableH;
+                            return { x, y, ...b, idx };
+                          });
+
+                          const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(" ");
+                          const areaPath = coords.length > 0
+                            ? `M ${coords[0].x},${padTop + usableH} ` +
+                            coords.map(c => `L ${c.x},${c.y}`).join(" ") +
+                            ` L ${coords[coords.length - 1].x},${padTop + usableH} Z`
+                            : "";
+
+                          return (
+                            <div className="relative w-full">
+                              {/* Hover Tooltip */}
+                              {hoveredTrendIdx !== null && coords[hoveredTrendIdx] && (
+                                <div className="absolute -top-2 right-2 z-20 bg-gray-900 text-white px-3 py-1.5 rounded-xl shadow-lg text-[11px] font-bold flex items-center gap-2 pointer-events-none animate-in fade-in duration-150">
+                                  <span className="text-emerald-300">{coords[hoveredTrendIdx].fullLabel}:</span>
+                                  <span>{coords[hoveredTrendIdx].count} application{coords[hoveredTrendIdx].count !== 1 ? "s" : ""}</span>
+                                  <span className="text-gray-400 font-medium">({coords[hoveredTrendIdx].uniqueYouth} unique youth)</span>
+                                </div>
+                              )}
+
+                              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-44 sm:h-48 overflow-visible">
+                                <defs>
+                                  <linearGradient id="tesdaTrendAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#0A6B43" stopOpacity="0.22" />
+                                    <stop offset="100%" stopColor="#0A6B43" stopOpacity="0.0" />
+                                  </linearGradient>
+                                </defs>
+
+                                {/* Horizontal Grid Lines */}
+                                {[0, 0.25, 0.5, 0.75, 1].map((ratio, gIdx) => {
+                                  const y = padTop + ratio * usableH;
+                                  const val = Math.round(maxVal * (1 - ratio));
+                                  return (
+                                    <g key={gIdx}>
+                                      <line
+                                        x1={padX}
+                                        y1={y}
+                                        x2={W - padX}
+                                        y2={y}
+                                        stroke={ratio === 1 ? "#CBD5E1" : "#F1F5F9"}
+                                        strokeWidth="1"
+                                      />
+                                      <text
+                                        x={padX - 6}
+                                        y={y + 3}
+                                        textAnchor="end"
+                                        className="text-[9px] fill-gray-400 font-semibold"
+                                      >
+                                        {val}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+
+                                {/* Shaded Area */}
+                                {areaPath && <path d={areaPath} fill="url(#tesdaTrendAreaGrad)" />}
+
+                                {/* Trend Line */}
+                                {coords.length > 1 && (
+                                  <polyline
+                                    fill="none"
+                                    stroke="#0A6B43"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    points={polylinePoints}
+                                  />
+                                )}
+
+                                {/* Interactive Data Points */}
+                                {coords.map((c) => {
+                                  const isHovered = hoveredTrendIdx === c.idx;
+                                  return (
+                                    <g
+                                      key={c.key}
+                                      className="cursor-pointer"
+                                      onMouseEnter={() => setHoveredTrendIdx(c.idx)}
+                                      onMouseLeave={() => setHoveredTrendIdx(null)}
+                                    >
+                                      <circle cx={c.x} cy={c.y} r={14} fill="transparent" />
+                                      <circle
+                                        cx={c.x}
+                                        cy={c.y}
+                                        r={isHovered ? 5.5 : 4}
+                                        fill={isHovered ? "#0A6B43" : "#FFFFFF"}
+                                        stroke="#0A6B43"
+                                        strokeWidth={isHovered ? 3 : 2.2}
+                                      />
+                                      {c.count > 0 && (
+                                        <text
+                                          x={c.x}
+                                          y={c.y - 9}
+                                          textAnchor="middle"
+                                          className={`text-[10px] font-bold ${isHovered ? "fill-[#0A6B43] font-black" : "fill-gray-600"}`}
+                                        >
+                                          {c.count}
+                                        </text>
+                                      )}
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+
+                              {/* X-Axis Labels */}
+                              <div className="flex items-center justify-between px-4 pt-1 border-t border-gray-100">
+                                {buckets.map((b, idx) => (
+                                  <span
+                                    key={b.key}
+                                    onMouseEnter={() => setHoveredTrendIdx(idx)}
+                                    onMouseLeave={() => setHoveredTrendIdx(null)}
+                                    className={`text-[10px] font-bold truncate cursor-pointer transition-colors ${hoveredTrendIdx === idx ? "text-[#0A6B43] font-black" : "text-gray-500"
+                                      }`}
+                                  >
+                                    {b.label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 mt-3">
+                      <span>
+                        Total in selected range: <strong className="text-gray-900">{applicationTrendsData.totalInPeriod} application{applicationTrendsData.totalInPeriod !== 1 ? "s" : ""}</strong>
+                      </span>
+                      <span className="text-gray-400">
+                        {trendTimeframe === "weekly" ? "Last 8 weeks" : trendTimeframe === "12m" ? "Last 12 months" : "Last 6 months"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Analytics Row 2: Program Demand vs. Available Slots + Youth Interests vs. Training Supply */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                  {/* CHART 2 (6 cols): Program Demand vs. Available Slots (Horizontal Bar Chart) */}
+                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
+                    <div className="space-y-4 flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Program Demand vs. Available Slots
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Comparing active applicant demand against remaining slot capacity per program
+                          </p>
+                        </div>
+
+                        {/* Sort Selector */}
+                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                          <button
+                            type="button"
+                            onClick={() => setProgramDemandSort("demand")}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${programDemandSort === "demand" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            By Demand
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProgramDemandSort("slots")}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${programDemandSort === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            Low Slots
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Legend */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                          <span>Applicant Demand (Pending/Approved/Enrolled)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
+                          <span>Available Slots</span>
+                        </div>
+                      </div>
+
+                      {programDemandData.items.length === 0 ? (
+                        <div className="py-10 text-center space-y-2">
+                          <BookOpen className="w-8 h-8 text-gray-300 mx-auto" />
+                          <p className="text-sm font-bold text-gray-800">No Active Training Programs</p>
+                          <p className="text-xs text-gray-400">Add a training program to compare applicant demand and capacity.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
+                          {programDemandData.items.map(prog => {
+                            const demandPct = Math.min(100, Math.round((prog.demand / programDemandData.maxScale) * 100));
+                            const slotsPct = Math.min(100, Math.round((prog.slotsRemaining / programDemandData.maxScale) * 100));
+
+                            return (
+                              <div
+                                key={prog.id}
+                                onClick={() => {
+                                  setPipelineProgramFilter(prog.title);
+                                  setDashboardTab("all");
+                                  setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                                  document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                }}
+                                className="p-3 rounded-xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all cursor-pointer space-y-2 group"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-gray-900 group-hover:text-[#0A6B43] truncate" title={prog.title}>
+                                    {prog.title}
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-gray-500 shrink-0 tabular-nums">
+                                    {prog.demand} applicant{prog.demand !== 1 ? "s" : ""} · {prog.slotsRemaining}/{prog.slotsTotal} open
+                                  </span>
+                                </div>
+
+                                {/* Horizontal Bar 1: Applicant Demand */}
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 text-[10px] font-bold text-gray-500 shrink-0">Demand</span>
+                                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-[#0A6B43] rounded-full transition-all duration-500"
+                                      style={{ width: `${prog.demand > 0 ? Math.max(4, demandPct) : 0}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-7 text-right text-[11px] font-extrabold text-[#0A6B43] tabular-nums">
+                                    {prog.demand}
+                                  </span>
+                                </div>
+
+                                {/* Horizontal Bar 2: Available Slots */}
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 text-[10px] font-bold text-gray-500 shrink-0">Open Slots</span>
+                                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-500 ${prog.slotsRemaining === 0 ? "bg-red-500" : "bg-[#3B82F6]"
+                                        }`}
+                                      style={{ width: `${prog.slotsRemaining > 0 ? Math.max(4, slotsPct) : 0}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-7 text-right text-[11px] font-extrabold text-blue-700 tabular-nums">
+                                    {prog.slotsRemaining}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 mt-3">
+                      <span>Click a program to view its applicants</span>
+                      <span className="font-semibold text-gray-700">{activePrograms.length} active programs</span>
+                    </div>
+                  </div>
+
+                  {/* CHART 5 (6 cols): Youth Interests vs. Training Supply (Grouped Bar Chart) */}
+                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
+                    <div className="space-y-4 flex-1 flex flex-col justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Youth Interests vs. Training Supply
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Comparing unique youth interest by sector against available TESDA training supply
+                          </p>
+                        </div>
+
+                        {/* Supply Metric Toggle */}
+                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                          <button
+                            type="button"
+                            onClick={() => setSectorSupplyMetric("slots")}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${sectorSupplyMetric === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            Open Slots
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSectorSupplyMetric("programs")}
+                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${sectorSupplyMetric === "programs" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                          >
+                            Programs
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Legend */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-gray-600">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                            <span>Unique Interested Youth</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                            <span>{sectorSupplyMetric === "programs" ? "Active TESDA Programs" : "Available Training Slots"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Grouped Vertical Bar Chart */}
+                      <div className="pt-4 pb-1 flex-1 flex flex-col justify-end relative">
+                        {hoveredSectorIdx !== null && sectorInterestVsSupplyData.items[hoveredSectorIdx] && (() => {
+                          const sec = sectorInterestVsSupplyData.items[hoveredSectorIdx];
+                          return (
+                            <div className="absolute -top-1 right-1 z-20 bg-gray-900 text-white px-3 py-2 rounded-xl shadow-lg text-[11px] pointer-events-none animate-in fade-in duration-150">
+                              <p className="font-extrabold text-emerald-300">{sec.fullName}</p>
+                              <div className="flex items-center gap-3 mt-1 font-semibold">
+                                <span>Interested Youth: <strong>{sec.youthInterested}</strong></span>
+                                <span>·</span>
+                                <span>Programs: <strong>{sec.programCount}</strong> ({sec.availableSlots} open slots)</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        <div className="h-48 w-full flex items-end justify-between gap-2 sm:gap-3 px-2 pb-2 border-b border-gray-200 relative">
+                          {/* Subtle horizontal guide lines */}
+                          <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none pb-2">
+                            <div className="border-b border-gray-100 w-full" />
+                            <div className="border-b border-gray-100 w-full" />
+                            <div className="border-b border-gray-100 w-full" />
+                            <div className="border-b border-gray-100 w-full" />
+                          </div>
+
+                          {sectorInterestVsSupplyData.items.map((sec, idx) => {
+                            const supplyVal = sectorSupplyMetric === "programs" ? sec.programCount : sec.availableSlots;
+                            const youthPct = sec.youthInterested > 0
+                              ? Math.max(8, Math.round((sec.youthInterested / sectorInterestVsSupplyData.maxCombined) * 100))
+                              : 3;
+                            const supplyPct = supplyVal > 0
+                              ? Math.max(8, Math.round((supplyVal / sectorInterestVsSupplyData.maxCombined) * 100))
+                              : 3;
+                            const isHovered = hoveredSectorIdx === idx;
+
+                            return (
+                              <div
+                                key={sec.id}
+                                onMouseEnter={() => setHoveredSectorIdx(idx)}
+                                onMouseLeave={() => setHoveredSectorIdx(null)}
+                                className="flex-1 min-w-0 h-full flex flex-col items-center justify-end cursor-pointer relative z-10 group"
+                              >
+                                <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full">
+                                  {/* Bar 1: Interested Youth */}
+                                  <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[18px]">
+                                    <span className="text-[9px] font-bold text-gray-600 mb-0.5 tabular-nums">
+                                      {sec.youthInterested}
+                                    </span>
+                                    <div
+                                      style={{ height: `${youthPct}%` }}
+                                      className={`w-full rounded-t-md transition-all duration-500 ${sec.youthInterested > 0 ? "bg-[#0A6B43]" : "bg-gray-200"
+                                        } ${isHovered ? "ring-2 ring-emerald-500/30" : ""}`}
+                                    />
+                                  </div>
+
+                                  {/* Bar 2: Training Supply */}
+                                  <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[18px]">
+                                    <span className="text-[9px] font-bold text-amber-700 mb-0.5 tabular-nums">
+                                      {supplyVal}
+                                    </span>
+                                    <div
+                                      style={{ height: `${supplyPct}%` }}
+                                      className={`w-full rounded-t-md transition-all duration-500 ${supplyVal > 0 ? "bg-[#F59E0B]" : "bg-gray-200"
+                                        } ${isHovered ? "ring-2 ring-amber-400/40" : ""}`}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* X-Axis Sector Labels */}
+                        <div className="flex items-center justify-between gap-1.5 px-2 pt-2">
+                          {sectorInterestVsSupplyData.items.map((sec, idx) => (
+                            <span
+                              key={sec.id}
+                              onMouseEnter={() => setHoveredSectorIdx(idx)}
+                              onMouseLeave={() => setHoveredSectorIdx(null)}
+                              className={`flex-1 min-w-0 text-center text-[10px] font-bold truncate cursor-pointer transition-colors ${hoveredSectorIdx === idx ? "text-[#0A6B43] font-black" : "text-gray-500"
+                                }`}
+                              title={sec.fullName}
+                            >
+                              {sec.shortLabel}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 mt-3">
+                      <span>Deduplicated unique youth per vocational sector</span>
+                      <span className="font-semibold text-gray-700">{youthProfiles.length} registered youth profiles</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom 50/50 Row: Applications by Barangay (Top 6) + Recent Applicant Activity */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                  {/* LEFT COLUMN (6 cols / 50%): Applications by Barangay (Top 6 Vertical Bar Chart) */}
+                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
+                    <div className="space-y-4 flex-1 flex flex-col justify-between">
+                      {/* Card Header & Toggles */}
+                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                              Applications by Barangay
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200/80">
+                              Top {Math.min(6, Math.max(1, barangayApplicationsData.items.length))}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Top 6 barangays by application volume ({barangayChartMode === "active"
+                              ? `from ${barangayApplicationsData.activeBarangayCount} active barangay${barangayApplicationsData.activeBarangayCount !== 1 ? "s" : ""}`
+                              : `across all ${barangayApplicationsData.totalBarangays} barangays`})
+                          </p>
+                        </div>
+
+                        {/* Controls: Metric (Applications vs Unique Youth) + Scope (All 17 vs Active) */}
+                        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-0.5 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBarangayCountMetric("applications");
+                                setHoveredBarangayIdx(null);
+                              }}
+                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayCountMetric === "applications" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                            >
+                              Applications
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBarangayCountMetric("uniqueYouth");
+                                setHoveredBarangayIdx(null);
+                              }}
+                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayCountMetric === "uniqueYouth" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                            >
+                              Unique Youth
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-0.5 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBarangayChartMode("all");
+                                setHoveredBarangayIdx(null);
+                              }}
+                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayChartMode === "all" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                              title="Rank top 6 across all 17 barangays of San Luis"
+                            >
+                              All 17 Barangays
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBarangayChartMode("active");
+                                setHoveredBarangayIdx(null);
+                              }}
+                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayChartMode === "active" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                              title="Rank top 6 among barangays with active applications"
+                            >
+                              Active Only
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vertical Column Chart Body */}
+                      {barangayApplicationsData.items.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[240px]">
+                          <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
+                            <MapPin className="w-5 h-5" />
+                          </div>
+                          <h4 className="text-sm font-extrabold text-gray-900">No Barangay Applications Yet</h4>
+                          <p className="text-xs text-gray-500 max-w-xs font-medium">
+                            Top barangays will appear here once youth applications are submitted.
+                          </p>
+                        </div>
+                      ) : (
+                        (() => {
+                          const rawMax = barangayApplicationsData.maxVal;
+                          const yMax = rawMax <= 4 ? 4 : Math.ceil(rawMax / 4) * 4;
+                          const yTicks = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0];
+                          const totalPool = barangayCountMetric === "uniqueYouth"
+                            ? Math.max(1, uniqueApplicantYouthCount)
+                            : Math.max(1, totalApplicationsCount);
+
+                          const formatShortBarangay = (name: string) =>
+                            name
+                              .replace(/^Santa Cruz Pambilog$/i, "Sta. Cruz Pam.")
+                              .replace(/^Santa Cruz Poblacion$/i, "Sta. Cruz Pob.")
+                              .replace(/^Santa\s+/i, "Sta. ")
+                              .replace(/^Santo\s+/i, "Sto. ");
+
+                          return (
+                            <div className="pt-2 pb-1 flex-1 flex flex-col justify-end relative">
+                              {/* Floating Tooltip on Hover */}
+                              {hoveredBarangayIdx !== null && barangayApplicationsData.items[hoveredBarangayIdx] && (() => {
+                                const hoveredItem = barangayApplicationsData.items[hoveredBarangayIdx];
+                                const hoveredVal = barangayCountMetric === "uniqueYouth"
+                                  ? hoveredItem.uniqueYouth
+                                  : hoveredItem.applications;
+                                const hoveredPct = hoveredVal > 0 ? Math.round((hoveredVal / totalPool) * 100) : 0;
+                                const totalAppsPct = hoveredItem.applications > 0
+                                  ? Math.round((hoveredItem.applications / Math.max(1, totalApplicationsCount)) * 100)
+                                  : 0;
+
+                                return (
+                                  <div className="absolute -top-1 right-1 z-20 bg-gray-900 text-white px-3 py-1.5 rounded-xl shadow-lg text-[11px] pointer-events-none flex flex-wrap items-center gap-x-2 gap-y-0.5 animate-in fade-in duration-150">
+                                    <span className="font-extrabold text-emerald-300">
+                                      Brgy. {hoveredItem.barangay}
+                                    </span>
+                                    <span className="text-gray-400">·</span>
+                                    <span className="font-bold">
+                                      {barangayCountMetric === "uniqueYouth"
+                                        ? `${hoveredItem.uniqueYouth} unique youth (${hoveredItem.applications} app${hoveredItem.applications !== 1 ? "s" : ""})`
+                                        : `${hoveredItem.applications} application${hoveredItem.applications !== 1 ? "s" : ""}`}
+                                    </span>
+                                    <span className="text-gray-400">·</span>
+                                    <span className="text-emerald-200 font-semibold">
+                                      {barangayCountMetric === "uniqueYouth"
+                                        ? `${hoveredPct}% of youth`
+                                        : `${totalAppsPct}% of total`}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Main Plot Area: Y-Axis + Up to 6 Vertical Columns */}
+                              <div className="flex items-stretch pt-5">
+                                {/* Y-Axis Labels */}
+                                <div className="w-7 pr-2 h-52 flex flex-col justify-between text-right select-none shrink-0">
+                                  {yTicks.map((tick, tIdx) => (
+                                    <span
+                                      key={tIdx}
+                                      className="text-[10px] font-bold text-gray-400 leading-none tabular-nums -translate-y-1"
+                                    >
+                                      {tick}
+                                    </span>
+                                  ))}
+                                </div>
+
+                                {/* Columns & Horizontal Grid Lines */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="relative h-52 border-l border-b border-gray-200 flex items-end justify-around gap-2 sm:gap-3 px-2 sm:px-4">
+                                    {/* Horizontal Grid Lines */}
+                                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                                      {yTicks.map((_, gIdx) => (
+                                        <div
+                                          key={gIdx}
+                                          className={`w-full ${gIdx === yTicks.length - 1 ? "" : "border-t border-dashed border-gray-100"
+                                            }`}
+                                        />
+                                      ))}
+                                    </div>
+
+                                    {/* Top 6 Vertical Barangay Bars */}
+                                    {barangayApplicationsData.items.map((item, idx) => {
+                                      const val = barangayCountMetric === "uniqueYouth" ? item.uniqueYouth : item.applications;
+                                      const pctOfTotal = val > 0 ? Math.round((val / totalPool) * 100) : 0;
+                                      const barHeightPct = val > 0
+                                        ? Math.max(10, Math.round((val / yMax) * 100))
+                                        : 4;
+                                      const isHovered = hoveredBarangayIdx === idx;
+                                      const tooltipText = `Brgy. ${item.barangay}: ${val} ${barangayCountMetric === "uniqueYouth" ? "unique youth" : (val === 1 ? "application" : "applications")
+                                        } (${pctOfTotal}% of total)`;
+
+                                      return (
+                                        <button
+                                          key={item.barangay}
+                                          type="button"
+                                          title={tooltipText}
+                                          onMouseEnter={() => setHoveredBarangayIdx(idx)}
+                                          onMouseLeave={() => setHoveredBarangayIdx(null)}
+                                          onFocus={() => setHoveredBarangayIdx(idx)}
+                                          onBlur={() => setHoveredBarangayIdx(null)}
+                                          onClick={() => {
+                                            setPipelineBarangayFilter(item.barangay);
+                                            setDashboardTab("all");
+                                            setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                                            document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                          }}
+                                          className="flex-1 max-w-[68px] h-full flex flex-col items-center justify-end group relative z-10 cursor-pointer focus:outline-none"
+                                        >
+                                          {/* Application Count Above Bar */}
+                                          <span
+                                            className={`text-xs font-extrabold mb-1.5 tabular-nums transition-transform ${isHovered
+                                                ? "text-[#0A6B43] scale-110"
+                                                : "text-gray-800"
+                                              }`}
+                                          >
+                                            {val}
+                                          </span>
+
+                                          {/* Vertical Green Bar */}
+                                          <div
+                                            style={{ height: `${barHeightPct}%` }}
+                                            className={`w-full max-w-[42px] rounded-t-xl transition-all duration-500 ${isHovered
+                                                ? "bg-emerald-600 ring-4 ring-emerald-500/20 shadow-xs"
+                                                : "bg-[#0A6B43] group-hover:bg-emerald-600"
+                                              }`}
+                                          />
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* X-Axis Barangay Labels */}
+                                  <div className="flex items-start justify-around gap-2 sm:gap-3 px-2 sm:px-4 pt-2.5">
+                                    {barangayApplicationsData.items.map((item, idx) => {
+                                      const val = barangayCountMetric === "uniqueYouth" ? item.uniqueYouth : item.applications;
+                                      const pctOfTotal = val > 0 ? Math.round((val / totalPool) * 100) : 0;
+                                      const isHovered = hoveredBarangayIdx === idx;
+                                      const shortName = formatShortBarangay(item.barangay);
+
+                                      return (
+                                        <button
+                                          key={item.barangay}
+                                          type="button"
+                                          onMouseEnter={() => setHoveredBarangayIdx(idx)}
+                                          onMouseLeave={() => setHoveredBarangayIdx(null)}
+                                          onClick={() => {
+                                            setPipelineBarangayFilter(item.barangay);
+                                            setDashboardTab("all");
+                                            setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                                            document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                          }}
+                                          title={`Brgy. ${item.barangay}: ${val} ${barangayCountMetric === "uniqueYouth" ? "unique youth" : (val === 1 ? "application" : "applications")
+                                            } (${pctOfTotal}% of total)`}
+                                          className="flex-1 max-w-[68px] text-center cursor-pointer focus:outline-none"
+                                        >
+                                          <span
+                                            className={`block text-[10px] sm:text-[11px] leading-tight truncate transition-colors ${isHovered
+                                                ? "font-black text-[#0A6B43]"
+                                                : "font-bold text-gray-700 hover:text-[#0A6B43]"
+                                              }`}
+                                          >
+                                            {shortName}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      )}
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-[11px] text-gray-500 mt-3">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-gray-600">
+                        <span className="w-2.5 h-2.5 rounded-xs bg-[#0A6B43] shrink-0" />
+                        <span>
+                          Showing top {barangayApplicationsData.items.length} of{" "}
+                          {barangayChartMode === "active"
+                            ? `${barangayApplicationsData.activeBarangayCount} active barangays`
+                            : `${barangayApplicationsData.totalBarangays} barangays`}
+                        </span>
+                      </span>
+                      <span className="text-gray-400 truncate">Click a bar to filter applicants</span>
+                    </div>
+                  </div>
+
+                  {/* RIGHT COLUMN (6 cols / 50%): Recent Applicant Activity (Compact Timeline Feed) */}
+                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
+                    <div className="space-y-4 flex-1 flex flex-col">
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Recent Applicant Activity
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Latest application events and status updates across training programs
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                            setDashboardTab("all");
+                            setPipelineStatusFilter("All");
+                            document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-[#0A6B43] text-[#0A6B43] hover:text-white border border-emerald-200/80 hover:border-[#0A6B43] text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          <span>View All Applicants</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Compact Vertical Activity Timeline (Latest 5) */}
+                      {recentApplicantActivities.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[240px]">
+                          <div className="w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <h4 className="text-sm font-extrabold text-gray-900">No Recent Applicant Activity</h4>
+                          <p className="text-xs text-gray-500 max-w-xs font-medium">
+                            Application events for your TESDA training programs will appear here automatically.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="relative flex-1 flex flex-col justify-between py-1">
+                          {/* Subtle Vertical Timeline Connecting Line */}
+                          {recentApplicantActivities.length > 1 && (
+                            <div
+                              className="absolute left-[25px] top-5 bottom-5 w-px bg-gray-200/90 pointer-events-none"
+                              aria-hidden="true"
+                            />
+                          )}
+
+                          <div className="space-y-2.5">
+                            {recentApplicantActivities.slice(0, 5).map((item) => {
+                              const isEnrolled = item.status === "Enrolled";
+                              const isApproved = item.status === "Approved";
+                              const isPending = item.status === "Pending";
+                              const isArchived = item.status === "Archived";
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => openApplicantModal(item)}
+                                  className="relative flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-50/40 border border-transparent hover:border-emerald-200/70 transition-all cursor-pointer group"
+                                >
+                                  {/* Contextual Timeline Node Icon */}
+                                  <div
+                                    className={`relative z-10 w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${isEnrolled
+                                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                        : isApproved
+                                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                                          : isPending
+                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                            : isArchived
+                                              ? "bg-slate-100 text-slate-700 border-slate-200"
+                                              : "bg-red-50 text-red-600 border-red-200"
+                                      }`}
+                                  >
+                                    {isEnrolled ? (
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    ) : isApproved ? (
+                                      <UserCheck className="w-4 h-4" />
+                                    ) : isPending ? (
+                                      <FileText className="w-4 h-4" />
+                                    ) : isArchived ? (
+                                      <Archive className="w-4 h-4" />
+                                    ) : (
+                                      <X className="w-4 h-4" />
+                                    )}
+                                  </div>
+
+                                  {/* Compact Content Hierarchy */}
+                                  <div className="min-w-0 flex-1">
+                                    {/* Top Row: Prominent Activity Type + Subtle Status Badge + Relative Timestamp */}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
+                                          {item.activityType}
+                                        </span>
+                                        <span
+                                          className={`px-1.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider border shrink-0 ${isEnrolled
+                                              ? "bg-emerald-50/90 text-[#0A6B43] border-emerald-200"
+                                              : isApproved
+                                                ? "bg-blue-50/90 text-blue-700 border-blue-200"
+                                                : isPending
+                                                  ? "bg-amber-50/90 text-amber-800 border-amber-200"
+                                                  : isArchived
+                                                    ? "bg-slate-100 text-slate-700 border-slate-200"
+                                                    : "bg-red-50/90 text-red-700 border-red-200"
+                                            }`}
+                                        >
+                                          {item.status}
+                                        </span>
+                                      </div>
+
+                                      {/* Relative Timestamp with Exact Date/Time Tooltip */}
+                                      <span
+                                        title={`Exact date & time: ${item.exactDateTime}`}
+                                        className="text-[11px] font-semibold text-gray-400 group-hover:text-gray-600 whitespace-nowrap shrink-0 tabular-nums"
+                                      >
+                                        {item.relativeTime}
+                                      </span>
+                                    </div>
+
+                                    {/* Bottom Row: Applicant Name · Training Program · Exact Date Secondary Label */}
+                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                      <p className="text-xs text-gray-600 truncate">
+                                        <span className="font-bold text-gray-800 group-hover:text-[#0A6B43] group-hover:underline">
+                                          {item.youthName}
+                                        </span>
+                                        <span className="text-gray-300 mx-1.5">·</span>
+                                        <span className="font-medium text-gray-600">
+                                          {item.programTitle}
+                                        </span>
+                                      </p>
+
+                                      <span
+                                        title={item.exactDateTime}
+                                        className="hidden sm:inline-block text-[10px] text-gray-400 font-medium whitespace-nowrap shrink-0"
+                                      >
+                                        {item.shortExactDate}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-[11px] text-gray-500 mt-3">
+                      <span>
+                        Showing latest <strong className="text-gray-800">{Math.min(5, recentApplicantActivities.length)}</strong> of{" "}
+                        <strong className="text-gray-800">{totalApplicationsCount}</strong> applications
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                          setDashboardTab("all");
+                          setPipelineStatusFilter("All");
+                          document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="font-bold text-[#0A6B43] hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <span>Open Applicants</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* SCREEN 1B: DEDICATED APPLICANTS PAGE                         */}
+          {/* ============================================================ */}
+          {currentScreen === TESDAPartnerScreen.APPLICANTS && (
+            <div className="space-y-6">
+              {/* Top Header Banner: Title "Applicants" & Required Subtitle (No Summary Cards) */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                <GrowthPlantAnimation />
+
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-2xl lg:max-w-3xl">
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Applicants
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Manage and review youth applications across all training programs.
+                  </p>
+                </div>
+              </div>
+
+              {/* Main Consolidated Applicants Management Container */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 sm:p-6 space-y-5">
+                {/* Top Row: Status Tabs + Refresh Action */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-100 pb-3.5">
+                  {/* Status Tabs: All Applications, Pending, Approved, Enrolled, Declined, and Archived */}
+                  <div
+                    role="tablist"
+                    aria-label="Application status tabs"
+                    className="h-[40px] p-1 bg-gray-50/80 border border-gray-200 rounded-xl flex items-center gap-1 overflow-x-auto scrollbar-none shrink-0 max-w-full"
+                  >
                     <button
-                      onClick={() => setDashboardTab("all")}
-                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "all"
+                      type="button"
+                      role="tab"
+                      aria-selected={dashboardTab === "all"}
+                      onClick={() => {
+                        setDashboardTab("all");
+                        setPipelineStatusFilter("All");
+                      }}
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "all"
                           ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
-                      All Active ({activeReferrals.length})
+                      <span>All Applications</span>
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${dashboardTab === "all" ? "bg-emerald-50 text-[#0A6B43]" : "bg-gray-200/70 text-gray-600"
+                        }`}>
+                        {activeReferrals.length}
+                      </span>
                     </button>
+
                     <button
-                      onClick={() => setDashboardTab("pending")}
+                      type="button"
+                      role="tab"
+                      aria-selected={dashboardTab === "pending"}
+                      onClick={() => {
+                        setDashboardTab("pending");
+                        setPipelineStatusFilter("Pending");
+                      }}
                       className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "pending"
                           ? "bg-white text-amber-700 shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
                       <span>Pending</span>
-                      {pendingReferralsCount > 0 && (
-                        <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                          {pendingReferralsCount}
-                        </span>
-                      )}
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${pendingReferralsCount > 0 ? "bg-amber-100 text-amber-800" : "bg-gray-200/70 text-gray-600"
+                        }`}>
+                        {pendingReferralsCount}
+                      </span>
                     </button>
+
                     <button
-                      onClick={() => setDashboardTab("enrolled")}
-                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "enrolled"
+                      type="button"
+                      role="tab"
+                      aria-selected={dashboardTab === "approved"}
+                      onClick={() => {
+                        setDashboardTab("approved");
+                        setPipelineStatusFilter("Approved");
+                      }}
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "approved"
+                          ? "bg-white text-blue-700 shadow-xs font-extrabold"
+                          : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
+                        }`}
+                    >
+                      <span>Approved</span>
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${dashboardTab === "approved" ? "bg-blue-50 text-blue-700" : "bg-gray-200/70 text-gray-600"
+                        }`}>
+                        {approvedReferralsCount}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={dashboardTab === "enrolled"}
+                      onClick={() => {
+                        setDashboardTab("enrolled");
+                        setPipelineStatusFilter("Enrolled");
+                      }}
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "enrolled"
                           ? "bg-white text-emerald-700 shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
-                      Enrolled ({enrolledReferralsCount})
+                      <span>Enrolled</span>
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${dashboardTab === "enrolled" ? "bg-emerald-50 text-[#0A6B43]" : "bg-gray-200/70 text-gray-600"
+                        }`}>
+                        {enrolledReferralsCount}
+                      </span>
                     </button>
+
                     <button
-                      onClick={() => setDashboardTab("programs")}
-                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${dashboardTab === "programs"
-                          ? "bg-white text-[#0A6B43] shadow-xs font-extrabold"
+                      type="button"
+                      role="tab"
+                      aria-selected={dashboardTab === "declined"}
+                      onClick={() => {
+                        setDashboardTab("declined");
+                        setPipelineStatusFilter("Declined");
+                      }}
+                      className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "declined"
+                          ? "bg-white text-red-700 shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
-                      Program Roster ({activePrograms.length})
+                      <span>Declined</span>
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${dashboardTab === "declined" ? "bg-red-50 text-red-700" : "bg-gray-200/70 text-gray-600"
+                        }`}>
+                        {declinedReferralsCount}
+                      </span>
                     </button>
+
                     <button
+                      type="button"
+                      role="tab"
+                      aria-selected={dashboardTab === "archived"}
                       onClick={() => {
                         setDashboardTab("archived");
+                        setPipelineStatusFilter("Archived");
                         fetchArchivedData();
                       }}
                       className={`h-full px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${dashboardTab === "archived"
-                          ? "bg-white text-emerald-800 shadow-xs font-extrabold"
+                          ? "bg-white text-slate-800 shadow-xs font-extrabold"
                           : "text-gray-500 hover:text-gray-800 font-medium hover:bg-gray-100/60"
                         }`}
                     >
-                      <Archive className="w-3.5 h-3.5" />
-                      <span>Archived History</span>
+                      <span>Archived</span>
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${dashboardTab === "archived" ? "bg-gray-200 text-gray-800" : "bg-gray-200/70 text-gray-600"
+                        }`}>
+                        {normalizedArchivedReferrals.length}
+                      </span>
                     </button>
                   </div>
 
-                  {/* Right Action */}
-                  <div className="flex items-center gap-2">
+                  {/* Right Action: Refresh Applications */}
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     <button
-                      onClick={handleNewProgramClick}
-                      className="w-full sm:w-auto px-4 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                      type="button"
+                      onClick={refreshApplicantsData}
+                      disabled={isLoadingApplicants || loadingArchived}
+                      className="h-[38px] px-3.5 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Refresh applicant records from database"
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>Post New Program</span>
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingApplicants || loadingArchived ? "animate-spin text-[#0A6B43]" : ""}`} />
+                      <span>Refresh</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Filter Controls Bar */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                  {/* Search Input */}
-                  <div className="relative">
+                {/* Search Bar & 4 Filter Dropdowns (Program, Barangay, Status, Date Range) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5">
+                  {/* Search Input (4 cols on desktop) */}
+                  <div className="relative sm:col-span-2 lg:col-span-4">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search applicant, purok, or program…"
+                      placeholder="Search applicant, program, or barangay..."
                       value={pipelineSearch}
                       onChange={(e) => setPipelineSearch(e.target.value)}
                       className="w-full h-[38px] pl-10 pr-8 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
@@ -2073,864 +4062,602 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     )}
                   </div>
 
-                  {/* Program Filter */}
-                  <div className="relative">
+                  {/* Program Filter (2 cols on desktop) */}
+                  <div className="relative lg:col-span-2">
                     <CustomSelect
                       value={pipelineProgramFilter}
                       onChange={(val) => setPipelineProgramFilter(val)}
                       options={[
                         { value: "All", label: "All Programs" },
-                        ...activePrograms.map(p => ({ value: p.title, label: p.title }))
+                        ...applicantProgramOptions.map(title => ({ value: title, label: title }))
                       ]}
                       size="sm"
                       buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                      placeholder="All Programs"
+                      placeholder="Program"
                     />
                   </div>
 
-                  {/* Barangay Filter */}
-                  <div className="relative">
+                  {/* Barangay Filter (2 cols on desktop) */}
+                  <div className="relative lg:col-span-2">
                     <CustomSelect
                       value={pipelineBarangayFilter}
                       onChange={(val) => setPipelineBarangayFilter(val)}
                       options={[
                         { value: "All", label: "All Barangays" },
-                        ...uniqueBarangays.map(b => ({ value: b, label: `Brgy. ${b}` }))
+                        ...uniqueBarangays.map(b => ({ value: b, label: `Brgy. ${b.replace(/^Barangay\s+/i, "")}` }))
                       ]}
                       size="sm"
                       buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                      placeholder="All Barangays"
+                      placeholder="Barangay"
                     />
                   </div>
 
-                  {/* Status Filter */}
-                  <div className="relative">
+                  {/* Status Filter (2 cols on desktop) */}
+                  <div className="relative lg:col-span-2">
                     <CustomSelect
                       value={pipelineStatusFilter}
-                      onChange={(val) => setPipelineStatusFilter(val)}
-                      disabled={dashboardTab !== "all"}
+                      onChange={(val) => {
+                        setPipelineStatusFilter(val);
+                        if (val === "All") setDashboardTab("all");
+                        else if (val === "Pending") setDashboardTab("pending");
+                        else if (val === "Approved") setDashboardTab("approved");
+                        else if (val === "Enrolled") setDashboardTab("enrolled");
+                        else if (val === "Declined") setDashboardTab("declined");
+                        else if (val === "Archived") {
+                          setDashboardTab("archived");
+                          fetchArchivedData();
+                        }
+                      }}
                       options={[
                         { value: "All", label: "All Statuses" },
-                        { value: "Pending", label: "Pending Review" },
+                        { value: "Pending", label: "Pending" },
+                        { value: "Approved", label: "Approved" },
                         { value: "Enrolled", label: "Enrolled" },
-                        { value: "Declined", label: "Declined" }
+                        { value: "Declined", label: "Declined" },
+                        { value: "Archived", label: "Archived" }
                       ]}
                       size="sm"
                       buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
-                      placeholder="All Statuses"
+                      placeholder="Status"
+                    />
+                  </div>
+
+                  {/* Date Range Filter (2 cols on desktop) */}
+                  <div className="relative lg:col-span-2">
+                    <CustomSelect
+                      value={pipelineDateRangeFilter}
+                      onChange={(val) => setPipelineDateRangeFilter(val)}
+                      options={[
+                        { value: "All", label: "All Dates" },
+                        { value: "today", label: "Today" },
+                        { value: "7d", label: "Last 7 Days" },
+                        { value: "30d", label: "Last 30 Days" },
+                        { value: "month", label: "This Month" },
+                        { value: "90d", label: "Last 3 Months" }
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                      placeholder="Date Range"
                     />
                   </div>
                 </div>
 
                 {/* Active Filter Clear Bar */}
                 {isSearchActive && (
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs">
                     <span className="text-gray-500 font-medium">
-                      Showing <strong className="text-gray-900">{filteredReferrals.length}</strong> candidate match(es) across programs
+                      Showing <strong className="text-gray-900">{filteredReferrals.length}</strong> matching application{filteredReferrals.length !== 1 ? "s" : ""}
                     </span>
                     <button
+                      type="button"
                       onClick={() => {
                         setPipelineSearch("");
                         setPipelineStatusFilter("All");
                         setPipelineProgramFilter("All");
                         setPipelineBarangayFilter("All");
+                        setPipelineDateRangeFilter("All");
                         setDashboardTab("all");
                       }}
                       className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
-                      Reset All Filters
+                      <span>Reset All Filters</span>
                     </button>
                   </div>
                 )}
-              </div>
 
-              {/* ============================================================ */}
-              {/* TAB 1, 2, 3: Grouped Pipeline Lists */}
-              {/* ============================================================ */}
-              {dashboardTab !== "programs" && dashboardTab !== "archived" && (
-                <div className="space-y-4">
-                  {programTitlesToDisplay.length === 0 ? (
-                    <div className="w-full bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] py-12 sm:py-16 px-6 text-center space-y-4">
-                      <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
-                        <Users className="w-7 h-7" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <h3 className="text-[18px] font-extrabold text-gray-900 tracking-tight leading-snug">No Applicants Found</h3>
-                        <p className="text-[14px] text-gray-500 leading-relaxed font-normal max-w-md mx-auto">
-                          No Katipunan ng Kabataan applicants match your active search or filter configuration. Try adjusting your filters.
-                        </p>
-                      </div>
-                      {isSearchActive && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPipelineSearch("");
-                            setPipelineStatusFilter("All");
-                            setPipelineProgramFilter("All");
-                            setPipelineBarangayFilter("All");
-                            setDashboardTab("all");
-                          }}
-                          className="mt-2 px-3.5 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
-                        >
-                          Reset All Filters
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    paginatedProgramTitles.map((title) => {
-                      const programApplicants = groupedReferrals[title] || [];
-                      const isExpanded = expandedPrograms[title] !== false;
-                      const originalProgram = activePrograms.find(p => p.title === title);
-                      const slotsRemaining = originalProgram?.slotsRemaining;
-                      const slotsTotal = originalProgram?.slotsTotal || 30;
-
-                      return (
-                        <div key={title} className="bg-white border border-gray-200/90 rounded-2xl shadow-xs overflow-hidden transition-all">
-                          {/* Program Accordion Header */}
-                          <div
-                            onClick={() => toggleProgramExpand(title)}
-                            className="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-900 via-[#0A4D36] to-emerald-950 text-white border-b border-emerald-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer transition-all hover:brightness-105 shadow-xs"
-                          >
-                            <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center justify-center font-black shrink-0 shadow-xs mt-0.5 sm:mt-0">
-                                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                  <h3 className="font-extrabold text-xs sm:text-sm text-white break-words sm:truncate" title={title}>
-                                    {title}
-                                  </h3>
-                                  <span className="text-[10px] font-extrabold px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 shrink-0">
-                                    {programApplicants.length} Candidate{programApplicants.length !== 1 ? "s" : ""}
-                                  </span>
-                                  {isProgramDurationDone(originalProgram) && (
-                                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1 shrink-0">
-                                      <Clock className="w-3 h-3 text-purple-300" /> Term Ended
-                                    </span>
-                                  )}
-                                  {slotsRemaining !== undefined && (
-                                    <span className={`sm:hidden text-[10px] font-extrabold px-2 py-0.5 rounded-full border shrink-0 ${slotsRemaining > 5
-                                        ? "bg-emerald-500/20 text-emerald-200 border-emerald-400/30"
-                                        : slotsRemaining > 0
-                                          ? "bg-amber-500/20 text-amber-200 border-amber-400/30"
-                                          : "bg-red-500/20 text-red-200 border-red-400/30"
-                                      }`}>
-                                      {slotsRemaining} / {slotsTotal} Slots Left
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs text-emerald-200/80 mt-1.5 sm:mt-1 flex-wrap font-medium">
-                                  {originalProgram?.trainingHours && (
-                                    <span className="bg-emerald-950/70 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-700/40 shrink-0 font-semibold">
-                                      ⏱ {originalProgram.trainingHours} Hours
-                                    </span>
-                                  )}
-                                  {originalProgram && (
-                                    <span className="bg-emerald-950/80 text-emerald-200 px-2 sm:px-2.5 py-0.5 rounded-md border border-emerald-700/50 flex items-center gap-1 sm:gap-1.5 font-bold shrink-0 max-w-full">
-                                      <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
-                                      <span className="truncate">{getProgramFullSchedule(originalProgram)}</span>
-                                    </span>
-                                  )}
-                                  {originalProgram?.location && (
-                                    <span className="truncate max-w-[200px] sm:max-w-none flex items-center gap-1">
-                                      <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                                      <span>{extractLocationDisplay(originalProgram.location)}</span>
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Right Capacity Indicator & Actions */}
-                            <div className="flex items-center justify-between md:justify-end gap-2.5 sm:gap-4 shrink-0 pt-1 md:pt-0 border-t border-emerald-800/30 md:border-t-0">
-                              <div className="flex items-center gap-2">
-                                {originalProgram && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setProgramToArchive(originalProgram);
-                                    }}
-                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 shadow-xs cursor-pointer ${isProgramDurationDone(originalProgram)
-                                        ? "bg-amber-500 hover:bg-amber-600 text-white animate-pulse"
-                                        : "bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/40"
-                                      }`}
-                                    title={isProgramDurationDone(originalProgram) ? "Training Concluded: Archive Term & Enrollees" : "Conclude & Archive Program Term"}
-                                  >
-                                    <Archive className="w-3.5 h-3.5" />
-                                    <span>{isProgramDurationDone(originalProgram) ? "Archive Term" : "Archive"}</span>
-                                  </button>
-                                )}
-                              </div>
-
-                              {slotsRemaining !== undefined && (
-                                <div className="text-right hidden sm:block">
-                                  <div className="flex items-center gap-1.5 justify-end">
-                                    <span className={`text-xs font-black ${slotsRemaining > 5 ? "text-emerald-300" : slotsRemaining > 0 ? "text-amber-300" : "text-red-300"
-                                      }`}>
-                                      {slotsRemaining} / {slotsTotal} Slots Left
-                                    </span>
-                                  </div>
-                                  <div className="w-24 bg-emerald-950/80 h-1.5 rounded-full overflow-hidden mt-1 ml-auto border border-emerald-700/40">
-                                    <div
-                                      className={`h-full rounded-full ${slotsRemaining > 5 ? "bg-emerald-400" : slotsRemaining > 0 ? "bg-amber-400" : "bg-red-400"
-                                        }`}
-                                      style={{ width: `${Math.min(100, Math.round(((slotsTotal - slotsRemaining) / slotsTotal) * 100))}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              <motion.div
-                                animate={{ rotate: isExpanded ? 180 : 0 }}
-                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 text-emerald-200 flex items-center justify-center border border-white/10 shrink-0"
-                              >
-                                <ChevronDown className="w-4 h-4" />
-                              </motion.div>
-                            </div>
-                          </div>
-
-                          {/* Candidate List Body - Smooth Height & Opacity Expand */}
-                          <AnimatePresence initial={false}>
-                            {isExpanded && (
-                              <motion.div
-                                key={`program-candidates-${title}`}
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{
-                                  height: { duration: 0.32, ease: [0.16, 1, 0.3, 1] },
-                                  opacity: { duration: 0.22, ease: "easeOut" }
-                                }}
-                                className="overflow-hidden"
-                              >
-                                <div className="overflow-x-auto">
-                                  {programApplicants.length === 0 ? (
-                                    <div className="p-6 text-center text-xs text-gray-400 font-medium">
-                                      No applicants enrolled or registered under this program for the selected filters.
-                                    </div>
-                                  ) : (
-                                    <table className="w-full text-left text-xs border-collapse">
-                                      <thead>
-                                        <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">
-                                          <th className="py-3 px-4">Candidate Name</th>
-                                          <th className="py-3 px-4">Barangay & Purok</th>
-                                          <th className="py-3 px-4">Match Score</th>
-                                          <th className="py-3 px-4">Applied Date</th>
-                                          <th className="py-3 px-4">Status</th>
-                                          <th className="py-3 px-4 text-right">Admissions Action</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-gray-100">
-                                        {programApplicants.map((item) => (
-                                          <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
-                                            {/* Name & Quick Profile */}
-                                            <td className="py-3.5 px-4">
-                                              <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
-                                                  {item.youthName.charAt(0)}
-                                                </div>
-                                                <div>
-                                                  <button
-                                                    onClick={() => openApplicantModal(item)}
-                                                    className="font-bold text-gray-900 hover:text-[#0A6B43] hover:underline cursor-pointer text-left block text-sm"
-                                                  >
-                                                    {item.youthName}
-                                                  </button>
-                                                  <span className="text-[11px] text-gray-500 font-medium">
-                                                    Katipunan ng Kabataan
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            </td>
-
-                                            {/* Residency */}
-                                            <td className="py-3.5 px-4 font-semibold text-gray-700">
-                                              <div className="flex items-center gap-1.5">
-                                                <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                                <span>Purok {item.purok}, Brgy. {item.barangay}</span>
-                                              </div>
-                                            </td>
-
-                                            {/* Match Score */}
-                                            <td className="py-3.5 px-4">
-                                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                                                <Sparkles className="w-3 h-3 text-emerald-600" />
-                                                {item.matchScore}% Match
-                                              </span>
-                                            </td>
-
-                                            {/* Applied Date */}
-                                            <td className="py-3.5 px-4 text-gray-500 font-medium">
-                                              {item.referralDate}
-                                            </td>
-
-                                            {/* Status Badge */}
-                                            <td className="py-3.5 px-4">
-                                              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${item.status === "Enrolled"
-                                                  ? "bg-emerald-50 text-[#0A6B43] border-emerald-250"
-                                                  : item.status === "Pending"
-                                                    ? "bg-amber-50 text-amber-800 border-amber-250"
-                                                    : "bg-red-50 text-red-700 border-red-200"
-                                                }`}>
-                                                {item.status}
-                                              </span>
-                                            </td>
-
-                                            {/* Actions */}
-                                            <td className="py-3.5 px-4 text-right">
-                                              <div className="flex items-center justify-end gap-1.5">
-                                                <button
-                                                  onClick={() => openApplicantModal(item)}
-                                                  className="px-2.5 py-1.5 bg-white hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-250 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                                                  title="View Full Profile Dossier"
-                                                >
-                                                  <Eye className="w-3.5 h-3.5" />
-                                                  <span className="hidden sm:inline">Profile</span>
-                                                </button>
-
-                                                {item.status === "Pending" ? (
-                                                  <>
-                                                    <button
-                                                      onClick={() => handleUpdateReferralStatus(item.id, "Enrolled")}
-                                                      disabled={processingReferralId === item.id}
-                                                      className="px-3 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
-                                                      title="Accept & Enroll Trainee"
-                                                    >
-                                                      {processingReferralId === item.id && processingReferralStatus === "Enrolled" ? (
-                                                        <>
-                                                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                                                          <span>Enrolling...</span>
-                                                        </>
-                                                      ) : (
-                                                        <>
-                                                          <Check className="w-3.5 h-3.5" />
-                                                          <span>Enroll</span>
-                                                        </>
-                                                      )}
-                                                    </button>
-                                                    <button
-                                                      onClick={() => handleUpdateReferralStatus(item.id, "Declined")}
-                                                      disabled={processingReferralId === item.id}
-                                                      className="p-1.5 bg-white hover:bg-red-50 text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                                                      title="Decline Application"
-                                                    >
-                                                      {processingReferralId === item.id && processingReferralStatus === "Declined" ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600 shrink-0" />
-                                                      ) : (
-                                                        <X className="w-3.5 h-3.5" />
-                                                      )}
-                                                    </button>
-                                                  </>
-                                                ) : (
-                                                  <span className="text-[10px] text-gray-400 font-bold px-2 py-1 bg-gray-50 border border-gray-200 rounded-md">
-                                                    Processed
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  )}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })
-                  )}
-
-                  {/* Pagination Controls for Grouped Pipeline Programs */}
-                  {totalPipelineProgramPages > 1 && (
-                    <div className="bg-white rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <p className="text-xs text-gray-500 font-medium">
-                        Showing <span className="font-bold text-gray-900">{(currentPipelineProgramPage - 1) * DASHBOARD_PROGRAMS_PER_PAGE + 1}</span> to{" "}
-                        <span className="font-bold text-gray-900">{Math.min(programTitlesToDisplay.length, currentPipelineProgramPage * DASHBOARD_PROGRAMS_PER_PAGE)}</span> of{" "}
-                        <span className="font-bold text-gray-900">{programTitlesToDisplay.length}</span> programs
-                      </p>
-
-                      <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                        <button
-                          type="button"
-                          disabled={currentPipelineProgramPage === 1}
-                          onClick={() => {
-                            setDashboardProgramPage(p => Math.max(1, p - 1));
-                            document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
-                          }}
-                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
-                        >
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Prev</span>
-                        </button>
-
-                        <div className="flex items-center gap-1">
-                          {getPaginationItems(currentPipelineProgramPage, totalPipelineProgramPages).map((item, idx) => {
-                            if (item === "...") {
-                              return (
-                                <span key={`pipeline-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
-                                  ...
-                                </span>
-                              );
-                            }
-                            const pageNum = Number(item);
-                            const isSelected = pageNum === currentPipelineProgramPage;
-                            return (
-                              <button
-                                key={`pipeline-page-${pageNum}`}
-                                type="button"
-                                onClick={() => {
-                                  setDashboardProgramPage(pageNum);
-                                  document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
-                                }}
-                                className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                  isSelected
-                                    ? "bg-[#0A6B43] text-white shadow-xs font-black"
-                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={currentPipelineProgramPage === totalPipelineProgramPages}
-                          onClick={() => {
-                            setDashboardProgramPage(p => Math.min(totalPipelineProgramPages, p + 1));
-                            document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
-                          }}
-                          className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
-                        >
-                          <span className="hidden sm:inline">Next</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ============================================================ */}
-              {/* TAB 4: Program Roster Grid */}
-              {/* ============================================================ */}
-              {dashboardTab === "programs" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-                    {paginatedRosterPrograms.map((prog) => (
-                    <div key={prog.id} className="bg-white border border-gray-200/90 rounded-2xl p-5 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col justify-between h-full group">
-                      <div>
-                        {/* Header: Cost/Hours & Status Badge */}
-                        <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-2 mb-3">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-md shrink-0">
-                            {prog.cost} · {prog.trainingHours}h
-                          </span>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {isProgramDurationDone(prog) && (
-                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 shrink-0">
-                                <Clock className="w-3 h-3 text-purple-600" /> Ended
-                              </span>
-                            )}
-                            <span className={`text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 rounded-full border shrink-0 tracking-wide ${
-                              prog.slotsRemaining > 0 ? "bg-emerald-50 text-[#0A6B43] border-emerald-200" : "bg-red-50 text-red-700 border-red-200"
-                            }`}>
-                              {prog.slotsRemaining > 0 ? `${prog.slotsRemaining} Slots Left` : "Full Capacity"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <h3 className="font-extrabold text-base text-gray-900 group-hover:text-[#0A6B43] transition-colors leading-snug tracking-tight mb-2.5 break-words">
-                          {prog.title}
-                        </h3>
-
-                        <div className="space-y-2 text-xs text-gray-600 mb-4">
-                          {/* Schedule & Timeslot Badge */}
-                          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Schedule & Timeslot</p>
-                                <p className="text-xs font-bold text-gray-900 break-words sm:truncate">
-                                  {getProgramFullSchedule(prog)}
-                                </p>
-                              </div>
-                            </div>
-                            {(() => {
-                              const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
-                              return ts.sessionType !== "Custom" ? (
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${
-                                  ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                  "bg-purple-100 text-purple-900 border border-purple-200"
-                                }`}>
-                                  {ts.sessionType}
-                                </span>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            <span className="break-words sm:truncate font-medium">{extractLocationDisplay(prog.location) || "San Luis Municipal Center"}</span>
-                          </div>
-                          {prog.instructor && (
-                            <div className="flex items-center gap-2">
-                              <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                              <span className="break-words sm:truncate font-medium">Trainer: {prog.instructor}</span>
-                            </div>
-                          )}
-                          {(prog.startDate || prog.endDate) && (
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                              <span className="break-words sm:truncate font-medium">{formatProgramDateRange(prog.startDate, prog.endDate)}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Capacity meter */}
-                        <div className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-150">
-                          <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">
-                            <span>Enrollment Capacity</span>
-                            <span>{prog.slotsTotal - prog.slotsRemaining} / {prog.slotsTotal}</span>
-                          </div>
-                          <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className="bg-[#0A6B43] h-full rounded-full transition-all duration-300"
-                              style={{ width: `${Math.min(100, Math.round(((prog.slotsTotal - prog.slotsRemaining) / prog.slotsTotal) * 100))}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card Footer Actions */}
-                      <div className="pt-3 pb-0.5 border-t border-gray-100 mt-3 flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setViewingProgram(prog);
-                            setIsEditingInModal(false);
-                          }}
-                          className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100/80 text-[#0A6B43] border border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> Details
-                        </button>
-                        <div className="flex items-center gap-1">
-                          {isProgramDurationDone(prog) ? (
-                            <button
-                              type="button"
-                              onClick={() => setProgramToArchive(prog)}
-                              disabled={isArchivingProgram}
-                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-50"
-                              title="Conclude Term & Archive Students"
-                            >
-                              {archivingProgramId === prog.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Archive className="w-3 h-3" />
-                              )}
-                              <span>Archive Term</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setProgramToArchive(prog)}
-                              disabled={isArchivingProgram}
-                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                              title="Archive Program"
-                            >
-                              {archivingProgramId === prog.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                              ) : (
-                                <Archive className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(prog)}
-                            className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit Program"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProgramToDelete(prog)}
-                            disabled={isDeletingProgram}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                            title="Delete Program"
-                          >
-                            {deletingProgramId === prog.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
-                            ) : (
-                              <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pagination Controls for Program Roster Grid */}
-                {totalRosterProgramPages > 1 && (
-                  <div className="bg-white rounded-2xl border border-gray-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Showing <span className="font-bold text-gray-900">{(currentRosterProgramPage - 1) * DASHBOARD_ROSTER_PER_PAGE + 1}</span> to{" "}
-                      <span className="font-bold text-gray-900">{Math.min(activePrograms.length, currentRosterProgramPage * DASHBOARD_ROSTER_PER_PAGE)}</span> of{" "}
-                      <span className="font-bold text-gray-900">{activePrograms.length}</span> programs
-                    </p>
-
-                    <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                      <button
-                        type="button"
-                        disabled={currentRosterProgramPage === 1}
-                        onClick={() => {
-                          setDashboardRosterPage(p => Math.max(1, p - 1));
-                          document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
-                        }}
-                        className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Prev</span>
-                      </button>
-
-                      <div className="flex items-center gap-1">
-                        {getPaginationItems(currentRosterProgramPage, totalRosterProgramPages).map((item, idx) => {
-                          if (item === "...") {
-                            return (
-                              <span key={`roster-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
-                                ...
-                              </span>
-                            );
-                          }
-                          const pageNum = Number(item);
-                          const isSelected = pageNum === currentRosterProgramPage;
-                          return (
-                            <button
-                              key={`roster-page-${pageNum}`}
-                              type="button"
-                              onClick={() => {
-                                setDashboardRosterPage(pageNum);
-                                document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
-                              }}
-                              className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                isSelected
-                                  ? "bg-[#0A6B43] text-white shadow-xs font-black"
-                                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={currentRosterProgramPage === totalRosterProgramPages}
-                        onClick={() => {
-                          setDashboardRosterPage(p => Math.min(totalRosterProgramPages, p + 1));
-                          document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
-                        }}
-                        className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 transition-colors"
-                      >
-                        <span className="hidden sm:inline">Next</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-              {/* ============================================================ */}
-              {/* TAB 5: Archived History (Closed/Concluded Programs & Trainees) */}
-              {/* ============================================================ */}
-              {dashboardTab === "archived" && (
-                <div className="space-y-6">
-                  <div className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
-                        <Archive className="w-4 h-4 text-[#0A6B43]" />
-                        Archived Training Programs & Graduated Trainees
-                      </h3>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">
-                        Historical repository of concluded and archived training terms. The active dashboard remains uncluttered while graduate records and audit trails remain safely preserved.
-                      </p>
+                {/* Error State */}
+                {applicantsError && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 text-red-800 text-xs font-semibold">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{applicantsError}</span>
                     </div>
                     <button
                       type="button"
-                      onClick={fetchArchivedData}
-                      className="px-3.5 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs"
+                      onClick={refreshApplicantsData}
+                      className="px-3 py-1.5 bg-white hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 self-start sm:self-auto"
                     >
-                      Refresh Archive
+                      Retry
                     </button>
                   </div>
+                )}
 
-                  {loadingArchived ? (
-                    <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center">
-                      <div className="w-8 h-8 border-3 border-[#0A6B43] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                      <p className="text-xs text-gray-500 font-bold">Loading archived records from database...</p>
+                {/* Loading State */}
+                {(isLoadingApplicants || (dashboardTab === "archived" && loadingArchived)) ? (
+                  <div className="py-16 text-center space-y-3 border border-gray-100 rounded-2xl bg-gray-50/40">
+                    <Loader2 className="w-8 h-8 text-[#0A6B43] animate-spin mx-auto" />
+                    <p className="text-xs font-bold text-gray-600">Loading youth applications...</p>
+                  </div>
+                ) : filteredReferrals.length === 0 ? (
+                  /* Empty State */
+                  <div className="py-14 px-6 text-center space-y-3 border border-dashed border-gray-200 rounded-2xl bg-gray-50/30">
+                    <div className="w-12 h-12 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
+                      <Users className="w-6 h-6" />
                     </div>
-                  ) : archivedProgramsList.length === 0 && archivedReferralsList.length === 0 ? (
-                    <div className="w-full bg-white border border-dashed border-gray-300 rounded-2xl p-12 text-center space-y-3">
-                      <div className="w-14 h-14 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43] mx-auto">
-                        <Archive className="w-7 h-7" />
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className="text-base font-extrabold text-gray-900">No Archived Programs or Enrollees</h4>
-                        <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-                          When you archive a program or conclude a training term whose duration is done, it will be safely filed here and hidden from your active dashboard.
-                        </p>
-                      </div>
+                    <div className="space-y-1">
+                      <h3 className="text-base font-extrabold text-gray-900">No Applications Found</h3>
+                      <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                        {isSearchActive
+                          ? "No youth applications match your current search or filter settings. Try adjusting your filters."
+                          : "There are currently no youth applications recorded in this category."}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {/* Archived Programs Grid */}
-                      {archivedProgramsList.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider mb-3">
-                            Concluded & Archived Programs ({archivedProgramsList.length})
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {archivedProgramsList.map(prog => {
-                              const programArchivedEnrollees = archivedReferralsList.filter(r => r.programTitle === prog.title || r.programId === prog.id);
-                              return (
-                                <div key={prog.id} className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs hover:shadow-sm transition-all">
-                                  <div className="flex justify-between items-start gap-2 mb-2">
-                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
-                                      Archived Term
-                                    </span>
-                                    <span className="text-[10px] font-bold text-gray-500">
-                                      {prog.trainingHours}h · {prog.cost}
-                                    </span>
-                                  </div>
-                                  <h4 className="font-extrabold text-sm text-gray-900 mb-2">{prog.title}</h4>
-                                  <div className="space-y-1 text-xs text-gray-500 mb-3">
-                                    {prog.location && (
-                                      <p className="truncate flex items-center gap-1 font-medium">
-                                        <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                                        <span>{extractLocationDisplay(prog.location)}</span>
-                                      </p>
-                                    )}
-                                    {prog.endDate && (
-                                      <p className="truncate flex items-center gap-1 font-medium">
-                                        <Clock className="w-3 h-3 text-gray-400 shrink-0" />
-                                        <span>Concluded on: {formatProgramDate(prog.endDate)}</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-xs">
-                                    <span className="text-gray-500 font-medium">Archived Enrollees</span>
-                                    <span className="font-bold text-gray-900 bg-emerald-50 text-[#0A6B43] px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
-                                      {programArchivedEnrollees.length} Trainees
-                                    </span>
-                                  </div>
+                    {isSearchActive && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPipelineSearch("");
+                          setPipelineStatusFilter("All");
+                          setPipelineProgramFilter("All");
+                          setPipelineBarangayFilter("All");
+                          setPipelineDateRangeFilter("All");
+                          setDashboardTab("all");
+                        }}
+                        className="mt-1 px-3.5 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Reset Filters</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Consolidated Responsive Table + Mobile Cards */
+                  <div className="space-y-4">
+                    {/* Mobile & Tablet Card View (< md) */}
+                    <div className="md:hidden divide-y divide-gray-100 border border-gray-200/90 rounded-2xl overflow-hidden">
+                      {paginatedFlatApplicants.map((item) => {
+                        const matchedProfile = youthProfiles.find(
+                          y =>
+                            (item.youthId && y.id === item.youthId) ||
+                            y.name.toLowerCase().trim() === item.youthName.toLowerCase().trim()
+                        );
+                        const initials = getApplicantInitials(item.youthName);
+                        const requiresDecision = item.status === "Pending" || item.status === "Approved";
 
-                                  {/* Card Action Buttons */}
-                                  <div className="pt-3 mt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                        return (
+                          <div key={item.id} className="p-4 space-y-3 bg-white hover:bg-emerald-50/20 transition-colors">
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex items-center gap-3 min-w-0">
+                                {matchedProfile?.profilePicture ? (
+                                  <img
+                                    src={matchedProfile.profilePicture}
+                                    alt={item.youthName}
+                                    className="w-9 h-9 rounded-full object-cover border border-emerald-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-extrabold text-xs shrink-0">
+                                    {initials || "KK"}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openApplicantModal(item)}
+                                    className="font-bold text-gray-900 hover:text-[#0A6B43] text-sm truncate block text-left cursor-pointer"
+                                  >
+                                    {item.youthName}
+                                  </button>
+                                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                                    Purok {item.purok}, Brgy. {item.barangay.replace(/^Barangay\s+/i, "")}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shrink-0 ${item.status === "Enrolled"
+                                  ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                  : item.status === "Approved"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : item.status === "Pending"
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : item.status === "Archived"
+                                        ? "bg-gray-100 text-gray-700 border-gray-200"
+                                        : "bg-red-50 text-red-700 border-red-200"
+                                }`}>
+                                {item.status}
+                              </span>
+                            </div>
+
+                            <div className="bg-gray-50/80 border border-gray-100 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
+                              <span className="font-bold text-gray-800 truncate" title={item.programTitle}>
+                                {item.programTitle}
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200 shrink-0">
+                                <Sparkles className="w-3 h-3 text-emerald-600" />
+                                {item.matchScore}%
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-0.5">
+                              <span className="text-[11px] text-gray-500 font-medium">
+                                Applied: <strong className="text-gray-700">{item.applicationDate || item.referralDate}</strong>
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openApplicantModal(item)}
+                                  className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Review</span>
+                                </button>
+                                {canManageApplicants && requiresDecision && (
+                                  <>
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setViewingProgram(prog);
-                                        setIsEditingInModal(false);
+                                        setReviewingApplication(item);
+                                        setPendingReviewDecision("Declined");
                                       }}
-                                      className="py-1.5 px-3 bg-gray-50 hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98]"
+                                      disabled={processingReferralId === item.id}
+                                      className="w-8 h-8 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 border border-gray-200 hover:border-red-200 rounded-lg flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 disabled:opacity-60"
+                                      title="Reject Application"
+                                      aria-label="Reject Application"
                                     >
-                                      <Eye className="w-3.5 h-3.5" /> Details
+                                      {processingReferralId === item.id && processingReferralStatus === "Declined" ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600 shrink-0" />
+                                      ) : (
+                                        <X className="w-4 h-4 shrink-0" />
+                                      )}
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => setProgramToRestore(prog)}
-                                      disabled={isRestoringProgram || restoringProgramId === prog.id}
-                                      className="py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs hover:shadow-xs active:scale-[0.98] disabled:opacity-50"
-                                      title="Restore program to active catalog"
+                                      onClick={() => {
+                                        setReviewingApplication(item);
+                                        setPendingReviewDecision(item.status === "Approved" ? "Enrolled" : "Approved");
+                                      }}
+                                      disabled={processingReferralId === item.id}
+                                      className="w-8 h-8 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-lg flex items-center justify-center cursor-pointer shadow-xs disabled:opacity-60"
+                                      title={item.status === "Approved" ? "Enroll Applicant" : "Approve Application"}
+                                      aria-label={item.status === "Approved" ? "Enroll Applicant" : "Approve Application"}
                                     >
-                                      {restoringProgramId === prog.id ? (
-                                        <>
-                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                          <span>Restoring...</span>
-                                        </>
+                                      {processingReferralId === item.id && (processingReferralStatus === "Approved" || processingReferralStatus === "Enrolled") ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                                       ) : (
-                                        <>
-                                          <RotateCcw className="w-3.5 h-3.5" />
-                                          <span>Restore</span>
-                                        </>
+                                        <Check className="w-4 h-4 shrink-0" />
                                       )}
                                     </button>
-                                  </div>
-                                </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Desktop Consolidated Table (>= md) */}
+                    <div className="hidden md:block border border-gray-200/90 rounded-2xl overflow-hidden shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">
+                              <th className="py-3.5 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplicantSort("applicant")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none ${applicantSortCol === "applicant" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                >
+                                  <span>Applicant</span>
+                                  {applicantSortCol === "applicant" ? (
+                                    applicantSortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 opacity-40" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3.5 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplicantSort("program")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none ${applicantSortCol === "program" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                >
+                                  <span>Program</span>
+                                  {applicantSortCol === "program" ? (
+                                    applicantSortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 opacity-40" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3.5 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplicantSort("matchScore")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none ${applicantSortCol === "matchScore" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                >
+                                  <span>Match Score</span>
+                                  {applicantSortCol === "matchScore" ? (
+                                    applicantSortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 opacity-40" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3.5 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplicantSort("appliedDate")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none ${applicantSortCol === "appliedDate" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                >
+                                  <span>Applied Date</span>
+                                  {applicantSortCol === "appliedDate" ? (
+                                    applicantSortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 opacity-40" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3.5 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplicantSort("status")}
+                                  className={`inline-flex items-center gap-1 uppercase tracking-wider text-[11px] font-bold transition-colors cursor-pointer select-none ${applicantSortCol === "status" ? "text-[#0A6B43]" : "text-gray-500 hover:text-gray-900"
+                                    }`}
+                                >
+                                  <span>Status</span>
+                                  {applicantSortCol === "status" ? (
+                                    applicantSortDir === "asc" ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 opacity-40" />
+                                  )}
+                                </button>
+                              </th>
+                              <th className="py-3.5 px-4 text-center">Review</th>
+                              <th className="py-3.5 px-4 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {paginatedFlatApplicants.map((item) => {
+                              const matchedProfile = youthProfiles.find(
+                                y =>
+                                  (item.youthId && y.id === item.youthId) ||
+                                  y.name.toLowerCase().trim() === item.youthName.toLowerCase().trim()
+                              );
+                              const initials = getApplicantInitials(item.youthName);
+                              const associatedProgram = programs.find(
+                                p => p.title === item.programTitle || p.id === item.programId
+                              );
+                              const requiresDecision = item.status === "Pending" || item.status === "Approved";
+
+                              return (
+                                <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors group">
+                                  {/* Column 1: Applicant (Initials/Avatar, Full Name, Barangay or Purok) */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="flex items-center gap-3">
+                                      {matchedProfile?.profilePicture ? (
+                                        <img
+                                          src={matchedProfile.profilePicture}
+                                          alt={item.youthName}
+                                          className="w-9 h-9 rounded-full object-cover border border-emerald-200 shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="w-9 h-9 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-extrabold text-xs shrink-0">
+                                          {initials || "KK"}
+                                        </div>
+                                      )}
+                                      <div className="min-w-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => openApplicantModal(item)}
+                                          className="font-bold text-gray-900 hover:text-[#0A6B43] hover:underline cursor-pointer text-left block text-sm truncate max-w-[220px]"
+                                        >
+                                          {item.youthName}
+                                        </button>
+                                        <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium mt-0.5">
+                                          <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                                          <span className="truncate">
+                                            Purok {item.purok}, Brgy. {item.barangay.replace(/^Barangay\s+/i, "")}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Column 2: Program */}
+                                  <td className="py-3.5 px-4">
+                                    <div className="min-w-0 max-w-[260px]">
+                                      <p className="font-bold text-gray-900 truncate" title={item.programTitle}>
+                                        {item.programTitle}
+                                      </p>
+                                      {associatedProgram && (
+                                        <p className="text-[11px] text-gray-500 font-medium truncate mt-0.5">
+                                          {associatedProgram.slotsRemaining} of {associatedProgram.slotsTotal} slots open · {associatedProgram.trainingHours}h
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* Column 3: Match Score */}
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                                      <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>{item.matchScore}%</span>
+                                    </div>
+                                  </td>
+
+                                  {/* Column 4: Applied Date */}
+                                  <td className="py-3.5 px-4 text-gray-600 font-semibold whitespace-nowrap">
+                                    {item.applicationDate || item.referralDate}
+                                  </td>
+
+                                  {/* Column 5: Status */}
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${item.status === "Enrolled"
+                                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                        : item.status === "Approved"
+                                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                                          : item.status === "Pending"
+                                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                                            : item.status === "Archived"
+                                              ? "bg-gray-100 text-gray-700 border-gray-200"
+                                              : "bg-red-50 text-red-700 border-red-200"
+                                      }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Enrolled"
+                                          ? "bg-[#0A6B43]"
+                                          : item.status === "Approved"
+                                            ? "bg-blue-600"
+                                            : item.status === "Pending"
+                                              ? "bg-amber-500"
+                                              : item.status === "Archived"
+                                                ? "bg-gray-500"
+                                                : "bg-red-500"
+                                        }`} />
+                                      <span>{item.status}</span>
+                                    </span>
+                                  </td>
+
+                                  {/* Column 6: Review (Opens applicant profile and application details) */}
+                                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => openApplicantModal(item)}
+                                      className="px-3 py-1.5 bg-white hover:bg-emerald-50 text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-200 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                                      title="Review applicant profile and application details"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      <span>Review</span>
+                                    </button>
+                                  </td>
+
+                                  {/* Column 7: Action (Icon-only Reject and Approve buttons) */}
+                                  <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                    {canManageApplicants && requiresDecision ? (
+                                      <div className="inline-flex items-center justify-end gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setReviewingApplication(item);
+                                            setPendingReviewDecision("Declined");
+                                          }}
+                                          disabled={processingReferralId === item.id}
+                                          className="w-8 h-8 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 border border-gray-200 hover:border-red-200 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center shadow-2xs active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                          title="Reject Application"
+                                          aria-label="Reject Application"
+                                        >
+                                          {processingReferralId === item.id && processingReferralStatus === "Declined" ? (
+                                            <Loader2 className="w-4 h-4 animate-spin text-red-600 shrink-0" />
+                                          ) : (
+                                            <X className="w-4 h-4 shrink-0" />
+                                          )}
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setReviewingApplication(item);
+                                            setPendingReviewDecision(item.status === "Approved" ? "Enrolled" : "Approved");
+                                          }}
+                                          disabled={processingReferralId === item.id}
+                                          className="w-8 h-8 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-lg transition-all cursor-pointer inline-flex items-center justify-center shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                                          title={item.status === "Approved" ? "Enroll Applicant" : "Approve Application"}
+                                          aria-label={item.status === "Approved" ? "Enroll Applicant" : "Approve Application"}
+                                        >
+                                          {processingReferralId === item.id && (processingReferralStatus === "Approved" || processingReferralStatus === "Enrolled") ? (
+                                            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                                          ) : (
+                                            <Check className="w-4 h-4 shrink-0" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[11px] font-semibold text-gray-400">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Showing <span className="font-bold text-gray-900">{(currentApplicantTablePage - 1) * APPLICANTS_TABLE_PER_PAGE + 1}</span> to{" "}
+                        <span className="font-bold text-gray-900">{Math.min(filteredReferrals.length, currentApplicantTablePage * APPLICANTS_TABLE_PER_PAGE)}</span> of{" "}
+                        <span className="font-bold text-gray-900">{filteredReferrals.length}</span> application{filteredReferrals.length !== 1 ? "s" : ""}
+                      </p>
+
+                      {totalApplicantTablePages > 1 && (
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                          <button
+                            type="button"
+                            disabled={currentApplicantTablePage === 1}
+                            onClick={() => setApplicantTablePage(p => Math.max(1, p - 1))}
+                            className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 disabled:opacity-40 cursor-pointer flex items-center gap-1 transition-colors"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <span>Prev</span>
+                          </button>
+
+                          <div className="flex items-center gap-1">
+                            {getPaginationItems(currentApplicantTablePage, totalApplicantTablePages).map((item, idx) => {
+                              if (item === "...") {
+                                return (
+                                  <span key={`app-ellipsis-${idx}`} className="w-7 text-center text-xs text-gray-400 select-none">
+                                    ...
+                                  </span>
+                                );
+                              }
+                              const pageNum = Number(item);
+                              const isSelected = pageNum === currentApplicantTablePage;
+                              return (
+                                <button
+                                  key={`app-page-${pageNum}`}
+                                  type="button"
+                                  onClick={() => setApplicantTablePage(pageNum)}
+                                  className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
+                                      ? "bg-[#0A6B43] text-white shadow-xs font-black"
+                                      : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                                    }`}
+                                >
+                                  {pageNum}
+                                </button>
                               );
                             })}
                           </div>
+
+                          <button
+                            type="button"
+                            disabled={currentApplicantTablePage === totalApplicantTablePages}
+                            onClick={() => setApplicantTablePage(p => Math.min(totalApplicantTablePages, p + 1))}
+                            className="h-8 px-2.5 sm:px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-600 shadow-2xs hover:bg-gray-50 disabled:opacity-40 cursor-pointer flex items-center gap-1 transition-colors"
+                          >
+                            <span>Next</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       )}
-
-                      {/* Archived Enrollees Table */}
-                      <div className="bg-white border border-gray-200/90 rounded-2xl overflow-hidden shadow-xs">
-                        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                          <h4 className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
-                            Archived Enrollees & Graduates Record ({archivedReferralsList.length})
-                          </h4>
-                        </div>
-                        {archivedReferralsList.length === 0 ? (
-                          <div className="p-8 text-center text-xs text-gray-400 font-medium">
-                            No student records currently marked as archived.
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse">
-                              <thead>
-                                <tr className="bg-gray-50/70 text-gray-500 font-bold text-[11px] uppercase tracking-wider border-b border-gray-200">
-                                  <th className="py-3 px-4">Candidate Name</th>
-                                  <th className="py-3 px-4">Barangay & Purok</th>
-                                  <th className="py-3 px-4">Archived Program</th>
-                                  <th className="py-3 px-4">Match Score</th>
-                                  <th className="py-3 px-4">Record Status</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                {archivedReferralsList.map(item => (
-                                  <tr key={item.id} className="hover:bg-emerald-50/30 transition-colors">
-                                    <td className="py-3 px-4 font-bold text-gray-900">
-                                      {item.youthName}
-                                    </td>
-                                    <td className="py-3 px-4 text-gray-600 font-medium">
-                                      Purok {item.purok}, Brgy. {item.barangay}
-                                    </td>
-                                    <td className="py-3 px-4 font-medium text-gray-700">
-                                      {item.programTitle}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                        {item.matchScore}% Match
-                                      </span>
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      <span className="inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                                        Archived
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
                     </div>
-                  )}
-                </div>
-              )}
-
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2968,11 +4695,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     <h3 className="text-xl sm:text-[26px] font-extrabold text-gray-900 tracking-tight">
                       {viewingArchivedPrograms ? "Archived Training Programs" : "Active Training Programs"}
                     </h3>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border leading-none ${
-                      viewingArchivedPrograms
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border leading-none ${viewingArchivedPrograms
                         ? "bg-gray-100 text-gray-700 border-gray-300"
                         : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                    }`}>
+                      }`}>
                       {filteredProgramsList.length}
                     </span>
                   </div>
@@ -2995,11 +4721,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         setViewingArchivedPrograms(next);
                         if (next) fetchArchivedData();
                       }}
-                      className={`px-4 py-2 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0 ${
-                        viewingArchivedPrograms
+                      className={`px-4 py-2 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0 ${viewingArchivedPrograms
                           ? "bg-[#0A6B43] hover:bg-[#075332]"
                           : "bg-gray-600 hover:bg-gray-700"
-                      }`}
+                        }`}
                       title={viewingArchivedPrograms ? "Switch back to active programs" : "View archived program catalog"}
                     >
                       {viewingArchivedPrograms ? (
@@ -3215,15 +4940,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 </p>
                               </div>
 
-                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${
-                                prog.activeStatus === "Closed"
+                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${prog.activeStatus === "Closed"
                                   ? "bg-gray-100 text-gray-700 border-gray-300"
                                   : isEnded
                                     ? "bg-gray-100 text-gray-600 border-gray-300"
                                     : isFull
                                       ? "bg-amber-50 text-amber-800 border-amber-200"
                                       : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                              }`}>
+                                }`}>
                                 {prog.activeStatus === "Closed" ? "Archived" : isEnded ? "Inactive" : "Active"}
                               </span>
                             </div>
@@ -3396,15 +5120,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 whitespace-nowrap">
-                                  <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border tracking-wide ${
-                                    prog.activeStatus === "Closed"
+                                  <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border tracking-wide ${prog.activeStatus === "Closed"
                                       ? "bg-gray-100 text-gray-700 border-gray-300"
                                       : isEnded
                                         ? "bg-gray-100 text-gray-600 border-gray-300"
                                         : isFull
                                           ? "bg-amber-50 text-amber-800 border-amber-200"
                                           : "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                                  }`}>
+                                    }`}>
                                     {prog.activeStatus === "Closed" ? "Archived" : isEnded ? "Inactive" : "Active"}
                                   </span>
                                 </td>
@@ -3475,11 +5198,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 setProgramsCatalogPage(pageNum);
                                 document.querySelector("main")?.scrollTo({ top: 380, behavior: "smooth" });
                               }}
-                              className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                isSelected
+                              className={`min-w-8 h-8 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
                                   ? "bg-[#0A6B43] text-white shadow-xs font-black"
                                   : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs"
-                              }`}
+                                }`}
                             >
                               {pageNum}
                             </button>
@@ -3726,8 +5448,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <div className="flex flex-wrap gap-2">
                           {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
                             <label key={day} className={`flex items-center gap-1.5 px-3.5 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${progTrainingDays.includes(day)
-                                ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
-                                : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                              ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
+                              : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                               }`}>
                               <input
                                 type="checkbox"
@@ -3757,8 +5479,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             type="button"
                             onClick={() => applyTimeslotPreset("morning")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "12:00"
-                                ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
-                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Sun className="w-3 h-3 text-amber-600 shrink-0" />
@@ -3768,8 +5490,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             type="button"
                             onClick={() => applyTimeslotPreset("afternoon")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "13:00" && progEndTime === "17:00"
-                                ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
-                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Sun className="w-3 h-3 text-blue-600 shrink-0" />
@@ -3779,8 +5501,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             type="button"
                             onClick={() => applyTimeslotPreset("fullday")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "17:00"
-                                ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
-                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
@@ -3790,8 +5512,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             type="button"
                             onClick={() => applyTimeslotPreset("evening")}
                             className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "17:30" && progEndTime === "20:30"
-                                ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
-                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                              ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
                               }`}
                           >
                             <Moon className="w-3 h-3 text-purple-600 shrink-0" />
@@ -3832,9 +5554,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             const ts = formatProgramTimeslot(progStartTime, progEndTime);
                             return ts.sessionType !== "Custom" ? (
                               <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                    ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                      "bg-purple-100 text-purple-900 border border-purple-200"
+                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                  ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                    "bg-purple-100 text-purple-900 border border-purple-200"
                                 }`}>
                                 {ts.sessionType}
                               </span>
@@ -3899,8 +5621,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             type="button"
                             onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
                             className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${progTrainingHours === computedTrainingHours.totalHours
-                                ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
-                                : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
+                              ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
+                              : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
                               }`}
                           >
                             {progTrainingHours === computedTrainingHours.totalHours ? "✓ Applied" : "Apply to Hours"}
@@ -4037,532 +5759,529 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 {/* Right Main Content Area */}
                 <main className="flex-1 min-w-0 w-full">
                   <AnimatePresence mode="wait">
-                  {/* TAB 1: INSTITUTION PROFILE */}
-                  {profileActiveTab === "profile" && (
-                    <motion.div
-                      key="profile"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-6 w-full"
-                    >
-                      {/* Left Column: Institution Dossier Info or Active Edit Form */}
-                      <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                      {!isEditingProfile ? (
-                        /* Read-Only Dossier Mode */
-                        <div className="space-y-6">
+                    {/* TAB 1: INSTITUTION PROFILE */}
+                    {profileActiveTab === "profile" && (
+                      <motion.div
+                        key="profile"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-6 w-full"
+                      >
+                        {/* Left Column: Institution Dossier Info or Active Edit Form */}
+                        <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 space-y-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                          {!isEditingProfile ? (
+                            /* Read-Only Dossier Mode */
+                            <div className="space-y-6">
+                              <div className="border-b border-gray-100 pb-3">
+                                <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                                  <Building2 className="w-4.5 h-4.5 text-[#0A6B43]" />
+                                  Institution Profile Details
+                                </h3>
+                              </div>
+
+                              {/* Section 1: Basic Information */}
+                              <div className="space-y-3.5">
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                                  <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  Training Institution Information
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                                  <div className="space-y-0.5 sm:col-span-2">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{savedCenterName}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Representative</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[16px] font-semibold text-gray-900 leading-tight">{savedRepName}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={savedRepEmail}>
+                                        {savedRepEmail}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-0.5 sm:col-span-2">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact / Hotline</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[16px] font-semibold text-gray-900 leading-tight">{savedRepPhone || "Not configured"}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institution Classification</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[15px] font-semibold text-gray-900 leading-tight">Public Vocational Institution (TESDA-Administered)</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Regional Jurisdiction</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[15px] font-semibold text-gray-900 leading-tight">District II, Pampanga · Region III Central Luzon</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Section 2: Accreditation & Operating Status */}
+                              <div className="space-y-3.5 pt-1">
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                                  <Award className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  Accreditation & Operating Status
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                                  <div className="space-y-0.5">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">UTPRAS Operating Status</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                        ACTIVE & CERTIFIED
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accreditation Code</span>
+                                    <div className="h-[42px] flex items-center">
+                                      <p className="text-[16px] font-mono font-bold text-gray-900 leading-tight">UTPRAS-R03-PAM-2024</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Bottom Action: Edit Details Button */}
+                              <div className="pt-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRepName(savedRepName);
+                                    setRepEmail(savedRepEmail);
+                                    setCenterName(savedCenterName);
+                                    setRepPhone(savedRepPhone);
+                                    setIsEditingProfile(true);
+                                  }}
+                                  className="group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                                >
+                                  <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
+                                  <span>Edit Details</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Edit Mode Form */
+                            <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
+                              <div className="border-b border-gray-100 pb-3">
+                                <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                                  <Edit className="w-4.5 h-4.5 text-[#0A6B43]" />
+                                  Edit Institution Details
+                                </h3>
+                              </div>
+
+                              {/* Section 1: Basic Information */}
+                              <div className="space-y-3.5">
+                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
+                                  <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                  Training Institution Information
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
+                                  <div className="space-y-0.5 sm:col-span-2">
+                                    <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution / Center Name *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={centerName}
+                                      onChange={(e) => setCenterName(e.target.value)}
+                                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Focal Representative *</label>
+                                    <input
+                                      type="text"
+                                      required
+                                      value={repName}
+                                      onChange={(e) => setRepName(e.target.value)}
+                                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email *</label>
+                                    <input
+                                      type="email"
+                                      required
+                                      value={repEmail}
+                                      onChange={(e) => setRepEmail(e.target.value)}
+                                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-0.5 sm:col-span-2">
+                                    <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Official Contact / Landline</label>
+                                    <input
+                                      type="text"
+                                      value={repPhone}
+                                      onChange={(e) => setRepPhone(e.target.value)}
+                                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Form Buttons */}
+                              <div className="pt-2 flex justify-end gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={handleCancelProfileEdit}
+                                  disabled={isSavingProfile}
+                                  className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={isSavingProfile}
+                                  className="group/save px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                                >
+                                  {isSavingProfile ? (
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-4 h-4 transition-transform duration-200 group-hover/save:scale-125 group-hover/save:rotate-6" />
+                                  )}
+                                  <span>Save Institution Details</span>
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+
+                        {/* Right Column: TVET Authority & Institutional Profile */}
+                        <div className="xl:col-span-5 space-y-4">
+                          <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm space-y-4">
+                            <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                              <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
+                                <Award className="w-4.5 h-4.5 text-[#0A6B43]" />
+                                TVET Center Authority
+                              </h4>
+                              <span className="text-[11px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                Verified TVET Focal
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
+                                {repName.charAt(0).toUpperCase() || "T"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-extrabold text-gray-900 text-base leading-tight truncate">{repName}</h4>
+                                <p className="text-xs font-bold text-[#0A6B43] mt-0.5 truncate">{centerName}</p>
+                                <p className="text-xs text-gray-500 font-medium mt-1 truncate">{repEmail}</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 pt-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                                <span className="text-gray-500 font-medium">Clearance Level</span>
+                                <span className="font-bold text-gray-900">Institutional Partner (Tier 4)</span>
+                              </div>
+                              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                                <span className="text-gray-500 font-medium">Active TVET Programs</span>
+                                <span className="font-bold text-gray-900">
+                                  {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Program(s)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                                <span className="text-gray-500 font-medium">Enrolled Youth Trainees</span>
+                                <span className="font-bold text-gray-900">
+                                  {referrals.filter((r) => r.status === "Enrolled").length} Trainee(s)
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                                <span className="text-gray-500 font-medium">Supervisory Office</span>
+                                <span className="font-bold text-gray-900">TESDA Pampanga PO</span>
+                              </div>
+                              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
+                                <span className="text-gray-500 font-medium">Accreditation Code</span>
+                                <span className="font-mono font-bold text-gray-700">UTPRAS-R03-PAM-2024</span>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80 text-[11px] text-gray-600 leading-relaxed font-medium">
+                              <p className="font-bold text-emerald-900 mb-1 flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                Republic Act No. 7796 Mandate
+                              </p>
+                              Authorized under the Technical Education and Skills Development Act to evaluate youth program applications, administer competency training, and report graduation outcomes.
+                            </div>
+
+                            <div className="pt-2 border-t border-gray-100">
+                              <button
+                                type="button"
+                                disabled={isLoggingOut}
+                                onClick={handleSignOut}
+                                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
+                                  }`}
+                              >
+                                {isLoggingOut ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
+                                    <span>Signing out...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <LogOut className="w-3.5 h-3.5" />
+                                    <span>Sign Out of Institutional Portal</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* TAB 2: ACCOUNT SECURITY */}
+                    {profileActiveTab === "security" && (
+                      <motion.div
+                        key="security"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
+                      >
+                        <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+                          <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
+                            <div className="border-b border-gray-100 pb-3">
+                              <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+                                <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
+                                Account Security & Password
+                              </h3>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password *</label>
+                              <div className="relative">
+                                <input
+                                  type={showCurrentPass ? "text" : "password"}
+                                  required
+                                  value={currentPassword}
+                                  onChange={(e) => setCurrentPassword(e.target.value)}
+                                  placeholder="Enter current password..."
+                                  className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password *</label>
+                              <div className="relative">
+                                <input
+                                  type={showNewPass ? "text" : "password"}
+                                  required
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  placeholder="Enter new password (min. 6 characters)..."
+                                  className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowNewPass(!showNewPass)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
+                                {confirmPassword.length > 0 && (
+                                  <span className={`text-[11px] font-bold ${confirmPassword === newPassword ? "text-[#0A6B43]" : "text-rose-500"}`}>
+                                    {confirmPassword === newPassword ? "Passwords match ✓" : "Passwords do not match"}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type={showConfirmPass ? "text" : "password"}
+                                  required
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  placeholder="Re-type new password..."
+                                  className={`w-full px-3 py-2 pr-10 h-10 border rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${confirmPassword.length > 0 && confirmPassword !== newPassword ? "border-rose-300 bg-rose-50/20" : "border-gray-200"
+                                    }`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                >
+                                  {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 flex justify-end">
+                              <button
+                                type="submit"
+                                disabled={isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword}
+                                className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword
+                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                                    : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                                  }`}
+                              >
+                                {isChangingPassword ? (
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Lock className="w-4 h-4 transition-transform duration-200 group-hover/pwd:rotate-12 group-hover/pwd:scale-115" />
+                                )}
+                                <span>Update Institutional Password</span>
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+
+                        {/* Security Guide Companion Card */}
+                        <div className="xl:col-span-5">
+                          <SettingsSecurityGuideCard
+                            newPassword={newPassword}
+                            accountTypeLabel="TVET Partner Account"
+                            accountNotice="Your account maintains access to municipal youth training enrollments and competency certification records. Ensure institutional credentials remain strictly confidential."
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* TAB 3: NOTIFICATIONS */}
+                    {profileActiveTab === "notifications" && (
+                      <motion.div
+                        key="notifications"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
+                      >
+                        <div className="xl:col-span-7">
+                          <NotificationSettingsCard
+                            userRole="TESDA_PARTNER"
+                            userEmail={currentUser?.email}
+                            addToast={addToast}
+                            className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
+                          />
+                        </div>
+                        <div className="xl:col-span-5 space-y-4">
+                          <SettingsNotificationChannelsCard
+                            pushDescription="Real-time push alerts for youth program applications, batch intake milestones, and municipal referral submissions."
+                            emailDescription="Official endorsement packages, TVET compliance audits, and security authentication notices sent to your institutional address."
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* TAB 4: TVET ACCREDITATION BADGE */}
+                    {profileActiveTab === "badge" && (
+                      <motion.div
+                        key="badge"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="space-y-6 w-full pb-6"
+                      >
+                        <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
                           <div className="border-b border-gray-100 pb-3">
                             <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                              <Building2 className="w-4.5 h-4.5 text-[#0A6B43]" />
-                              Institution Profile Details
+                              <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
+                              TVET Accreditation Badge
                             </h3>
+                            <p className="text-sm text-gray-400 font-medium mt-0.5">
+                              Official TESDA training institution accreditation credential for San Luis, Pampanga
+                            </p>
                           </div>
 
-                          {/* Section 1: Basic Information */}
-                          <div className="space-y-3.5">
-                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
-                              Training Institution Information
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
-                              <div className="space-y-0.5 sm:col-span-2">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 break-words leading-tight">{savedCenterName}</p>
-                                </div>
-                              </div>
-                              <div className="space-y-0.5">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Representative</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{savedRepName}</p>
-                                </div>
-                              </div>
-                              <div className="space-y-0.5">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 break-words truncate leading-tight" title={savedRepEmail}>
-                                    {savedRepEmail}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="space-y-0.5 sm:col-span-2">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Contact / Hotline</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-semibold text-gray-900 leading-tight">{savedRepPhone || "Not configured"}</p>
-                                </div>
-                              </div>
-                              <div className="space-y-0.5">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institution Classification</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[15px] font-semibold text-gray-900 leading-tight">Public Vocational Institution (TESDA-Administered)</p>
-                                </div>
-                              </div>
-                              <div className="space-y-0.5">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Regional Jurisdiction</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[15px] font-semibold text-gray-900 leading-tight">District II, Pampanga · Region III Central Luzon</p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                          {/* Digital Credential ID Card */}
+                          <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-700/40 bg-gradient-to-br from-emerald-950 via-slate-900 to-[#0A3D27] text-white p-7 shadow-2xl max-w-xl mx-auto w-full">
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="absolute bottom-0 left-0 w-40 h-40 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
 
-                          {/* Section 2: Accreditation & Operating Status */}
-                          <div className="space-y-3.5 pt-1">
-                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                              <Award className="w-3.5 h-3.5 text-[#0A6B43]" />
-                              Accreditation & Operating Status
+                            {/* Card Top Header */}
+                            <div className="flex items-center justify-between pb-5 border-b border-emerald-800/60 relative z-10">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-amber-400">
+                                  <Award className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Republic of the Philippines</p>
+                                  <p className="text-xs font-extrabold tracking-wide text-white">TESDA TVET Training Partner</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                Official Partner
+                              </span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
-                              <div className="space-y-0.5">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">UTPRAS Operating Status</span>
-                                <div className="h-[42px] flex items-center">
-                                  <span className="text-xs font-extrabold text-[#0A6B43] bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
-                                    ACTIVE & CERTIFIED
-                                  </span>
+
+                            {/* Card Body */}
+                            <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
+                              <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
+                                {repName.charAt(0).toUpperCase() || "T"}
+                              </div>
+                              <div className="text-center sm:text-left space-y-1">
+                                <h4 className="text-lg font-black text-white tracking-tight">{repName}</h4>
+                                <p className="text-xs font-semibold text-emerald-200">{centerName}</p>
+                                <p className="text-[11px] text-slate-300 font-mono pt-1">
+                                  Provincial Office: Pampanga · Region III
+                                </p>
+                                <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-emerald-300">
+                                  <span>REG-ID:</span>
+                                  <span className="font-bold">{currentUser?.id?.slice(0, 12) || "TESDA-R03-GPSAT-01"}</span>
                                 </div>
                               </div>
-                              <div className="space-y-0.5">
-                                <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accreditation Code</span>
-                                <div className="h-[42px] flex items-center">
-                                  <p className="text-[16px] font-mono font-bold text-gray-900 leading-tight">UTPRAS-R03-PAM-2024</p>
-                                </div>
+                            </div>
+
+                            {/* Card Footer */}
+                            <div className="pt-4 border-t border-emerald-800/60 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>UTPRAS Verified & Active</span>
                               </div>
+                              <span className="font-mono text-slate-400">RA 7796 Accredited</span>
                             </div>
                           </div>
 
-                          {/* Bottom Action: Edit Details Button */}
-                          <div className="pt-2 flex justify-end">
+                          {/* Copy Credential Button */}
+                          <div className="flex justify-end pt-3 w-full">
                             <button
                               type="button"
                               onClick={() => {
-                                setRepName(savedRepName);
-                                setRepEmail(savedRepEmail);
-                                setCenterName(savedCenterName);
-                                setRepPhone(savedRepPhone);
-                                setIsEditingProfile(true);
+                                const info = `TESDA TVET PARTNER CREDENTIAL\nRepresentative: ${repName}\nInstitution: ${centerName}\nEmail: ${repEmail}\nContact: ${repPhone}\nPartner ID: ${currentUser?.id || "TESDA-R03-GPSAT-01"}\nUTPRAS Status: Active\nAccreditation Code: UTPRAS-R03-PAM-2024`;
+                                navigator.clipboard.writeText(info);
+                                addToast("TVET Institution Credential copied to clipboard!", "success");
                               }}
-                              className="group/edit px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
+                              className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[14px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                             >
-                              <Edit className="w-4 h-4 transition-transform duration-200 group-hover/edit:rotate-12 group-hover/edit:scale-120" />
-                              <span>Edit Details</span>
+                              <Copy className="w-4 h-4 text-[#0A6B43]" />
+                              Copy Credential Details
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        /* Edit Mode Form */
-                        <form onSubmit={handleSaveProfileSubmit} className="space-y-6">
-                          <div className="border-b border-gray-100 pb-3">
-                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                              <Edit className="w-4.5 h-4.5 text-[#0A6B43]" />
-                              Edit Institution Details
-                            </h3>
-                          </div>
-
-                          {/* Section 1: Basic Information */}
-                          <div className="space-y-3.5">
-                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider pb-1.5 border-b border-gray-100 flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
-                              Training Institution Information
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-3 sm:px-4">
-                              <div className="space-y-0.5 sm:col-span-2">
-                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Training Institution / Center Name *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={centerName}
-                                  onChange={(e) => setCenterName(e.target.value)}
-                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
-                                />
-                              </div>
-
-                              <div className="space-y-0.5">
-                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Accredited Focal Representative *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={repName}
-                                  onChange={(e) => setRepName(e.target.value)}
-                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
-                                />
-                              </div>
-
-                              <div className="space-y-0.5">
-                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Institutional Email *</label>
-                                <input
-                                  type="email"
-                                  required
-                                  value={repEmail}
-                                  onChange={(e) => setRepEmail(e.target.value)}
-                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
-                                />
-                              </div>
-
-                              <div className="space-y-0.5 sm:col-span-2">
-                                <label className="text-[12px] font-semibold text-gray-500 uppercase tracking-wide block">Official Contact / Landline</label>
-                                <input
-                                  type="text"
-                                  value={repPhone}
-                                  onChange={(e) => setRepPhone(e.target.value)}
-                                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#0A6B43] transition-all"
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Form Buttons */}
-                          <div className="pt-2 flex justify-end gap-2.5">
-                            <button
-                              type="button"
-                              onClick={handleCancelProfileEdit}
-                              disabled={isSavingProfile}
-                              className="px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-all cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={isSavingProfile}
-                              className="group/save px-5 py-2.5 rounded-lg text-sm font-medium text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
-                            >
-                              {isSavingProfile ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <CheckCircle className="w-4 h-4 transition-transform duration-200 group-hover/save:scale-125 group-hover/save:rotate-6" />
-                              )}
-                              <span>Save Institution Details</span>
-                            </button>
-                          </div>
-                        </form>
-                      )}
-                      </div>
-
-                      {/* Right Column: TVET Authority & Institutional Profile */}
-                      <div className="xl:col-span-5 space-y-4">
-                        <div className="bg-white rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] text-sm space-y-4">
-                          <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
-                            <h4 className="font-bold text-gray-800 flex items-center gap-2 text-base">
-                              <Award className="w-4.5 h-4.5 text-[#0A6B43]" />
-                              TVET Center Authority
-                            </h4>
-                            <span className="text-[11px] font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              Verified TVET Focal
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-4">
-                            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-[#0A6B43] flex items-center justify-center text-white font-black text-2xl shadow-md border-2 border-emerald-200 overflow-hidden shrink-0">
-                              {repName.charAt(0).toUpperCase() || "T"}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-extrabold text-gray-900 text-base leading-tight truncate">{repName}</h4>
-                              <p className="text-xs font-bold text-[#0A6B43] mt-0.5 truncate">{centerName}</p>
-                              <p className="text-xs text-gray-500 font-medium mt-1 truncate">{repEmail}</p>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2 pt-2 border-t border-gray-100">
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
-                              <span className="text-gray-500 font-medium">Clearance Level</span>
-                              <span className="font-bold text-gray-900">Institutional Partner (Tier 4)</span>
-                            </div>
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
-                              <span className="text-gray-500 font-medium">Active TVET Programs</span>
-                              <span className="font-bold text-gray-900">
-                                {programs.filter((p) => p.activeStatus === "Active" || p.activeStatus === "Full").length} Program(s)
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
-                              <span className="text-gray-500 font-medium">Enrolled Youth Trainees</span>
-                              <span className="font-bold text-gray-900">
-                                {referrals.filter((r) => r.status === "Enrolled").length} Trainee(s)
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
-                              <span className="text-gray-500 font-medium">Supervisory Office</span>
-                              <span className="font-bold text-gray-900">TESDA Pampanga PO</span>
-                            </div>
-                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-xs">
-                              <span className="text-gray-500 font-medium">Accreditation Code</span>
-                              <span className="font-mono font-bold text-gray-700">UTPRAS-R03-PAM-2024</span>
-                            </div>
-                          </div>
-
-                          <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200/80 text-[11px] text-gray-600 leading-relaxed font-medium">
-                            <p className="font-bold text-emerald-900 mb-1 flex items-center gap-1.5">
-                              <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43]" />
-                              Republic Act No. 7796 Mandate
-                            </p>
-                            Authorized under the Technical Education and Skills Development Act to evaluate youth program applications, administer competency training, and report graduation outcomes.
-                          </div>
-
-                          <div className="pt-2 border-t border-gray-100">
-                            <button
-                              type="button"
-                              disabled={isLoggingOut}
-                              onClick={handleSignOut}
-                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 text-xs font-bold text-rose-700 bg-rose-50/50 hover:bg-rose-100 transition-all ${
-                                isLoggingOut ? "opacity-75 cursor-not-allowed" : "cursor-pointer"
-                              }`}
-                            >
-                              {isLoggingOut ? (
-                                <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-700" />
-                                  <span>Signing out...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <LogOut className="w-3.5 h-3.5" />
-                                  <span>Sign Out of Institutional Portal</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* TAB 2: ACCOUNT SECURITY */}
-                  {profileActiveTab === "security" && (
-                    <motion.div
-                      key="security"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
-                    >
-                      <div className="xl:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
-                        <form onSubmit={handlePasswordChangeSubmit} className="space-y-5">
-                          <div className="border-b border-gray-100 pb-3">
-                            <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                              <Lock className="w-4.5 h-4.5 text-[#0A6B43]" />
-                              Account Security & Password
-                            </h3>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Current Password *</label>
-                            <div className="relative">
-                              <input
-                                type={showCurrentPass ? "text" : "password"}
-                                required
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                placeholder="Enter current password..."
-                                className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowCurrentPass(!showCurrentPass)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                              >
-                                {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">New Password *</label>
-                            <div className="relative">
-                              <input
-                                type={showNewPass ? "text" : "password"}
-                                required
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter new password (min. 6 characters)..."
-                                className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowNewPass(!showNewPass)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                              >
-                                {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">Confirm New Password *</label>
-                              {confirmPassword.length > 0 && (
-                                <span className={`text-[11px] font-bold ${confirmPassword === newPassword ? "text-[#0A6B43]" : "text-rose-500"}`}>
-                                  {confirmPassword === newPassword ? "Passwords match ✓" : "Passwords do not match"}
-                                </span>
-                              )}
-                            </div>
-                            <div className="relative">
-                              <input
-                                type={showConfirmPass ? "text" : "password"}
-                                required
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Re-type new password..."
-                                className={`w-full px-3 py-2 pr-10 h-10 border rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden ${
-                                  confirmPassword.length > 0 && confirmPassword !== newPassword ? "border-rose-300 bg-rose-50/20" : "border-gray-200"
-                                }`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowConfirmPass(!showConfirmPass)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                              >
-                                {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 flex justify-end">
-                            <button
-                              type="submit"
-                              disabled={isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword}
-                              className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                                isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword
-                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
-                                  : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
-                              }`}
-                            >
-                              {isChangingPassword ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Lock className="w-4 h-4 transition-transform duration-200 group-hover/pwd:rotate-12 group-hover/pwd:scale-115" />
-                              )}
-                              <span>Update Institutional Password</span>
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-
-                      {/* Security Guide Companion Card */}
-                      <div className="xl:col-span-5">
-                        <SettingsSecurityGuideCard
-                          newPassword={newPassword}
-                          accountTypeLabel="TVET Partner Account"
-                          accountNotice="Your account maintains access to municipal youth training enrollments and competency certification records. Ensure institutional credentials remain strictly confidential."
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* TAB 3: NOTIFICATIONS */}
-                  {profileActiveTab === "notifications" && (
-                    <motion.div
-                      key="notifications"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pb-6"
-                    >
-                      <div className="xl:col-span-7">
-                        <NotificationSettingsCard
-                          userRole="TESDA_PARTNER"
-                          userEmail={currentUser?.email}
-                          addToast={addToast}
-                          className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 animate-in fade-in duration-150"
-                        />
-                      </div>
-                      <div className="xl:col-span-5 space-y-4">
-                        <SettingsNotificationChannelsCard
-                          pushDescription="Real-time push alerts for youth program applications, batch intake milestones, and municipal referral submissions."
-                          emailDescription="Official endorsement packages, TVET compliance audits, and security authentication notices sent to your institutional address."
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* TAB 4: TVET ACCREDITATION BADGE */}
-                  {profileActiveTab === "badge" && (
-                    <motion.div
-                      key="badge"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="space-y-6 w-full pb-6"
-                    >
-                      <div className="bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5">
-                        <div className="border-b border-gray-100 pb-3">
-                          <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
-                            <ShieldCheck className="w-4.5 h-4.5 text-[#0A6B43]" />
-                            TVET Accreditation Badge
-                          </h3>
-                          <p className="text-sm text-gray-400 font-medium mt-0.5">
-                            Official TESDA training institution accreditation credential for San Luis, Pampanga
-                          </p>
-                        </div>
-
-                        {/* Digital Credential ID Card */}
-                        <div className="relative overflow-hidden rounded-3xl border-2 border-emerald-700/40 bg-gradient-to-br from-emerald-950 via-slate-900 to-[#0A3D27] text-white p-7 shadow-2xl max-w-xl mx-auto w-full">
-                          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-                          <div className="absolute bottom-0 left-0 w-40 h-40 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-
-                          {/* Card Top Header */}
-                          <div className="flex items-center justify-between pb-5 border-b border-emerald-800/60 relative z-10">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-amber-400">
-                                <Award className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Republic of the Philippines</p>
-                                <p className="text-xs font-extrabold tracking-wide text-white">TESDA TVET Training Partner</p>
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                              Official Partner
-                            </span>
-                          </div>
-
-                          {/* Card Body */}
-                          <div className="py-6 flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
-                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white/30 shrink-0">
-                              {repName.charAt(0).toUpperCase() || "T"}
-                            </div>
-                            <div className="text-center sm:text-left space-y-1">
-                              <h4 className="text-lg font-black text-white tracking-tight">{repName}</h4>
-                              <p className="text-xs font-semibold text-emerald-200">{centerName}</p>
-                              <p className="text-[11px] text-slate-300 font-mono pt-1">
-                                Provincial Office: Pampanga · Region III
-                              </p>
-                              <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-emerald-300">
-                                <span>REG-ID:</span>
-                                <span className="font-bold">{currentUser?.id?.slice(0, 12) || "TESDA-R03-GPSAT-01"}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Card Footer */}
-                          <div className="pt-4 border-t border-emerald-800/60 flex items-center justify-between text-[10px] text-slate-300 relative z-10">
-                            <div className="flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>UTPRAS Verified & Active</span>
-                            </div>
-                            <span className="font-mono text-slate-400">RA 7796 Accredited</span>
-                          </div>
-                        </div>
-
-                        {/* Copy Credential Button */}
-                        <div className="flex justify-end pt-3 w-full">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const info = `TESDA TVET PARTNER CREDENTIAL\nRepresentative: ${repName}\nInstitution: ${centerName}\nEmail: ${repEmail}\nContact: ${repPhone}\nPartner ID: ${currentUser?.id || "TESDA-R03-GPSAT-01"}\nUTPRAS Status: Active\nAccreditation Code: UTPRAS-R03-PAM-2024`;
-                              navigator.clipboard.writeText(info);
-                              addToast("TVET Institution Credential copied to clipboard!", "success");
-                            }}
-                            className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[14px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                          >
-                            <Copy className="w-4 h-4 text-[#0A6B43]" />
-                            Copy Credential Details
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </main>
               </div>
             </div>
@@ -4575,7 +6294,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       {/* APPLICANT PROFILE DOSSIER MODAL (FULLY MOBILE RESPONSIVE)     */}
       {/* ============================================================ */}
       {selectedApplicant && (
-        <div 
+        <div
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedApplicant(null);
           }}
@@ -4631,6 +6350,46 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
             {/* Modal Body: Scrollable Content with Mobile Padding */}
             <div className="p-3.5 sm:p-5 md:p-6 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+
+              {/* Application Details Summary Banner */}
+              {selectedApplicantReferral && (
+                <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-[#0A6B43]">
+                        Training Application Details
+                      </span>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${selectedApplicantReferral.status === "Enrolled"
+                        ? "bg-emerald-100 text-[#0A6B43] border-emerald-300"
+                        : selectedApplicantReferral.status === "Approved"
+                          ? "bg-blue-100 text-blue-800 border-blue-300"
+                          : selectedApplicantReferral.status === "Pending"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : selectedApplicantReferral.status === "Archived"
+                              ? "bg-gray-200 text-gray-700 border-gray-300"
+                              : "bg-red-100 text-red-700 border-red-300"
+                      }`}>
+                      {selectedApplicantReferral.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Program Applied For</span>
+                      <p className="font-extrabold text-gray-900 mt-0.5">{selectedApplicantReferral.programTitle}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">Application Date</span>
+                      <p className="font-bold text-gray-800 mt-0.5">{selectedApplicantReferral.applicationDate || selectedApplicantReferral.referralDate}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">SiKap Match Score</span>
+                      <p className="font-extrabold text-[#0A6B43] mt-0.5">{selectedApplicantReferral.matchScore}% Match</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 2-Column Responsive Information Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
@@ -4787,92 +6546,72 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {/* Left Status Indicator */}
               <div className="flex items-center gap-2">
                 {(() => {
-                  const activeRef = referrals.find(
-                    r => (selectedApplicantReferral && r.id === selectedApplicantReferral.id) || r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()
+                  const activeRef = selectedApplicantReferral || activeReferrals.find(
+                    r => r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()
                   );
                   if (!activeRef) return null;
                   return (
-                    <span className={`text-xs font-bold ${
-                      activeRef.status === "Enrolled"
+                    <span className={`text-xs font-bold ${activeRef.status === "Enrolled"
                         ? "text-[#0A6B43]"
-                        : activeRef.status === "Pending"
-                          ? "text-amber-800"
-                          : "text-red-700"
-                    }`}>
+                        : activeRef.status === "Approved"
+                          ? "text-blue-700"
+                          : activeRef.status === "Pending"
+                            ? "text-amber-800"
+                            : "text-gray-700"
+                      }`}>
                       Application Status: <strong>{activeRef.status}</strong>
                     </span>
                   );
                 })()}
               </div>
 
-              {/* Action Buttons Grid on Mobile */}
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+              {/* Action Buttons */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-end gap-2 w-full sm:w-auto">
                 {(() => {
-                  const activeRef = referrals.find(
-                    r => ((selectedApplicantReferral && r.id === selectedApplicantReferral.id) || r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()) && r.status === "Pending"
+                  const activeRef = selectedApplicantReferral || activeReferrals.find(
+                    r => r.youthName.toLowerCase() === selectedApplicant.name.toLowerCase()
                   );
-                  if (!activeRef) {
-                    return (
+                  const requiresDecision = activeRef && (activeRef.status === "Pending" || activeRef.status === "Approved");
+                  return (
+                    <>
+                      {canManageApplicants && requiresDecision && activeRef && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedApplicant(null);
+                              setReviewingApplication(activeRef);
+                              setPendingReviewDecision("Declined");
+                            }}
+                            className="w-9 h-9 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 border border-gray-200 hover:border-red-200 rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-2xs active:scale-95"
+                            title="Reject Application"
+                            aria-label="Reject Application"
+                          >
+                            <X className="w-4 h-4 shrink-0" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedApplicant(null);
+                              setReviewingApplication(activeRef);
+                              setPendingReviewDecision(activeRef.status === "Approved" ? "Enrolled" : "Approved");
+                            }}
+                            className="w-9 h-9 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-xs"
+                            title={activeRef.status === "Approved" ? "Enroll Applicant" : "Approve Application"}
+                            aria-label={activeRef.status === "Approved" ? "Enroll Applicant" : "Approve Application"}
+                          >
+                            <Check className="w-4 h-4 shrink-0" />
+                          </button>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => setSelectedApplicant(null)}
                         className="w-full sm:w-auto px-5 py-2.5 bg-gray-200 hover:bg-gray-300 active:scale-95 text-gray-800 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
                       >
-                        Close Dossier
-                      </button>
-                    );
-                  }
-
-                  return (
-                    <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        disabled={processingReferralId === activeRef.id}
-                        onClick={async () => {
-                          const ok = await handleUpdateReferralStatus(activeRef.id, "Declined");
-                          if (ok) setSelectedApplicant(null);
-                        }}
-                        className="px-3.5 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 active:scale-95 text-xs font-bold rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {processingReferralId === activeRef.id && processingReferralStatus === "Declined" ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                            <span>Declining...</span>
-                          </>
-                        ) : (
-                          <span>Decline</span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={processingReferralId === activeRef.id}
-                        onClick={async () => {
-                          const ok = await handleUpdateReferralStatus(activeRef.id, "Enrolled");
-                          if (ok) setSelectedApplicant(null);
-                        }}
-                        className="px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs text-center flex items-center justify-center gap-1.5 disabled:opacity-75 disabled:cursor-not-allowed"
-                      >
-                        {processingReferralId === activeRef.id && processingReferralStatus === "Enrolled" ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                            <span>Enrolling...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Accept & Enroll</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={processingReferralId === activeRef.id}
-                        onClick={() => setSelectedApplicant(null)}
-                        className="col-span-2 sm:col-span-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 active:scale-95 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer text-center disabled:opacity-50"
-                      >
                         Close
                       </button>
-                    </div>
+                    </>
                   );
                 })()}
               </div>
@@ -4883,10 +6622,329 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       )}
 
       {/* ============================================================ */}
+      {/* REVIEW APPLICATION MODAL (WITH CONFIRMATION STEP)             */}
+      {/* ============================================================ */}
+      {reviewingApplication && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !processingReferralId) {
+              setReviewingApplication(null);
+              setPendingReviewDecision(null);
+            }
+          }}
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200 ease-out">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#082D21] via-[#0A4D36] to-[#082D21] text-white p-4 sm:p-5 border-b border-emerald-900/40 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-emerald-300 shrink-0">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-black text-base sm:text-lg text-white leading-tight truncate">
+                    Review Youth Application
+                  </h3>
+                  <p className="text-xs text-emerald-100/80 font-medium truncate">
+                    Evaluate candidate qualifications and confirm admission decision
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={!!processingReferralId}
+                onClick={() => {
+                  setReviewingApplication(null);
+                  setPendingReviewDecision(null);
+                }}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-6 space-y-4 text-xs">
+              {(() => {
+                const matchedProfile = youthProfiles.find(
+                  y =>
+                    (reviewingApplication.youthId && y.id === reviewingApplication.youthId) ||
+                    y.name.toLowerCase().trim() === reviewingApplication.youthName.toLowerCase().trim()
+                );
+                const associatedProgram = programs.find(
+                  p => p.title === reviewingApplication.programTitle || p.id === reviewingApplication.programId
+                );
+
+                return (
+                  <>
+                    {/* Applicant & Program Summary Card */}
+                    <div className="bg-gray-50 border border-gray-200/80 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3 border-b border-gray-200/70 pb-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black text-sm shrink-0">
+                            {reviewingApplication.youthName.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-extrabold text-sm text-gray-900 truncate">
+                              {reviewingApplication.youthName}
+                            </h4>
+                            <p className="text-[11px] text-gray-500 font-medium truncate">
+                              Purok {reviewingApplication.purok}, Brgy. {reviewingApplication.barangay.replace(/^Barangay\s+/i, "")}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200 shrink-0">
+                          <Sparkles className="w-3 h-3 text-emerald-600" />
+                          {reviewingApplication.matchScore}% Match
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                            Program Applied For
+                          </span>
+                          <p className="font-bold text-gray-900 mt-0.5 leading-snug">
+                            {reviewingApplication.programTitle}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                            Available Slots
+                          </span>
+                          <p className="font-bold text-gray-900 mt-0.5">
+                            {associatedProgram
+                              ? `${associatedProgram.slotsRemaining} of ${associatedProgram.slotsTotal} slots open`
+                              : "Active Program"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                            Educational Attainment
+                          </span>
+                          <p className="font-semibold text-gray-700 mt-0.5">
+                            {matchedProfile?.educationalAttainment || "Junior High School Graduate"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                            Current Status
+                          </span>
+                          <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${reviewingApplication.status === "Approved"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-amber-50 text-amber-800 border-amber-200"
+                            }`}>
+                            {reviewingApplication.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {matchedProfile?.skills && matchedProfile.skills.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200/70">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
+                            Applicant Skills
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {matchedProfile.skills.slice(0, 5).map((sk, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-700 font-semibold text-[10px]">
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Step 1: Select Decision vs Step 2: Confirmation Step */}
+                    {!pendingReviewDecision ? (
+                      <div className="space-y-3">
+                        <p className="text-xs font-bold text-gray-700">
+                          Select an admissions action for this application:
+                        </p>
+                        <div className="grid grid-cols-1 gap-2.5">
+                          {reviewingApplication.status === "Pending" && (
+                            <button
+                              type="button"
+                              onClick={() => setPendingReviewDecision("Approved")}
+                              className="w-full p-3.5 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-50 text-left transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="font-extrabold text-blue-950 text-xs group-hover:text-blue-700">
+                                    Approve Application
+                                  </p>
+                                  <p className="text-[11px] text-blue-800/80 font-medium">
+                                    Mark application as Approved for admission prior to final cohort enrollment.
+                                  </p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-blue-600 shrink-0" />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setPendingReviewDecision("Enrolled")}
+                            className="w-full p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50 text-left transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="font-extrabold text-emerald-950 text-xs group-hover:text-[#0A6B43]">
+                                  {reviewingApplication.status === "Approved" ? "Confirm Cohort Enrollment" : "Approve & Enroll Immediately"}
+                                </p>
+                                <p className="text-[11px] text-emerald-800/80 font-medium">
+                                  Officially admit and enroll this applicant into the training cohort.
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPendingReviewDecision("Declined")}
+                            className="w-full p-3.5 rounded-xl border border-red-200 bg-red-50/50 hover:bg-red-50 text-left transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0">
+                                <X className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="font-extrabold text-red-950 text-xs group-hover:text-red-700">
+                                  Decline Application
+                                </p>
+                                <p className="text-[11px] text-red-800/80 font-medium">
+                                  Decline this application and release its reserved slot back to available capacity.
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-red-600 shrink-0" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Step 2: Explicit Confirmation Step */
+                      <div className={`rounded-2xl p-4 border space-y-3 ${pendingReviewDecision === "Declined"
+                          ? "bg-red-50/80 border-red-200"
+                          : pendingReviewDecision === "Approved"
+                            ? "bg-blue-50/80 border-blue-200"
+                            : "bg-emerald-50/80 border-emerald-200"
+                        }`}>
+                        <div className="flex items-start gap-2.5">
+                          <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${pendingReviewDecision === "Declined"
+                              ? "text-red-600"
+                              : pendingReviewDecision === "Approved"
+                                ? "text-blue-600"
+                                : "text-[#0A6B43]"
+                            }`} />
+                          <div className="space-y-1">
+                            <h5 className="font-extrabold text-gray-900 text-xs uppercase tracking-wider">
+                              Confirm Application Decision
+                            </h5>
+                            <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                              Are you sure you want to mark <strong>{reviewingApplication.youthName}</strong>&apos;s application for{" "}
+                              <strong>{reviewingApplication.programTitle}</strong> as{" "}
+                              <strong className="uppercase">{pendingReviewDecision}</strong>?
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              {pendingReviewDecision === "Declined"
+                                ? "1 training slot will be restored to the program's available capacity and the applicant will be notified."
+                                : "The applicant and their barangay SK officials will be notified of this status update."}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            disabled={!!processingReferralId}
+                            onClick={() => setPendingReviewDecision(null)}
+                            className="px-3.5 py-2 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            Back
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!!processingReferralId}
+                            onClick={async () => {
+                              const ok = await handleUpdateReferralStatus(reviewingApplication.id, pendingReviewDecision);
+                              if (ok) {
+                                setReviewingApplication(null);
+                                setPendingReviewDecision(null);
+                              }
+                            }}
+                            className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-60 ${pendingReviewDecision === "Declined"
+                                ? "bg-red-600 hover:bg-red-700"
+                                : pendingReviewDecision === "Approved"
+                                  ? "bg-blue-600 hover:bg-blue-700"
+                                  : "bg-[#0A6B43] hover:bg-[#075332]"
+                              }`}
+                          >
+                            {processingReferralId === reviewingApplication.id ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                                <span>Submitting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Confirm & {pendingReviewDecision === "Declined" ? "Decline" : pendingReviewDecision === "Approved" ? "Approve" : "Enroll"}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 border-t border-gray-200/80 px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const app = reviewingApplication;
+                  setReviewingApplication(null);
+                  setPendingReviewDecision(null);
+                  openApplicantModal(app);
+                }}
+                className="text-xs font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>View Full Applicant Profile</span>
+              </button>
+              <button
+                type="button"
+                disabled={!!processingReferralId}
+                onClick={() => {
+                  setReviewingApplication(null);
+                  setPendingReviewDecision(null);
+                }}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
       {/* PROGRAM SYLLABUS & DETAILS MODAL (VIEW & INLINE EDIT) */}
       {/* ============================================================ */}
       {viewingProgram && (
-        <div 
+        <div
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setViewingProgram(null);
@@ -5217,13 +7275,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         </p>
                         <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              viewingProgram.activeStatus === "Closed"
+                            className={`h-full rounded-full transition-all duration-300 ${viewingProgram.activeStatus === "Closed"
                                 ? "bg-gray-400"
                                 : (viewingProgram.slotsRemaining || 0) <= 0
                                   ? "bg-red-400"
                                   : "bg-[#0A6B43]"
-                            }`}
+                              }`}
                             style={{
                               width: viewingProgram.activeStatus === "Closed"
                                 ? "100%"
@@ -5407,11 +7464,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
                           <label
                             key={day}
-                            className={`flex items-center gap-1 px-2 py-0.5 border rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
-                              modalEditTrainingDays.includes(day)
+                            className={`flex items-center gap-1 px-2 py-0.5 border rounded-lg text-[10px] font-bold cursor-pointer transition-all ${modalEditTrainingDays.includes(day)
                                 ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
                                 : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <input
                               type="checkbox"
@@ -5435,11 +7491,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           return (
                             <span
                               key={dIdx}
-                              className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md ${
-                                isProgramDay
+                              className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md ${isProgramDay
                                   ? "bg-[#0A6B43] text-white"
                                   : "bg-gray-100 text-gray-400"
-                              }`}
+                                }`}
                             >
                               {shortDay}
                             </span>
@@ -5505,11 +7560,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("morning")}
-                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                              modalEditStartTime === "08:00" && modalEditEndTime === "12:00"
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${modalEditStartTime === "08:00" && modalEditEndTime === "12:00"
                                 ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <Sun className="w-3 h-3 text-amber-600 shrink-0" />
                             <span>Morning (8–12)</span>
@@ -5517,11 +7571,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("afternoon")}
-                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                              modalEditStartTime === "13:00" && modalEditEndTime === "17:00"
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${modalEditStartTime === "13:00" && modalEditEndTime === "17:00"
                                 ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <Sun className="w-3 h-3 text-blue-600 shrink-0" />
                             <span>Afternoon (1–5)</span>
@@ -5529,11 +7582,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("fullday")}
-                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                              modalEditStartTime === "08:00" && modalEditEndTime === "17:00"
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${modalEditStartTime === "08:00" && modalEditEndTime === "17:00"
                                 ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>Full Day (8–5)</span>
@@ -5541,11 +7593,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <button
                             type="button"
                             onClick={() => applyModalTimeslotPreset("evening")}
-                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                              modalEditStartTime === "17:30" && modalEditEndTime === "20:30"
+                            className={`px-2 py-1 text-[10px] sm:text-[11px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1 cursor-pointer ${modalEditStartTime === "17:30" && modalEditEndTime === "20:30"
                                 ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
                                 : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <Moon className="w-3 h-3 text-purple-600 shrink-0" />
                             <span>Evening (5:30–8:30)</span>
@@ -5575,12 +7626,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <div className="min-h-[30px] sm:min-h-[34px] flex items-center gap-2 flex-wrap">
                             <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">{ts.formattedRange}</p>
                             {ts.sessionType !== "Custom" && (
-                              <span className={`text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
-                                ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                "bg-purple-100 text-purple-900 border border-purple-200"
-                              }`}>
+                              <span className={`text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-md ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
+                                  ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
+                                    ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
+                                      "bg-purple-100 text-purple-900 border border-purple-200"
+                                }`}>
                                 {ts.sessionType}
                               </span>
                             )}
@@ -5966,809 +8016,296 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* POPUP MODAL: EDIT TRAINING PROGRAM (STAYS ON CURRENT TAB) */}
-      {/* ============================================================ */}
-      {editingProgramModal && (
-        <div 
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEditingProgramModal(null);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
-        >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 flex flex-col max-h-[90vh] overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-200 ease-out my-6">
+{/* ============================================================ */ }
+{/* RESTORE PROGRAM CONFIRMATION MODAL */ }
+{/* ============================================================ */ }
+<ConfirmationModal
+  isOpen={!!programToRestore}
+  title={`Restore Training Program "${programToRestore?.title}"?`}
+  description={`This will reactivate "${programToRestore?.title}" and return it to the active training catalog. Katipunan ng Kabataan youth learners in San Luis will immediately be able to view details and apply.`}
+  confirmText="Restore Program"
+  confirmVariant="green"
+  isLoading={isRestoringProgram}
+  loadingText="Restoring Program..."
+  onConfirm={async () => {
+    if (programToRestore) {
+      await handleUnarchiveProgram(programToRestore.id, programToRestore.title);
+      setProgramToRestore(null);
+    }
+  }}
+  onCancel={() => {
+    if (!isRestoringProgram) setProgramToRestore(null);
+  }}
+/>
 
-            {/* Modal Header */}
-            <div className="p-6 border-b border-emerald-900/40 bg-gradient-to-r from-[#112F24] to-[#1A4234] text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center justify-center font-bold">
-                  <Pencil className="w-5 h-5" />
+{/* ============================================================ */ }
+{/* COHORT GRADUATION & ARCHIVAL VERIFICATION MODAL              */ }
+{/* ============================================================ */ }
+{
+  programToArchive && (() => {
+    const enrollees = referrals.filter(
+      r => (r.programId === programToArchive.id || r.programTitle.toLowerCase().trim() === programToArchive.title.toLowerCase().trim()) && r.status === "Enrolled"
+    );
+    const evaluatedCount = enrollees.filter(e => graduationEvaluations[e.id]).length;
+    const graduatedCount = enrollees.filter(e => graduationEvaluations[e.id] === "Graduated").length;
+    const incompleteCount = enrollees.filter(e => graduationEvaluations[e.id] === "Incomplete").length;
+    const isAllEvaluated = enrollees.length === 0 || evaluatedCount === enrollees.length;
+
+    const markAll = (status: "Graduated" | "Incomplete") => {
+      const next: Record<string, "Graduated" | "Incomplete"> = {};
+      enrollees.forEach(e => { next[e.id] = status; });
+      setGraduationEvaluations(next);
+    };
+
+    return (
+      <div
+        className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !isArchivingProgram) {
+            setProgramToArchive(null);
+            setGraduationEvaluations({});
+          }
+        }}
+      >
+        <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] animate-in fade-in zoom-in-95 duration-200 ease-out">
+
+          {/* Modal Top Header */}
+          <div className="bg-gradient-to-r from-[#112F24] via-[#163D2F] to-[#1A4234] text-white p-4 sm:p-5 shrink-0 border-b border-emerald-950/40">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-300" />
                 </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-black tracking-tight leading-tight">
-                    Edit Training Program
+                <div className="min-w-0">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block">
+                    Cohort Graduation Verification
+                  </span>
+                  <h3 className="font-black text-sm sm:text-base text-white tracking-tight leading-snug truncate">
+                    Conclude & Archive: {programToArchive.title}
                   </h3>
-                  <p className="text-xs text-emerald-200/80 font-medium truncate max-w-md">
-                    {editingProgramModal.title}
-                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setEditingProgramModal(null)}
-                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
+                disabled={isArchivingProgram}
+                onClick={() => {
+                  setProgramToArchive(null);
+                  setGraduationEvaluations({});
+                }}
+                className="text-emerald-200/70 hover:text-white p-1 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
+          </div>
 
-            {/* Modal Body: Scrollable Form */}
-            <div className="p-6 overflow-y-auto space-y-6">
-              <form id="edit-program-modal-form" onSubmit={handleEditModalSubmit} className="space-y-6">
+          {/* Modal Body */}
+          <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar text-xs">
 
-                {/* Section 1: Program Info */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
-                      1
-                    </div>
-                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Basic Program Identity</h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Program Title *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Shielded Metal Arc Welding, Bread & Pastry Production"
-                        value={progTitle}
-                        onChange={(e) => setProgTitle(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Certification Level</label>
-                      <CustomSelect
-                        value={progLevel}
-                        onChange={(val) => setProgLevel(val)}
-                        options={[
-                          { value: "NC I", label: "NC I" },
-                          { value: "NC II", label: "NC II" },
-                          { value: "NC III", label: "NC III" }
-                        ]}
-                        size="sm"
-                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
-                        placeholder="Select Level"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-[#0A6B43] uppercase tracking-wider">Vocational Category *</label>
-                      <CustomSelect
-                        value={progCategoryId}
-                        onChange={(val) => setProgCategoryId(val)}
-                        options={CATEGORIES.map(cat => ({ value: cat.id, label: cat.name }))}
-                        size="sm"
-                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
-                        placeholder="Select Category"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Hours *</label>
-                        {computedTrainingHours && (
-                          <button
-                            type="button"
-                            onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
-                            className="text-[10px] font-bold text-[#0A6B43] hover:underline flex items-center gap-1 cursor-pointer"
-                            title="Click to auto-apply computed hours"
-                          >
-                            <Zap className="w-3 h-3 text-emerald-600" />
-                            <span>Auto: {computedTrainingHours.totalHours}h</span>
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="e.g. 160"
-                        value={progTrainingHours}
-                        onChange={(e) => setProgTrainingHours(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Slot Allocation *</label>
-                      <input
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="e.g. 25"
-                        value={progSlots}
-                        onChange={(e) => setProgSlots(e.target.value === "" ? "" : Number(e.target.value))}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Cost Model</label>
-                      <CustomSelect
-                        value={progCost}
-                        onChange={(val) => setProgCost(val as any)}
-                        options={[
-                          { value: "Free", label: "Free (TESDA Subsidized)" },
-                          { value: "Subsidized", label: "Subsidized / Co-pay" },
-                          { value: "With Fee", label: "Fee-based" }
-                        ]}
-                        size="sm"
-                        buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
-                        placeholder="Select Cost"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 2: Schedule & Venue */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
-                      2
-                    </div>
-                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Schedule, Facility & Trainer</h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1 flex-wrap">
-                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">
-                          Training Venue / Location
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVenueMapTarget("editModal");
-                            setVenueMapModalMode("picker");
-                            setIsVenueMapModalOpen(true);
-                          }}
-                          className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                        >
-                          <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                          <span>Locate / Pin on Map</span>
-                        </button>
-                      </div>
-                      <div className="relative min-w-0 w-full">
-                        <input
-                          type="text"
-                          placeholder="e.g. San Luis Training Center / GPSAT Guagua"
-                          value={extractLocationDisplay(progLocation)}
-                          onChange={(e) => setProgLocation(e.target.value)}
-                          className="w-full min-w-0 h-[38px] pl-3.5 pr-20 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
-                          title={extractLocationDisplay(progLocation)}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVenueMapTarget("editModal");
-                            setVenueMapModalMode("picker");
-                            setIsVenueMapModalOpen(true);
-                          }}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-[10px] font-extrabold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0 z-10"
-                          title="Search or Pin on Map"
-                        >
-                          <Compass className="w-3 h-3 shrink-0" />
-                          <span>Map</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Assigned Room / Facility</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Workshop Room B-102, Computer Lab 1"
-                        value={progRoom}
-                        onChange={(e) => setProgRoom(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider block">Training Days</label>
-                    <div className="flex flex-wrap gap-2">
-                      {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
-                        <label key={day} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-bold cursor-pointer transition-all ${progTrainingDays.includes(day)
-                            ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-2xs"
-                            : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
-                          }`}>
-                          <input
-                            type="checkbox"
-                            checked={progTrainingDays.includes(day)}
-                            onChange={(e) => {
-                              if (e.target.checked) setProgTrainingDays(prev => [...prev, day]);
-                              else setProgTrainingDays(prev => prev.filter(d => d !== day));
-                            }}
-                            className="hidden"
-                          />
-                          {day.substring(0, 3)}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Timeslot Configuration */}
-                  <div className="space-y-3 bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Training Timeslot</label>
-                      <span className="text-[10px] text-gray-400 font-medium">Select preset or set custom hours</span>
-                    </div>
-
-                    {/* Presets */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => applyTimeslotPreset("morning")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "12:00"
-                            ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                          }`}
-                      >
-                        <Sun className="w-3 h-3 text-amber-600 shrink-0" />
-                        <span>Morning (8 AM – 12 PM)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyTimeslotPreset("afternoon")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "13:00" && progEndTime === "17:00"
-                            ? "bg-blue-100 text-blue-900 border-blue-300 shadow-2xs"
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                          }`}
-                      >
-                        <Sun className="w-3 h-3 text-blue-600 shrink-0" />
-                        <span>Afternoon (1 PM – 5 PM)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyTimeslotPreset("fullday")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "08:00" && progEndTime === "17:00"
-                            ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-2xs"
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                          }`}
-                      >
-                        <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                        <span>Full Day (8 AM – 5 PM)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyTimeslotPreset("evening")}
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all flex items-center gap-1 ${progStartTime === "17:30" && progEndTime === "20:30"
-                            ? "bg-purple-100 text-purple-900 border-purple-300 shadow-2xs"
-                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
-                          }`}
-                      >
-                        <Moon className="w-3 h-3 text-purple-600 shrink-0" />
-                        <span>Evening (5:30 PM – 8:30 PM)</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <SiKapTimePicker
-                        label="Start Time"
-                        badgeText="Training Start"
-                        value={progStartTime}
-                        onChange={(val) => setProgStartTime(val)}
-                        placeholder="Select start time"
-                      />
-
-                      <SiKapTimePicker
-                        label="End Time"
-                        badgeText="Training End"
-                        value={progEndTime}
-                        onChange={(val) => setProgEndTime(val)}
-                        placeholder="Select end time"
-                      />
-                    </div>
-
-                    {/* Live Schedule Preview */}
-                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Clock className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                        <div>
-                          <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Preview Display</p>
-                          <p className="text-xs font-bold text-gray-900">
-                            {formatTrainingDays(progTrainingDays)} · {formatProgramTimeslot(progStartTime, progEndTime).formattedRange}
-                          </p>
-                        </div>
-                      </div>
-                      {(() => {
-                        const ts = formatProgramTimeslot(progStartTime, progEndTime);
-                        return ts.sessionType !== "Custom" ? (
-                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${ts.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                              ts.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                ts.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                  "bg-purple-100 text-purple-900 border border-purple-200"
-                            }`}>
-                            {ts.sessionType}
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <SiKapDatePicker
-                      label="Start Date"
-                      badgeText="Program Start"
-                      value={progStartDate}
-                      onChange={(val) => setProgStartDate(val)}
-                      placeholder="Select start date"
-                    />
-
-                    <SiKapDatePicker
-                      label="End Date"
-                      badgeText="Program End"
-                      value={progEndDate}
-                      min={progStartDate || undefined}
-                      onChange={(val) => setProgEndDate(val)}
-                      placeholder="Select end date"
-                    />
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Trainer / Instructor</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Engr. Danilo Santos, TVET Trainer"
-                        value={progInstructor}
-                        onChange={(e) => setProgInstructor(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Auto-Calculated Duration Summary Card */}
-                  {computedTrainingHours && (
-                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
-                          <Calculator className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-900">
-                              Auto-Calculated Total: {computedTrainingHours.totalHours} Hours
-                            </span>
-                            <span className="text-[9px] bg-white text-[#0A6B43] font-bold px-2 py-0.5 rounded-md border border-emerald-200">
-                              {computedTrainingHours.dailyHours} hrs/day
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-600 font-medium mt-0.5 truncate">
-                            {computedTrainingHours.sessionCount} class days scheduled between {formatProgramDateRange(progStartDate, progEndDate)}
-                            {computedTrainingHours.deductedLunch ? " (excl. 1h lunch)" : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setProgTrainingHours(computedTrainingHours.totalHours)}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${progTrainingHours === computedTrainingHours.totalHours
-                            ? "bg-[#0A6B43] text-white border-[#0A6B43] shadow-xs"
-                            : "bg-white hover:bg-emerald-100 text-[#0A6B43] border-emerald-300 shadow-2xs"
-                          }`}
-                      >
-                        {progTrainingHours === computedTrainingHours.totalHours ? "✓ Applied" : "Apply to Hours"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Section 3: Requirements & Contacts */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
-                      3
-                    </div>
-                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Admissions & Contact Info</h4>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
-                      <span className="text-[10px] text-gray-400 font-medium">Prerequisites & Target Audience</span>
-                    </div>
-                    <div className="w-full rounded-xl border border-gray-200 bg-gray-50/70 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all overflow-hidden shadow-2xs">
-                      <textarea
-                        rows={3}
-                        placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
-                        value={progEligibility}
-                        onChange={(e) => setProgEligibility(e.target.value)}
-                        className="w-full p-2.5 sm:p-3 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[68px] max-h-[160px] block modal-scrollbar"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Required Documents (comma separated)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Photocopy of Valid ID"
-                        value={progRequiredDocuments}
-                        onChange={(e) => setProgRequiredDocuments(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Target Prerequisite Skills</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Basic Math, English comprehension, Willingness to learn"
-                        value={progRequiredSkills}
-                        onChange={(e) => setProgRequiredSkills(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Officer Contact Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
-                        value={progContactName}
-                        onChange={(e) => setProgContactName(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Official Phone Number</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. +63 917 123 4567 / (045) 900-1234"
-                        value={progContactPhone}
-                        onChange={(e) => setProgContactPhone(e.target.value)}
-                        className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-              </form>
+            {/* Information Note */}
+            <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-xl p-3 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
+              <p className="text-gray-700 leading-relaxed font-medium">
+                To keep institutional records accurate, identify which trainees successfully completed the course. Only trainees marked as <strong>Graduated</strong> will receive certified qualifications in their Katipunan ng Kabataan credentials folder.
+              </p>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 px-6 border-t border-gray-100 bg-gray-50/80 flex items-center justify-end gap-3 shrink-0">
+            {enrollees.length > 0 ? (
+              <div className="space-y-3">
+                {/* Evaluation Status & Quick Controls */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 pb-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-extrabold text-gray-900 uppercase tracking-wider text-[11px]">
+                      Enrolled Trainees ({enrollees.length})
+                    </span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${isAllEvaluated
+                      ? "bg-emerald-50 text-[#0A6B43] border-emerald-300"
+                      : "bg-amber-50 text-amber-800 border-amber-300"
+                      }`}>
+                      {isAllEvaluated ? `✓ All Evaluated (${graduatedCount} Graduated · ${incompleteCount} Incomplete)` : `Evaluated: ${evaluatedCount} of ${enrollees.length}`}
+                    </span>
+                  </div>
+
+                  {/* Quick Bulk Action Buttons */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => markAll("Graduated")}
+                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                    >
+                      Mark All Graduated
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => markAll("Incomplete")}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                    >
+                      Mark All Incomplete
+                    </button>
+                  </div>
+                </div>
+
+                {/* Trainee Evaluation Cards List */}
+                <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                  {enrollees.map(item => {
+                    const currentEval = graduationEvaluations[item.id];
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${currentEval === "Graduated"
+                          ? "bg-emerald-50/40 border-emerald-300 shadow-2xs"
+                          : currentEval === "Incomplete"
+                            ? "bg-amber-50/30 border-amber-300 shadow-2xs"
+                            : "bg-gray-50/70 border-gray-200 hover:border-gray-300"
+                          }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${currentEval === "Graduated"
+                            ? "bg-emerald-600 text-white"
+                            : currentEval === "Incomplete"
+                              ? "bg-amber-600 text-white"
+                              : "bg-gray-200 text-gray-700"
+                            }`}>
+                            {item.youthName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm truncate">
+                              {item.youthName}
+                            </h4>
+                            <p className="text-[11px] text-gray-500 truncate">
+                              Purok {item.purok}, Brgy. {item.barangay.replace(/^Barangay\s+/i, "")}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Evaluation Toggle Buttons */}
+                        <div className="grid grid-cols-2 sm:flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setGraduationEvaluations(prev => ({ ...prev, [item.id]: "Graduated" }))}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${currentEval === "Graduated"
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 border border-gray-200"
+                              }`}
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>Graduated</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGraduationEvaluations(prev => ({ ...prev, [item.id]: "Incomplete" }))}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${currentEval === "Incomplete"
+                              ? "bg-amber-600 text-white shadow-xs"
+                              : "bg-white hover:bg-amber-50 text-gray-600 hover:text-amber-800 border border-gray-200"
+                              }`}
+                          >
+                            <X className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>Incomplete</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Incomplete Warning Message if any un-evaluated */}
+                {!isAllEvaluated && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 flex items-start gap-2 text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="text-[11px] leading-relaxed">
+                      <strong>Archive Locked:</strong> Please evaluate all {enrollees.length} enrolled trainees ({enrollees.length - evaluatedCount} remaining) before confirming. The archive button will unlock once all are evaluated.
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-gray-500 font-medium">
+                No active enrolled trainees in this cohort. Archiving will safely move this program term to Archived History.
+              </div>
+            )}
+          </div>
+
+          {/* Modal Footer Actions */}
+          <div className="p-3.5 sm:p-4 bg-gray-50/90 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+            <span className="text-[11px] text-gray-500 text-center sm:text-left">
+              {enrollees.length > 0 && isAllEvaluated
+                ? `Ready to conclude: ${graduatedCount} certified graduate(s), ${incompleteCount} non-completer(s).`
+                : enrollees.length === 0
+                  ? "Ready to archive empty program term."
+                  : `${enrollees.length - evaluatedCount} trainee(s) left to evaluate.`}
+            </span>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <button
                 type="button"
-                onClick={() => setEditingProgramModal(null)}
-                className="px-5 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                disabled={isArchivingProgram}
+                onClick={() => {
+                  setProgramToArchive(null);
+                  setGraduationEvaluations({});
+                }}
+                className="flex-1 sm:flex-none px-4 py-2 border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 text-center"
               >
                 Cancel
               </button>
               <button
-                type="submit"
-                form="edit-program-modal-form"
-                disabled={isSubmittingModalProgram}
-                className="px-6 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                type="button"
+                disabled={!isAllEvaluated || isArchivingProgram}
+                onClick={async () => {
+                  if (programToArchive) {
+                    await handleArchiveProgram(programToArchive.id, programToArchive.title, graduationEvaluations);
+                  }
+                }}
+                className={`flex-1 sm:flex-none px-5 py-2.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 text-center ${isAllEvaluated && !isArchivingProgram
+                  ? "bg-[#0A6B43] hover:bg-[#075332] active:scale-95 cursor-pointer"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                  }`}
               >
-                {isSubmittingModalProgram ? (
+                {isArchivingProgram ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                    <span>Updating Program...</span>
+                    <span>Archiving Term...</span>
                   </>
                 ) : (
-                  <span>Update Program</span>
+                  <>
+                    <Archive className="w-3.5 h-3.5 shrink-0" />
+                    <span>Conclude & Archive Term</span>
+                  </>
                 )}
               </button>
             </div>
-
           </div>
+
         </div>
-      )}
+      </div>
+    );
+  })()
+}
 
-      {/* ============================================================ */}
-      {/* RESTORE PROGRAM CONFIRMATION MODAL */}
-      {/* ============================================================ */}
-      <ConfirmationModal
-        isOpen={!!programToRestore}
-        title={`Restore Training Program "${programToRestore?.title}"?`}
-        description={`This will reactivate "${programToRestore?.title}" and return it to the active training catalog. Katipunan ng Kabataan youth learners in San Luis will immediately be able to view details and apply.`}
-        confirmText="Restore Program"
-        confirmVariant="green"
-        isLoading={isRestoringProgram}
-        loadingText="Restoring Program..."
-        onConfirm={async () => {
-          if (programToRestore) {
-            await handleUnarchiveProgram(programToRestore.id, programToRestore.title);
-            setProgramToRestore(null);
-          }
-        }}
-        onCancel={() => {
-          if (!isRestoringProgram) setProgramToRestore(null);
-        }}
-      />
+{/* ============================================================ */ }
+{/* DELETE PROGRAM CONFIRMATION MODAL */ }
+{/* ============================================================ */ }
+<ConfirmationModal
+  isOpen={!!programToDelete}
+  title={`Delete Program "${programToDelete?.title}"?`}
+  description={`Are you sure you want to delete "${programToDelete?.title}"? This will close the program and remove it together with its applicant records from the active dashboard.`}
+  confirmText="Delete Program"
+  confirmVariant="red"
+  isLoading={isDeletingProgram}
+  loadingText="Deleting Program..."
+  onConfirm={async () => {
+    if (programToDelete) {
+      await handleDeleteProgram(programToDelete.id, programToDelete.title);
+      setProgramToDelete(null);
+    }
+  }}
+  onCancel={() => {
+    if (!isDeletingProgram) setProgramToDelete(null);
+  }}
+/>
 
-      {/* ============================================================ */}
-      {/* COHORT GRADUATION & ARCHIVAL VERIFICATION MODAL              */}
-      {/* ============================================================ */}
-      {programToArchive && (() => {
-        const enrollees = referrals.filter(
-          r => (r.programId === programToArchive.id || r.programTitle.toLowerCase().trim() === programToArchive.title.toLowerCase().trim()) && r.status === "Enrolled"
-        );
-        const evaluatedCount = enrollees.filter(e => graduationEvaluations[e.id]).length;
-        const graduatedCount = enrollees.filter(e => graduationEvaluations[e.id] === "Graduated").length;
-        const incompleteCount = enrollees.filter(e => graduationEvaluations[e.id] === "Incomplete").length;
-        const isAllEvaluated = enrollees.length === 0 || evaluatedCount === enrollees.length;
-
-        const markAll = (status: "Graduated" | "Incomplete") => {
-          const next: Record<string, "Graduated" | "Incomplete"> = {};
-          enrollees.forEach(e => { next[e.id] = status; });
-          setGraduationEvaluations(next);
-        };
-
-        return (
-          <div
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => {
-              if (e.target === e.currentTarget && !isArchivingProgram) {
-                setProgramToArchive(null);
-                setGraduationEvaluations({});
-              }
-            }}
-          >
-            <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full border border-gray-200 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] animate-in fade-in zoom-in-95 duration-200 ease-out">
-              
-              {/* Modal Top Header */}
-              <div className="bg-gradient-to-r from-[#112F24] via-[#163D2F] to-[#1A4234] text-white p-4 sm:p-5 shrink-0 border-b border-emerald-950/40">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center justify-center shrink-0">
-                      <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-300" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block">
-                        Cohort Graduation Verification
-                      </span>
-                      <h3 className="font-black text-sm sm:text-base text-white tracking-tight leading-snug truncate">
-                        Conclude & Archive: {programToArchive.title}
-                      </h3>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isArchivingProgram}
-                    onClick={() => {
-                      setProgramToArchive(null);
-                      setGraduationEvaluations({});
-                    }}
-                    className="text-emerald-200/70 hover:text-white p-1 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0 custom-scrollbar text-xs">
-                
-                {/* Information Note */}
-                <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-xl p-3 flex items-start gap-2.5">
-                  <Info className="w-4 h-4 text-[#0A6B43] shrink-0 mt-0.5" />
-                  <p className="text-gray-700 leading-relaxed font-medium">
-                    To keep institutional records accurate, identify which trainees successfully completed the course. Only trainees marked as <strong>Graduated</strong> will receive certified qualifications in their Katipunan ng Kabataan credentials folder.
-                  </p>
-                </div>
-
-                {enrollees.length > 0 ? (
-                  <div className="space-y-3">
-                    {/* Evaluation Status & Quick Controls */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 pb-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-extrabold text-gray-900 uppercase tracking-wider text-[11px]">
-                          Enrolled Trainees ({enrollees.length})
-                        </span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                          isAllEvaluated
-                            ? "bg-emerald-50 text-[#0A6B43] border-emerald-300"
-                            : "bg-amber-50 text-amber-800 border-amber-300"
-                        }`}>
-                          {isAllEvaluated ? `✓ All Evaluated (${graduatedCount} Graduated · ${incompleteCount} Incomplete)` : `Evaluated: ${evaluatedCount} of ${enrollees.length}`}
-                        </span>
-                      </div>
-
-                      {/* Quick Bulk Action Buttons */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => markAll("Graduated")}
-                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                        >
-                          Mark All Graduated
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => markAll("Incomplete")}
-                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                        >
-                          Mark All Incomplete
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Trainee Evaluation Cards List */}
-                    <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1 custom-scrollbar">
-                      {enrollees.map(item => {
-                        const currentEval = graduationEvaluations[item.id];
-                        return (
-                          <div
-                            key={item.id}
-                            className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
-                              currentEval === "Graduated"
-                                ? "bg-emerald-50/40 border-emerald-300 shadow-2xs"
-                                : currentEval === "Incomplete"
-                                  ? "bg-amber-50/30 border-amber-300 shadow-2xs"
-                                  : "bg-gray-50/70 border-gray-200 hover:border-gray-300"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${
-                                currentEval === "Graduated"
-                                  ? "bg-emerald-600 text-white"
-                                  : currentEval === "Incomplete"
-                                    ? "bg-amber-600 text-white"
-                                    : "bg-gray-200 text-gray-700"
-                              }`}>
-                                {item.youthName.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h4 className="font-extrabold text-gray-900 text-xs sm:text-sm truncate">
-                                  {item.youthName}
-                                </h4>
-                                <p className="text-[11px] text-gray-500 truncate">
-                                  Purok {item.purok}, Brgy. {item.barangay.replace(/^Barangay\s+/i, "")}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Evaluation Toggle Buttons */}
-                            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setGraduationEvaluations(prev => ({ ...prev, [item.id]: "Graduated" }))}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                                  currentEval === "Graduated"
-                                    ? "bg-emerald-600 text-white shadow-xs"
-                                    : "bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-700 border border-gray-200"
-                                }`}
-                              >
-                                <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                <span>Graduated</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setGraduationEvaluations(prev => ({ ...prev, [item.id]: "Incomplete" }))}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-                                  currentEval === "Incomplete"
-                                    ? "bg-amber-600 text-white shadow-xs"
-                                    : "bg-white hover:bg-amber-50 text-gray-600 hover:text-amber-800 border border-gray-200"
-                                }`}
-                              >
-                                <X className="w-3.5 h-3.5 stroke-[3]" />
-                                <span>Incomplete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Incomplete Warning Message if any un-evaluated */}
-                    {!isAllEvaluated && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 flex items-start gap-2 text-amber-900">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <span className="text-[11px] leading-relaxed">
-                          <strong>Archive Locked:</strong> Please evaluate all {enrollees.length} enrolled trainees ({enrollees.length - evaluatedCount} remaining) before confirming. The archive button will unlock once all are evaluated.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-gray-500 font-medium">
-                    No active enrolled trainees in this cohort. Archiving will safely move this program term to Archived History.
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer Actions */}
-              <div className="p-3.5 sm:p-4 bg-gray-50/90 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
-                <span className="text-[11px] text-gray-500 text-center sm:text-left">
-                  {enrollees.length > 0 && isAllEvaluated
-                    ? `Ready to conclude: ${graduatedCount} certified graduate(s), ${incompleteCount} non-completer(s).`
-                    : enrollees.length === 0
-                      ? "Ready to archive empty program term."
-                      : `${enrollees.length - evaluatedCount} trainee(s) left to evaluate.`}
-                </span>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button
-                    type="button"
-                    disabled={isArchivingProgram}
-                    onClick={() => {
-                      setProgramToArchive(null);
-                      setGraduationEvaluations({});
-                    }}
-                    className="flex-1 sm:flex-none px-4 py-2 border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 text-center"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!isAllEvaluated || isArchivingProgram}
-                    onClick={async () => {
-                      if (programToArchive) {
-                        await handleArchiveProgram(programToArchive.id, programToArchive.title, graduationEvaluations);
-                      }
-                    }}
-                    className={`flex-1 sm:flex-none px-5 py-2.5 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 text-center ${
-                      isAllEvaluated && !isArchivingProgram
-                        ? "bg-[#0A6B43] hover:bg-[#075332] active:scale-95 cursor-pointer"
-                        : "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
-                    }`}
-                  >
-                    {isArchivingProgram ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                        <span>Archiving Term...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Archive className="w-3.5 h-3.5 shrink-0" />
-                        <span>Conclude & Archive Term</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ============================================================ */}
-      {/* DELETE PROGRAM CONFIRMATION MODAL */}
-      {/* ============================================================ */}
-      <ConfirmationModal
-        isOpen={!!programToDelete}
-        title={`Delete Program "${programToDelete?.title}"?`}
-        description={`Are you sure you want to delete "${programToDelete?.title}"? This will close the program and remove it together with its applicant records from the active dashboard.`}
-        confirmText="Delete Program"
-        confirmVariant="red"
-        isLoading={isDeletingProgram}
-        loadingText="Deleting Program..."
-        onConfirm={async () => {
-          if (programToDelete) {
-            await handleDeleteProgram(programToDelete.id, programToDelete.title);
-            setProgramToDelete(null);
-          }
-        }}
-        onCancel={() => {
-          if (!isDeletingProgram) setProgramToDelete(null);
-        }}
-      />
-
-      {/* Training Venue Map Modal for TESDA Partner (Picker & Viewer) */}
+      {/* Training Venue Map Modal for TESDA Partner */}
       <TrainingVenueMapModal
         isOpen={isVenueMapModalOpen}
         onClose={() => setIsVenueMapModalOpen(false)}
@@ -6794,7 +8331,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         instructor={viewingProgram?.instructor || progInstructor}
         contactPerson={viewingProgram?.contactPerson || progContactName}
         contactNumber={viewingProgram?.contactNumber || progContactPhone}
-        onSelectLocation={(res) => {
+        onSelectLocation={(res: { location: string; latitude: number; longitude: number }) => {
           const locWithCoords = formatLocationWithCoords(res.location, res.latitude, res.longitude);
           if (venueMapTarget === "create" || venueMapTarget === "editModal") {
             setProgLocation(locWithCoords);

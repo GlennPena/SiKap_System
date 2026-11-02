@@ -28,6 +28,7 @@ export enum YouthScreen {
 
 export enum TESDAPartnerScreen {
   DASHBOARD = "TESDA Dashboard",
+  APPLICANTS = "Applicants",
   PROGRAMS = "Programs",
   ADD_PROGRAM = "Add New Program",
   EDIT_PROGRAM = "Edit Program",
@@ -399,7 +400,8 @@ export interface ProgramApplication {
   matchScore: number;
   applicationDate?: string;
   referralDate?: string; // backwards compatibility alias
-  status: "Pending" | "Enrolled" | "Declined" | "Archived";
+  rawDate?: string;
+  status: "Pending" | "Approved" | "Enrolled" | "Declined" | "Archived";
   program?: Partial<TESDAProgram>;
 }
 
