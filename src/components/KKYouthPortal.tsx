@@ -5,7 +5,7 @@ import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
-  BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
+  BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, BookOpen, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
   TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame,
@@ -3707,12 +3707,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </button>
                               </span>
                             </p>
-                            {program && (
-                              <p className="font-semibold text-emerald-800 flex items-center gap-1.5 flex-wrap">
-                                <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                <span><strong>Contact Coordinator:</strong> {program.contactPerson} ({program.contactNumber})</span>
-                              </p>
-                            )}
+                            
                           </div>
                         </div>
                       );
@@ -4460,10 +4455,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </div>
                               </div>
 
-                              {/* Separate Container 1: Eligibility */}
+                              {/* Separate Container 1: Program Description */}
                               <div className="border border-gray-200/90 rounded-xl p-3 bg-gray-50/40 space-y-1.5">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
-                                  Eligibility
+                                  Program Description
                                 </span>
                                 <ul className="space-y-1 text-xs text-gray-700 font-medium">
                                   {(prog.eligibility || "Open to all Katipunan ng Kabataan (KK) Youth")
@@ -5119,10 +5114,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         <User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
                                         <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold break-words">{instructor}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Registrar Contact:</strong> <span className="text-gray-900 font-semibold break-words">{contactPerson} ({contactNumber})</span></span>
-          </p>
+                                      
         </div>
     </div>
 
@@ -5142,7 +5134,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         >
                                           {extractLocationDisplay(location)}
                                         </button>
-                                      )</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
+                                      )</strong>:
                                     </p>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 list-disc text-amber-950 font-semibold">
                                       {requiredDocs.map((doc: string, dIdx: number) => (
@@ -8315,33 +8307,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
           </div>
 
-          {/* Contact Registrar */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
-            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <Phone className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Contact Registrar</span>
-              <p className="font-bold text-gray-800 leading-snug break-words text-[11px] sm:text-xs">
-                {viewingProgramModal.program.contactPerson || "TESDA Registrar"}
-                {viewingProgramModal.program.contactNumber && (
-                  <span className="text-emerald-700 font-semibold block sm:inline sm:ml-1">
-                    ({viewingProgramModal.program.contactNumber})
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
+          
 
-          {/* Eligibility */}
+                    {/* Program Description */}
           <div className="sm:col-span-2 bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <GraduationCap className="w-3.5 h-3.5" />
+              <BookOpen className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Eligibility</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Program Description</span>
               <p className="font-bold text-gray-800 leading-snug break-words text-[11px] sm:text-xs">
-                {viewingProgramModal.program.eligibility || "Open to all Katipunan ng Kabataan (KK) Youth"}
+                {viewingProgramModal.program.eligibility || "Comprehensive technical-vocational training program designed for Katipunan ng Kabataan (KK) youth learners."}
               </p>
             </div>
           </div>
@@ -8414,23 +8390,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {/* Required Skills */}
-      {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-            Recommended Prerequisite Competencies:
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {viewingProgramModal.program.requiredSkills.map((sk, sIdx) => (
-              <span key={sIdx} className="text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
-                {sk}
-              </span>
-            ))}
-          </div>
         </div>
       )}
     </div>

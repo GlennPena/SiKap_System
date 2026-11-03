@@ -610,6 +610,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [modalEditTrainingHours, setModalEditTrainingHours] = useState<number | "">("");
   const [modalEditSlotsTotal, setModalEditSlotsTotal] = useState<number | "">(25);
   const [modalEditCost, setModalEditCost] = useState("Free");
+  const [modalEditDeliveryMode, setModalEditDeliveryMode] = useState("Face-to-Face");
   const [modalEditLocation, setModalEditLocation] = useState("");
   const [modalEditRoom, setModalEditRoom] = useState("");
   const [modalEditInstructor, setModalEditInstructor] = useState("");
@@ -620,9 +621,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [modalEditEndDate, setModalEditEndDate] = useState("");
   const [modalEditEligibility, setModalEditEligibility] = useState("");
   const [modalEditRequiredDocuments, setModalEditRequiredDocuments] = useState("");
-  const [modalEditRequiredSkills, setModalEditRequiredSkills] = useState("");
-  const [modalEditContactName, setModalEditContactName] = useState("");
-  const [modalEditContactPhone, setModalEditContactPhone] = useState("");
 
   // Helper to fetch archived records on demand
   const fetchArchivedData = async () => {
@@ -744,9 +742,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [progSlots, setProgSlots] = useState<number | "">("");
   const [progEligibility, setProgEligibility] = useState("");
   const [progRequiredDocuments, setProgRequiredDocuments] = useState("");
-  const [progRequiredSkills, setProgRequiredSkills] = useState("");
-  const [progContactName, setProgContactName] = useState("");
-  const [progContactPhone, setProgContactPhone] = useState("");
   const [progTrainingDays, setProgTrainingDays] = useState<string[]>([]);
   const [progStartTime, setProgStartTime] = useState("");
   const [progEndTime, setProgEndTime] = useState("");
@@ -783,9 +778,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setProgSlots("");
     setProgEligibility("");
     setProgRequiredDocuments("");
-    setProgRequiredSkills("");
-    setProgContactName("");
-    setProgContactPhone("");
     setProgTrainingDays([]);
     setProgStartTime("");
     setProgEndTime("");
@@ -1194,12 +1186,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setModalEditTrainingHours(prog.trainingHours || "");
     setModalEditLocation(extractLocationDisplay(prog.location) || "");
     setModalEditCost(prog.cost || "Free");
+    setModalEditDeliveryMode(prog.deliveryMode || "Face-to-Face");
     setModalEditSlotsTotal(prog.slotsTotal || 25);
     setModalEditEligibility(prog.eligibility || "");
     setModalEditRequiredDocuments(prog.requiredDocuments ? prog.requiredDocuments.join(', ') : "");
-    setModalEditRequiredSkills(prog.requiredSkills ? prog.requiredSkills.join(', ') : "");
-    setModalEditContactName(prog.contactPerson || "");
-    setModalEditContactPhone(prog.contactNumber || "");
     setModalEditTrainingDays(prog.trainingDays || []);
     setModalEditStartTime(parseTimeForInput(prog.startTime));
     setModalEditEndTime(parseTimeForInput(prog.endTime));
@@ -1286,6 +1276,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       location: modalEditLocation,
       trainingHours: Number(modalEditTrainingHours),
       cost: modalEditCost,
+      deliveryMode: modalEditDeliveryMode || "Face-to-Face",
       slotsTotal: newTotal,
       slotsRemaining: newRemaining,
       eligibility: modalEditEligibility,
@@ -5135,9 +5126,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-[15px] sm:text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
-                                <p className="text-xs text-gray-500 font-medium truncate">
-                                  {getProgramCategory(prog)}
-                                </p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-xs text-gray-500 font-medium truncate">
+                                    {getProgramCategory(prog)}
+                                  </p>
+                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded-md">
+                                    {prog.deliveryMode || "Face-to-Face"}
+                                  </span>
+                                </div>
                               </div>
 
                               <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${prog.activeStatus === "Closed"
@@ -5195,32 +5191,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                               </div>
                             </div>
 
-                            {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[42px] sm:min-h-[46px] pt-2 pb-3">
-                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
-                                Target Competencies
-                              </span>
-                              <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
-                                {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
-                                  <>
-                                    {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
-                                      <span key={sIdx} className="text-[10px] sm:text-[11px] bg-slate-100 text-slate-700 font-semibold px-1.5 sm:px-2 py-0.5 rounded-md max-w-full truncate">
-                                        {toTitleCase(skill)}
-                                      </span>
-                                    ))}
-                                    {prog.requiredSkills.length > 3 && (
-                                      <span className="text-[9.5px] sm:text-[10px] text-gray-400 font-bold self-center shrink-0">
-                                        +{prog.requiredSkills.length - 3} more
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-gray-400 italic py-0.5">
-                                    General Technical Skills
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                            
                           </div>
 
                           {/* Card Footer: View Program Details on bottom right */}
@@ -5249,10 +5220,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         <thead>
                           <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
                             <th className="py-3 px-4 text-left">Program Title & Sector</th>
+                            <th className="py-3 px-4 text-center">Delivery Mode</th>
                             <th className="py-3 px-4 text-left">Duration</th>
                             <th className="py-3 px-4 text-left">Training Term</th>
                             <th className="py-3 px-4 text-left">Available Slots</th>
-                            <th className="py-3 px-4 text-left">Target Competencies</th>
                             <th className="py-3 px-4 text-left">Status</th>
                             <th className="py-3 px-4 text-right">Actions</th>
                           </tr>
@@ -5273,6 +5244,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                       {getProgramCategory(prog)}
                                     </p>
                                   </div>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap text-center align-middle">
+                                  <span className="inline-block text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md">
+                                    {prog.deliveryMode || "Face-to-Face"}
+                                  </span>
                                 </td>
                                 <td className="py-3 px-4 whitespace-nowrap align-middle">
                                   <span className="font-medium text-gray-700 text-xs">
@@ -5297,26 +5273,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                         style={{ width: isEnded ? "100%" : `${Math.min(100, Math.max(0, ((prog.slotsTotal - prog.slotsRemaining) / (prog.slotsTotal || 1)) * 100))}%` }}
                                       />
                                     </div>
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 max-w-[200px]">
-                                  <div className="flex flex-wrap gap-1 items-center">
-                                    {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
-                                      <>
-                                        {prog.requiredSkills.slice(0, 2).map((skill, sIdx) => (
-                                          <span key={sIdx} className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-1.5 py-0.5 rounded">
-                                            {toTitleCase(skill)}
-                                          </span>
-                                        ))}
-                                        {prog.requiredSkills.length > 2 && (
-                                          <span className="text-[10px] text-gray-400 font-bold">
-                                            +{prog.requiredSkills.length - 2}
-                                          </span>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <span className="text-[11px] text-gray-400 italic">General Skills</span>
-                                    )}
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 whitespace-nowrap">
@@ -5523,7 +5479,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Training Hours *</label>
@@ -5563,8 +5519,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           />
                         </div>
 
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Cost Model</label>
+                                              <div className="space-y-1">
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Tuition Cost Model</label>
                           <CustomSelect
                             value={progCost}
                             onChange={(val) => setProgCost(val as any)}
@@ -5576,6 +5532,22 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             size="sm"
                             buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
                             placeholder="Select Cost"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-extrabold text-[#0A6B43] uppercase tracking-wider">Delivery Mode *</label>
+                          <CustomSelect
+                            value={progDeliveryMode}
+                            onChange={(val) => setProgDeliveryMode(val)}
+                            options={[
+                              { value: "Face-to-Face", label: "Face-to-Face" },
+                              { value: "Online Learning", label: "Online Learning" },
+                              { value: "Blended Learning", label: "Blended Learning" }
+                            ]}
+                            size="sm"
+                            buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                            placeholder="Select Delivery Mode"
                           />
                         </div>
                       </div>
@@ -7470,7 +7442,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                     )}
                   </div>
 
-                  {/* Cost Model */}
+                                    {/* Cost Model */}
                   <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
                     <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
                       Cost Model
@@ -7492,6 +7464,33 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
                         {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free" : viewingProgram.cost}
                       </p>
+                    )}
+                  </div>
+
+                  {/* Delivery Mode */}
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Delivery Mode
+                    </span>
+                    {isEditingInModal ? (
+                      <CustomSelect
+                        value={modalEditDeliveryMode}
+                        onChange={(val) => setModalEditDeliveryMode(val)}
+                        options={[
+                          { value: "Face-to-Face", label: "Face-to-Face" },
+                          { value: "Online Learning", label: "Online Learning" },
+                          { value: "Blended Learning", label: "Blended Learning" }
+                        ]}
+                        size="sm"
+                        buttonClassName="h-[36px] sm:h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                        placeholder="Select Delivery Mode"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-extrabold uppercase bg-blue-50 text-blue-700 border border-blue-200">
+                          {viewingProgram.deliveryMode || "Face-to-Face"}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -8436,8 +8435,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         }
         room={viewingProgram?.room || progRoom}
         instructor={viewingProgram?.instructor || progInstructor}
-        contactPerson={viewingProgram?.contactPerson || progContactName}
-        contactNumber={viewingProgram?.contactNumber || progContactPhone}
+        contactPerson={viewingProgram?.contactPerson || savedRepName}
+        contactNumber={viewingProgram?.contactNumber || savedRepPhone}
         onSelectLocation={(res: { location: string; latitude: number; longitude: number }) => {
           const locWithCoords = formatLocationWithCoords(res.location, res.latitude, res.longitude);
           if (venueMapTarget === "create" || venueMapTarget === "editModal") {
