@@ -52,6 +52,7 @@ export async function POST(req: Request) {
             email: application.email,
             name: application.institutionName,
             passwordHash: application.passwordHash,
+            contactNumber: application.contactNumber,
             role: Role.TESDA_PARTNER,
             status: "Active"
           }
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
           data: {
             name: application.institutionName,
             passwordHash: application.passwordHash,
+            contactNumber: application.contactNumber,
             role: Role.TESDA_PARTNER,
             status: "Active"
           }
@@ -84,6 +86,7 @@ export async function POST(req: Request) {
             userId: user.id,
             name: application.representativeName,
             email: application.email,
+            contactNumber: application.contactNumber,
             role: assignedRole,
             status: "Active",
             institutionName: application.institutionName,
@@ -96,6 +99,7 @@ export async function POST(req: Request) {
           data: {
             name: application.representativeName,
             email: application.email,
+            contactNumber: application.contactNumber,
             role: assignedRole,
             status: "Active",
             institutionName: application.institutionName,
@@ -148,4 +152,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

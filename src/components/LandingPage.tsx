@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { TESDAProgram } from "../types";
 import {
   BookOpen,
@@ -315,27 +316,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </div>
 
-            {/* Right Action / Sign In Button */}
+            {/* Right Action Buttons: For TESDA Partners (Secondary Outlined) & Sign In (Primary Solid) */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {onOpenProviderApply && (
-                <button
-                  type="button"
-                  onClick={onOpenProviderApply}
-                  className="flex items-center gap-1.5 text-xs font-bold text-[#0A6B43] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/90 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer shadow-2xs hover:-translate-y-0.5"
-                  title="Apply for a Training Provider Account"
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Partner With Us</span>
-                  <span className="sm:hidden">Partner</span>
-                </button>
-              )}
+              <Link
+                href="/partners"
+                className="bg-white hover:bg-emerald-50/80 text-[#0A6B43] border border-[#0A6B43] sm:border-2 text-[11px] sm:text-base font-bold px-2.5 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-2xs hover:shadow-sm hover:-translate-y-0.5 transition-all flex items-center justify-center cursor-pointer shrink-0 whitespace-nowrap"
+                id="landing-for-tesda-partners-btn"
+              >
+                <span>For TESDA Partners</span>
+              </Link>
               <button
                 onClick={onEnterLogin}
-                className="bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-base font-bold sm:font-extrabold px-3.5 sm:px-6 lg:px-7 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-xs sm:shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-1.5 sm:gap-2.5 group cursor-pointer shrink-0"
+                className="bg-[#0A6B43] hover:bg-[#075332] text-white border border-[#0A6B43] sm:border-2 text-[11px] sm:text-base font-bold sm:font-extrabold px-3 sm:px-6 lg:px-7 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-xs sm:shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5 sm:gap-2.5 group cursor-pointer shrink-0 whitespace-nowrap"
                 id="landing-access-portals-btn"
               >
                 <span>Sign In</span>
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                <ArrowRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
               </button>
             </div>
 
@@ -960,15 +956,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   >
                     Sign In
                   </button>
-                  {onOpenProviderApply && (
-                    <button
-                      type="button"
-                      onClick={onOpenProviderApply}
-                      className="hover:text-emerald-300 text-emerald-400 transition-colors cursor-pointer text-left font-bold"
-                    >
-                      Apply as Training Provider →
-                    </button>
-                  )}
+                  <Link
+                    href="/partners"
+                    className="hover:text-emerald-300 text-emerald-400 transition-colors cursor-pointer text-left font-bold"
+                  >
+                    For TESDA Partners →
+                  </Link>
                 </div>
               </div>
 

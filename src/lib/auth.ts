@@ -12,12 +12,14 @@ export const authOptions: AuthOptions = {
       credentials: {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
-        rememberMe: { label: "Remember Me", type: "text" }
+        rememberMe: { label: "Remember Me", type: "text" },
+        portalType: { label: "Portal Type", type: "text" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
         const email = credentials.email.trim().toLowerCase();
+        const portalType = credentials.portalType?.trim().toUpperCase();
 
         // 1. Check if the account is currently in a 5-minute lockout cooldown
         const rateLimit = checkLoginRateLimit(email);
@@ -35,7 +37,32 @@ export const authOptions: AuthOptions = {
           throw new Error(sanitizeApiError(dbErr, "Unable to sign in right now. Please try again shortly."));
         }
 
-        if (!user || user.status !== "Active") {
+        if (!user) {
+          const providerApp = await db.providerApplication.findUnique({
+            where: { email }
+          }).catch(() => null);
+
+          if (providerApp) {
+            const isAppPasswordValid = await bcrypt.compare(credentials.password, providerApp.passwordHash);
+            if (isAppPasswordValid) {
+              clearFailedLoginAttempts(email);
+              if (providerApp.status === "Pending") {
+                throw new Error("Your institutional registration is currently Pending Verification by the SiKap Administrator. You will be able to sign in once your account is approved.");
+              }
+              if (providerApp.status === "Rejected") {
+                throw new Error("Your institutional registration was not approved. Please contact the SiKap Administrator or submit an updated registration.");
+              }
+            }
+          }
+
+          const failResult = recordFailedLoginAttempt(email);
+          throw new Error(failResult.message || "Invalid email or password");
+        }
+
+        if (user.status !== "Active") {
+          if (user.status === "Pending") {
+            throw new Error("Your institutional account is currently Pending Verification by the SiKap Administrator.");
+          }
           throw new Error("Invalid email or password");
         }
 
@@ -49,6 +76,23 @@ export const authOptions: AuthOptions = {
 
         // 2. Successful password match: immediately clear failed attempts counter
         clearFailedLoginAttempts(email);
+
+        // 3. Enforce role-based portal restriction when signing in from the TESDA Partner login portal
+        if (portalType === "PARTNER" && user.role !== Role.TESDA_PARTNER) {
+          throw new Error("Access denied. Only verified TESDA Partner and Training Provider accounts can sign in here. KK Youth members should sign in from the main homepage.");
+        }
+
+        if (user.role === Role.TESDA_PARTNER) {
+          const providerApp = await db.providerApplication.findUnique({
+            where: { email }
+          }).catch(() => null);
+          if (providerApp && providerApp.status === "Pending") {
+            throw new Error("Your institutional registration is currently Pending Verification by the SiKap Administrator.");
+          }
+          if (providerApp && providerApp.status === "Rejected") {
+            throw new Error("Your institutional registration was not approved.");
+          }
+        }
 
         const rememberMe = credentials?.rememberMe === "true" || credentials?.rememberMe === "1";
 
@@ -98,6 +142,7 @@ export const authOptions: AuthOptions = {
           institutionName,
           cptrNumber,
           representativeName,
+          contactNumber: user.contactNumber || user.officialAcc?.contactNumber || undefined,
           rememberMe: rememberMe,
         };
       }

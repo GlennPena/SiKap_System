@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { UserRole } from "./types";
 import {
@@ -87,7 +88,7 @@ const MatchBadge: React.FC = () => {
   );
 };
 
-export default function App() {
+export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } = {}) {
   const { data: session, status } = useSession();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [viewingLanding, setViewingLanding] = useState(true);
@@ -154,6 +155,21 @@ export default function App() {
   const [isSelfRegistering, setIsSelfRegistering] = useState(false);
   const [isProviderApplyOpen, setIsProviderApplyOpen] = useState(false);
   const [loggedInYouthId, setLoggedInYouthId] = useState<string>("");
+
+  // Support deep-linking via ?action=login or ?action=register
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get("action");
+      if (action === "login") {
+        setIsSelfRegistering(false);
+        setViewingLanding(false);
+      } else if (action === "register") {
+        setIsSelfRegistering(true);
+        setViewingLanding(false);
+      }
+    }
+  }, []);
 
   // Shared state synchronized across portals
   const [youthProfiles, setYouthProfiles] = useState<any[]>([]);
@@ -391,6 +407,10 @@ export default function App() {
     setCurrentUserRole(null);
     setEmail("");
     setPassword("");
+    if (logoutRedirectTo && typeof window !== "undefined") {
+      window.location.href = logoutRedirectTo;
+      return;
+    }
     setViewingLanding(true);
     addToast("Logged out successfully.", "info");
   };
@@ -838,13 +858,12 @@ export default function App() {
                         </p>
                         <p className="text-xs text-gray-500 font-medium pt-1.5 border-t border-gray-100">
                           Accredited TVET Institution?{" "}
-                          <button
-                            type="button"
-                            onClick={() => setIsProviderApplyOpen(true)}
+                          <Link
+                            href="/partners"
                             className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2 inline-flex items-center gap-1"
                           >
-                            <span>Apply as Training Provider →</span>
-                          </button>
+                            <span>For TESDA Partners →</span>
+                          </Link>
                         </p>
                       </div>
                     </div>

@@ -756,7 +756,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [progEndDate, setProgEndDate] = useState("");
   const [progCategoryId, setProgCategoryId] = useState<string>("1");
   const [progDeliveryMode, setProgDeliveryMode] = useState<string>("Face-to-Face");
-  const [progFundingType, setProgFundingType] = useState<string>("100% Free (TESDA TWSP / STEP)");
+  const [progFundingType, setProgFundingType] = useState<string>("100% Free");
   const [progCptrCourseCode, setProgCptrCourseCode] = useState<string>("");
   const [progPerks, setProgPerks] = useState<string[]>([]);
 
@@ -794,7 +794,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setProgStartDate("");
     setProgEndDate("");
     setProgDeliveryMode("Face-to-Face");
-    setProgFundingType("100% Free (TESDA TWSP / STEP)");
+    setProgFundingType("100% Free");
     setProgCptrCourseCode("");
     setProgPerks([]);
     setCurrentScreen(TESDAPartnerScreen.ADD_PROGRAM);
@@ -881,7 +881,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
 
     setIsSubmittingProgram(true);
-    const fullTitle = `${progTitle.trim()} ${progLevel}`.trim();
+    const levelSuffix = progLevel && progLevel !== "None" ? progLevel : "";
+    const fullTitle = levelSuffix && !progTitle.toUpperCase().includes(levelSuffix)
+      ? `${progTitle.trim()} ${levelSuffix}`.trim()
+      : progTitle.trim();
 
     const payload = {
       title: fullTitle,
@@ -890,7 +893,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       fundingType: progFundingType || "100% Free",
       cptrCourseCode: progCptrCourseCode || undefined,
       perks: progPerks || [],
-      certificationType: progLevel || "NC II",
+      certificationType: progLevel === "None" ? "None" : (progLevel || "NC II"),
       categoryId: progCategoryId,
       location: progLocation,
       trainingHours: Number(progTrainingHours),
@@ -898,9 +901,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       slotsTotal: Number(progSlots),
       eligibility: progEligibility,
       requiredDocuments: progRequiredDocuments ? progRequiredDocuments.split(',').map(s => s.trim()).filter(Boolean) : [],
-      requiredSkills: progRequiredSkills ? progRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
-      contactPerson: progContactName,
-      contactNumber: progContactPhone,
+      requiredSkills: [],
+      contactPerson: savedRepName || (currentUser as any)?.representativeName || myInstitutionName,
+      contactNumber: savedRepPhone || (currentUser as any)?.contactNumber || "+63 917 000 1122",
       trainingDays: progTrainingDays,
       startTime: progStartTime || undefined,
       endTime: progEndTime || undefined,
@@ -1177,7 +1180,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       setModalEditLevel(match[2].toUpperCase());
     } else {
       setModalEditTitle(prog.title);
-      setModalEditLevel("NC II");
+      setModalEditLevel((prog as any).certificationType === "None" ? "None" : "None");
     }
 
     let catId = prog.categoryId ? String(prog.categoryId) : "";
@@ -1266,8 +1269,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
 
     setIsSavingModal(true);
-    const fullTitle = modalEditLevel && !modalEditTitle.toUpperCase().includes(modalEditLevel)
-      ? `${modalEditTitle.trim()} ${modalEditLevel}`.trim()
+    const levelSuffix = modalEditLevel && modalEditLevel !== "None" ? modalEditLevel : "";
+    const fullTitle = levelSuffix && !modalEditTitle.toUpperCase().includes(levelSuffix)
+      ? `${modalEditTitle.trim()} ${levelSuffix}`.trim()
       : modalEditTitle.trim();
 
     const currentOccupied = Math.max(0, (viewingProgram.slotsTotal || 0) - (viewingProgram.slotsRemaining || 0));
@@ -1277,6 +1281,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     const payload = {
       id: viewingProgram.id,
       title: fullTitle,
+      certificationType: modalEditLevel === "None" ? "None" : (modalEditLevel || "NC II"),
       categoryId: modalEditCategoryId,
       location: modalEditLocation,
       trainingHours: Number(modalEditTrainingHours),
@@ -1285,9 +1290,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       slotsRemaining: newRemaining,
       eligibility: modalEditEligibility,
       requiredDocuments: modalEditRequiredDocuments ? modalEditRequiredDocuments.split(',').map(s => s.trim()).filter(Boolean) : [],
-      requiredSkills: modalEditRequiredSkills ? modalEditRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
-      contactPerson: modalEditContactName,
-      contactNumber: modalEditContactPhone,
       trainingDays: modalEditTrainingDays,
       startTime: modalEditStartTime || undefined,
       endTime: modalEditEndTime || undefined,
@@ -5497,6 +5499,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             value={progLevel}
                             onChange={(val) => setProgLevel(val)}
                             options={[
+                              { value: "None", label: "None" },
                               { value: "NC I", label: "NC I" },
                               { value: "NC II", label: "NC II" },
                               { value: "NC III", label: "NC III" }
@@ -5566,7 +5569,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             value={progCost}
                             onChange={(val) => setProgCost(val as any)}
                             options={[
-                              { value: "Free", label: "Free (TESDA Subsidized)" },
+                              { value: "Free", label: "Free" },
                               { value: "Subsidized", label: "Subsidized / Co-pay" },
                               { value: "With Fee", label: "Fee-based" }
                             ]}
@@ -5829,24 +5832,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       )}
                     </div>
 
-                    {/* Section 3: Requirements & Contacts */}
+                    {/* Section 3: Program Description & Required Documents */}
                     <div className="space-y-4 pt-2">
                       <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                         <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                           3
                         </div>
-                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Admissions & Contact Info</h4>
+                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Program Description &amp; Requirements</h4>
                       </div>
 
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Eligibility Criteria</label>
-                          <span className="text-[10px] text-gray-400 font-medium">Prerequisites & Target Audience</span>
+                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Program Description</label>
+                          <span className="text-[10px] text-gray-400 font-medium">Overview &amp; Learning Outcomes</span>
                         </div>
                         <div className="w-full rounded-xl border border-gray-200 bg-gray-50/70 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all overflow-hidden shadow-2xs">
                           <textarea
                             rows={3}
-                            placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth aged 15–30 residing in San Luis, Pampanga."
+                            placeholder="Describe what trainees will learn in this program, key skills covered, and career opportunities upon completion."
                             value={progEligibility}
                             onChange={(e) => setProgEligibility(e.target.value)}
                             className="w-full p-2.5 sm:p-3 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[68px] max-h-[160px] block modal-scrollbar"
@@ -5854,52 +5857,15 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Required Documents (comma separated)</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Photocopy of Valid ID"
-                            value={progRequiredDocuments}
-                            onChange={(e) => setProgRequiredDocuments(e.target.value)}
-                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Target Prerequisite Skills</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Basic Math, English comprehension, Willingness to learn"
-                            value={progRequiredSkills}
-                            onChange={(e) => setProgRequiredSkills(e.target.value)}
-                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Officer Contact Name</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
-                            value={progContactName}
-                            onChange={(e) => setProgContactName(e.target.value)}
-                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Official Phone Number</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. +63 917 123 4567 / (045) 900-1234"
-                            value={progContactPhone}
-                            onChange={(e) => setProgContactPhone(e.target.value)}
-                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                          />
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Required Documents (comma separated)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Barangay Clearance, 2x2 ID Photo, Photocopy of Valid ID"
+                          value={progRequiredDocuments}
+                          onChange={(e) => setProgRequiredDocuments(e.target.value)}
+                          className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                        />
                       </div>
                     </div>
 
@@ -7285,7 +7251,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <p className="text-xs sm:text-sm font-extrabold text-gray-900 truncate mt-0.5">
                         {(() => {
                           const match = viewingProgram.title?.match(/(NC\s+I|NC\s+II|NC\s+III)$/i);
-                          return match ? match[1].toUpperCase() : (viewingProgram.type || "NC II");
+                          if (match) return match[1].toUpperCase();
+                          if ((viewingProgram as any).certificationType === "None") return "None";
+                          return viewingProgram.type || "None";
                         })()}
                       </p>
                     </div>
@@ -7376,6 +7344,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                         value={modalEditLevel}
                         onChange={(val) => setModalEditLevel(val)}
                         options={[
+                          { value: "None", label: "None" },
                           { value: "NC I", label: "NC I" },
                           { value: "NC II", label: "NC II" },
                           { value: "NC III", label: "NC III" }
@@ -7386,13 +7355,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       />
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-extrabold uppercase bg-emerald-50 text-[#0A6B43] border border-emerald-200">
-                          {(() => {
-                            const match = viewingProgram.title?.match(/(NC\s+I|NC\s+II|NC\s+III)$/i);
-                            return match ? match[1].toUpperCase() : (viewingProgram.type || "NC II");
-                          })()}
-                        </span>
-                        <span className="text-[11px] sm:text-xs text-gray-500 font-medium">National Certificate</span>
+                        {(() => {
+                          const match = viewingProgram.title?.match(/(NC\s+I|NC\s+II|NC\s+III)$/i);
+                          const certLabel = match
+                            ? match[1].toUpperCase()
+                            : (viewingProgram as any).certificationType === "None"
+                              ? "None"
+                              : "None";
+                          return (
+                            <>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-extrabold uppercase bg-emerald-50 text-[#0A6B43] border border-emerald-200">
+                                {certLabel}
+                              </span>
+                              <span className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                                {certLabel === "None" ? "No National Certificate" : "National Certificate"}
+                              </span>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -7493,14 +7473,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                   {/* Cost Model */}
                   <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
                     <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Tuition & Funding Model
+                      Cost Model
                     </span>
                     {isEditingInModal ? (
                       <CustomSelect
                         value={modalEditCost}
                         onChange={(val) => setModalEditCost(val as any)}
                         options={[
-                          { value: "Free", label: "Free (TESDA Subsidized)" },
+                          { value: "Free", label: "Free" },
                           { value: "Subsidized", label: "Subsidized / Co-pay" },
                           { value: "With Fee", label: "Fee-based" }
                         ]}
@@ -7510,7 +7490,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       />
                     ) : (
                       <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
-                        {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free (TESDA Subsidized / TWSP)" : viewingProgram.cost}
+                        {viewingProgram.cost === "Free" || !viewingProgram.cost ? "Free" : viewingProgram.cost}
                       </p>
                     )}
                   </div>
@@ -7840,52 +7820,52 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               </div>
 
-              {/* Section 3: Admissions, Prerequisites & Contacts */}
+              {/* Section 3: Program Description & Required Documents */}
               <div className="bg-gray-50/60 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
-                    <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-xs sm:text-[14px] font-extrabold text-gray-900 tracking-tight">
-                      Admissions, Prerequisites & Contacts
+                      Program Description & Required Documents
                     </h4>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate sm:whitespace-normal">
-                      Candidate entry criteria, paperwork verification, and focal officer contacts.
+                      Overview of the training program and required applicant documents.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4">
-                  {/* Eligibility Criteria */}
-                  <div className="space-y-0.5 sm:space-y-1 sm:col-span-2 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
+                <div className="grid grid-cols-1 gap-2.5 sm:gap-4">
+                  {/* Program Description */}
+                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
                     <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Eligibility Criteria
+                      Program Description
                     </span>
                     {isEditingInModal ? (
                       <div className="w-full rounded-xl border border-gray-200 bg-gray-50/70 focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all overflow-hidden shadow-2xs">
                         <textarea
-                          rows={2}
-                          placeholder="e.g. Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."
+                          rows={3}
+                          placeholder="Provide a brief description of the training program, learning objectives, and what trainees can expect..."
                           value={modalEditEligibility}
                           onChange={(e) => setModalEditEligibility(e.target.value)}
-                          className="w-full p-2.5 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[60px] max-h-[140px] block modal-scrollbar"
+                          className="w-full p-2.5 bg-transparent border-0 text-xs font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 resize-y min-h-[70px] max-h-[160px] block modal-scrollbar"
                         />
                       </div>
                     ) : (
                       <div className="bg-emerald-50/40 border border-emerald-100/80 rounded-lg sm:rounded-xl p-2.5 sm:p-3 flex items-start gap-2 sm:gap-2.5">
                         <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0 mt-0.5" />
                         <p className="text-[11px] sm:text-xs text-gray-800 leading-relaxed font-medium">
-                          {viewingProgram.eligibility || "Open to registered Katipunan ng Kabataan Out-of-School Youth residing in San Luis, Pampanga."}
+                          {viewingProgram.eligibility || "No program description provided."}
                         </p>
                       </div>
                     )}
                   </div>
 
-                  {/* Required Documents */}
+                  {/* Required Documents (comma separated) */}
                   <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
                     <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-0.5">
-                      Required Submission Documents
+                      Required Documents (comma separated)
                     </span>
                     {isEditingInModal ? (
                       <input
@@ -7908,77 +7888,6 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <span className="text-[11px] sm:text-xs text-gray-500 font-medium">Barangay Certificate, Valid ID, 2x2 Photo</span>
                         )}
                       </div>
-                    )}
-                  </div>
-
-                  {/* Prerequisite Skills */}
-                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-0.5">
-                      Target Prerequisite Skills
-                    </span>
-                    {isEditingInModal ? (
-                      <input
-                        type="text"
-                        placeholder="e.g. Basic Math, English comprehension"
-                        value={modalEditRequiredSkills}
-                        onChange={(e) => setModalEditRequiredSkills(e.target.value)}
-                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    ) : (
-                      <div className="flex flex-wrap gap-1 sm:gap-1.5 pt-0.5">
-                        {viewingProgram.requiredSkills && viewingProgram.requiredSkills.length > 0 ? (
-                          viewingProgram.requiredSkills.map((sk, idx) => (
-                            <span key={idx} className="bg-emerald-50 text-emerald-800 font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] border border-emerald-200 flex items-center gap-1">
-                              <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-600 shrink-0" />
-                              <span>{toTitleCase(sk)}</span>
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[11px] sm:text-xs text-gray-500 font-medium">Basic Literacy, Junior High School Graduate</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Focal Officer / Contact Person */}
-                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Officer Contact Person
-                    </span>
-                    {isEditingInModal ? (
-                      <input
-                        type="text"
-                        placeholder="e.g. Engr. Danilo Santos, TESDA Focal Person"
-                        value={modalEditContactName}
-                        onChange={(e) => setModalEditContactName(e.target.value)}
-                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    ) : (
-                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="truncate">{viewingProgram.contactPerson || "TESDA Focal Person"}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Official Phone Number */}
-                  <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                    <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Official Phone Number
-                    </span>
-                    {isEditingInModal ? (
-                      <input
-                        type="text"
-                        placeholder="e.g. +63 917 123 4567"
-                        value={modalEditContactPhone}
-                        onChange={(e) => setModalEditContactPhone(e.target.value)}
-                        className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                      />
-                    ) : (
-                      <p className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="truncate">{viewingProgram.contactNumber || "+63 917 123 4567"}</span>
-                      </p>
                     )}
                   </div>
                 </div>
