@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
+import { useSession } from "next-auth/react";
 import {
   Users, Target, Briefcase, BarChart2, Bell, LogOut, Search, Plus, Filter,
   FileText, Megaphone, Settings, ArrowLeft, Mail, Phone, Calendar, CalendarDays, Award,
@@ -302,6 +303,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       setIsLoggingOut(false);
     }
   };
+  const { data: sessionData, update: updateSession } = useSession();
   const [currentScreen, setCurrentScreen] = useState<SKOfficialScreen>(SKOfficialScreen.DASHBOARD);
   const [selectedYouthId, setSelectedYouthId] = useState<string | null>("y-01"); // Default to Juan
 
@@ -1926,15 +1928,35 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: settingsName.trim(),
-          email: settingsEmail.trim()
+          email: settingsEmail.trim(),
+          contactNumber: settingsPhone.trim(),
+          phone: settingsPhone.trim()
         })
       });
       const data = await res.json();
       if (data.success) {
+        setSavedSettingsName(settingsName.trim());
+        setSavedSettingsEmail(settingsEmail.trim());
+        setSavedSettingsPhone(settingsPhone.trim());
+        try {
+          const uKey = currentUser?.id || currentUser?.email || "sk_official";
+          localStorage.setItem(`sikap_sk_name_${uKey}`, settingsName.trim());
+          localStorage.setItem(`sikap_sk_email_${uKey}`, settingsEmail.trim());
+          localStorage.setItem(`sikap_sk_phone_${uKey}`, settingsPhone.trim());
+        } catch {}
+        if (updateSession) {
+          try {
+            await updateSession({
+              name: settingsName.trim(),
+              email: settingsEmail.trim(),
+              contactNumber: settingsPhone.trim()
+            });
+          } catch {}
+        }
         if (currentCouncilorRecord) {
           setCouncilors(prev => prev.map(c =>
             c.id === currentCouncilorRecord.id
-              ? { ...c, name: settingsName.trim(), email: settingsEmail.trim(), contactNumber: settingsPhone }
+              ? { ...c, name: settingsName.trim(), email: settingsEmail.trim(), contactNumber: settingsPhone.trim() }
               : c
           ));
         }

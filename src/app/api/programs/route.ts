@@ -75,6 +75,11 @@ export async function POST(request: Request) {
         endTime: endDateTime,
         room: body.room,
         instructor: body.instructor,
+        deliveryMode: body.deliveryMode || "Face-to-Face",
+        fundingType: body.fundingType || "Free",
+        perks: body.perks || [],
+        cptrCourseCode: body.cptrCourseCode || undefined,
+        certificationType: body.certificationType || "National Certificate",
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined
       },
@@ -101,12 +106,32 @@ export async function PUT(request: Request) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
+    const existingProg = await db.tESDAProgram.findUnique({ where: { id: body.id } });
+    if (!existingProg) return NextResponse.json({ success: false, error: "Program not found" }, { status: 404 });
+
     // Backend Validation
     if (body.trainingHours !== undefined && body.trainingHours <= 0) return NextResponse.json({ success: false, message: "Training hours must be greater than 0" }, { status: 400 });
     if (body.trainingDays !== undefined && (!body.trainingDays || body.trainingDays.length === 0)) return NextResponse.json({ success: false, message: "At least one training day must be selected" }, { status: 400 });
     
     const updateData: any = { ...body };
     delete updateData.id;
+
+    // Slot integrity recalculation
+    if (body.slotsTotal !== undefined) {
+      const newSlotsTotal = Math.max(1, Number(body.slotsTotal));
+      const currentOccupied = Math.max(0, existingProg.slotsTotal - existingProg.slotsRemaining);
+      const newSlotsRemaining = Math.max(0, newSlotsTotal - currentOccupied);
+      updateData.slotsTotal = newSlotsTotal;
+      updateData.slotsRemaining = newSlotsRemaining;
+
+      if (newSlotsRemaining === 0 && existingProg.activeStatus === "Active") {
+        updateData.activeStatus = "Full";
+      } else if (newSlotsRemaining > 0 && existingProg.activeStatus === "Full") {
+        updateData.activeStatus = "Active";
+      }
+    } else if (body.slotsRemaining !== undefined) {
+      updateData.slotsRemaining = Math.max(0, Number(body.slotsRemaining));
+    }
     
     if (updateData.startTime) {
       updateData.startTime = new Date(`1970-01-01T${updateData.startTime}:00Z`);

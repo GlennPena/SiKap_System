@@ -370,6 +370,12 @@ export interface TESDAProgram {
   endDate?: string;
   latitude?: number;
   longitude?: number;
+  deliveryMode?: string;
+  fundingType?: string;
+  perks?: string[];
+  cptrCourseCode?: string;
+  certificationType?: string;
+  centerName?: string;
 }
 
 export interface SKAnnouncement {
@@ -412,10 +418,12 @@ export interface OfficialAccount {
   id: string;
   name: string;
   email: string;
-  role: "SK Chairperson" | "Barangay Captain" | "TESDA Representative";
+  role: "SK Chairperson" | "Barangay Captain" | "TESDA Representative" | "TVET Partner Liaison";
   barangay?: string; // empty for TESDA Representative
   status: "Active" | "Inactive" | "Suspended";
   dateCreated: string;
+  institutionName?: string;
+  cptrNumber?: string;
 }
 
 export interface Councilor {
@@ -433,3 +441,23 @@ export interface Barangay {
   name: string;
 }
 
+
+
+export interface ProviderApplication {
+  id: string;
+  institutionName: string;
+  providerType: string;
+  campusAddress: string;
+  representativeName: string;
+  representativePosition: string;
+  email: string;
+  contactNumber: string;
+  cptrNumber: string;
+  cptrDocument: string;
+  status: "Pending" | "Approved" | "Rejected";
+  rejectionReason?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}

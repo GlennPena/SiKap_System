@@ -11,7 +11,8 @@ import {
   LayoutGrid, List, UserPlus, ShieldAlert, EyeOff, Printer, Download, Menu, Loader2,
   Table, ArrowUpRight, ChevronDown, ChevronUp
 } from "lucide-react";
-import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
+import { OfficialAccount, Councilor, YouthProfile, TESDAProgram, Barangay, ReferralPipelineItem, SKAnnouncement, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment, ProviderApplication } from "../types";
+import { SuperAdminPartnerVerification } from "./SuperAdminPartnerVerification";
 import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { motion, AnimatePresence } from "motion/react";
@@ -68,7 +69,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   currentUser
 }) => {
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "youth_masterlist" | "barangays" | "tesda_records" | "audit_logs" | "create_account" | "create_tesda" | "profile"
+    "dashboard" | "partner_verification" | "youth_masterlist" | "barangays" | "tesda_records" | "audit_logs" | "create_account" | "create_tesda" | "profile"
   >("dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -84,6 +85,33 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
   };
 
   const { update: updateSession } = useSession();
+
+  // Provider Applications State (for CPTR verification)
+  const [providerApplications, setProviderApplications] = useState<ProviderApplication[]>([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+
+  const fetchProviderApplications = React.useCallback(async () => {
+    setIsLoadingApplications(true);
+    try {
+      const res = await fetch("/api/provider-applications");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setProviderApplications(data.data);
+      }
+    } catch (err) {
+      console.error("Failed to load provider applications:", err);
+    } finally {
+      setIsLoadingApplications(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProviderApplications();
+  }, [fetchProviderApplications]);
+
+  const pendingApplicationsCount = useMemo(() => {
+    return providerApplications.filter(a => a.status === "Pending").length;
+  }, [providerApplications]);
 
   // Profile Tab State
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
@@ -574,7 +602,7 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
       return;
     }
 
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailPattern = /^[^s@]+@[^s@]+.[^s@]+$/;
     if (!emailPattern.test(email)) {
       addToast("Please enter a valid email address", "error");
       return;
@@ -582,6 +610,9 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const assignedInstitution = selectedPartnerInstitution?.name || "Gonzalo Puyat School of Arts and Trades (GPSAT)";
+      const assignedCptr = selectedPartnerInstitution?.cptrNumber || "UTPRAS-R03-PAM-2024";
+
       const response = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -589,7 +620,9 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
           name: fullName.trim(),
           email: email.trim().toLowerCase(),
           tempPassword: tempPassword,
-          role: "TESDA Representative"
+          role: partnerRoleToAssign,
+          institutionName: assignedInstitution,
+          cptrNumber: assignedCptr
         })
       });
 
@@ -601,10 +634,10 @@ export const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({
           name: fullName.trim(),
           email: email.trim().toLowerCase(),
           pass: tempPassword,
-          role: "TESDA Representative"
+          role: partnerRoleToAssign
         });
 
-        addToast(`Successfully created TESDA Representative account for ${fullName}!`, "success");
+        addToast(`Successfully provisioned ${partnerRoleToAssign} account for ${fullName} (${assignedInstitution})!`, "success");
         broadcastDataChange("users", "created");
 
         // Reset fields
@@ -887,12 +920,96 @@ Please sign in at ${window.location.origin} and change your password immediately
     return filteredBarangays.slice(start, start + BRGY_PER_PAGE);
   }, [filteredBarangays, brgyPage, BRGY_PER_PAGE]);
 
-  // Filtered TESDA list
+  // Filtered TESDA & TVET Partner list
   const filteredTesdaReps = useMemo(() => {
     return officialAccounts
-      .filter(o => o.role === "TESDA Representative")
-      .filter(item => item.name.toLowerCase().includes(tesdaSearch.toLowerCase()) || item.email.toLowerCase().includes(tesdaSearch.toLowerCase()));
+      .filter(o => o.role === "TESDA Representative" || o.role === "TVET Partner Liaison")
+      .filter(item => 
+        item.name.toLowerCase().includes(tesdaSearch.toLowerCase()) || 
+        item.email.toLowerCase().includes(tesdaSearch.toLowerCase()) ||
+        (item.institutionName && item.institutionName.toLowerCase().includes(tesdaSearch.toLowerCase()))
+      );
   }, [officialAccounts, tesdaSearch]);
+
+  // Program search & institution filter in TVET Records
+  const [progCatalogSearch, setProgCatalogSearch] = useState("");
+  const [progInstitutionFilter, setProgInstitutionFilter] = useState("All");
+
+  // Accredited institutions for provisioning liaisons
+  const accreditedInstitutionsList = useMemo(() => {
+    const list: { id: string; name: string; type: string; cptrNumber: string }[] = [
+      {
+        id: "gpsat",
+        name: "Gonzalo Puyat School of Arts and Trades (GPSAT)",
+        type: "Public TESDA Institute",
+        cptrNumber: "UTPRAS-R03-PAM-2024"
+      }
+    ];
+
+    const seen = new Set<string>(["gonzalo puyat school of arts and trades (gpsat)", "gpsat"]);
+
+    // From approved provider applications
+    providerApplications
+      .filter(app => app.status === "Approved")
+      .forEach(app => {
+        const key = app.institutionName.toLowerCase().trim();
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push({
+            id: app.id,
+            name: app.institutionName,
+            type: app.providerType || "Private TVET Institute",
+            cptrNumber: app.cptrNumber
+          });
+        }
+      });
+
+    // From existing official accounts
+    officialAccounts
+      .filter(o => o.institutionName)
+      .forEach(o => {
+        const key = o.institutionName!.toLowerCase().trim();
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push({
+            id: o.id,
+            name: o.institutionName!,
+            type: "Accredited TVET Partner",
+            cptrNumber: o.cptrNumber || "CPTR-Registered"
+          });
+        }
+      });
+
+    return list;
+  }, [providerApplications, officialAccounts]);
+
+  const [selectedPartnerInstId, setSelectedPartnerInstId] = useState<string>("gpsat");
+
+  const selectedPartnerInstitution = useMemo(() => {
+    return accreditedInstitutionsList.find(i => i.id === selectedPartnerInstId) || accreditedInstitutionsList[0];
+  }, [accreditedInstitutionsList, selectedPartnerInstId]);
+
+  const partnerRoleToAssign = useMemo(() => {
+    if (!selectedPartnerInstitution) return "TVET Partner Liaison";
+    const name = selectedPartnerInstitution.name.toLowerCase();
+    return name.includes("gpsat") || name.includes("gonzalo") ? "TESDA Representative" : "TVET Partner Liaison";
+  }, [selectedPartnerInstitution]);
+
+  const filteredProgramsCatalog = useMemo(() => {
+    return programs.filter(p => {
+      const matchSearch = p.title.toLowerCase().includes(progCatalogSearch.toLowerCase()) ||
+        (p.provider || "").toLowerCase().includes(progCatalogSearch.toLowerCase()) ||
+        (p.cptrCourseCode || "").toLowerCase().includes(progCatalogSearch.toLowerCase());
+      
+      if (!matchSearch) return false;
+      if (progInstitutionFilter === "All") return true;
+      const prov = (p.provider || "").toLowerCase();
+      if (progInstitutionFilter === "GPSAT") {
+        return prov === "" || prov.includes("gpsat") || prov.includes("gonzalo") || prov.includes("tesda");
+      }
+      return prov.includes(progInstitutionFilter.toLowerCase());
+    });
+  }, [programs, progCatalogSearch, progInstitutionFilter]);
 
   // Suggestion 1: Filtered Municipal Youth Masterlist
   const filteredYouthMasterlist = useMemo(() => {
@@ -1694,6 +1811,22 @@ Please sign in at ${window.location.origin} and change your password immediately
                 )
               },
               {
+                id: "partner_verification",
+                label: "TVET Partners & Verification",
+                activeIcon: (
+                  <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm-2 16l-4-4 1.41-1.41L10 15.17l6.59-6.59L18 10l-8 8z" />
+                  </svg>
+                ),
+                inactiveIcon: (
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                ),
+                badge: pendingApplicationsCount > 0 ? pendingApplicationsCount : undefined
+              },
+              {
                 id: "youth_masterlist",
                 label: "Youth Masterlist",
                 activeIcon: (
@@ -1737,7 +1870,7 @@ Please sign in at ${window.location.origin} and change your password immediately
               },
               {
                 id: "tesda_records",
-                label: "TESDA Directory",
+                label: "TVET Programs Masterlist",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
@@ -1786,7 +1919,7 @@ Please sign in at ${window.location.origin} and change your password immediately
               },
               {
                 id: "create_tesda",
-                label: "Provision TESDA Account",
+                label: "Provision TVET Partner",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <circle cx="9" cy="6.5" r="3.5" />
@@ -1953,12 +2086,13 @@ Please sign in at ${window.location.origin} and change your password immediately
             <div className="min-w-0 flex-1">
               <h1 className="text-[24px] xl:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
                 {activeTab === "dashboard" && "Infrastructure Dashboard"}
+                {activeTab === "partner_verification" && "Partner Verification & Directory"}
                 {activeTab === "youth_masterlist" && "Youth Masterlist"}
                 {activeTab === "barangays" && "Barangay Directory"}
                 {activeTab === "tesda_records" && "TESDA Directory"}
                 {activeTab === "audit_logs" && "Audit Logs & Activity"}
                 {activeTab === "create_account" && "Provision Official"}
-                {activeTab === "create_tesda" && "Provision TESDA"}
+                {activeTab === "create_tesda" && "Provision TVET Partner"}
                 {activeTab === "profile" && "Admin Profile & Security"}
               </h1>
             </div>
@@ -2156,6 +2290,32 @@ Please sign in at ${window.location.origin} and change your password immediately
                 </div>
               </div>
 
+              {/* Actionable Alert Banner: Pending TVET Provider Applications */}
+              {pendingApplicationsCount > 0 && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Award className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-amber-950 text-sm sm:text-base">
+                        {pendingApplicationsCount} TVET Provider Application{pendingApplicationsCount > 1 ? "s" : ""} Awaiting CPTR Review
+                      </h4>
+                      <p className="text-xs text-amber-800 font-medium">
+                        Training institutions have submitted their registration and CPTR documents for accreditation in San Luis.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab("partner_verification")}
+                    className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span>Review Applications</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Highlight KPI Metric Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
                 <MetricCard
@@ -2342,6 +2502,21 @@ Please sign in at ${window.location.origin} and change your password immediately
               </div>
 
             </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* TAB: PARTNER VERIFICATION & TVET DIRECTORY */}
+          {/* ============================================================ */}
+          {activeTab === "partner_verification" && (
+            <SuperAdminPartnerVerification
+              providerApplications={providerApplications}
+              setProviderApplications={setProviderApplications}
+              officialAccounts={officialAccounts}
+              setOfficialAccounts={setOfficialAccounts}
+              programs={programs}
+              addToast={addToast}
+              onNavigateToPrograms={() => setActiveTab("tesda_records")}
+            />
           )}
 
           {/* ============================================================ */}
@@ -3628,10 +3803,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    TESDA Partner Directory
+                    TVET Programs & Partners Masterlist
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Institutional TVET partner directory, certified program modules, and accredited training providers.
+                    Comprehensive municipal catalog of technical-vocational training courses, authorized partner liaisons, and accredited academies.
                   </p>
                 </div>
               </div>
@@ -3640,7 +3815,7 @@ Please sign in at ${window.location.origin} and change your password immediately
               <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
                 {/* Top Row: Card Name on left, Provision New Representative on right */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">TESDA Municipal Representatives</h3>
+                  <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Accredited TVET & TESDA Liaisons</h3>
                   <button
                     onClick={() => {
                       setActiveTab("create_tesda");
@@ -3649,7 +3824,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                     className="w-full sm:w-auto justify-center bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white px-4 sm:px-5 py-2.5 rounded-xl text-[14px] font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
                   >
                     <PlusCircle className="w-4.5 h-4.5 shrink-0" />
-                    <span>Provision New Representative</span>
+                    <span>Provision Partner Liaison</span>
                   </button>
                 </div>
 
@@ -3696,7 +3871,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   </div>
                                   <div>
                                     <p className="font-bold text-gray-900 truncate">{item.name}</p>
-                                    <p className="text-[11px] text-gray-400">TVET Technical Liaison</p>
+                                    <p className="text-[11px] font-semibold text-[#0A6B43] flex items-center gap-1">
+                                      <Building2 className="w-3 h-3 shrink-0" />
+                                      <span>{item.institutionName || "TESDA Pampanga (GPSAT)"}</span>
+                                    </p>
                                   </div>
                                 </div>
                               </td>
@@ -3704,7 +3882,15 @@ Please sign in at ${window.location.origin} and change your password immediately
                                 {item.email}
                               </td>
                               <td className="py-3 px-4 text-gray-700 whitespace-nowrap font-medium">
-                                {item.role}
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                                  item.institutionName && !item.institutionName.toLowerCase().includes("gpsat")
+                                    ? "bg-blue-50 text-blue-800 border-blue-200"
+                                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                }`}>
+                                  {item.institutionName && !item.institutionName.toLowerCase().includes("gpsat")
+                                    ? "Accredited TVET Partner"
+                                    : "Public TESDA Institute"}
+                                </span>
                               </td>
                               <td className="py-3 px-4 text-center whitespace-nowrap">
                                 <span className={`inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
@@ -3753,6 +3939,127 @@ Please sign in at ${window.location.origin} and change your password immediately
                           <tr>
                             <td colSpan={6} className="p-8 text-center text-gray-400 font-medium">
                               No TESDA Representatives registered matching your search criteria.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 2: MUNICIPAL TVET PROGRAMS & COURSES CATALOG */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div>
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Municipal Training Courses Catalog</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Filter published technical-vocational programs across all accredited institutions.</p>
+                  </div>
+                  <span className="text-xs font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full shadow-2xs self-start sm:self-auto shrink-0">
+                    {filteredProgramsCatalog.length} of {programs.length} Program(s)
+                  </span>
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search courses by title, accreditation code, or provider..."
+                      value={progCatalogSearch}
+                      onChange={(e) => setProgCatalogSearch(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-4 bg-gray-50/70 border border-gray-200 rounded-xl text-[12px] placeholder:text-[12px] font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                  </div>
+
+                  <div className="min-w-[220px]">
+                    <CustomSelect
+                      value={progInstitutionFilter}
+                      onChange={(val) => setProgInstitutionFilter(val)}
+                      options={[
+                        { value: "All", label: "All Training Providers" },
+                        { value: "GPSAT", label: "TESDA GPSAT (Founding)" },
+                        ...officialAccounts
+                          .filter(o => o.institutionName && !o.institutionName.toLowerCase().includes("gpsat"))
+                          .map(o => ({ value: o.institutionName!, label: o.institutionName! }))
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70"
+                      placeholder="Filter by Institution"
+                    />
+                  </div>
+                </div>
+
+                {/* Programs Catalog Table */}
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-[12px]">
+                      <thead>
+                        <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[11px] font-bold whitespace-nowrap">
+                          <th className="py-3 px-4 text-left whitespace-nowrap">Training Program</th>
+                          <th className="py-3 px-4 text-left whitespace-nowrap">Provider Institution</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Delivery Mode</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">CPTR Code</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Open Slots</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Cost</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredProgramsCatalog.length > 0 ? (
+                          filteredProgramsCatalog.map((prog) => (
+                            <tr key={prog.id} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <div>
+                                  <p className="font-bold text-gray-900">{prog.title}</p>
+                                  <p className="text-[11px] text-gray-400">{prog.trainingHours} Hours • {prog.cost || "Free"}</p>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1 font-bold text-xs ${
+                                  (prog.provider || "").toLowerCase().includes("gpsat")
+                                    ? "text-emerald-800"
+                                    : "text-blue-800"
+                                }`}>
+                                  <Building2 className="w-3 h-3 shrink-0" />
+                                  <span>{prog.provider || "TESDA Pampanga (GPSAT)"}</span>
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <span className="inline-block text-[10px] font-semibold text-gray-700 bg-gray-100 px-2.5 py-0.5 rounded-md border border-gray-200">
+                                  {prog.deliveryMode || "Face-to-Face"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  {prog.cptrCourseCode || "UTPRAS Registered"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap font-bold text-gray-900">
+                                <span className="text-[#0A6B43]">{prog.slotsRemaining}</span>
+                                <span className="text-gray-400 font-normal"> / {prog.slotsTotal}</span>
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap font-bold text-emerald-700">
+                                {prog.cost || "Free"}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <span className={`inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                                  prog.activeStatus === "Active"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : prog.activeStatus === "Full"
+                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                    : "bg-purple-50 text-purple-800 border-purple-200"
+                                }`}>
+                                  {prog.activeStatus}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={7} className="p-8 text-center text-gray-400 font-medium">
+                              No training courses found matching your search filter.
                             </td>
                           </tr>
                         )}
@@ -4144,10 +4451,10 @@ Please sign in at ${window.location.origin} and change your password immediately
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    Provision TVET Partner
+                    Provision TVET Partner Liaison
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
-                    Create verified access credentials for accredited technical-vocational education and training officers.
+                    Create authorized access credentials for liaison officers of accepted Technical-Vocational Education & Training institutions in San Luis.
                   </p>
                 </div>
               </div>
@@ -4158,33 +4465,78 @@ Please sign in at ${window.location.origin} and change your password immediately
                 <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-black shrink-0 mt-0.5 sm:mt-0">
-                      <Briefcase className="w-5 h-5" />
+                      <Building2 className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">Provision TESDA Partner Representative</h3>
-                      <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Create verified access credentials for TVET technical training officers</p>
+                      <h3 className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight">Provision Authorized TVET Partner Liaison</h3>
+                      <p className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5 leading-relaxed">Issue verified login credentials for an accepted training provider institution</p>
                     </div>
                   </div>
                   <span className="self-start sm:self-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 shrink-0">
-                    Municipal Partner
+                    Accredited Partner
                   </span>
                 </div>
 
                 <form onSubmit={handleCreateTesdaSubmit} className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6 text-xs font-semibold">
                   
-                  {/* Section 1: Partner Info */}
+                  {/* Section 1: Target Institution Assignment */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
-                      1. Representative Profile & Contact
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100 flex items-center gap-2">
+                      <Building2 className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      <span>1. Accepted Training Provider Institution</span>
+                    </h4>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-gray-700 uppercase">Select Accepted Training Institution *</label>
+                      <CustomSelect
+                        value={selectedPartnerInstId}
+                        onChange={(val) => setSelectedPartnerInstId(val)}
+                        options={accreditedInstitutionsList.map(inst => ({
+                          value: inst.id,
+                          label: `${inst.name} (${inst.type})`
+                        }))}
+                        size="md"
+                        placeholder="Select an accepted training institution..."
+                      />
+                    </div>
+
+                    {/* Locked Identity Card of Selected Institution */}
+                    {selectedPartnerInstitution && (
+                      <div className="p-3.5 bg-emerald-50/50 border border-emerald-200/80 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-black text-gray-900">
+                            {selectedPartnerInstitution.name}
+                          </span>
+                          <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                            selectedPartnerInstitution.id === "gpsat"
+                              ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                              : "bg-blue-100 text-blue-900 border-blue-300"
+                          }`}>
+                            {selectedPartnerInstitution.type}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-900 font-mono">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>CPTR Registration Code: <strong>{selectedPartnerInstitution.cptrNumber}</strong></span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section 2: Liaison Officer Profile */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100 flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      <span>2. Authorized Liaison Officer Profile</span>
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-700 uppercase">Authorized Full Name</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Representative Full Name *</label>
                         <input
                           type="text"
                           required
-                          placeholder="e.g. Evelyn Castor"
+                          placeholder="e.g. Engr. Juan Dela Cruz"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
                           className="w-full p-3 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-900 text-xs focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
@@ -4192,11 +4544,11 @@ Please sign in at ${window.location.origin} and change your password immediately
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-700 uppercase">Official Email Address</label>
+                        <label className="text-[11px] font-bold text-gray-700 uppercase">Official Email Address *</label>
                         <input
                           type="email"
                           required
-                          placeholder="e.g. evelyn.castor@tesda.gov.ph"
+                          placeholder="e.g. liaison@academy.edu.ph"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           className="w-full p-3 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-900 text-xs focus:bg-white focus:ring-2 focus:ring-[#0A6B43]/20 focus:border-[#0A6B43] focus:outline-hidden transition-all"
@@ -4205,10 +4557,11 @@ Please sign in at ${window.location.origin} and change your password immediately
                     </div>
                   </div>
 
-                  {/* Section 2: Scope Assignment */}
+                  {/* Section 3: Scope Assignment */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
-                      2. Role & Jurisdiction
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100 flex items-center gap-2">
+                      <Award className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      <span>3. Assigned Role & Municipal Jurisdiction</span>
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -4217,8 +4570,8 @@ Please sign in at ${window.location.origin} and change your password immediately
                         <input
                           type="text"
                           readOnly
-                          value="TESDA Representative"
-                          className="w-full p-3 bg-gray-100/70 border border-gray-200 text-gray-500 rounded-xl text-xs cursor-not-allowed outline-hidden"
+                          value={partnerRoleToAssign}
+                          className="w-full p-3 bg-emerald-50/60 border border-emerald-200 text-emerald-950 font-bold rounded-xl text-xs cursor-not-allowed outline-hidden"
                         />
                       </div>
 
@@ -4234,10 +4587,11 @@ Please sign in at ${window.location.origin} and change your password immediately
                     </div>
                   </div>
 
-                  {/* Section 3: Generated Password */}
+                  {/* Section 4: Generated Password */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100">
-                      3. Temporary Security Node
+                    <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider pb-2 border-b border-gray-100 flex items-center gap-2">
+                      <Key className="w-3.5 h-3.5 text-[#0A6B43]" />
+                      <span>4. Temporary Security Node</span>
                     </h4>
 
                     <div className="space-y-1.5">
@@ -4262,6 +4616,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                           <span>Regenerate</span>
                         </button>
                       </div>
+                      <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium">The liaison will be prompted to update this password upon initial sign in.</p>
                     </div>
                   </div>
 
@@ -4276,7 +4631,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                       ) : (
                         <UserCheck className="w-4 h-4 shrink-0" />
                       )}
-                      <span className="leading-snug">Provision TESDA Account & Generate Credentials</span>
+                      <span className="leading-snug">Provision TVET Partner Account & Issue Credentials</span>
                     </button>
                   </div>
 

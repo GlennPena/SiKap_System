@@ -19,6 +19,7 @@ import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { TermsPage } from "./components/TermsPage";
 import { PrivacyPolicyPage } from "./components/PrivacyPolicyPage";
+import { TrainingProviderApplyModal } from "./components/TrainingProviderApplyModal";
 import { AnimatedGridBackground } from "./components/AnimatedGridBackground";
 import { onRealtimeSync, broadcastDataChange } from "./lib/realtime-sync";
 import { sanitizeClientError } from "./lib/utils";
@@ -151,6 +152,7 @@ export default function App() {
   const [councilors, setCouncilors] = useState<any[]>([]);
   const [designatedBarangay, setDesignatedBarangay] = useState<string>("San Sebastian");
   const [isSelfRegistering, setIsSelfRegistering] = useState(false);
+  const [isProviderApplyOpen, setIsProviderApplyOpen] = useState(false);
   const [loggedInYouthId, setLoggedInYouthId] = useState<string>("");
 
   // Shared state synchronized across portals
@@ -507,6 +509,7 @@ export default function App() {
               onOpenLegal={(tab) => {
                 setViewingLegal({ tab, returnTo: "landing" });
               }}
+              onOpenProviderApply={() => setIsProviderApplyOpen(true)}
               addToast={addToast}
             />
           )}
@@ -822,7 +825,7 @@ export default function App() {
                       </form>
 
                       {/* Registration Link */}
-                      <div className="text-center pt-2 sm:pt-3">
+                      <div className="text-center pt-2 sm:pt-3 space-y-2">
                         <p className="text-[14px] font-semibold text-gray-700">
                           New to SiKap?{" "}
                           <button
@@ -831,6 +834,16 @@ export default function App() {
                             className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
                           >
                             Register Here
+                          </button>
+                        </p>
+                        <p className="text-xs text-gray-500 font-medium pt-1.5 border-t border-gray-100">
+                          Accredited TVET Institution?{" "}
+                          <button
+                            type="button"
+                            onClick={() => setIsProviderApplyOpen(true)}
+                            className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2 inline-flex items-center gap-1"
+                          >
+                            <span>Apply as Training Provider →</span>
                           </button>
                         </p>
                       </div>
@@ -1013,6 +1026,13 @@ export default function App() {
           addToast("Password reset successfully! Please sign in with your new password.", "success");
         }}
         addToast={addToast}
+      />
+
+      {/* TVET Training Provider Application Modal */}
+      <TrainingProviderApplyModal
+        isOpen={isProviderApplyOpen}
+        onClose={() => setIsProviderApplyOpen(false)}
+        onSuccessToast={(msg) => addToast(msg, "success")}
       />
     </div>
   );

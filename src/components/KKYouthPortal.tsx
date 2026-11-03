@@ -4287,6 +4287,25 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   >
                                     {prog.title}
                                   </h4>
+
+                                  {/* Provider & TVET Accreditation Badges */}
+                                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap pt-1">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-700 bg-gray-100/90 px-2 py-0.5 rounded-md border border-gray-200/80">
+                                      <Building2 className="w-3 h-3 text-emerald-700 shrink-0" />
+                                      <span className="truncate max-w-[140px] sm:max-w-[200px]" title={(prog.provider || prog.centerName) || "TESDA Pampanga (GPSAT)"}>
+                                        {(prog.provider || prog.centerName) || "TESDA Pampanga (GPSAT)"}
+                                      </span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/80">
+                                      <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      CPTR Verified
+                                    </span>
+                                    {prog.deliveryMode && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200/80">
+                                        {prog.deliveryMode}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="shrink-0 pt-0.5">
                                   <FlameMatchScore score={score} hasEnoughData={hasEnoughMatchingData} isTopMatch={isTopMatch} />
@@ -7971,10 +7990,24 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
             </div>
 
-            {/* Subheader: Sector of the Program */}
-            <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-500">
-              {modalProgSector}
-            </p>
+            {/* Subheader: Sector, Institution & Verification */}
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs text-gray-600">
+              <span className="font-semibold text-gray-500">{modalProgSector}</span>
+              <span className="text-gray-300">•</span>
+              <span className="inline-flex items-center gap-1 font-bold text-gray-800">
+                <Building2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                {(modalProg.provider || modalProg.centerName) || "TESDA Pampanga (GPSAT)"}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-200">
+                <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                CPTR Verified Partner
+              </span>
+              {modalProg.deliveryMode && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200">
+                  {modalProg.deliveryMode}
+                </span>
+              )}
+            </div>
           </div>
 
               {/* Modal Scrollable Body */ }
@@ -8312,6 +8345,57 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </p>
             </div>
           </div>
+
+          {/* Delivery Mode */}
+          {viewingProgramModal.program.deliveryMode && (
+            <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+              <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-blue-50 border border-blue-100/80 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                <GraduationCap className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Delivery Mode</span>
+                <p className="font-bold text-gray-800 leading-snug break-words">
+                  {viewingProgramModal.program.deliveryMode}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* TVET / CPTR Program Registration */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <ShieldCheck className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">TVET / CPTR Accreditation</span>
+              <p className="font-bold text-emerald-800 leading-snug break-words">
+                {viewingProgramModal.program.cptrCourseCode ? (
+                  <span className="font-mono text-[11px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    {viewingProgramModal.program.cptrCourseCode}
+                  </span>
+                ) : (
+                  "TESDA UTPRAS Registered"
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Perks & Allowances (if available) */}
+          {(viewingProgramModal.program.fundingType || viewingProgramModal.program.perks) && (
+            <div className="sm:col-span-2 bg-emerald-50/70 p-2.5 sm:p-3 rounded-xl border border-emerald-200/80 flex items-start gap-2.5 shadow-2xs">
+              <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                <Gift className="w-3.5 h-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">
+                  Scholarship & Allowance Perks {viewingProgramModal.program.fundingType ? "(" + viewingProgramModal.program.fundingType + ")" : ""}
+                </span>
+                <p className="font-semibold text-emerald-950 text-xs leading-relaxed mt-0.5">
+                  {Array.isArray(viewingProgramModal.program.perks) ? viewingProgramModal.program.perks.join(", ") : (viewingProgramModal.program.perks || "Includes standard training allowance, toolkits, and assessment subsidies where applicable.")}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

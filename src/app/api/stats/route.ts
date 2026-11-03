@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, sanitizeApiError } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const totalYouth = await db.youthProfile.count();
-    const totalPrograms = await db.tESDAProgram.count({
-      where: { activeStatus: { not: "Closed" } }
-    });
-    const totalApplications = await db.referral.count();
-    const enrolledApplications = await db.referral.count({ where: { status: "Enrolled" } });
-    
-    const barangayDistinct = await db.youthProfile.groupBy({
-      by: ['barangayId']
-    });
+    const [totalYouth, totalPrograms, totalApplications, enrolledApplications, barangayDistinct] = await Promise.all([
+      db.youthProfile.count(),
+      db.tESDAProgram.count({
+        where: { activeStatus: { not: "Closed" } }
+      }),
+      db.referral.count(),
+      db.referral.count({ where: { status: "Enrolled" } }),
+      db.youthProfile.groupBy({
+        by: ['barangayId']
+      })
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -28,6 +29,16 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("Stats GET Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      data: {
+        totalYouth: 0,
+        totalPrograms: 0,
+        totalApplications: 0,
+        enrolledApplications: 0,
+        barangaysRepresented: 0
+      },
+      warning: sanitizeApiError(error)
+    });
   }
 }

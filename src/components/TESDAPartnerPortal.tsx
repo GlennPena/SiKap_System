@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
   Search, ChevronDown, ChevronUp, BookOpen, Eye, MapPin, GraduationCap, Info, User,
@@ -88,6 +89,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   addToast,
   currentUser
 }) => {
+  const { data: sessionData, update: updateSession } = useSession();
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -148,17 +150,90 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [isLoadingApplicants, setIsLoadingApplicants] = useState(false);
   const [applicantsError, setApplicantsError] = useState<string | null>(null);
 
+  // Check if current user is the founding TESDA partner (GPSAT)
+  const isFoundingPartner = useMemo(() => {
+    const email = (currentUser?.email || sessionData?.user?.email || "").toLowerCase();
+    const pos = ((currentUser as any)?.officialPosition || (sessionData?.user as any)?.officialPosition || "").toLowerCase();
+    const inst = ((currentUser as any)?.institutionName || (sessionData?.user as any)?.institutionName || "").toLowerCase();
+    return (
+      email === "rroe.bwsample@gmail.com" ||
+      email.includes("gpsat") ||
+      pos.includes("tesda representative") ||
+      inst.includes("gpsat") ||
+      inst.includes("gonzalo puyat")
+    );
+  }, [currentUser, sessionData]);
+
+  // Determine initial institution and liaison identity
+  const userKey = currentUser?.id || currentUser?.email || "default";
+  const initialInstitution = isFoundingPartner
+    ? "Gonzalo Puyat School of Arts and Trades (GPSAT)"
+    : ((currentUser as any)?.institutionName || (sessionData?.user as any)?.institutionName || "Technical Vocational Institute");
+  const initialRepName = (currentUser as any)?.representativeName || (sessionData?.user as any)?.representativeName || (currentUser?.name && !currentUser.name.includes("@") ? currentUser.name : "Ronald Roe");
+  const initialEmail = currentUser?.email || sessionData?.user?.email || (isFoundingPartner ? "rroe.bwsample@gmail.com" : "tvet.partner@sikap.ph");
+  const initialPhone = (currentUser as any)?.contactNumber || (sessionData?.user as any)?.contactNumber || "+63 919 555 7890";
+
   // Profile & Settings Sub-tabs
   const [profileActiveTab, setProfileActiveTab] = useState<"profile" | "security" | "notifications" | "badge">("profile");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [repName, setRepName] = useState(currentUser?.name || "TESDA Partner Representative");
-  const [repEmail, setRepEmail] = useState(currentUser?.email || "tesda.gpsat@gov.ph");
-  const [centerName, setCenterName] = useState("Gonzalo Puyat School of Arts and Trades (GPSAT)");
-  const [repPhone, setRepPhone] = useState("+63 919 555 7890");
-  const [savedRepName, setSavedRepName] = useState(currentUser?.name || "TESDA Partner Representative");
-  const [savedRepEmail, setSavedRepEmail] = useState(currentUser?.email || "tesda.gpsat@gov.ph");
-  const [savedCenterName, setSavedCenterName] = useState("Gonzalo Puyat School of Arts and Trades (GPSAT)");
-  const [savedRepPhone, setSavedRepPhone] = useState("+63 919 555 7890");
+  const [repName, setRepName] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_rep_name_${userKey}`);
+      if (saved) return saved;
+    }
+    return initialRepName;
+  });
+  const [repEmail, setRepEmail] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_rep_email_${userKey}`);
+      if (saved) return saved;
+    }
+    return initialEmail;
+  });
+  const [centerName, setCenterName] = useState(() => {
+    if (isFoundingPartner) return "Gonzalo Puyat School of Arts and Trades (GPSAT)";
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_center_name_${userKey}`);
+      if (saved && !saved.toLowerCase().includes("roe")) return saved;
+    }
+    return initialInstitution;
+  });
+  const [repPhone, setRepPhone] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_rep_phone_${userKey}`);
+      if (saved) return saved;
+    }
+    return initialPhone;
+  });
+  const [savedRepName, setSavedRepName] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_rep_name_${userKey}`);
+      if (saved) return saved;
+    }
+    return initialRepName;
+  });
+  const [savedRepEmail, setSavedRepEmail] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_rep_email_${userKey}`);
+      if (saved) return saved;
+    }
+    return initialEmail;
+  });
+  const [savedCenterName, setSavedCenterName] = useState(() => {
+    if (isFoundingPartner) return "Gonzalo Puyat School of Arts and Trades (GPSAT)";
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_center_name_${userKey}`);
+      if (saved && !saved.toLowerCase().includes("roe")) return saved;
+    }
+    return initialInstitution;
+  });
+  const [savedRepPhone, setSavedRepPhone] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`sikap_tvet_rep_phone_${userKey}`);
+      if (saved) return saved;
+    }
+    return initialPhone;
+  });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const handleCancelProfileEdit = () => {
@@ -178,17 +253,41 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // Sync state if currentUser changes
+  // Sync state if currentUser or sessionData changes from server
   useEffect(() => {
-    if (currentUser?.name) {
-      setRepName(currentUser.name);
-      setSavedRepName(currentUser.name);
+    if (isFoundingPartner) {
+      setCenterName("Gonzalo Puyat School of Arts and Trades (GPSAT)");
+      setSavedCenterName("Gonzalo Puyat School of Arts and Trades (GPSAT)");
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`sikap_tvet_center_name_${userKey}`, "Gonzalo Puyat School of Arts and Trades (GPSAT)");
+        } catch {}
+      }
+    } else {
+      const freshInst = (currentUser as any)?.institutionName || (sessionData?.user as any)?.institutionName;
+      if (freshInst) {
+        setCenterName(freshInst);
+        setSavedCenterName(freshInst);
+      }
     }
-    if (currentUser?.email) {
-      setRepEmail(currentUser.email);
-      setSavedRepEmail(currentUser.email);
+
+    const freshRep = (currentUser as any)?.representativeName || (sessionData?.user as any)?.representativeName || (currentUser?.name && !currentUser.name.includes("@") ? currentUser.name : null);
+    const freshEmail = currentUser?.email || sessionData?.user?.email;
+    const freshPhone = (currentUser as any)?.contactNumber || (sessionData?.user as any)?.contactNumber;
+
+    if (freshRep) {
+      setRepName(freshRep);
+      setSavedRepName(freshRep);
     }
-  }, [currentUser]);
+    if (freshEmail) {
+      setRepEmail(freshEmail);
+      setSavedRepEmail(freshEmail);
+    }
+    if (freshPhone) {
+      setRepPhone(freshPhone);
+      setSavedRepPhone(freshPhone);
+    }
+  }, [isFoundingPartner, currentUser, sessionData, userKey]);
 
   const handleSaveProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,13 +307,42 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         body: JSON.stringify({
           id: currentUser?.id,
           name: repName.trim(),
+          representativeName: repName.trim(),
           email: repEmail.trim().toLowerCase(),
+          institutionName: centerName.trim(),
+          centerName: centerName.trim(),
+          contactNumber: repPhone.trim(),
+          phone: repPhone.trim(),
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to update institution profile.");
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || "Failed to update institution profile.");
       }
+
+      // Persist in localStorage for instant retention across refreshes
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`sikap_tvet_rep_name_${userKey}`, repName.trim());
+          localStorage.setItem(`sikap_tvet_rep_email_${userKey}`, repEmail.trim().toLowerCase());
+          localStorage.setItem(`sikap_tvet_center_name_${userKey}`, centerName.trim());
+          localStorage.setItem(`sikap_tvet_rep_phone_${userKey}`, repPhone.trim());
+        } catch {}
+      }
+
+      // Update NextAuth active session
+      if (updateSession) {
+        try {
+          await updateSession({
+            name: repName.trim(),
+            representativeName: repName.trim(),
+            email: repEmail.trim().toLowerCase(),
+            institutionName: centerName.trim(),
+            contactNumber: repPhone.trim(),
+          });
+        } catch {}
+      }
+
       setSavedRepName(repName.trim());
       setSavedRepEmail(repEmail.trim().toLowerCase());
       setSavedCenterName(centerName.trim());
@@ -627,6 +755,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [progStartDate, setProgStartDate] = useState("");
   const [progEndDate, setProgEndDate] = useState("");
   const [progCategoryId, setProgCategoryId] = useState<string>("1");
+  const [progDeliveryMode, setProgDeliveryMode] = useState<string>("Face-to-Face");
+  const [progFundingType, setProgFundingType] = useState<string>("100% Free (TESDA TWSP / STEP)");
+  const [progCptrCourseCode, setProgCptrCourseCode] = useState<string>("");
+  const [progPerks, setProgPerks] = useState<string[]>([]);
 
   // Editing program ID state
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
@@ -661,6 +793,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setProgInstructor("");
     setProgStartDate("");
     setProgEndDate("");
+    setProgDeliveryMode("Face-to-Face");
+    setProgFundingType("100% Free (TESDA TWSP / STEP)");
+    setProgCptrCourseCode("");
+    setProgPerks([]);
     setCurrentScreen(TESDAPartnerScreen.ADD_PROGRAM);
   };
 
@@ -749,6 +885,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
     const payload = {
       title: fullTitle,
+      provider: myInstitutionName,
+      deliveryMode: progDeliveryMode || "Face-to-Face",
+      fundingType: progFundingType || "100% Free",
+      cptrCourseCode: progCptrCourseCode || undefined,
+      perks: progPerks || [],
+      certificationType: progLevel || "NC II",
       categoryId: progCategoryId,
       location: progLocation,
       trainingHours: Number(progTrainingHours),
@@ -1128,6 +1270,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       ? `${modalEditTitle.trim()} ${modalEditLevel}`.trim()
       : modalEditTitle.trim();
 
+    const currentOccupied = Math.max(0, (viewingProgram.slotsTotal || 0) - (viewingProgram.slotsRemaining || 0));
+    const newTotal = Number(modalEditSlotsTotal);
+    const newRemaining = Math.max(0, newTotal - currentOccupied);
+
     const payload = {
       id: viewingProgram.id,
       title: fullTitle,
@@ -1135,7 +1281,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       location: modalEditLocation,
       trainingHours: Number(modalEditTrainingHours),
       cost: modalEditCost,
-      slotsTotal: Number(modalEditSlotsTotal),
+      slotsTotal: newTotal,
+      slotsRemaining: newRemaining,
       eligibility: modalEditEligibility,
       requiredDocuments: modalEditRequiredDocuments ? modalEditRequiredDocuments.split(',').map(s => s.trim()).filter(Boolean) : [],
       requiredSkills: modalEditRequiredSkills ? modalEditRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
@@ -1175,10 +1322,58 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
-  // Only active, non-closed programs should appear on the dashboard
+  // Scoped institution identity & founding partner check
+  const myInstitutionName = useMemo(() => {
+    if (isFoundingPartner) return "Gonzalo Puyat School of Arts and Trades (GPSAT)";
+    return savedCenterName || (currentUser as any)?.institutionName || "Technical Vocational Institute";
+  }, [isFoundingPartner, savedCenterName, currentUser]);
+
+  const isGPSAT = useMemo(() => {
+    if (isFoundingPartner) return true;
+    const inst = (myInstitutionName || "").toLowerCase();
+    const email = (currentUser?.email || "").toLowerCase();
+    return (
+      inst.includes("gpsat") ||
+      inst.includes("gonzalo puyat") ||
+      email.includes("gpsat") ||
+      email === "rroe.bwsample@gmail.com"
+    );
+  }, [isFoundingPartner, myInstitutionName, currentUser?.email]);
+
+  // Dynamic brand label for left navbar header
+  const partnerNavbarBrand = useMemo(() => {
+    if (isGPSAT) return "TESDA";
+    const raw = (myInstitutionName || "TVET").trim();
+    const clean = raw.replace(/^TESDA\s*[-–—]?\s*/i, "");
+    return clean || "TVET";
+  }, [isGPSAT, myInstitutionName]);
+
+  // Scoped to this specific training provider
+  const scopedPrograms = useMemo(() => {
+    if (isGPSAT) {
+      return programs.filter(p => {
+        const prov = (p.provider || "").toLowerCase().trim();
+        return (
+          prov === "" ||
+          prov.includes("gpsat") ||
+          prov.includes("gonzalo") ||
+          prov.includes("tesda pampanga") ||
+          prov.includes("tesda - gonzalo") ||
+          prov.includes("tesda")
+        );
+      });
+    }
+    const instClean = myInstitutionName.toLowerCase().trim();
+    return programs.filter(p => {
+      const prov = (p.provider || "").toLowerCase().trim();
+      return prov === instClean || prov.includes(instClean) || instClean.includes(prov);
+    });
+  }, [programs, isGPSAT, myInstitutionName]);
+
+  // Only active, non-closed programs belonging to this institution should appear on the dashboard
   const activePrograms = useMemo(() => {
-    return programs.filter(p => p.activeStatus !== "Closed");
-  }, [programs]);
+    return scopedPrograms.filter(p => p.activeStatus !== "Closed");
+  }, [scopedPrograms]);
 
   // Programs whose duration has completed
   const completedPrograms = useMemo(() => {
@@ -2035,8 +2230,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} className="sidebar-brand-logo" />
               <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center sidebar-brand-divider">
                 <span className="text-xs sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight sidebar-brand-position">Partner</span>
-                <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px] sidebar-brand-barangay" title="TESDA Partner">
-                  TESDA
+                <span
+                  className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px] sidebar-brand-barangay"
+                  title={isGPSAT ? "TESDA GPSAT Partner" : myInstitutionName}
+                >
+                  {partnerNavbarBrand}
                 </span>
               </div>
             </div>
@@ -2234,9 +2432,9 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               {/* Complete Name and Email without hover effect */}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white leading-snug break-words">
-                  {currentUser?.name || "TESDA Partner"}
+                  {currentUser?.name || repName || (isGPSAT ? "TESDA Representative" : "TVET Partner Liaison")}
                 </p>
-                <p className="text-xs text-gray-400 truncate leading-tight mt-0.5" title={currentUser?.email || "partner@tesda.gov.ph"}>
+                <p className="text-xs text-gray-400 truncate leading-tight mt-0.5" title={currentUser?.email || repEmail || (isGPSAT ? "tesda.gpsat@gov.ph" : "tvet.partner@sikap.ph")}>
                   {currentUser?.email || "partner@tesda.gov.ph"}
                 </p>
               </div>

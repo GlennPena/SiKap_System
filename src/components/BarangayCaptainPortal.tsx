@@ -3,6 +3,7 @@
 import { extractLocationDisplay } from '../lib/training-venues';
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Award,
   Briefcase,
@@ -219,6 +220,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   addToast
 }) => {
   // Navigation State
+  const { data: sessionData, update: updateSession } = useSession();
   const [currentScreen, setCurrentScreen] = useState<BarangayCaptainScreen>(BarangayCaptainScreen.DASHBOARD);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -594,11 +596,31 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: captainName.trim(),
-          email: captainEmail.trim()
+          email: captainEmail.trim(),
+          contactNumber: captainPhone.trim(),
+          phone: captainPhone.trim()
         })
       });
       const data = await res.json();
       if (data.success) {
+        setSavedCaptainName(captainName.trim());
+        setSavedCaptainEmail(captainEmail.trim());
+        setSavedCaptainPhone(captainPhone.trim());
+        try {
+          const uKey = currentUser?.id || currentUser?.email || "captain";
+          localStorage.setItem(`sikap_captain_name_${uKey}`, captainName.trim());
+          localStorage.setItem(`sikap_captain_email_${uKey}`, captainEmail.trim());
+          localStorage.setItem(`sikap_captain_phone_${uKey}`, captainPhone.trim());
+        } catch {}
+        if (updateSession) {
+          try {
+            await updateSession({
+              name: captainName.trim(),
+              email: captainEmail.trim(),
+              contactNumber: captainPhone.trim()
+            });
+          } catch {}
+        }
         showToast(data.message || "Executive profile updated successfully!", "success");
         setIsEditingProfile(false);
       } else {

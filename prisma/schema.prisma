@@ -57,6 +57,7 @@ model User {
   status        String           @default("Active")
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+  contactNumber String?
   youthProfile           YouthProfile?
   officialAcc            OfficialAccount?
   councilor              Councilor?
@@ -170,6 +171,11 @@ model TESDAProgram {
   instructor         String?
   startDate          DateTime?
   endDate            DateTime?
+  deliveryMode       String?       @default("Face-to-Face")
+  fundingType        String?       @default("Free")
+  perks              String[]      @default([])
+  cptrCourseCode     String?
+  certificationType  String?       @default("National Certificate")
   
   // Category relation
   categoryId         String?
@@ -216,8 +222,11 @@ model OfficialAccount {
   role       String    // "SK Chairperson" | "Barangay Captain" | "TESDA Representative"
   barangayId String?
   barangay   Barangay? @relation(fields: [barangayId], references: [id])
-  status     String    @default("Active")
-  createdAt  DateTime  @default(now())
+  status          String    @default("Active")
+  institutionName String?
+  cptrNumber      String?
+  contactNumber   String?
+  createdAt       DateTime  @default(now())
 }
 
 model Councilor {
@@ -258,4 +267,25 @@ model NotificationPreference {
   notifyOnNewRegistrations  Boolean  @default(true)
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
+}
+
+
+model ProviderApplication {
+  id                     String    @id @default(cuid())
+  institutionName        String
+  providerType           String    // "Public TESDA Institute" | "Private TVET Institute" | "LGU Training Center" | "HEI / SUC"
+  campusAddress          String
+  representativeName     String
+  representativePosition String
+  email                  String    @unique
+  contactNumber          String
+  passwordHash           String
+  cptrNumber             String    // Certificate of TVET Program Registration Number
+  cptrDocument           String    // Base64 document/image upload of CPTR
+  status                 String    @default("Pending") // "Pending" | "Approved" | "Rejected"
+  rejectionReason        String?
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 }

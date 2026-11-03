@@ -145,6 +145,7 @@ interface LandingPageProps {
   programs: TESDAProgram[];
   onEnterLogin: () => void;
   onEnterSignUp?: () => void;
+  onOpenProviderApply?: () => void;
   onOpenLegal?: (tab: "terms" | "privacy") => void;
   addToast: (message: string, type: "success" | "error" | "info") => void;
 }
@@ -153,6 +154,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   programs,
   onEnterLogin,
   onEnterSignUp,
+  onOpenProviderApply,
   onOpenLegal,
   addToast
 }) => {
@@ -315,6 +317,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Right Action / Sign In Button */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {onOpenProviderApply && (
+                <button
+                  type="button"
+                  onClick={onOpenProviderApply}
+                  className="flex items-center gap-1.5 text-xs font-bold text-[#0A6B43] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/90 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-xl transition-all cursor-pointer shadow-2xs hover:-translate-y-0.5"
+                  title="Apply for a Training Provider Account"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Partner With Us</span>
+                  <span className="sm:hidden">Partner</span>
+                </button>
+              )}
               <button
                 onClick={onEnterLogin}
                 className="bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-base font-bold sm:font-extrabold px-3.5 sm:px-6 lg:px-7 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-xs sm:shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-1.5 sm:gap-2.5 group cursor-pointer shrink-0"
@@ -946,6 +960,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   >
                     Sign In
                   </button>
+                  {onOpenProviderApply && (
+                    <button
+                      type="button"
+                      onClick={onOpenProviderApply}
+                      className="hover:text-emerald-300 text-emerald-400 transition-colors cursor-pointer text-left font-bold"
+                    >
+                      Apply as Training Provider →
+                    </button>
+                  )}
                 </div>
               </div>
 

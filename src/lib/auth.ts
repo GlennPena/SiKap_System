@@ -68,6 +68,25 @@ export const authOptions: AuthOptions = {
           }
         }
 
+        const isGPSATUser =
+          user.role === Role.TESDA_PARTNER &&
+          (user.email === "rroe.bwsample@gmail.com" ||
+            user.email.includes("gpsat") ||
+            user.name.includes("GPSAT") ||
+            user.officialAcc?.role === "TESDA Representative" ||
+            (user.officialAcc?.institutionName || "").toLowerCase().includes("gpsat") ||
+            (user.officialAcc?.institutionName || "").toLowerCase().includes("gonzalo puyat"));
+
+        const institutionName = isGPSATUser
+          ? "Gonzalo Puyat School of Arts and Trades (GPSAT)"
+          : (user.officialAcc?.institutionName || user.name);
+
+        if (isGPSATUser && !officialPosition) {
+          officialPosition = "TESDA Representative";
+        }
+        const cptrNumber = user.officialAcc?.cptrNumber || undefined;
+        const representativeName = user.officialAcc?.name || user.name;
+
         return {
           id: user.id,
           name: user.name,
@@ -76,6 +95,9 @@ export const authOptions: AuthOptions = {
           barangay: user.barangay?.name || undefined,
           barangayId: user.barangayId || undefined,
           officialPosition,
+          institutionName,
+          cptrNumber,
+          representativeName,
           rememberMe: rememberMe,
         };
       }
@@ -92,6 +114,10 @@ export const authOptions: AuthOptions = {
         token.name = user.name;
         token.email = user.email;
         token.rememberMe = Boolean((user as any).rememberMe);
+        token.institutionName = (user as any).institutionName;
+        token.cptrNumber = (user as any).cptrNumber;
+        token.representativeName = (user as any).representativeName;
+        token.contactNumber = (user as any).contactNumber;
         token.authTime = Math.floor(Date.now() / 1000);
       }
 
@@ -106,11 +132,20 @@ export const authOptions: AuthOptions = {
         try {
           const freshUser = await db.user.findUnique({
             where: { id: token.id as string },
-            select: { name: true, email: true, status: true }
+            select: { name: true, email: true, status: true, contactNumber: true, officialAcc: true }
           });
           if (freshUser && freshUser.status === "Active") {
             token.name = freshUser.name;
             token.email = freshUser.email;
+            if (freshUser.officialAcc?.institutionName) {
+              token.institutionName = freshUser.officialAcc.institutionName;
+            }
+            if (freshUser.officialAcc?.cptrNumber) {
+              token.cptrNumber = freshUser.officialAcc.cptrNumber;
+            }
+            if (freshUser.officialAcc?.name) {
+              token.representativeName = freshUser.officialAcc.name;
+            }
           }
         } catch {
           // fallback to existing token values
@@ -128,6 +163,10 @@ export const authOptions: AuthOptions = {
         (session.user as any).barangay = token.barangay;
         (session.user as any).barangayId = token.barangayId;
         (session.user as any).officialPosition = token.officialPosition;
+        (session.user as any).institutionName = token.institutionName;
+        (session.user as any).cptrNumber = token.cptrNumber;
+        (session.user as any).representativeName = token.representativeName;
+        (session.user as any).contactNumber = token.contactNumber;
         (session.user as any).rememberMe = token.rememberMe;
       }
       return session;

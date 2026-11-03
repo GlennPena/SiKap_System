@@ -20,11 +20,11 @@ export async function GET() {
       where: {
         role: { in: ["SK_OFFICIAL", "BARANGAY_CAPTAIN", "TESDA_PARTNER"] }
       },
-      include: { barangay: true, councilor: true },
+      include: { barangay: true, councilor: true, officialAcc: true },
       orderBy: { createdAt: "desc" }
     });
 
-    // Only include executive officials (SK Chairperson, Barangay Captain, TESDA Representative).
+    // Only include executive officials (SK Chairperson, Barangay Captain, TVET Partner Liaison / TESDA Representative).
     // Appointed councilors, secretaries, and treasurers are managed separately via /api/councilors.
     const formatted = users
       .filter(u => !u.councilor)
@@ -32,10 +32,17 @@ export async function GET() {
         id: u.id,
         name: u.name,
         email: u.email,
-        role: u.role === "SK_OFFICIAL" ? "SK Chairperson" : u.role === "BARANGAY_CAPTAIN" ? "Barangay Captain" : "TESDA Representative",
+        role: u.role === "SK_OFFICIAL"
+          ? "SK Chairperson"
+          : u.role === "BARANGAY_CAPTAIN"
+          ? "Barangay Captain"
+          : (u.officialAcc?.role || (u.email.includes("gpsat") ? "TESDA Representative" : "TVET Partner Liaison")),
         barangay: u.barangay?.name,
         status: u.status,
-        dateCreated: u.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        dateCreated: u.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+        institutionName: u.officialAcc?.institutionName || (u.role === "TESDA_PARTNER" && (u.email.includes("gpsat") || u.name.includes("GPSAT")) ? "Gonzalo Puyat School of Arts and Trades (GPSAT)" : undefined),
+        cptrNumber: u.officialAcc?.cptrNumber || undefined,
+        contactNumber: u.officialAcc?.contactNumber || u.contactNumber || undefined
       }));
 
     return NextResponse.json({ success: true, data: formatted });
@@ -52,7 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, email, tempPassword, role, barangay } = await req.json();
+    const { name, email, tempPassword, role, barangay, institutionName, cptrNumber } = await req.json();
 
     if (!name || !email || !tempPassword || !role) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
@@ -62,7 +69,7 @@ export async function POST(req: Request) {
     
     let mappedRole: Role = Role.SK_OFFICIAL;
     if (role === "Barangay Captain") mappedRole = Role.BARANGAY_CAPTAIN;
-    if (role === "TESDA Representative") mappedRole = Role.TESDA_PARTNER;
+    if (role === "TESDA Representative" || role === "TVET Partner Liaison") mappedRole = Role.TESDA_PARTNER;
 
     let barangayId = undefined;
     
@@ -87,6 +94,20 @@ export async function POST(req: Request) {
       include: { barangay: true }
     });
 
+    if (mappedRole === Role.TESDA_PARTNER) {
+      await db.officialAccount.create({
+        data: {
+          userId: newUser.id,
+          name,
+          email,
+          role: role === "TESDA Representative" ? "TESDA Representative" : "TVET Partner Liaison",
+          status: "Active",
+          institutionName: institutionName || (email.includes("gpsat") ? "Gonzalo Puyat School of Arts and Trades (GPSAT)" : undefined),
+          cptrNumber: cptrNumber || undefined
+        }
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -96,7 +117,9 @@ export async function POST(req: Request) {
         role: role,
         barangay: newUser.barangay?.name,
         status: newUser.status,
-        dateCreated: newUser.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        dateCreated: newUser.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+        institutionName: institutionName || undefined,
+        cptrNumber: cptrNumber || undefined
       }
     });
   } catch (error) {
@@ -184,7 +207,10 @@ export async function PUT(req: Request) {
 
     // 2. Standard User Self-Update
     const userId = currentUserId;
-    const { name, email, currentPassword, newPassword } = body;
+    const { name, email, currentPassword, newPassword, institutionName, centerName, contactNumber, phone, representativeName } = body;
+    const resolvedInstitution = institutionName || centerName;
+    const resolvedPhone = contactNumber || phone;
+    const resolvedRepName = representativeName || name;
 
     const user = await db.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -194,6 +220,7 @@ export async function PUT(req: Request) {
     let updateData: any = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email.toLowerCase();
+    if (resolvedPhone) updateData.contactNumber = resolvedPhone;
 
     // Password change validation
     if (newPassword) {
@@ -213,22 +240,48 @@ export async function PUT(req: Request) {
       include: { barangay: true }
     });
 
-    if (name || email) {
+    // Update Councilor record if applicable
+    if (name || email || resolvedPhone) {
       await db.councilor.updateMany({
         where: { userId: userId },
         data: {
           ...(name ? { name } : {}),
-          ...(email ? { email: email.toLowerCase() } : {})
+          ...(email ? { email: email.toLowerCase() } : {}),
+          ...(resolvedPhone ? { contactNumber: resolvedPhone } : {})
         }
       }).catch(() => {});
+    }
 
-      await db.officialAccount.updateMany({
-        where: { userId: userId },
-        data: {
-          ...(name ? { name } : {}),
-          ...(email ? { email: email.toLowerCase() } : {})
-        }
-      }).catch(() => {});
+    // Update or upsert OfficialAccount record
+    const officialUpdateData: any = {};
+    if (resolvedRepName) officialUpdateData.name = resolvedRepName;
+    if (email) officialUpdateData.email = email.toLowerCase();
+    if (resolvedInstitution) officialUpdateData.institutionName = resolvedInstitution;
+    if (resolvedPhone) officialUpdateData.contactNumber = resolvedPhone;
+
+    let refreshedOfficialAcc: any = null;
+    if (Object.keys(officialUpdateData).length > 0) {
+      const existingAcc = await db.officialAccount.findUnique({ where: { userId: userId } });
+      if (existingAcc) {
+        refreshedOfficialAcc = await db.officialAccount.update({
+          where: { userId: userId },
+          data: officialUpdateData
+        });
+      } else if (user.role === Role.TESDA_PARTNER || user.role === Role.BARANGAY_CAPTAIN || user.role === Role.SK_OFFICIAL) {
+        refreshedOfficialAcc = await db.officialAccount.create({
+          data: {
+            userId: userId,
+            name: resolvedRepName || user.name,
+            email: (email || user.email).toLowerCase(),
+            role: user.role === Role.TESDA_PARTNER ? "TVET Partner Liaison" : user.role === Role.BARANGAY_CAPTAIN ? "Barangay Captain" : "SK Chairperson",
+            status: "Active",
+            institutionName: resolvedInstitution || undefined,
+            contactNumber: resolvedPhone || undefined
+          }
+        });
+      }
+    } else {
+      refreshedOfficialAcc = await db.officialAccount.findUnique({ where: { userId: userId } });
     }
 
     return NextResponse.json({
@@ -237,7 +290,10 @@ export async function PUT(req: Request) {
         id: updatedUser.id,
         name: updatedUser.name,
         email: updatedUser.email,
-        barangay: updatedUser.barangay?.name
+        barangay: updatedUser.barangay?.name,
+        contactNumber: updatedUser.contactNumber || refreshedOfficialAcc?.contactNumber,
+        institutionName: refreshedOfficialAcc?.institutionName,
+        representativeName: refreshedOfficialAcc?.name || updatedUser.name
       },
       message: newPassword ? "Profile and password updated successfully!" : "Profile updated successfully!"
     });
