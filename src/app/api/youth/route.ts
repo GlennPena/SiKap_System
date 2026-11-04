@@ -35,6 +35,8 @@ function mapToClientProfile(y: any) {
     id: y.id,
     userId: y.userId,
     name: y.name,
+    firstName: y.firstName || undefined,
+    lastName: y.lastName || undefined,
     email: y.user?.email || y.email || "",
     birthdate: birthdateFormatted,
     age: computedAge,
@@ -190,6 +192,8 @@ export async function POST(request: Request) {
       data: {
         userId: roleStr === "KK_YOUTH" ? (session.user as any).id : undefined,
         name: body.name,
+        firstName: body.firstName || undefined,
+        lastName: body.lastName || undefined,
         birthdate: parsedBirthdate as any,
         age: Number(computedAge),
         gender: userGender,
@@ -267,6 +271,16 @@ export async function PUT(request: Request) {
         }
       }
       delete updateData.dob;
+    }
+
+    if (body.firstName !== undefined) {
+      updateData.firstName = body.firstName;
+    }
+    if (body.lastName !== undefined) {
+      updateData.lastName = body.lastName;
+    }
+    if (body.firstName && body.lastName && !body.name) {
+      updateData.name = `${String(body.firstName).trim()} ${String(body.lastName).trim()}`;
     }
 
     if (body.age !== undefined && !updateData.age) {

@@ -287,6 +287,8 @@ export interface YouthProfile {
   id: string;
   userId?: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   birthdate?: string;
   age: number;

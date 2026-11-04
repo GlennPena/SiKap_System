@@ -348,7 +348,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [progCostFilter, setProgCostFilter] = useState("All");
 
   // Form states for registering youth
-  const [regName, setRegName] = useState("");
+  const [regFirstName, setRegFirstName] = useState("");
+  const [regLastName, setRegLastName] = useState("");
+  const regFullName = `${regFirstName.trim()} ${regLastName.trim()}`.trim();
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regAge, setRegAge] = useState<number | string>(20);
@@ -1483,7 +1485,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   // Register youth submit
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName.trim() || !regGoal.trim()) {
+    if (!regFirstName.trim() || !regLastName.trim() || !regGoal.trim()) {
       addToast("Please fill in all required fields", "error");
       return;
     }
@@ -1518,7 +1520,9 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
     const payload = {
       email: regEmail,
       password: regPassword,
-      name: regName,
+      name: regFullName,
+      firstName: regFirstName.trim(),
+      lastName: regLastName.trim(),
       birthdate: regDOB,
       age: Number(regAge),
       gender: regSex,
@@ -1567,7 +1571,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
   // Reset form
   const resetRegForm = () => {
-    setRegName("");
+    setRegFirstName("");
+    setRegLastName("");
     setRegEmail("");
     setRegPassword("");
     setRegAge(20);
@@ -6245,8 +6250,8 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">AI Matchmaking Active</h3>
                     <p className="text-xs sm:text-sm text-gray-500 max-w-lg leading-relaxed mb-3 sm:mb-4 px-2">
                       {programs.length === 0
-                        ? `Content-filtering is processing ${regName || "youth"}'s skills profile... (0 active TESDA programs currently in database)`
-                        : `Content-filtering is comparing ${regName || "youth"}'s skills profile to ${programs.length} available local TESDA modules...`}
+                        ? `Content-filtering is processing ${regFullName || "youth"}'s skills profile... (0 active TESDA programs currently in database)`
+                        : `Content-filtering is comparing ${regFullName || "youth"}'s skills profile to ${programs.length} available local TESDA modules...`}
                     </p>
                     <div className="w-48 sm:w-64 h-1.5 sm:h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-600 rounded-full animate-pulse" style={{ width: "66%" }} />
@@ -6266,14 +6271,16 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       if (programs.length === 0) {
                         return (
                           <p className="text-xs sm:text-sm lg:text-base text-gray-600 max-w-2xl leading-relaxed mb-4 sm:mb-6 font-normal px-1">
-                            AI completed processing <strong className="text-gray-800">{regName}</strong>! Currently, there are <span className="text-amber-700 font-bold">0 active training programs</span> in the system database. Add TESDA programs to generate automated skill matches.
+                            AI completed processing <strong className="text-gray-800">{regFullName}</strong>! Currently, there are <span className="text-amber-700 font-bold">0 active training programs</span> in the system database. Add TESDA programs to generate automated skill matches.
                           </p>
                         );
                       }
 
                       const tempYouth: YouthProfile = {
                         id: "temp",
-                        name: regName,
+                        name: regFullName,
+                        firstName: regFirstName.trim(),
+                        lastName: regLastName.trim(),
                         age: Number(regAge),
                         purok: regPurok,
                         barangay: designatedBarangay,
@@ -6302,7 +6309,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                       return (
                         <p className="text-xs sm:text-sm lg:text-base text-gray-600 max-w-2xl leading-relaxed mb-4 sm:mb-5 font-normal px-1">
-                          AI completed processing <strong className="text-gray-800">{regName}</strong>! Identified <span className="text-[#0A6B43] font-bold">{compatibleCount} compatible skills {compatibleCount === 1 ? 'match' : 'matches'}</span> out of {programs.length} active programs. Top fit is <strong className="text-emerald-900">{topFit.program.title}</strong> ({topFit.score}% Match score).
+                          AI completed processing <strong className="text-gray-800">{regFullName}</strong>! Identified <span className="text-[#0A6B43] font-bold">{compatibleCount} compatible skills {compatibleCount === 1 ? 'match' : 'matches'}</span> out of {programs.length} active programs. Top fit is <strong className="text-emerald-900">{topFit.program.title}</strong> ({topFit.score}% Match score).
                         </p>
                       );
                     })()}
@@ -6365,16 +6372,29 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase">Full Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={regName}
-                          onChange={(e) => setRegName(e.target.value)}
-                          placeholder="e.g. Juan dela Cruz"
-                          className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-500 uppercase">First Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={regFirstName}
+                            onChange={(e) => setRegFirstName(e.target.value)}
+                            placeholder="e.g. Juan"
+                            className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-gray-500 uppercase">Last Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={regLastName}
+                            onChange={(e) => setRegLastName(e.target.value)}
+                            placeholder="e.g. dela Cruz"
+                            className="w-full h-[40px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-[13px] font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2">

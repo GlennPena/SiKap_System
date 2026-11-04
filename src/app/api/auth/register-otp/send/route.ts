@@ -6,7 +6,7 @@ import { sendEmail, buildRegistrationOtpEmail } from "@/lib/email";
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { email, name } = body;
+    const { email, name, firstName } = body;
 
     if (!email || typeof email !== "string" || !email.includes("@")) {
       return NextResponse.json(
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     // Build email payload
     const emailPayload = buildRegistrationOtpEmail({
       otpCode,
-      name: name?.trim() || undefined,
+      name: firstName?.trim() || name?.trim() || undefined,
       expiresInMinutes: saveResult.expiresInMinutes
     });
 

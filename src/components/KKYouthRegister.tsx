@@ -151,7 +151,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   const [selectedBarangay, setSelectedBarangay] = useState<string>("");
 
   // Form states
-  const [regName, setRegName] = useState("");
+  const [regFirstName, setRegFirstName] = useState("");
+  const [regLastName, setRegLastName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
@@ -224,7 +225,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       const res = await fetch("/api/auth/register-otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail.trim(), name: regName.trim() })
+        body: JSON.stringify({ email: regEmail.trim(), name: `${regFirstName.trim()} ${regLastName.trim()}`.trim(), firstName: regFirstName.trim() })
       });
       const data = await res.json();
 
@@ -520,7 +521,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName.trim() || !regGoal.trim() || !regContact.trim() || !selectedBarangay || !regEmail.trim() || regPassword.length < 6 || regPassword !== regConfirmPassword) {
+    if (!regFirstName.trim() || !regLastName.trim() || !regGoal.trim() || !regContact.trim() || !selectedBarangay || !regEmail.trim() || regPassword.length < 6 || regPassword !== regConfirmPassword) {
       return;
     }
 
@@ -545,7 +546,9 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
     const payload = {
       email: regEmail,
       password: regPassword,
-      name: regName,
+      firstName: regFirstName.trim(),
+      lastName: regLastName.trim(),
+      name: `${regFirstName.trim()} ${regLastName.trim()}`.trim(),
       birthdate: regDOB,
       age: regAge,
       gender: regGender,
@@ -604,7 +607,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         const computedAge = regDOB ? calculateAge(regDOB) : "";
         const isAgeValid = computedAge !== "" && Number(computedAge) >= 18 && Number(computedAge) <= 30;
         const isPasswordValid = regPassword.length >= 6 && regPassword === regConfirmPassword;
-        return !!regName.trim() && !!regGender && isValidContactNumber(regContact) && isAgeValid && emailRegex.test(regEmail) && !emailExists && isPasswordValid && isEmailVerified;
+        return !!regFirstName.trim() && !!regLastName.trim() && !!regGender && isValidContactNumber(regContact) && isAgeValid && emailRegex.test(regEmail) && !emailExists && isPasswordValid && isEmailVerified;
       }
       case 2:
         return !!regEdu && (regSolo || regPwd || regIndigenous || regNone);
@@ -934,17 +937,30 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                   <div ref={stepContentRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 sm:px-3 py-1.5">
                     <div className="w-full max-w-xl mx-auto space-y-3.5 p-0.5">
 
-                      {/* Row 1: Full Name */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Full Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={regName}
-                          onChange={(e) => setRegName(e.target.value)}
-                          placeholder="Juan dela Cruz"
-                          className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
-                        />
+                      {/* Row 1: First Name & Last Name (2 Columns) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">First Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={regFirstName}
+                            onChange={(e) => setRegFirstName(e.target.value)}
+                            placeholder="Juan"
+                            className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] sm:text-[11px] font-black text-gray-700 uppercase tracking-wide block">Last Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={regLastName}
+                            onChange={(e) => setRegLastName(e.target.value)}
+                            placeholder="dela Cruz"
+                            className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-gray-50/80 border border-gray-200 rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs"
+                          />
+                        </div>
                       </div>
 
                       {/* Row 2: Date of Birth & Gender (2 Columns) */}
