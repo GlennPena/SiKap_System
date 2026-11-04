@@ -122,7 +122,8 @@ import {
   BarangayCaptainScreen,
   EDUCATIONAL_ATTAINMENT_OPTIONS,
   normalizeEducationalAttainment,
-  getSkillGapCriticality
+  getSkillGapCriticality,
+  DEFAULT_TESDA_REQUIREMENTS
 } from "../types";
 
 const getMatchStyling = (score: number) => {
@@ -699,6 +700,52 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     );
   }, [referrals, cleanBrgy]);
 
+  // Helper: Detect if a referral represents a successfully completed/certified training
+  const isCompletedReferral = (r: ReferralPipelineItem) => {
+    return r.status === "Completed" || r.status === "Archived";
+  };
+
+  const localCompletedGraduates = useMemo(() => {
+    return localReferrals.filter(isCompletedReferral);
+  }, [localReferrals]);
+
+  const localEnrolledOrCompletedCount = useMemo(() => {
+    return localReferrals.filter(r => r.status === "Enrolled" || isCompletedReferral(r)).length;
+  }, [localReferrals]);
+
+  const captainCompletionRate = useMemo(() => {
+    if (localEnrolledOrCompletedCount === 0) return 0;
+    return Math.round((localCompletedGraduates.length / localEnrolledOrCompletedCount) * 100);
+  }, [localCompletedGraduates.length, localEnrolledOrCompletedCount]);
+
+  const handleExportCaptainGraduatesReport = () => {
+    if (localCompletedGraduates.length === 0) {
+      if (addToast) addToast("No certified graduate records available to export.", "info");
+      return;
+    }
+    const headers = ["Youth Member", "Barangay", "Purok", "Completed Program", "Training Provider", "Training Hours", "Credential", "Status", "Completion Date"];
+    const rows = localCompletedGraduates.map(g => [
+      `"${(g.youthName || "").replace(/"/g, '""')}"`,
+      `"${(g.barangay || cleanBrgy).replace(/"/g, '""')}"`,
+      `"${(g.purok || "").replace(/"/g, '""')}"`,
+      `"${(g.programTitle || "").replace(/"/g, '""')}"`,
+      `"${(g.program?.provider || "TESDA Partner Institution").replace(/"/g, '""')}"`,
+      `"${g.program?.trainingHours ? g.program.trainingHours + " Hours" : "Completed"}"`,
+      `"${g.program?.certificationType || "National Certificate (NC)"}"`,
+      `"Completed & Certified"`,
+      `"${g.applicationDate || g.referralDate || ""}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Barangay_${cleanBrgy}_Livelihood_Graduates_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (addToast) addToast("Barangay Accomplishment Report exported successfully!", "success");
+  };
+
   // Filtered & Sorted Program Applications
   const filteredReferrals = useMemo(() => {
     return localReferrals.filter(ref => {
@@ -707,7 +754,9 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
         ref.youthName.toLowerCase().includes(q) ||
         ref.programTitle.toLowerCase().includes(q) ||
         (ref.purok && ref.purok.toLowerCase().includes(q));
-      const matchesStatus = appStatusFilter === "All" || ref.status === appStatusFilter;
+      const matchesStatus =
+        appStatusFilter === "All" ||
+        (appStatusFilter === "Completed" ? isCompletedReferral(ref) : ref.status === appStatusFilter);
       return matchesSearch && matchesStatus;
     });
   }, [localReferrals, appSearch, appStatusFilter]);
@@ -1946,8 +1995,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
               </div>
 
-              {/* 4 Executive KPI Stat Cards - 2-column stack on smaller screens */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+              {/* 5 Executive KPI Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 
                 {/* Stat 1: Total KK Youth */}
                 <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
@@ -2002,7 +2051,44 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   </div>
                 </div>
 
-                {/* Stat 3: SK Council Appointees */}
+                {/* Stat 3: Certified Program Graduates (Outcome Evidence) */}
+                <div
+                  onClick={() => {
+                    setAppStatusFilter("Completed");
+                    setCurrentScreen(BarangayCaptainScreen.APPLICATIONS);
+                  }}
+                  className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 cursor-pointer group border-b-2 border-emerald-600/70"
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1 group-hover:text-[#0A6B43] transition-colors">
+                      Certified Graduates
+                    </span>
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0 group-hover:scale-105 transition-transform">
+                      <Award className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+                      <span className="text-xl sm:text-2xl font-black text-gray-900 group-hover:text-[#0A6B43] transition-colors">
+                        {localCompletedGraduates.length}
+                      </span>
+                      <span className="text-[10px] sm:text-xs font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                        {captainCompletionRate}% Certified
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
+                      Proof of system outcomes →
+                    </p>
+                  </div>
+                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-[#0A6B43] h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(captainCompletionRate, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Stat 4: SK Council Appointees */}
                 <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
                   <div className="flex items-center justify-between gap-1.5">
                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">SK Council Officers</span>
@@ -2018,7 +2104,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 12 Total</span>
                     </div>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length}/11 Appointees (7 Councilors, 2 Sec, 2 Treas)
+                      {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length}/11 Appointees
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -2029,10 +2115,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                   </div>
                 </div>
 
-                {/* Stat 4: Municipal TESDA Programs */}
+                {/* Stat 5: Municipal TESDA Programs */}
                 <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">TESDA Programs Open</span>
+                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">TESDA Programs</span>
                     <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 shrink-0">
                       <Briefcase className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                     </div>
@@ -2045,7 +2131,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       </span>
                     </div>
                     <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      {localReferrals.length} youth applications
+                      {localReferrals.length} applications
                     </p>
                   </div>
                   <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
@@ -3598,9 +3684,22 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200/80 px-3 py-1.5 rounded-xl shrink-0 self-start sm:self-auto">
-                    <span className="text-xs font-bold text-gray-600">Total Pipeline:</span>
-                    <strong className="text-[#0A6B43] text-xs sm:text-sm font-extrabold">{localReferrals.length} Youth</strong>
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    {localCompletedGraduates.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleExportCaptainGraduatesReport}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#0A6B43] hover:bg-[#075332] active:scale-95 rounded-xl shadow-xs transition-all cursor-pointer"
+                        title="Download DILG/Barangay accomplishment evidence report"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Export Accomplishment Report</span>
+                      </button>
+                    )}
+                    <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200/80 px-3 py-1.5 rounded-xl shrink-0 self-start sm:self-auto">
+                      <span className="text-xs font-bold text-gray-600">Total Pipeline:</span>
+                      <strong className="text-[#0A6B43] text-xs sm:text-sm font-extrabold">{localReferrals.length} Youth</strong>
+                    </div>
                   </div>
                 </div>
 
@@ -3635,6 +3734,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       onChange={(val) => setAppStatusFilter(val)}
                       options={[
                         { value: "All", label: "All Application Statuses" },
+                        { value: "Completed", label: "Completed & Certified ✓" },
                         { value: "Pending", label: "Pending Endorsement" },
                         { value: "Enrolled", label: "Enrolled / Training" },
                         { value: "Declined", label: "Declined" },
@@ -3645,6 +3745,26 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* Outcome Evidence Banner when viewing Completed */}
+                {appStatusFilter === "Completed" && (
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-emerald-100/40 to-teal-50 border border-emerald-200 flex items-start gap-3 shadow-2xs">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h4 className="text-xs sm:text-sm font-black text-emerald-950 flex items-center gap-2">
+                        <span>System Impact Evidence: {localCompletedGraduates.length} Certified TVET Graduates</span>
+                        <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                          {captainCompletionRate}% Completion Rate
+                        </span>
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-emerald-800 font-medium leading-relaxed">
+                        These Katipunan ng Kabataan members from Barangay {formattedBrgyName} were matched, endorsed through SiKap, and have successfully finished their certified technical-vocational qualifications.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Content Area: Empty State or Table */}
                 {localReferrals.length === 0 ? (
@@ -3823,17 +3943,24 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                     {ref.purok ? `Purok ${ref.purok}` : "Barangay Roster"}
                                   </td>
                                   <td className="py-3.5 px-4 text-center">
-                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                                      ref.status === "Enrolled"
-                                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                                        : ref.status === "Pending"
-                                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                                        : ref.status === "Declined"
-                                        ? "bg-rose-50 text-rose-700 border-rose-200"
-                                        : "bg-gray-100 text-gray-700 border-gray-200"
-                                    }`}>
-                                      {ref.status}
-                                    </span>
+                                    {isCompletedReferral(ref) ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border bg-emerald-50 text-[#0A6B43] border-emerald-300 shadow-2xs">
+                                        <Award className="w-3 h-3 text-emerald-600" />
+                                        Completed & Certified ✓
+                                      </span>
+                                    ) : (
+                                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                        ref.status === "Enrolled"
+                                          ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                          : ref.status === "Pending"
+                                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                                          : ref.status === "Declined"
+                                          ? "bg-rose-50 text-rose-700 border-rose-200"
+                                          : "bg-gray-100 text-gray-700 border-gray-200"
+                                      }`}>
+                                        {ref.status}
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="py-3.5 px-4 text-right pr-5 text-gray-400 font-medium">
                                     {ref.applicationDate || ref.referralDate || "Active"}
@@ -5651,7 +5778,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Card 2: Eligibility */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
-                    Eligibility
+                    ELIGIBILITY
                   </span>
                   <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
                     {(selectedProgram.eligibility || "Open to all Katipunan ng Kabataan members.")
@@ -5670,12 +5797,12 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Card 3: Required Documents */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
-                    Required Documents
+                    REQUIRED REQUIREMENTS
                   </span>
                   <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
                     {(selectedProgram.requiredDocuments && selectedProgram.requiredDocuments.length > 0
                       ? selectedProgram.requiredDocuments
-                      : ["Valid ID", "Barangay Certificate", "2x2 ID Photos"]
+                      : DEFAULT_TESDA_REQUIREMENTS
                     ).map((doc: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-2 leading-relaxed">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />

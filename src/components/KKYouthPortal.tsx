@@ -6,13 +6,13 @@ import {
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
   BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
-  Tag, Compass, FileText, Layers, Activity, Menu, Loader2,
+  Tag, Compass, FileText, Layers, Activity, Menu, Loader2, BookOpen, Maximize2,
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
   TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame,
   Search, Filter, Settings
 } from "lucide-react";
 import { formatContactNumber, isProgramEnded, calculateAge, spellOutGender, parseVerificationIdImages } from "../lib/utils";
-import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment } from "../types";
+import { YouthProfile, TESDAProgram, SKAnnouncement, YouthScreen, ReferralPipelineItem, EDUCATIONAL_ATTAINMENT_OPTIONS, normalizeEducationalAttainment, DEFAULT_TESDA_REQUIREMENTS } from "../types";
 import { FlameMatchScore, GeminiExplanationBox, PathwayTimeline, SikapLogo, NotificationBellButton, SiKapDatePicker } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { motion, AnimatePresence, useInView, useAnimation } from "motion/react";
@@ -25,7 +25,7 @@ import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan, getFallbackPers
 import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { broadcastDataChange } from "../lib/realtime-sync";
 import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
-import { extractLocationDisplay } from "../lib/training-venues";
+import { extractLocationDisplay, resolveProgramCoordinates, getMapNavigationLinks } from "../lib/training-venues";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 
 // --- KK PORTAL REAL-TIME SCROLL VELOCITY TRACKER ---
@@ -161,6 +161,147 @@ export const PortalScrollReveal: React.FC<{
         {children}
       </motion.div>
     </ScrollRevealContext.Provider>
+  );
+};
+
+/* --- ENROLLED ACTIVE PROGRAM MINI-MAP --- */
+export const EnrolledProgramMiniMap: React.FC<{
+  program?: TESDAProgram | null;
+  locationString?: string;
+  onOpenFullMap: () => void;
+}> = ({ program, locationString, onOpenFullMap }) => {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+
+  const rawLocation = program?.location || locationString;
+  const cleanDisplayName = extractLocationDisplay(rawLocation) || "San Luis, Pampanga";
+  const coords = resolveProgramCoordinates(rawLocation, program?.latitude, program?.longitude);
+  const navLinks = getMapNavigationLinks(coords.lat, coords.lng, cleanDisplayName);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    const initMap = async () => {
+      try {
+        const L = (await import("leaflet")).default;
+        if (!isSubscribed || !mapContainerRef.current) return;
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+
+        const map = L.map(mapContainerRef.current, {
+          center: [coords.lat, coords.lng],
+          zoom: 14,
+          zoomControl: false,
+          attributionControl: false,
+          dragging: true,
+          scrollWheelZoom: true,
+          doubleClickZoom: true,
+        });
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+        }).addTo(map);
+
+        const customPinIcon = L.divIcon({
+          className: "enrolled-mini-pin-icon",
+          html: `
+            <div class="relative flex items-center justify-center -translate-x-1/2 -translate-y-full">
+              <div class="w-9 h-9 rounded-2xl bg-[#082D21] text-white flex items-center justify-center shadow-xl border-2 border-white ring-4 ring-[#082D21]/20">
+                <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+              </div>
+            </div>
+          `,
+          iconSize: [36, 36],
+          iconAnchor: [18, 36],
+        });
+
+        L.marker([coords.lat, coords.lng], { icon: customPinIcon }).addTo(map);
+
+        mapInstanceRef.current = map;
+      } catch (err) {
+        console.error("Error initializing enrolled program mini map:", err);
+      }
+    };
+
+    initMap();
+
+    return () => {
+      isSubscribed = false;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [coords.lat, coords.lng]);
+
+  return (
+    <div className="bg-gray-50 rounded-2xl border border-gray-200/90 overflow-hidden flex flex-col h-full shadow-2xs group">
+      {/* Map Canvas with Floating Elements & Scrollable Zoom */}
+      <div className="relative flex-1 min-h-[220px] w-full bg-slate-100 overflow-hidden">
+        {/* Floating Pill: Training Venue Map */}
+        <div className="absolute top-2.5 left-2.5 z-[500] pointer-events-none">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 text-gray-800 text-[10px] font-extrabold uppercase tracking-wider shadow-md border border-gray-200/80 backdrop-blur-xs">
+            <MapPin className="w-3 h-3 text-[#0A6B43] shrink-0" />
+            <span>Training Venue Map</span>
+          </span>
+        </div>
+
+        {/* Floating Icon Button: Expand Map */}
+        <button
+          type="button"
+          onClick={onOpenFullMap}
+          className="absolute top-2.5 right-2.5 z-[500] w-8 h-8 rounded-full bg-white/95 text-gray-700 hover:text-[#0A6B43] hover:bg-white flex items-center justify-center shadow-md border border-gray-200/80 transition-all cursor-pointer hover:scale-110 active:scale-95"
+          title="Expand Map"
+          aria-label="Expand Map"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Leaflet Container (Scrollable, draggable zoom) */}
+        <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }} />
+      </div>
+
+      {/* Footer: Expand Map, Google Maps, and Waze located on the right part */}
+      <div className="p-2.5 px-3 bg-white border-t border-gray-200/80 flex items-center justify-end gap-3 text-[11px] font-bold text-gray-600 shrink-0">
+        <button
+          type="button"
+          onClick={onOpenFullMap}
+          className="inline-flex items-center gap-1 text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer transition-colors"
+          title="Expand Map"
+        >
+          <Maximize2 className="w-3 h-3" />
+          <span>Expand Map</span>
+        </button>
+        <span className="text-gray-300">•</span>
+        <a
+          href={navLinks.googleMaps}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 hover:text-[#0A6B43] hover:underline transition-colors"
+        >
+          <span>Google Maps</span>
+          <ExternalLink className="w-2.5 h-2.5" />
+        </a>
+        <span className="text-gray-300">•</span>
+        <a
+          href={navLinks.waze}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 hover:text-[#0A6B43] hover:underline transition-colors"
+        >
+          <span>Waze</span>
+          <ExternalLink className="w-2.5 h-2.5" />
+        </a>
+      </div>
+    </div>
   );
 };
 
@@ -2437,6 +2578,26 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     return null;
   };
 
+  const getProgramDescription = (prog?: TESDAProgram | null): string | null => {
+    if (!prog) return null;
+    if ((prog as any).description && typeof (prog as any).description === "string" && (prog as any).description.trim()) {
+      return (prog as any).description.trim();
+    }
+    if (prog.category && typeof prog.category === "object" && (prog.category as any).description) {
+      return (prog.category as any).description;
+    }
+    const c = prog.category;
+    if (typeof c === "string" && c.trim()) {
+      const found = CATEGORIES.find(cat => cat.id === c || cat.slug === c || cat.name.toLowerCase() === c.toLowerCase());
+      if (found?.description) return found.description;
+    }
+    if (prog.categoryId) {
+      const found = CATEGORIES.find(cat => cat.id === String(prog.categoryId));
+      if (found?.description) return found.description;
+    }
+    return null;
+  };
+
   const handleDeletePathway = async (referralId: string) => {
     const targetRef = referrals?.find(r => r.id === referralId);
     try {
@@ -3616,13 +3777,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {enrolledPrograms.length > 0 && (
                 <PortalScrollReveal delay={0.06}>
                   <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden border border-emerald-100/80" id="active-classes-schedule-container">
-                  <div className="bg-[#1C2B20] text-white p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  {/* Header: Dark Green #082D21 with Orange "Officially Enrolled" Pill */}
+                  <div className="bg-[#082D21] text-white p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="text-white">
-                      <h4 className="text-[18px] font-extrabold tracking-tight text-white">My Active Class & Training Schedule</h4>
+                      <h4 className="text-[18px] font-extrabold tracking-tight text-white">Active Class &amp; Training Schedule</h4>
                       <p className="text-xs text-emerald-200/90 font-medium mt-0.5">Your official class schedule, training venue, and instructor details</p>
                     </div>
-                    <span className="self-start sm:self-auto bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-3 py-1 rounded-full border border-emerald-400/30 uppercase animate-pulse">
-                      Status: Officially Enrolled
+                    <span className="self-start sm:self-auto inline-flex items-center gap-2 bg-orange-500/20 text-orange-300 text-[10px] sm:text-[11px] font-extrabold px-3 py-1 rounded-full border border-orange-400/40 uppercase tracking-wider shadow-2xs">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                      </span>
+                      <span>Officially Enrolled</span>
                     </span>
                   </div>
 
@@ -3632,87 +3798,136 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       const timeslot = formatProgramTimeslot(program?.startTime, program?.endTime);
                       const room = program?.room || "Main Training Facility";
                       const instructor = program?.instructor || "TESDA Certified Instructor";
-                      const provider = program?.provider || "TESDA Training Center";
+                      const provider = (program?.provider || program?.centerName) || "TESDA Training Center";
                       const location = extractLocationDisplay(program?.location) || "San Luis, Pampanga";
 
                       return (
-                        <div key={ref.id} className="py-4 first:pt-0 last:pb-0 space-y-3.5">
-                          <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
-                            <div>
-                              <h5 className="font-black text-gray-900 text-sm sm:text-base">{ref.programTitle}</h5>
-                              <p className="text-xs text-gray-500 font-semibold flex items-center gap-1.5 mt-0.5">
-                                <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                <span>{provider}</span>
-                              </p>
-                            </div>
-                            <span className="text-[10px] bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-1 rounded-md font-bold uppercase shrink-0">
-                              Enrolled on {ref.applicationDate || ref.referralDate || "Recently"}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 bg-gray-50/70 p-3.5 sm:p-4 rounded-xl border border-gray-150">
-                            <div className="space-y-1">
-                              <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Class Schedule Days</span>
-                              <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {scheduleDays}
-                              </p>
+                        <div key={ref.id} className="py-5 first:pt-0 last:pb-0">
+                          {/* 2-Column Responsive Layout: 30% Map | 70% Details */}
+                          <div className="flex flex-col lg:flex-row items-stretch gap-5 sm:gap-6">
+                            {/* Left Column (30%): Map showing program location */}
+                            <div className="w-full lg:w-[30%] flex flex-col shrink-0 min-h-[260px]">
+                              <EnrolledProgramMiniMap
+                                program={program}
+                                locationString={program?.location}
+                                onOpenFullMap={() => handleOpenVenueMap(program || { id: "enrolled", title: ref.programTitle, provider, location } as any)}
+                              />
                             </div>
 
-                            <div className="space-y-1">
-                              <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Class Time & Session</span>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <p className="text-xs font-bold text-gray-800 flex items-center gap-1">
-                                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" /> {timeslot.formattedRange}
-                                </p>
-                                {timeslot.sessionType !== "Custom" && (
-                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${timeslot.sessionType === "Morning" ? "bg-amber-100 text-amber-900 border border-amber-200" :
-                                    timeslot.sessionType === "Afternoon" ? "bg-blue-100 text-blue-900 border border-blue-200" :
-                                      timeslot.sessionType === "Full Day" ? "bg-emerald-100 text-emerald-900 border border-emerald-200" :
-                                        "bg-purple-100 text-purple-900 border border-purple-200"
-                                    }`}>
-                                    {timeslot.sessionType}
+                            {/* Right Column (70%): Details */}
+                            <div className="w-full lg:w-[70%] min-w-0 flex flex-col space-y-3.5">
+                              {/* Program Title & Provider (no icon) */}
+                              <div>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                                  <h5 className="font-extrabold text-gray-900 text-[18px] leading-snug">
+                                    {ref.programTitle}
+                                  </h5>
+                                  <span className="text-[10px] bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-0.5 rounded-md font-bold uppercase shrink-0 self-start sm:self-auto">
+                                    Enrolled on {ref.applicationDate || ref.referralDate || "Recently"}
                                   </span>
-                                )}
+                                </div>
+                                <p className="text-[12px] font-semibold text-emerald-900/90 mt-1">
+                                  {provider}
+                                </p>
+                              </div>
+
+                              {/* Card 1: Class & Training Specifications */}
+                              <div className="border border-gray-200/90 rounded-2xl bg-white p-4 sm:p-5 space-y-2.5 shadow-2xs">
+                                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                                  Class &amp; Training Specifications
+                                </span>
+                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:text-[13px] text-gray-700 font-medium">
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Total Training Hours:</strong>{" "}
+                                      {program?.trainingHours ? `${program.trainingHours} Hours` : "Flexible"}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Training Period:</strong>{" "}
+                                      {(program?.startDate && program?.endDate)
+                                        ? formatProgramDateRange(program.startDate, program.endDate)
+                                        : "Flexible Schedule"}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Training Days:</strong>{" "}
+                                      {scheduleDays}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Training Hours:</strong>{" "}
+                                      {timeslot.formattedRange}
+                                      {timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Mode:</strong>{" "}
+                                      {program?.deliveryMode || "Face-to-Face"}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Instructor:</strong>{" "}
+                                      {instructor}
+                                    </span>
+                                  </li>
+                                  {/* Contact Person & Contact Number aligned in one row */}
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Contact Person:</strong>{" "}
+                                      {program?.contactPerson || "TESDA Registrar"}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Contact Number:</strong>{" "}
+                                      {program?.contactNumber || "N/A"}
+                                    </span>
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* Card 2: Location, Room / Training Facility (not clickable) */}
+                              <div className="border border-gray-200/90 rounded-2xl bg-white p-4 sm:p-5 space-y-2.5 shadow-2xs">
+                                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                                  Location &amp; Training Facility
+                                </span>
+                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:text-[13px] text-gray-700 font-medium">
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Location:</strong>{" "}
+                                      {location}
+                                      {program?.centerName && (
+                                        <span className="text-gray-500 font-normal block sm:inline sm:ml-1 text-xs">
+                                          ({program.centerName})
+                                        </span>
+                                      )}
+                                    </span>
+                                  </li>
+                                  <li className="flex items-start gap-2 leading-relaxed">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <span>
+                                      <strong className="text-gray-900 font-bold">Room / Training Facility:</strong>{" "}
+                                      {room}
+                                    </span>
+                                  </li>
+                                </ul>
                               </div>
                             </div>
-
-                            <div className="space-y-1">
-                              <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Room / Training Facility</span>
-                              <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                <span>{room}</span>
-                              </p>
-                            </div>
-
-                            <div className="space-y-1">
-                              <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-wider block">Assigned Instructor</span>
-                              <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                                <User className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                <span>{instructor}</span>
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-gray-600 bg-emerald-50/40 p-3 rounded-xl border border-emerald-150">
-                            <p className="font-medium flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                              <span><strong>Campus Location:</strong>{" "}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenVenueMap(program || { id: "enrolled", title: ref.programTitle, provider, location } as any)}
-                                  className="text-emerald-800 hover:text-emerald-950 underline underline-offset-2 font-bold cursor-pointer transition-colors"
-                                  title="View on Interactive Map"
-                                >
-                                  {location}
-                                </button>
-                              </span>
-                            </p>
-                            {program && (
-                              <p className="font-semibold text-emerald-800 flex items-center gap-1.5 flex-wrap">
-                                <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                <span><strong>Contact Coordinator:</strong> {program.contactPerson} ({program.contactNumber})</span>
-                              </p>
-                            )}
                           </div>
                         </div>
                       );
@@ -4288,23 +4503,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     {prog.title}
                                   </h4>
 
-                                  {/* Provider & TVET Accreditation Badges */}
-                                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap pt-1">
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-700 bg-gray-100/90 px-2 py-0.5 rounded-md border border-gray-200/80">
-                                      <Building2 className="w-3 h-3 text-emerald-700 shrink-0" />
-                                      <span className="truncate max-w-[140px] sm:max-w-[200px]" title={(prog.provider || prog.centerName) || "TESDA Pampanga (GPSAT)"}>
-                                        {(prog.provider || prog.centerName) || "TESDA Pampanga (GPSAT)"}
-                                      </span>
+                                  {/* Training Provider Subheader (no pill, no ellipsis, responsive text size, no icon) */}
+                                  <div className="text-xs sm:text-[13px] xl:text-sm font-semibold text-emerald-900/90 pt-0.5">
+                                    <span className="break-words">
+                                      {(prog.provider || prog.centerName) || "TESDA Pampanga (GPSAT)"}
                                     </span>
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/80">
-                                      <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
-                                      CPTR Verified
-                                    </span>
-                                    {prog.deliveryMode && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200/80">
-                                        {prog.deliveryMode}
-                                      </span>
-                                    )}
                                   </div>
                                 </div>
                                 <div className="shrink-0 pt-0.5">
@@ -4397,14 +4600,34 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </div>
                               )}
 
-                              {/* 4 Key Program Specifications with matching icon & aligned label/info */}
+                              {/* Breakline between Match Category and Program Description */}
+                              <hr className="border-gray-200/80 my-1" />
+
+                              {/* Program Description from Database */}
+                              {(() => {
+                                const progDesc = getProgramDescription(prog);
+                                if (!progDesc) return null;
+                                return (
+                                  <div className="bg-gray-50/70 p-3 sm:p-3.5 rounded-xl border border-gray-200/80 space-y-1 shadow-2xs">
+                                    <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-gray-500 tracking-wider flex items-center gap-1.5">
+                                      <BookOpen className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                      Program Description
+                                    </span>
+                                    <p className="text-xs sm:text-[13px] text-gray-700 font-medium leading-relaxed">
+                                      {progDesc}
+                                    </p>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* 2-Column Program Specifications */}
                               <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-3 sm:px-4 pt-3 pb-3.5 border-y border-gray-100">
-                                {/* Hour */}
+                                {/* Total Training Hours */}
                                 <div className="min-w-0 flex items-start gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <Timer className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                                   <div className="min-w-0 space-y-0.5">
                                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
-                                      Hour
+                                      Total Training Hours
                                     </span>
                                     <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">
                                       {prog.trainingHours ? `${prog.trainingHours} Hours` : "Flexible"}
@@ -4412,37 +4635,58 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   </div>
                                 </div>
 
-                                {/* Duration */}
+                                {/* Training Period */}
                                 <div className="min-w-0 flex items-start gap-1.5">
                                   <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                                   <div className="min-w-0 space-y-0.5">
                                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
-                                      Duration
+                                      Training Period
                                     </span>
-                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate" title={(prog.startDate && prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Self-Paced"}>
-                                      {(prog.startDate && prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Self-Paced"}
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate" title={(prog.startDate && prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}>
+                                      {(prog.startDate && prog.endDate) ? formatProgramDateRange(prog.startDate, prog.endDate) : "Flexible Schedule"}
                                     </p>
                                   </div>
                                 </div>
 
-                                {/* Location (Two rows maximum, complete location without truncation) */}
+                                {/* Training Days */}
                                 <div className="min-w-0 flex items-start gap-1.5">
-                                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                                   <div className="min-w-0 space-y-0.5">
                                     <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
-                                      Location
+                                      Training Days
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenVenueMap(prog);
-                                      }}
-                                      className="text-left text-xs sm:text-sm font-bold text-emerald-800 hover:text-emerald-950 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-700 line-clamp-2 break-words leading-snug cursor-pointer transition-colors block"
-                                      title="Click to view interactive campus map"
-                                    >
-                                      {extractLocationDisplay(prog.location) || "San Luis, Pampanga"}
-                                    </button>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate" title={formatTrainingDays(prog.trainingDays)}>
+                                      {formatTrainingDays(prog.trainingDays)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Training Hours (Timeslot) */}
+                                <div className="min-w-0 flex items-start gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Training Hours
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">
+                                      {(() => {
+                                        const ts = formatProgramTimeslot(prog.startTime, prog.endTime);
+                                        return `${ts.formattedRange}${ts.sessionType !== "Custom" ? ` (${ts.sessionType})` : ""}`;
+                                      })()}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Delivery Mode */}
+                                <div className="min-w-0 flex items-start gap-1.5">
+                                  <GraduationCap className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5">
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Delivery Mode
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">
+                                      {prog.deliveryMode || "Face-to-Face"}
+                                    </p>
                                   </div>
                                 </div>
 
@@ -4458,61 +4702,41 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     </p>
                                   </div>
                                 </div>
-                              </div>
 
-                              {/* Separate Container 1: Eligibility */}
-                              <div className="border border-gray-200/90 rounded-xl p-3 bg-gray-50/40 space-y-1.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
-                                  Eligibility
-                                </span>
-                                <ul className="space-y-1 text-xs text-gray-700 font-medium">
-                                  {(prog.eligibility || "Open to all Katipunan ng Kabataan (KK) Youth")
-                                    .split(";")
-                                    .map(item => item.trim())
-                                    .filter(Boolean)
-                                    .map((item, idx) => (
-                                      <li key={idx} className="flex items-start gap-2 leading-relaxed">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
-                                        <span>{item}</span>
-                                      </li>
-                                    ))}
-                                </ul>
-                              </div>
-
-                              {/* Separate Container 2: Required Requirements */}
-                              <div className="border border-gray-200/90 rounded-xl p-3 bg-gray-50/40 space-y-1.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
-                                  Required Requirements
-                                </span>
-                                <ul className="space-y-1 text-xs text-gray-700 font-medium">
-                                  {(prog.requiredDocuments && prog.requiredDocuments.length > 0
-                                    ? prog.requiredDocuments
-                                    : ["Valid ID or Barangay Certificate", "2x2 ID Photo"]
-                                  ).map((doc, idx) => (
-                                    <li key={idx} className="flex items-start gap-2 leading-relaxed">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
-                                      <span>{doc}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-
-                              {/* Overlap Warning */}
-                              {(() => {
-                                const overlapWarning = getOverlapWarning(prog);
-                                if (overlapWarning) {
-                                  return (
-                                    <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium leading-relaxed flex items-start gap-2">
-                                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                                      <div className="space-y-0.5">
-                                        <span className="font-bold text-amber-900 block text-xs">Schedule Overlap Notice</span>
-                                        <span>{overlapWarning}</span>
-                                      </div>
+                                {/* Venue */}
+                                <div className="min-w-0 flex items-start gap-1.5 col-span-2 pt-1 border-t border-gray-100/80">
+                                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 space-y-0.5 flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                        Venue
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenVenueMap(prog);
+                                        }}
+                                        className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-emerald-800 underline underline-offset-2 cursor-pointer transition-colors"
+                                      >
+                                        View Map
+                                      </button>
                                     </div>
-                                  );
-                                }
-                                return null;
-                              })()}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenVenueMap(prog);
+                                      }}
+                                      className="text-left text-xs sm:text-sm font-bold text-emerald-800 hover:text-emerald-950 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-700 line-clamp-2 break-words leading-snug cursor-pointer transition-colors block"
+                                      title="Click to view interactive campus map"
+                                    >
+                                      {extractLocationDisplay(prog.location) || "San Luis, Pampanga"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
                             </div>
 
                             {/* Card Footer: Slots and Action Buttons (Mobile & Tablet optimized to prevent overlap) */}
@@ -7990,34 +8214,42 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
             </div>
 
-            {/* Subheader: Sector, Institution & Verification */}
-            <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs text-gray-600">
+            {/* Subheader: Sector & Institution */}
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs sm:text-sm text-gray-600">
               <span className="font-semibold text-gray-500">{modalProgSector}</span>
               <span className="text-gray-300">•</span>
-              <span className="inline-flex items-center gap-1 font-bold text-gray-800">
-                <Building2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span className="inline-flex items-center gap-1.5 font-bold text-emerald-900">
+                <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
                 {(modalProg.provider || modalProg.centerName) || "TESDA Pampanga (GPSAT)"}
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-black border border-emerald-200">
-                <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
-                CPTR Verified Partner
-              </span>
-              {modalProg.deliveryMode && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200">
-                  {modalProg.deliveryMode}
-                </span>
-              )}
             </div>
           </div>
 
-              {/* Modal Scrollable Body */ }
-    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollbar p-4 sm:p-6 space-y-4 sm:space-y-5">
-      {isUnverified && (
-        <div className="bg-amber-50 border border-amber-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 flex items-center gap-2.5 text-xs text-amber-900 font-medium shadow-2xs">
-          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>You are previewing this program in <strong>View-Only mode</strong>. Direct enrollment will unlock once your account is verified by your Barangay SK Chairman.</span>
-        </div>
-      )}
+          {/* Modal Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain modal-scrollbar p-4 sm:p-6 space-y-4 sm:space-y-5">
+            {isUnverified && (
+              <div className="bg-amber-50 border border-amber-200/90 rounded-xl sm:rounded-2xl p-3 sm:p-3.5 flex items-center gap-2.5 text-xs text-amber-900 font-medium shadow-2xs">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>You are previewing this program in <strong>View-Only mode</strong>. Direct enrollment will unlock once your account is verified by your Barangay SK Chairman.</span>
+              </div>
+            )}
+
+            {/* Program Description & Overview from Database */}
+            {(() => {
+              const desc = getProgramDescription(modalProg);
+              if (!desc) return null;
+              return (
+                <div className="bg-gray-50/90 rounded-xl sm:rounded-2xl border border-gray-200/80 p-3.5 sm:p-4 space-y-1.5 shadow-2xs">
+                  <span className="text-[11px] font-extrabold uppercase text-gray-700 tracking-wider flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-[#0A6B43] shrink-0" />
+                    Program Description &amp; Overview
+                  </span>
+                  <p className="text-xs sm:text-sm text-gray-700 font-medium leading-relaxed">
+                    {desc}
+                  </p>
+                </div>
+              );
+            })()}
       {/* 4-Factor Transparent CBF Score Breakdown */}
       {(() => {
         const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
@@ -8333,19 +8565,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
           </div>
 
-          {/* Eligibility */}
-          <div className="sm:col-span-2 bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
-            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <GraduationCap className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Eligibility</span>
-              <p className="font-bold text-gray-800 leading-snug break-words text-[11px] sm:text-xs">
-                {viewingProgramModal.program.eligibility || "Open to all Katipunan ng Kabataan (KK) Youth"}
-              </p>
-            </div>
-          </div>
-
           {/* Delivery Mode */}
           {viewingProgramModal.program.deliveryMode && (
             <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
@@ -8399,23 +8618,48 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </div>
       </div>
 
-      {/* Physical Requirements */}
-      {viewingProgramModal.program.requiredDocuments && viewingProgramModal.program.requiredDocuments.length > 0 && (
-        <div className="bg-amber-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-amber-200/80 space-y-2 shadow-2xs">
-          <p className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-            Physical Requirements Needed Beforehand:
-          </p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-amber-950 font-medium">
-            {viewingProgramModal.program.requiredDocuments.map((doc, dIdx) => (
-              <li key={dIdx} className="flex items-start gap-2 bg-white/70 p-2 rounded-lg border border-amber-200/60 shadow-2xs">
-                <span className="text-amber-600 font-bold shrink-0 leading-snug">•</span>
-                <span className="leading-snug break-words">{doc}</span>
+      {/* Card: ELIGIBILITY (Matching exact spec) */}
+      <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-2xs">
+        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider block">
+          ELIGIBILITY
+        </span>
+        <ul className="space-y-2 text-xs sm:text-[13px] text-gray-700 font-normal">
+          {(() => {
+            const raw = viewingProgramModal.program.eligibility;
+            const items = raw && raw.trim() && raw.trim().toLowerCase() !== "open to all"
+              ? raw.split(/[;\n]+/).map(s => s.trim()).filter(Boolean)
+              : [
+                  `${viewingProgramModal.program.title} is a TESDA-certified qualification that equips individuals with the knowledge and practical skills to perform industry-standard technical operations and workplace competencies. Open to all Katipunan ng Kabataan (KK) youth in San Luis, Pampanga.`
+                ];
+            return items.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-2.5 leading-relaxed">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                <span>{item}</span>
               </li>
-            ))}
-          </ul>
-        </div>
-      )}
+            ));
+          })()}
+        </ul>
+      </div>
+
+      {/* Card: REQUIRED REQUIREMENTS (Matching exact spec) */}
+      <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-2xs">
+        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider block">
+          REQUIRED REQUIREMENTS
+        </span>
+        <ul className="space-y-2 text-xs sm:text-[13px] text-gray-700 font-normal">
+          {(() => {
+            const docs = (viewingProgramModal.program.requiredDocuments && viewingProgramModal.program.requiredDocuments.length > 0)
+              ? viewingProgramModal.program.requiredDocuments
+              : DEFAULT_TESDA_REQUIREMENTS;
+            return docs.map((doc, idx) => (
+              <li key={idx} className="flex items-start gap-2.5 leading-relaxed">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                <span>{doc}</span>
+              </li>
+            ));
+          })()}
+        </ul>
+      </div>
 
       {/* Required Skills */}
       {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (

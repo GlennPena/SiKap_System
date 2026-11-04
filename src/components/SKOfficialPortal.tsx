@@ -16,7 +16,7 @@ import {
   YouthProfile, TESDAProgram, SKAnnouncement, ReferralPipelineItem,
   SKOfficialScreen, UserRole, SkillGapData, Councilor,
   EDUCATIONAL_ATTAINMENT_OPTIONS, VOCATIONAL_SECTOR_OPTIONS, normalizeEducationalAttainment,
-  getSkillGapCriticality
+  getSkillGapCriticality, DEFAULT_TESDA_REQUIREMENTS
 } from "../types";
 import {
   MetricCard, FlameMatchScore, PathwayTimeline,
@@ -320,6 +320,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
   const [youthGridPage, setYouthGridPage] = useState(1);
   const [profileMatchPage, setProfileMatchPage] = useState(1);
   const [profileCompletedPage, setProfileCompletedPage] = useState(1);
+
+  // Search & Filter states: Program Graduates & Outcomes Ledger
+  const [graduateSearch, setGraduateSearch] = useState("");
+  const [graduatePurokFilter, setGraduatePurokFilter] = useState("All");
+  const [graduateSectorFilter, setGraduateSectorFilter] = useState("All");
+  const [graduateTablePage, setGraduateTablePage] = useState(1);
 
   useEffect(() => {
     setYouthTablePage(1);
@@ -777,6 +783,87 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       return rNorm === dbNorm;
     });
   }, [referrals, designatedBarangay]);
+
+  // Helper: Detect if a referral represents a successfully completed/certified training
+  const isCompletedReferral = (r: ReferralPipelineItem) => {
+    return r.status === "Completed" || r.status === "Archived";
+  };
+
+  // Completed & Certified Graduates in this SK jurisdiction
+  const completedGraduates = useMemo(() => {
+    return localReferrals.filter(isCompletedReferral);
+  }, [localReferrals]);
+
+  // Set of youth names/IDs who have completed at least one program (for directory badge)
+  const uniqueGraduateYouthNames = useMemo(() => {
+    const set = new Set<string>();
+    completedGraduates.forEach(r => {
+      if (r.youthName) set.add(r.youthName.toLowerCase().trim());
+      if (r.youthId) set.add(r.youthId.toLowerCase().trim());
+    });
+    return set;
+  }, [completedGraduates]);
+
+  const totalEnrolledOrCompleted = useMemo(() => {
+    return localReferrals.filter(r => r.status === "Enrolled" || isCompletedReferral(r)).length;
+  }, [localReferrals]);
+
+  const completionSuccessRate = useMemo(() => {
+    if (totalEnrolledOrCompleted === 0) return 0;
+    return Math.round((completedGraduates.length / totalEnrolledOrCompleted) * 100);
+  }, [completedGraduates.length, totalEnrolledOrCompleted]);
+
+  // Filtered graduates list for the Program Graduates ledger
+  const filteredGraduates = useMemo(() => {
+    return completedGraduates.filter(g => {
+      const q = graduateSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (g.youthName && g.youthName.toLowerCase().includes(q)) ||
+        (g.programTitle && g.programTitle.toLowerCase().includes(q)) ||
+        (g.purok && g.purok.toLowerCase().includes(q)) ||
+        (g.program?.provider && g.program.provider.toLowerCase().includes(q));
+
+      const matchesPurok =
+        graduatePurokFilter === "All" ||
+        (g.purok && g.purok.toLowerCase().trim() === graduatePurokFilter.toLowerCase().trim());
+
+      const sector = g.program?.type || (typeof g.program?.category === "object" ? g.program?.category?.name : g.program?.category) || "";
+      const matchesSector =
+        graduateSectorFilter === "All" ||
+        (sector && sector.toLowerCase().includes(graduateSectorFilter.toLowerCase()));
+
+      return matchesSearch && matchesPurok && matchesSector;
+    });
+  }, [completedGraduates, graduateSearch, graduatePurokFilter, graduateSectorFilter]);
+
+  const handleExportGraduatesReport = () => {
+    if (completedGraduates.length === 0) {
+      if (addToast) addToast("No graduate records available to export.", "info");
+      return;
+    }
+    const headers = ["Youth Member", "Barangay", "Purok", "Completed Program", "Training Provider", "Training Hours", "Credential", "Status", "Completion Date"];
+    const rows = completedGraduates.map(g => [
+      `"${(g.youthName || "").replace(/"/g, '""')}"`,
+      `"${(g.barangay || designatedBarangay).replace(/"/g, '""')}"`,
+      `"${(g.purok || "").replace(/"/g, '""')}"`,
+      `"${(g.programTitle || "").replace(/"/g, '""')}"`,
+      `"${(g.program?.provider || "TESDA Partner Institution").replace(/"/g, '""')}"`,
+      `"${g.program?.trainingHours ? g.program.trainingHours + " Hours" : "Completed"}"`,
+      `"${g.program?.certificationType || "National Certificate (NC)"}"`,
+      `"Completed & Certified"`,
+      `"${g.applicationDate || g.referralDate || ""}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Barangay_${designatedBarangay}_Livelihood_Graduates_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (addToast) addToast("Official Barangay Accomplishment Report exported successfully!", "success");
+  };
 
   const localCouncilors = useMemo(() => {
     const dbClean = (designatedBarangay || "").replace(/^Barangay\s+/i, "").trim().toLowerCase();
@@ -3143,6 +3230,17 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 )
               },
               {
+                id: SKOfficialScreen.GRADUATES,
+                label: "Program Graduates",
+                activeIcon: (
+                  <Award className="w-5 h-5 fill-current shrink-0" />
+                ),
+                inactiveIcon: (
+                  <Award className="w-5 h-5 shrink-0" />
+                ),
+                badge: completedGraduates.length > 0 ? completedGraduates.length : undefined
+              },
+              {
                 id: SKOfficialScreen.SKILLS_GAP,
                 label: "Skills Gap Analytics",
                 activeIcon: (
@@ -3327,6 +3425,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
             <div className="min-w-0 flex-1">
               <h1 className="text-[24px] xl:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
                 {currentScreen === SKOfficialScreen.DASHBOARD && "Dashboard"}
+                {currentScreen === SKOfficialScreen.GRADUATES && "Program Graduates & Outcome Evidence"}
                 {currentScreen === SKOfficialScreen.YOUTH_PROFILES && "Youth Profiles"}
                 {currentScreen === SKOfficialScreen.PROFILE_DETAIL && "Youth Profile Details"}
                 {currentScreen === SKOfficialScreen.PENDING_APPROVALS && "Pending Approvals"}
@@ -3512,7 +3611,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
               {/* ============================================================ */}
               {/* 1. DASHBOARD OVERVIEW / KPI CARDS                             */}
               {/* ============================================================ */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
                 {/* Card 1: Total Registered OSY (Gradient Matched to Greetings Card - Full White Font, 16px Header, No Icon) */}
                 <motion.div
                   initial={{ opacity: 0, y: 14 }}
@@ -3555,6 +3654,29 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       duration={0.65}
                     />{" "}
                     verification rate
+                  </p>
+                </motion.div>
+
+                {/* Card 3: Certified Graduates (Evidence of Outcomes) */}
+                <motion.div
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  onClick={() => setCurrentScreen(SKOfficialScreen.GRADUATES)}
+                  className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_35px_rgb(0,0,0,0.09)] hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between border-b-2 border-emerald-600/70"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs sm:text-[16px] font-medium text-black leading-snug group-hover:text-[#0A6B43] transition-colors">
+                      Certified Graduates
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                  <div className="text-4xl sm:text-5xl font-bold text-gray-900 tracking-tight my-1 sm:my-1.5 group-hover:text-[#0A6B43] transition-colors">
+                    <KPICalculationNumber value={completedGraduates.length} delay={0.24} duration={0.6} />
+                  </div>
+                  <p className="text-[11px] sm:text-xs font-normal text-emerald-800 flex items-center justify-between mt-0.5">
+                    <span>{completionSuccessRate}% completion rate</span>
+                    <span className="text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-transform">→</span>
                   </p>
                 </motion.div>
 
@@ -6560,6 +6682,243 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {currentScreen === SKOfficialScreen.GRADUATES && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Botanical Plant Growth Banner */}
+              <div
+                className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                style={{
+                  background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                }}
+              >
+                <GrowthPlantAnimation />
+                <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-emerald-300 mb-1 flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5" />
+                    <span>System Efficacy &amp; Outcomes Evidence</span>
+                  </span>
+                  <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                    Certified Program Graduates
+                  </h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
+                    Auditable records of Katipunan ng Kabataan members from Barangay {designatedBarangay.replace(/^Barangay\s+/i, "")} who completed technical training and earned accredited certifications.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Outcome Metric Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200/90 shadow-2xs flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-100">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-extrabold uppercase text-gray-400 tracking-wider block">Total Graduates</span>
+                    <h4 className="text-2xl font-black text-gray-900 tracking-tight">{completedGraduates.length}</h4>
+                    <p className="text-[11px] text-gray-500 font-medium">Certified completers</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200/90 shadow-2xs flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0 border border-teal-100">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-extrabold uppercase text-gray-400 tracking-wider block">Completion Rate</span>
+                    <h4 className="text-2xl font-black text-teal-900 tracking-tight">{completionSuccessRate}%</h4>
+                    <p className="text-[11px] text-gray-500 font-medium">Of {totalEnrolledOrCompleted} total enrolled</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200/90 shadow-2xs flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-extrabold uppercase text-gray-400 tracking-wider block">Active Roster Impact</span>
+                    <h4 className="text-2xl font-black text-blue-900 tracking-tight">{uniqueGraduateYouthNames.size}</h4>
+                    <p className="text-[11px] text-gray-500 font-medium">Unique youth upskilled</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Graduate Table & Filter Toolbar Card */}
+              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-5 sm:p-6 space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
+                      Completion &amp; Certification Ledger
+                    </h3>
+                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-[#0A6B43] border-emerald-200">
+                      {filteredGraduates.length} records
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleExportGraduatesReport}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white bg-[#0A6B43] hover:bg-[#075332] active:scale-95 rounded-xl shadow-xs transition-all cursor-pointer self-start sm:self-auto"
+                    title="Export official Barangay TVET completion accomplishment report (CSV)"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export Accomplishment Report</span>
+                  </button>
+                </div>
+
+                {/* Filter Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                  <div className="relative sm:col-span-6">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search graduate name, program title, purok, provider..."
+                      value={graduateSearch}
+                      onChange={(e) => setGraduateSearch(e.target.value)}
+                      className="w-full h-[38px] pl-10 pr-8 bg-gray-50/70 border border-gray-200 text-gray-800 rounded-xl text-xs font-medium focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                    />
+                    {graduateSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setGraduateSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <CustomSelect
+                      value={graduatePurokFilter}
+                      onChange={(val) => setGraduatePurokFilter(val)}
+                      options={[
+                        { value: "All", label: `All ${getBarangayZoneTypeLabel(designatedBarangay)}s` },
+                        ...getBarangayZoneOptions(designatedBarangay)
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <CustomSelect
+                      value={graduateSectorFilter}
+                      onChange={(val) => setGraduateSectorFilter(val)}
+                      options={[
+                        { value: "All", label: "All Vocational Sectors" },
+                        ...VOCATIONAL_SECTOR_OPTIONS.map(s => ({ value: s, label: s }))
+                      ]}
+                      size="sm"
+                      buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
+                    />
+                  </div>
+                </div>
+
+                {/* Ledger Table */}
+                {filteredGraduates.length === 0 ? (
+                  <div className="py-12 text-center text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/40 space-y-2">
+                    <Award className="w-8 h-8 text-gray-300 mx-auto" />
+                    <p className="text-sm font-bold text-gray-600">No program graduates found</p>
+                    <p className="text-xs text-gray-400">
+                      {completedGraduates.length === 0
+                        ? "Graduates will automatically populate here when TVET training providers conclude cohort trainings."
+                        : "Try adjusting your search keywords or resetting filters."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border border-gray-200/90 rounded-2xl overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-gray-500 font-bold text-[11px] bg-gray-50/70 uppercase tracking-wider">
+                            <th className="py-3.5 px-4 pl-5">Graduate Trainee</th>
+                            <th className="py-3.5 px-4">Program Completed</th>
+                            <th className="py-3.5 px-4">Training Provider</th>
+                            <th className="py-3.5 px-4">Credential</th>
+                            <th className="py-3.5 px-4">Outcome Status</th>
+                            <th className="py-3.5 px-4 pr-5 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                          {filteredGraduates.map((grad) => {
+                            const matchingYouth = localYouthProfiles.find(
+                              y => y.id === grad.youthId || y.name.toLowerCase().trim() === (grad.youthName || "").toLowerCase().trim()
+                            );
+                            const credential = grad.program?.certificationType || "National Certificate (NC II)";
+                            const duration = grad.program?.trainingHours ? `${grad.program.trainingHours} Hours` : "Term Completed";
+                            const providerName = grad.program?.provider || "TESDA Partner Center";
+
+                            return (
+                              <tr key={grad.id} className="hover:bg-emerald-50/30 transition-colors group">
+                                <td className="py-3.5 px-4 pl-5">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
+                                      {(grad.youthName || "Y").charAt(0)}
+                                    </div>
+                                    <div>
+                                      <p className="font-bold text-gray-950 group-hover:text-[#0A6B43] transition-colors">
+                                        {grad.youthName}
+                                      </p>
+                                      <p className="text-[10px] text-gray-400 font-medium">
+                                        {grad.purok ? `Purok ${grad.purok}` : "Barangay Jurisdiction"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <p className="font-bold text-gray-900 leading-snug">{grad.programTitle}</p>
+                                  <span className="text-[10px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold inline-block mt-0.5">
+                                    {duration}
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-gray-700 font-medium">
+                                  <p className="font-semibold text-gray-800 leading-snug">{providerName}</p>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 text-[11px] font-extrabold shadow-2xs">
+                                    <Award className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                    <span>{credential}</span>
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100 text-[#0A6B43] border border-emerald-300 font-black text-[10px] uppercase tracking-wider">
+                                    <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                    <span>Completed &amp; Certified ✓</span>
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4 pr-5 text-right">
+                                  {matchingYouth ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedYouthId(matchingYouth.id);
+                                        setCurrentScreen(SKOfficialScreen.PROFILE_DETAIL);
+                                      }}
+                                      className="px-3 py-1.5 text-xs font-bold text-[#0A6B43] bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 transition-colors cursor-pointer"
+                                    >
+                                      Inspect Profile
+                                    </button>
+                                  ) : (
+                                    <span className="text-[11px] text-gray-400 font-medium italic">Verified Trainee</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -10739,7 +11098,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 {/* Card 2: Eligibility */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
-                    Eligibility
+                    ELIGIBILITY
                   </span>
                   <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
                     {(selectedProgramForModal.eligibility || "Open to all Katipunan ng Kabataan members.")
@@ -10758,12 +11117,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                 {/* Card 3: Required Documents */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
-                    Required Documents
+                    REQUIRED REQUIREMENTS
                   </span>
                   <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
                     {(selectedProgramForModal.requiredDocuments && selectedProgramForModal.requiredDocuments.length > 0
                       ? selectedProgramForModal.requiredDocuments
-                      : ["Valid ID", "Barangay Certificate", "2x2 ID Photos"]
+                      : DEFAULT_TESDA_REQUIREMENTS
                     ).map((doc: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-2 leading-relaxed">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />

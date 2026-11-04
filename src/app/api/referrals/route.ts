@@ -35,12 +35,17 @@ function mapToPipelineItem(r: any) {
       slotsTotal: r.program.slotsTotal,
       slotsRemaining: r.program.slotsRemaining,
       eligibility: r.program.eligibility,
-      activeStatus: r.program.activeStatus
+      activeStatus: r.program.activeStatus,
+      certificationType: r.program.certificationType,
+      type: r.program.type,
+      startDate: r.program.startDate,
+      endDate: r.program.endDate
     } : undefined
   };
 }
 
 function getStatusPriority(status: string): number {
+  if (status === "Completed") return 5;
   if (status === "Archived") return 4;
   if (status === "Enrolled") return 3;
   if (status === "Pending") return 2;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -22,7 +22,6 @@ import {
   Sparkles,
   MapPin,
   Award,
-  Check,
   ZoomIn,
   Clock,
   ArrowLeft
@@ -32,6 +31,67 @@ import { SikapLogo, Toast } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
 import { sanitizeClientError } from "../lib/utils";
+
+const MatchBadge: React.FC = () => {
+  const [matchState, setMatchState] = useState<"analyzing" | "calculating" | "complete">("analyzing");
+  const [calcScore, setCalcScore] = useState(0);
+
+  useEffect(() => {
+    // Stage 1: Display "Analyzing..." briefly while card settles
+    const analyzeTimer = setTimeout(() => {
+      setMatchState("calculating");
+    }, 550);
+
+    return () => clearTimeout(analyzeTimer);
+  }, []);
+
+  useEffect(() => {
+    if (matchState === "calculating") {
+      let current = 0;
+      const target = 94;
+      const interval = setInterval(() => {
+        current += Math.floor(Math.random() * 8) + 7;
+        if (current >= target) {
+          setCalcScore(target);
+          setMatchState("complete");
+          clearInterval(interval);
+        } else {
+          setCalcScore(current);
+        }
+      }, 38);
+
+      return () => clearInterval(interval);
+    }
+  }, [matchState]);
+
+  if (matchState === "analyzing") {
+    return (
+      <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 shadow-2xs flex items-center gap-1.5 animate-pulse">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+        Analyzing...
+      </span>
+    );
+  }
+
+  if (matchState === "calculating") {
+    return (
+      <span className="text-xs font-black text-emerald-800 bg-emerald-100/90 px-2.5 py-1 rounded-lg border border-emerald-300 shadow-2xs font-mono">
+        {calcScore}% Calculating...
+      </span>
+    );
+  }
+
+  return (
+    <motion.span
+      initial={{ scale: 0.8 }}
+      animate={{ scale: [1, 1.28, 0.92, 1] }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="text-xs font-black text-emerald-700 bg-white px-2.5 py-1 rounded-lg shadow-md border border-emerald-200 flex items-center gap-1"
+    >
+      94% Match
+    </motion.span>
+  );
+};
 
 const PROVIDER_TYPE_OPTIONS = [
   {
@@ -56,7 +116,17 @@ const PROVIDER_TYPE_OPTIONS = [
   }
 ];
 
-export const TESDAPartnerRegister: React.FC = () => {
+export interface TESDAPartnerRegisterProps {
+  embedded?: boolean;
+  onBackToSignIn?: () => void;
+  onBackToHome?: () => void;
+}
+
+export const TESDAPartnerRegister: React.FC<TESDAPartnerRegisterProps> = ({
+  embedded = false,
+  onBackToSignIn,
+  onBackToHome
+}) => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Step 1: Institution Details
@@ -304,124 +374,116 @@ export const TESDAPartnerRegister: React.FC = () => {
         ))}
       </aside>
 
-      <div className="min-h-[100dvh] xl:h-[100dvh] flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 xl:overflow-hidden">
-        {/* Left Panel: Onboarding Guide (Visible on xl+) */}
-        <div className="hidden xl:flex xl:w-[42%] bg-[#0A4D30] rounded-[1.5rem] p-8 xl:p-10 flex-col justify-between shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
+      <div className={embedded ? "w-full flex-1 flex flex-col" : "min-h-[100dvh] xl:h-[100dvh] flex flex-col xl:flex-row bg-white p-3 sm:p-6 gap-6 xl:overflow-hidden"}>
+        {/* Left panel as a card (Hidden on mobile, tablets & iPads <1280px to maximize form focus and prevent vertical cutoff) */}
+        {!embedded && (
+          <div className="hidden xl:flex xl:w-[45%] bg-[#0A4D30] rounded-[1.5rem] p-8 xl:p-10 flex-col shrink-0 relative overflow-hidden shadow-xl border border-emerald-800/60">
+
+          {/* Redox Texture Overlay (Identical to Landing Page CTA) */}
           <div
             className="absolute inset-0 pointer-events-none z-0 opacity-40 mix-blend-multiply"
             style={{
               backgroundImage: "url('/redox-02.png')",
               backgroundRepeat: "repeat",
-              backgroundSize: "200px 200px"
+              backgroundSize: "200px 200px",
             }}
           />
 
+          {/* Animated 3D Grid Overlay (Identical to Landing Page CTA) */}
           <AnimatedGridBackground />
 
+          {/* Subtle Radial Lighting behind text */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(52,211,153,0.18),transparent_70%)] pointer-events-none z-0" />
 
-          <div className="relative z-10 space-y-4 mt-2">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-xs border border-white/20 text-amber-300 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider">
-              <Award className="w-3.5 h-3.5" />
-              <span>Partner Accreditation</span>
+          {/* Header Row: Welcome Text */}
+          <div className="flex items-start justify-between w-full relative z-10 mb-8">
+            <div className="w-full mt-2">
+              <motion.h1
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.48, ease: "easeOut" }}
+                className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 drop-shadow-xs"
+              >
+                Your Journey Starts Here
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.48, ease: "easeOut", delay: 0.08 }}
+                className="text-base md:text-lg text-emerald-100/95 leading-relaxed font-medium pr-4 mt-2"
+              >
+                Explore new possibilities and take the next step toward growth.
+              </motion.p>
             </div>
-
-            <h1 className="text-3xl xl:text-4xl font-black leading-[1.08] tracking-tight text-white">
-              Become a Verified SiKap Training Partner
-            </h1>
-
-            <p className="text-sm xl:text-base text-emerald-100/90 leading-relaxed font-medium">
-              Register your TESDA Technology Institution or accredited TVET center to publish training cohorts and connect with San Luis youth.
-            </p>
           </div>
 
-          {/* 4-Step Verification Checklist on Left Panel */}
-          <div className="relative z-10 my-auto py-4 space-y-3">
-            {[
-              {
-                num: 1,
-                title: "Institution & Campus Details",
-                desc: "Official school name, classification, campus address, and contact line"
-              },
-              {
-                num: 2,
-                title: "Representative & Credentials",
-                desc: "Authorized liaison name, official designation, and login email"
-              },
-              {
-                num: 3,
-                title: "CPTR Certificate Verification",
-                desc: "TESDA Certificate of TVET Program Registration code and document"
-              },
-              {
-                num: 4,
-                title: "Administrator Review & Activation",
-                desc: "Queued as Pending Verification for Super Admin approval"
-              }
-            ].map((item) => {
-              const isActive = !isSubmittedSuccess && currentStep === item.num;
-              const isDone = isSubmittedSuccess || currentStep > item.num;
-              return (
-                <div
-                  key={item.num}
-                  className={`p-3.5 rounded-2xl border transition-all flex items-start gap-3.5 ${
-                    isActive
-                      ? "bg-white/15 border-amber-300/60 shadow-md"
-                      : isDone
-                      ? "bg-emerald-900/50 border-emerald-400/40"
-                      : "bg-emerald-950/30 border-white/10 opacity-75"
-                  }`}
-                >
-                  <div
-                    className={`w-7 h-7 rounded-full text-xs font-black flex items-center justify-center shrink-0 mt-0.5 ${
-                      isDone
-                        ? "bg-emerald-400 text-slate-950"
-                        : isActive
-                        ? "bg-amber-400 text-slate-950"
-                        : "bg-white/15 text-white"
-                    }`}
-                  >
-                    {isDone ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : item.num}
+          {/* Hero "Image" Mockup - OSY CARD entering subtly into destination */}
+          <motion.div
+            initial={{ opacity: 0, x: -30, y: 30 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            transition={{ duration: 0.72, ease: "easeOut", delay: 0.1 }}
+            className="absolute top-[28%] -left-[30%] w-[80%] max-w-[800px] transform scale-[1.3] origin-top-left z-10 pointer-events-auto"
+          >
+            <div className="bg-white rounded-3xl p-8 shadow-2xl aspect-[3/4] min-h-[600px] overflow-hidden transition-transform duration-700 hover:rotate-0 [transform:perspective(1200px)_rotateX(0deg)_rotateY(-10deg)_rotateZ(9deg)]">
+              <div className="transform scale-[1.5] origin-top-right w-[68%] ml-auto space-y-6">
+                <div className="flex items-start justify-between border-b border-gray-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-800 font-black text-sm shadow-inner border border-emerald-100 shrink-0">
+                      KK
+                    </div>
+                    <div>
+                      <h4 className="text-base font-black text-gray-900">Juan dela Cruz</h4>
+                      <p className="text-sm text-gray-400 font-bold">Purok 2, San Sebastian</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs xl:text-sm font-extrabold text-white">
-                      {item.title}
-                    </h4>
-                    <p className="text-[11px] xl:text-xs text-emerald-100/80 font-medium mt-0.5">
-                      {item.desc}
+                  <span className="text-[12px] bg-[#0A6B43] text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full font-bold uppercase tracking-wider shadow-2xs shrink-0 self-start mt-0.5">
+                    OSY Youth
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-emerald-50/70 rounded-2xl p-5 border border-emerald-100">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-[#075332] uppercase tracking-wide">Recommended Program</span>
+                      <MatchBadge />
+                    </div>
+                    <p className="text-base font-black text-gray-900 mt-2">Shielded Metal Arc Welding (SMAW) NC II</p>
+                  </div>
+
+                  <div className="bg-amber-50/70 rounded-2xl p-5 border border-amber-200/70 text-sm text-amber-950 leading-relaxed space-y-2">
+                    <div className="font-black text-sm text-amber-900">
+                      Gemini Match Rationale
+                    </div>
+                    <p className="text-gray-700 font-medium text-xs leading-relaxed">
+                      "You have hands-on skills in metal fabrication. This vocational program will officially certify your qualifications under TESDA and unlock formal job opportunities in regional manufacturing hubs."
                     </p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-
-          <div className="relative z-10 flex items-center justify-between text-xs text-emerald-200/90 font-semibold pt-2 border-t border-white/15">
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-amber-300" />
-              <span>Super Admin Verification Required</span>
-            </span>
-            <span>San Luis, Pampanga</span>
-          </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
+        )}
 
         {/* Right Panel: Registration Form */}
-        <div className="flex-1 bg-white relative xl:h-full w-full flex flex-col items-center justify-between p-4 sm:p-6 md:px-10 lg:px-12 xl:px-16 py-4 overflow-y-auto">
+        <div className={embedded ? "w-full flex-1 flex flex-col items-center justify-between" : "flex-1 bg-white relative xl:h-full w-full flex flex-col items-center justify-between p-4 sm:p-6 md:px-10 lg:px-12 xl:px-16 py-4 overflow-y-auto"}>
           {/* Top Logo */}
-          <div className="relative w-full flex justify-center shrink-0 pb-3 z-30">
-            <Link href="/partners">
-              <SikapLogo
-                size={44}
-                logoSize={46}
-                textSize={38}
-                showText={true}
-                showSubtext={false}
-                gap="gap-2"
-                textClassName="translate-y-[1.5px]"
-                disableHover={true}
-              />
-            </Link>
-          </div>
+          {!embedded && (
+            <div className="relative w-full flex justify-center shrink-0 pb-3 z-30">
+              <Link href="/partners">
+                <SikapLogo
+                  size={44}
+                  logoSize={46}
+                  textSize={38}
+                  showText={true}
+                  showSubtext={false}
+                  gap="gap-2"
+                  textClassName="translate-y-[1.5px]"
+                  disableHover={true}
+                />
+              </Link>
+            </div>
+          )}
 
           {/* Main Registration Card */}
           <div className="w-full max-w-2xl my-auto space-y-5">
@@ -519,18 +581,38 @@ export const TESDAPartnerRegister: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                  <Link
-                    href="/partners/login"
-                    className="w-full sm:w-auto px-6 py-3 bg-[#0A6B43] hover:bg-[#075332] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all text-center"
-                  >
-                    Go to Partner Sign In
-                  </Link>
-                  <Link
-                    href="/partners"
-                    className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs sm:text-sm rounded-xl transition-all text-center"
-                  >
-                    Return to Partner Overview
-                  </Link>
+                  {onBackToSignIn ? (
+                    <button
+                      type="button"
+                      onClick={onBackToSignIn}
+                      className="w-full sm:w-auto px-6 py-3 bg-[#0A6B43] hover:bg-[#075332] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all text-center cursor-pointer"
+                    >
+                      Go to Partner Sign In
+                    </button>
+                  ) : (
+                    <Link
+                      href="/partners/login"
+                      className="w-full sm:w-auto px-6 py-3 bg-[#0A6B43] hover:bg-[#075332] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all text-center"
+                    >
+                      Go to Partner Sign In
+                    </Link>
+                  )}
+                  {onBackToHome ? (
+                    <button
+                      type="button"
+                      onClick={onBackToHome}
+                      className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs sm:text-sm rounded-xl transition-all text-center cursor-pointer"
+                    >
+                      Return to Partner Overview
+                    </button>
+                  ) : (
+                    <Link
+                      href="/partners"
+                      className="w-full sm:w-auto px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold text-xs sm:text-sm rounded-xl transition-all text-center"
+                    >
+                      Return to Partner Overview
+                    </Link>
+                  )}
                 </div>
               </motion.div>
             ) : (
@@ -956,33 +1038,45 @@ export const TESDAPartnerRegister: React.FC = () => {
             <div className="text-center space-y-2">
               <p className="text-sm font-semibold text-gray-700">
                 Already have an approved partner account?{" "}
-                <Link
-                  href="/partners/login"
-                  className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors underline underline-offset-2"
-                >
-                  Partner Sign In
-                </Link>
+                {onBackToSignIn ? (
+                  <button
+                    type="button"
+                    onClick={onBackToSignIn}
+                    className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors underline underline-offset-2 cursor-pointer"
+                  >
+                    Partner Sign In
+                  </button>
+                ) : (
+                  <Link
+                    href="/partners/login"
+                    className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors underline underline-offset-2"
+                  >
+                    Partner Sign In
+                  </Link>
+                )}
               </p>
             </div>
           </div>
 
-          {/* Bottom Navigation Links */}
-          <div className="relative w-full flex items-center justify-center gap-6 shrink-0 pt-4 pb-1 mt-auto z-30">
-            <Link
-              href="/partners"
-              className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] transition-colors inline-flex items-center gap-1.5"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Partner Overview</span>
-            </Link>
-            <span className="text-gray-300">•</span>
-            <Link
-              href="/"
-              className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] transition-colors"
-            >
-              KK Youth Homepage
-            </Link>
-          </div>
+          {!embedded && (
+            /* Bottom Navigation Links */
+            <div className="relative w-full flex items-center justify-center gap-6 shrink-0 pt-4 pb-1 mt-auto z-30">
+              <Link
+                href="/partners"
+                className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] transition-colors inline-flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Partner Overview</span>
+              </Link>
+              <span className="text-gray-300">•</span>
+              <Link
+                href="/"
+                className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] transition-colors"
+              >
+                KK Youth Homepage
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 

@@ -16,6 +16,7 @@ import { BarangayCaptainPortal } from "./components/BarangayCaptainPortal";
 import { LandingPage } from "./components/LandingPage";
 import { SuperAdminPortal } from "./components/SuperAdminPortal";
 import { KKYouthRegister } from "./components/KKYouthRegister";
+import { TESDAPartnerRegister } from "./components/TESDAPartnerRegister";
 import { Toast, SikapLogo } from "./components/ReusableComponents";
 import { ForgotPasswordModal } from "./components/ForgotPasswordModal";
 import { TermsPage } from "./components/TermsPage";
@@ -91,7 +92,16 @@ const MatchBadge: React.FC = () => {
 export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } = {}) {
   const { data: session, status } = useSession();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
-  const [viewingLanding, setViewingLanding] = useState(true);
+  const [viewingLanding, setViewingLanding] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get("action");
+      if (action === "login" || action === "register") {
+        return false;
+      }
+    }
+    return true;
+  });
   const [viewingLegal, setViewingLegal] = useState<{ tab: "terms" | "privacy"; returnTo: "landing" | "register" | "login" } | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
@@ -152,15 +162,50 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
   const [officialAccounts, setOfficialAccounts] = useState<any[]>([]);
   const [councilors, setCouncilors] = useState<any[]>([]);
   const [designatedBarangay, setDesignatedBarangay] = useState<string>("San Sebastian");
-  const [isSelfRegistering, setIsSelfRegistering] = useState(false);
+  const [isSelfRegistering, setIsSelfRegistering] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("action") === "register") {
+        return true;
+      }
+    }
+    return false;
+  });
   const [isProviderApplyOpen, setIsProviderApplyOpen] = useState(false);
   const [loggedInYouthId, setLoggedInYouthId] = useState<string>("");
+  const [loginPortal, setLoginPortal] = useState<"youth" | "partner">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const portal = params.get("portal") || params.get("from");
+      if (portal === "partner") return "partner";
+      if (portal === "youth") return "youth";
+      const stored = sessionStorage.getItem("sikap_login_portal");
+      if (stored === "partner") return "partner";
+    }
+    return "youth";
+  });
 
   // Support deep-linking via ?action=login or ?action=register
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    const syncFromUrl = () => {
+      if (typeof window === "undefined") return;
       const params = new URLSearchParams(window.location.search);
       const action = params.get("action");
+      const portal = params.get("portal") || params.get("from");
+
+      if (portal === "partner") {
+        setLoginPortal("partner");
+        sessionStorage.setItem("sikap_login_portal", "partner");
+      } else if (portal === "youth") {
+        setLoginPortal("youth");
+        sessionStorage.setItem("sikap_login_portal", "youth");
+      } else {
+        const stored = sessionStorage.getItem("sikap_login_portal");
+        if (stored === "partner") {
+          setLoginPortal("partner");
+        }
+      }
+
       if (action === "login") {
         setIsSelfRegistering(false);
         setViewingLanding(false);
@@ -168,7 +213,11 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
         setIsSelfRegistering(true);
         setViewingLanding(false);
       }
-    }
+    };
+
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
   }, []);
 
   // Shared state synchronized across portals
@@ -519,10 +568,18 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
             <LandingPage
               programs={programs}
               onEnterLogin={() => {
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("sikap_login_portal", "youth");
+                }
+                setLoginPortal("youth");
                 setIsSelfRegistering(false);
                 setViewingLanding(false);
               }}
               onEnterSignUp={() => {
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("sikap_login_portal", "youth");
+                }
+                setLoginPortal("youth");
                 setIsSelfRegistering(true);
                 setViewingLanding(false);
               }}
@@ -565,7 +622,7 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
                     transition={{ duration: 0.48, ease: "easeOut" }}
                     className="text-2xl sm:text-3xl lg:text-4xl xl:text-[2.6rem] font-black leading-[1.05] tracking-tight text-white mb-2 drop-shadow-xs"
                   >
-                    Your Path Continues Here
+                    Your Journey Starts Here
                   </motion.h1>
                   <motion.p
                     initial={{ opacity: 0, x: -20 }}
@@ -573,7 +630,7 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
                     transition={{ duration: 0.48, ease: "easeOut", delay: 0.08 }}
                     className="text-base md:text-lg text-emerald-100/95 leading-relaxed font-medium pr-4 mt-2"
                   >
-                    Explore more opportunities specially matched to you
+                    Explore new possibilities and take the next step toward growth.
                   </motion.p>
                 </div>
               </div>
@@ -650,39 +707,68 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
               <AnimatePresence mode="wait">
                 {isSelfRegistering ? (
                   <motion.div
-                    key="register-form-view"
+                    key={loginPortal === "partner" ? "partner-register-view" : "youth-register-view"}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -12 }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
                     className="w-full z-10 relative flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-3xl xl:max-w-4xl px-1 sm:px-2 py-1 sm:py-2"
                   >
-                    <KKYouthRegister
-                      onRegisterComplete={(newProfile) => {
-                        setYouthProfiles(prev => [newProfile, ...prev]);
-                        setLoggedInYouthId(newProfile.id);
-                        setCurrentUserRole(UserRole.KK_YOUTH);
-                        setIsSelfRegistering(false);
-                        setViewingLanding(false);
-                        addToast(`Welcome ${newProfile.name}! Registered successfully. Your account is view-only pending SK Chairperson verification.`, "success");
-                      }}
-                      onBackToHome={() => setIsSelfRegistering(false)}
-                      onOpenLegal={(tab) => {
-                        setViewingLegal({ tab, returnTo: "register" });
-                      }}
-                    />
-                    <div className="text-center pt-3 sm:pt-4 pb-1 shrink-0">
-                      <p className="text-[14px] font-semibold text-gray-700">
-                        Have a SiKap account?{" "}
-                        <button
-                          type="button"
-                          onClick={() => setIsSelfRegistering(false)}
-                          className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
-                        >
-                          Sign in here
-                        </button>
-                      </p>
-                    </div>
+                    {loginPortal === "partner" ? (
+                      <TESDAPartnerRegister
+                        embedded={true}
+                        onBackToSignIn={() => {
+                          setIsSelfRegistering(false);
+                          if (typeof window !== "undefined") {
+                            window.history.pushState(null, "", "/?action=login&portal=partner");
+                          }
+                        }}
+                        onBackToHome={() => {
+                          if (typeof window !== "undefined") {
+                            window.location.href = "/partners";
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <KKYouthRegister
+                          onRegisterComplete={(newProfile) => {
+                            setYouthProfiles(prev => [newProfile, ...prev]);
+                            setLoggedInYouthId(newProfile.id);
+                            setCurrentUserRole(UserRole.KK_YOUTH);
+                            setIsSelfRegistering(false);
+                            setViewingLanding(false);
+                            addToast(`Welcome ${newProfile.name}! Registered successfully. Your account is view-only pending SK Chairperson verification.`, "success");
+                          }}
+                          onBackToHome={() => {
+                            setIsSelfRegistering(false);
+                            if (typeof window !== "undefined") {
+                              window.history.pushState(null, "", "/?action=login&portal=youth");
+                            }
+                          }}
+                          onOpenLegal={(tab) => {
+                            setViewingLegal({ tab, returnTo: "register" });
+                          }}
+                        />
+                        <div className="text-center pt-3 sm:pt-4 pb-1 shrink-0">
+                          <p className="text-[14px] font-semibold text-gray-700">
+                            Have a SiKap account?{" "}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsSelfRegistering(false);
+                                if (typeof window !== "undefined") {
+                                  window.history.pushState(null, "", "/?action=login&portal=youth");
+                                }
+                              }}
+                              className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
+                            >
+                              Sign in here
+                            </button>
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </motion.div>
                 ) : (
                   <motion.div
@@ -845,26 +931,40 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
                       </form>
 
                       {/* Registration Link */}
-                      <div className="text-center pt-2 sm:pt-3 space-y-2">
-                        <p className="text-[14px] font-semibold text-gray-700">
-                          New to SiKap?{" "}
-                          <button
-                            type="button"
-                            onClick={() => setIsSelfRegistering(true)}
-                            className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
-                          >
-                            Register Here
-                          </button>
-                        </p>
-                        <p className="text-xs text-gray-500 font-medium pt-1.5 border-t border-gray-100">
-                          Accredited TVET Institution?{" "}
-                          <Link
-                            href="/partners"
-                            className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2 inline-flex items-center gap-1"
-                          >
-                            <span>For TESDA Partners →</span>
-                          </Link>
-                        </p>
+                      <div className="text-center pt-3 sm:pt-4">
+                        {loginPortal === "partner" ? (
+                          <p className="text-[14px] font-semibold text-gray-700">
+                            Training Provider?{" "}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsSelfRegistering(true);
+                                if (typeof window !== "undefined") {
+                                  window.history.pushState(null, "", "/?action=register&portal=partner");
+                                }
+                              }}
+                              className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
+                            >
+                              Join SiKap
+                            </button>
+                          </p>
+                        ) : (
+                          <p className="text-[14px] font-semibold text-gray-700">
+                            New to SiKap?{" "}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsSelfRegistering(true);
+                                if (typeof window !== "undefined") {
+                                  window.history.pushState(null, "", "/?action=register&portal=youth");
+                                }
+                              }}
+                              className="text-[#0A6B43] font-bold hover:text-[#075332] transition-colors cursor-pointer underline underline-offset-2"
+                            >
+                              Register Here
+                            </button>
+                          </p>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -878,13 +978,28 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
                 transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
                 className="relative w-full flex justify-center shrink-0 pt-4 sm:pt-5 pb-2 sm:pb-1 mt-auto z-30 pointer-events-auto"
               >
-                <button
-                  type="button"
-                  onClick={() => setViewingLanding(true)}
-                  className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] cursor-pointer transition-colors"
-                >
-                  Back to Homepage
-                </button>
+                {loginPortal === "partner" ? (
+                  <Link
+                    href="/partners"
+                    className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] cursor-pointer transition-colors"
+                  >
+                    Back to Homepage
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem("sikap_login_portal", "youth");
+                      }
+                      setLoginPortal("youth");
+                      setViewingLanding(true);
+                    }}
+                    className="text-sm font-bold text-gray-400 hover:text-[#0A6B43] cursor-pointer transition-colors"
+                  >
+                    Back to Homepage
+                  </button>
+                )}
               </motion.div>
             </div>
 

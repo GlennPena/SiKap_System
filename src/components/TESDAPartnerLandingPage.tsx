@@ -299,8 +299,8 @@ export const TESDAPartnerLandingPage: React.FC = () => {
                   />
                 </div>
               </Link>
-              <span className="hidden md:inline-block h-6 w-px bg-gray-200" />
-              <span className="hidden md:inline-block text-xs sm:text-sm font-semibold text-gray-500 select-none">
+              <span className="hidden sm:inline-block h-8 sm:h-9 w-px bg-gray-300 self-start sm:mt-2" />
+              <span className="hidden sm:inline-block text-xs sm:text-base font-bold text-gray-500 select-none tracking-tight self-start sm:mt-2.5 leading-none">
                 For Training Providers
               </span>
             </div>
@@ -309,13 +309,23 @@ export const TESDAPartnerLandingPage: React.FC = () => {
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <Link
                 href="/"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    sessionStorage.setItem("sikap_login_portal", "youth");
+                  }
+                }}
                 className="bg-white hover:bg-emerald-50/80 text-[#0A6B43] border border-[#0A6B43] sm:border-2 text-[11px] sm:text-base font-bold px-2.5 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-2xs hover:shadow-sm hover:-translate-y-0.5 transition-all flex items-center justify-center cursor-pointer shrink-0 whitespace-nowrap"
                 id="partner-nav-for-youth-btn"
               >
                 <span>For Youth</span>
               </Link>
               <Link
-                href={isAuthenticatedPartner ? "/partners/dashboard" : "/partners/login"}
+                href={isAuthenticatedPartner ? "/partners/dashboard" : "/?action=login&portal=partner"}
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    sessionStorage.setItem("sikap_login_portal", "partner");
+                  }
+                }}
                 className="bg-[#0A6B43] hover:bg-[#075332] text-white border border-[#0A6B43] sm:border-2 text-[11px] sm:text-base font-bold sm:font-extrabold px-3 sm:px-6 lg:px-7 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-xs sm:shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-1.5 sm:gap-2.5 group cursor-pointer shrink-0 whitespace-nowrap"
                 id="partner-nav-signin-btn"
               >
@@ -344,286 +354,153 @@ export const TESDAPartnerLandingPage: React.FC = () => {
 
         <div className="flex-1 flex items-center justify-center w-full relative z-10 pt-8 sm:pt-12 lg:pt-16 pb-10 sm:pb-14">
           <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 xl:gap-12 items-center">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 xl:gap-14 items-center">
               {/* Hero Left Content */}
-              <div className="w-full xl:col-span-6 space-y-5 sm:space-y-7 flex flex-col items-center text-center xl:items-start xl:text-left max-w-3xl mx-auto xl:max-w-none xl:mx-0">
-                <FadeIn direction="hero-adaptive" delay={0.08}>
-                  <div className="inline-flex items-center gap-2 bg-emerald-100/80 border border-emerald-200/90 text-[#075332] text-[11px] sm:text-xs md:text-sm font-black px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-full uppercase tracking-wider shadow-2xs">
-                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
-                    <span>FOR TESDA PARTNERS &amp; TRAINING PROVIDERS</span>
+              <div className="w-full xl:col-span-7 space-y-5 sm:space-y-7 flex flex-col items-center text-center xl:items-start xl:text-left max-w-3xl mx-auto xl:max-w-none xl:mx-0">
+                <FadeIn direction="hero-adaptive" delay={0.1}>
+                  <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-emerald-100/80 border border-emerald-200/90 text-[#075332] text-[11px] sm:text-sm md:text-base font-black px-3.5 py-1 sm:px-5 sm:py-2 md:px-6 md:py-2.5 rounded-full uppercase tracking-wider shadow-2xs mt-1.5 sm:mt-0">
+                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 text-[#0A6B43] shrink-0" />
+                    <span>San Luis, Pampanga</span>
                   </div>
                 </FadeIn>
 
-                <FadeIn direction="hero-adaptive" delay={0.16}>
-                  <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-[64px] xl:text-[58px] font-black text-gray-900 leading-[1.08] tracking-tight">
-                    <span className="block">Connect Your Training</span>
-                    <span className="block">Programs with the </span>
-                    <span className="text-[#0A6B43] relative inline-block mt-1">
-                      Next Generation.
-                      <span className="absolute left-0 -bottom-0.5 sm:-bottom-1 w-full h-3 sm:h-4 bg-emerald-100/90 -z-10 rounded-full" />
+                <FadeIn direction="hero-adaptive" delay={0.2}>
+                  <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-[80px] xl:text-[76px] font-black text-gray-900 leading-[1.08] sm:leading-[1.05] tracking-tight">
+                    <span className="block">Inspire Growth.</span>
+                    <span className="block text-[#0A6B43] relative inline-block mt-1 sm:mt-2.5">
+                      Create Futures.
+                      <span className="absolute left-0 -bottom-0.5 sm:-bottom-1 md:-bottom-1.5 w-full h-3 sm:h-4 md:h-5 lg:h-6 xl:h-4 bg-emerald-100/90 -z-10 rounded-full" />
                     </span>
                   </h1>
                 </FadeIn>
 
-                <FadeIn direction="hero-adaptive" delay={0.24}>
-                  <p className="text-sm sm:text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed font-medium">
-                    Partner with SiKap to make technical-vocational training opportunities more accessible to young people in San Luis, Pampanga. Manage your programs, review applicants, and connect youth with opportunities that match their skills and aspirations.
+                <FadeIn direction="hero-adaptive" delay={0.3}>
+                  <p className="text-sm sm:text-xl md:text-2xl lg:text-3xl xl:text-2xl text-gray-600 max-w-2xl sm:max-w-3xl md:max-w-4xl xl:max-w-2xl mx-auto xl:mx-0 leading-relaxed font-medium">
+                    Unlock potential, develop skills, and create opportunities for a brighter future.
                   </p>
                 </FadeIn>
 
                 <FadeIn direction="hero-adaptive" delay={0.32} className="w-full sm:w-auto">
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center xl:justify-start gap-3 sm:gap-4 pt-2 w-full sm:w-auto">
+                  <div className="flex flex-row items-center justify-center xl:justify-start gap-2.5 sm:gap-4 md:gap-5 pt-1 sm:pt-2 w-full sm:w-auto">
                     <Link
-                      href="/partners/register"
-                      className="bg-[#0A6B43] hover:bg-[#075332] text-white text-sm sm:text-base md:text-lg font-black px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2.5 group cursor-pointer whitespace-nowrap"
-                      id="hero-become-partner-btn"
+                      href="/?action=register&portal=partner"
+                      onClick={() => {
+                        if (typeof window !== "undefined") {
+                          sessionStorage.setItem("sikap_login_portal", "partner");
+                        }
+                      }}
+                      className="bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-base md:text-lg font-black px-4 sm:px-8 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 sm:gap-2.5 group cursor-pointer shrink-0 whitespace-nowrap"
+                      id="hero-join-sikap-btn"
                     >
-                      <span>Become a SiKap Partner</span>
-                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
+                      <span>Join SiKap</span>
+                      <ArrowRight className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-200 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
                     </Link>
-                    <Link
-                      href="/partners/login"
-                      className="bg-white hover:bg-emerald-50/70 text-[#0A6B43] border border-[#0A6B43] sm:border-2 text-sm sm:text-base md:text-lg font-bold px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-                      id="hero-partner-signin-btn"
+                    <button
+                      type="button"
+                      onClick={() => handleScrollToSection("how-it-works")}
+                      className="bg-white hover:bg-gray-50 text-gray-800 hover:text-[#0A6B43] border border-gray-200 sm:border-2 hover:border-[#0A6B43] text-xs sm:text-base md:text-lg font-bold px-3.5 sm:px-8 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 whitespace-nowrap"
+                      id="hero-how-it-works-btn"
                     >
-                      <span>Partner Sign In</span>
-                    </Link>
+                      How It Works
+                    </button>
                   </div>
                 </FadeIn>
 
-                {/* Institutional Trust Strip */}
-                <FadeIn direction="hero-adaptive" delay={0.4}>
-                  <div className="pt-2 flex flex-wrap items-center justify-center xl:justify-start gap-x-6 gap-y-2 text-xs sm:text-sm font-bold text-gray-500">
-                    <span className="inline-flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-[#0A6B43]" />
-                      <span>CPTR Accredited Institutions</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-amber-500" />
-                      <span>AI-Assisted Candidate Matching</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-[#0A6B43]" />
-                      <span>San Luis, Pampanga</span>
-                    </span>
-                  </div>
-                </FadeIn>
+
               </div>
 
-              {/* Hero Right Column: Visual Mockup of the TESDA Partner Dashboard */}
-              <FadeIn direction="right" delay={0.35} className="w-full xl:col-span-6 relative">
-                <div className="absolute -inset-2 bg-emerald-400/15 rounded-3xl blur-2xl -z-10" />
+              {/* Hero Right Column: Box / Square Visual Mockup (Matching Youth Landing Page Figure) */}
+              <FadeIn direction="right" delay={0.35} className="w-full xl:col-span-5 relative mt-6 xl:mt-0 max-w-[500px] mx-auto xl:max-w-none">
+                <div className="absolute inset-0 sm:-inset-2 bg-emerald-400/20 rounded-3xl blur-xl -z-10" />
 
-                <div
-                  className="bg-white rounded-2xl sm:rounded-3xl border border-emerald-100/90 shadow-2xl shadow-emerald-950/10 overflow-hidden"
-                  aria-label="TESDA Partner Dashboard Visual Preview"
-                >
-                  {/* Mockup Top Window Header */}
-                  <div className="bg-gradient-to-r from-[#083321] via-[#0A6B43] to-[#125838] px-4 sm:px-6 py-3.5 text-white flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-                        <Building2 className="w-4.5 h-4.5 text-amber-300" />
+                {/* Partner Portal Mockup Card - Box / Square style matching youth landing page */}
+                <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-7 shadow-2xl shadow-emerald-950/10 space-y-3 sm:space-y-5 border border-emerald-100/90">
+                  <div className="flex items-start justify-between border-b border-gray-100 pb-3 sm:pb-4">
+                    <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-[#0A6B43] font-black text-xs sm:text-base shadow-inner border border-emerald-100 shrink-0">
+                        <Building2 className="w-5 h-5 sm:w-7 sm:h-7 text-[#0A6B43]" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs sm:text-sm font-black tracking-tight truncate">
-                            TESDA Partner Portal
-                          </span>
-                          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full shrink-0">
-                            Verified TTI
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-emerald-100/90 font-medium truncate">
-                          Gonzalo Puyat School of Arts and Trades (GPSAT)
+                        <h4 className="text-xs sm:text-base font-black text-gray-900 truncate">
+                          Gonzalo Puyat School of Arts &amp; Trades
+                        </h4>
+                        <p className="text-[10px] sm:text-xs text-gray-400 font-bold truncate">
+                          TESDA Technology Institution (TTI)
                         </p>
                       </div>
                     </div>
-                    <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold bg-emerald-950/40 border border-emerald-400/30 text-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Live Cohort Sync
+                    <span className="text-[11px] sm:text-[12px] bg-[#0A6B43] text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full font-bold uppercase tracking-wider shadow-2xs shrink-0 self-start mt-0.5">
+                      Verified Partner
                     </span>
                   </div>
 
-                  {/* Mockup Body */}
-                  <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 bg-[#FAFBF9]">
-                    {/* Top Row: Active Training Programs & Total Applicants KPI Cards */}
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-emerald-100 shadow-2xs flex items-start justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-400 block">
-                            Active Training Programs
-                          </span>
-                          <div className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
-                            6
-                          </div>
-                          <span className="text-[11px] font-bold text-[#0A6B43] inline-flex items-center gap-1 mt-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Open for KK Youth</span>
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-emerald-50 text-[#0A6B43] shrink-0">
-                          <BookOpen className="w-5 h-5" />
-                        </div>
+                  <div className="space-y-2.5 sm:space-y-4">
+                    <div className="bg-emerald-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-4.5 border border-emerald-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] sm:text-xs font-black text-[#075332] uppercase tracking-wide">
+                          Active Training Program
+                        </span>
+                        <span className="text-[9px] sm:text-xs font-black text-emerald-700 bg-white px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-lg shadow-2xs border border-emerald-100">
+                          22 / 25 Slots Filled
+                        </span>
                       </div>
-
-                      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-amber-100 shadow-2xs flex items-start justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-400 block">
-                            Total Applicants
-                          </span>
-                          <div className="text-2xl sm:text-3xl font-black text-gray-900 mt-1">
-                            148
-                          </div>
-                          <span className="text-[11px] font-bold text-amber-700 inline-flex items-center gap-1 mt-1">
-                            <Flame className="w-3 h-3 fill-amber-400 text-amber-500" />
-                            <span>92% Avg. Skill Match</span>
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 shrink-0">
-                          <Users className="w-5 h-5" />
-                        </div>
+                      <p className="text-xs sm:text-base font-black text-gray-900 mt-1 sm:mt-1.5">
+                        Shielded Metal Arc Welding (SMAW) NC II
+                      </p>
+                      <div className="flex items-center gap-2 sm:gap-4 mt-1.5 text-[10px] sm:text-xs text-gray-600 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
+                          <span>268 Hours</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
+                          <span>TESDA GPSAT Campus</span>
+                        </span>
                       </div>
                     </div>
 
-                    {/* Middle Card: Program Management Preview */}
-                    <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-2xs space-y-3">
-                      <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-[#0A6B43]" />
-                          <span className="text-xs font-black uppercase tracking-wider text-gray-800">
-                            Program Management
-                          </span>
+                    <div className="bg-amber-50/70 rounded-xl sm:rounded-2xl p-3 sm:p-4.5 border border-amber-200/70 text-xs sm:text-sm text-amber-950 leading-relaxed space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="font-black text-xs sm:text-sm text-amber-900 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
+                          <span>Top Candidate Match</span>
                         </div>
-                        <span className="text-[10px] font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                          CPTR-R03-PAM-2026
+                        <span className="text-[9px] sm:text-xs font-black text-amber-800 bg-white px-1.5 sm:px-2 py-0.5 rounded-md shadow-2xs border border-amber-200">
+                          94% Match
                         </span>
                       </div>
-
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-xs sm:text-sm font-black text-gray-900">
-                              Shielded Metal Arc Welding (SMAW) NC II
-                            </h4>
-                            <span className="text-[10px] font-bold bg-emerald-100 text-[#075332] px-2 py-0.5 rounded-full">
-                              Active
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-gray-500">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-[#0A6B43]" />
-                              268 Hours
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-[#0A6B43]" />
-                              TESDA GPSAT Campus
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
-                              <Check className="w-3 h-3 stroke-[2.5]" />
-                              Free Tuition &amp; Toolkit
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="sm:text-right shrink-0">
-                          <div className="text-xs font-black text-gray-900">
-                            22 / 25 <span className="text-gray-400 font-bold">Slots Filled</span>
-                          </div>
-                          <div className="w-full sm:w-28 h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
-                            <div className="h-full bg-[#0A6B43] rounded-full w-[88%]" />
-                          </div>
-                        </div>
-                      </div>
+                      <p className="text-gray-700 font-medium text-[10px] sm:text-xs leading-relaxed pt-0.5">
+                        &quot;Juan dela Cruz (Brgy. San Sebastian) matches your welding entry profile with hands-on mechanical fabrication background.&quot;
+                      </p>
                     </div>
+                  </div>
 
-                    {/* Bottom Card: Recent Applications */}
-                    <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-2xs space-y-2.5">
-                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                        <div className="flex items-center gap-2">
-                          <UserCheck className="w-4 h-4 text-[#0A6B43]" />
-                          <span className="text-xs font-black uppercase tracking-wider text-gray-800">
-                            Recent Applications
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-bold text-gray-400">
-                          San Luis KK Youth
-                        </span>
-                      </div>
-
-                      <div className="divide-y divide-gray-100">
-                        {[
-                          {
-                            initials: "JD",
-                            name: "Juan dela Cruz",
-                            barangay: "Brgy. San Sebastian",
-                            program: "SMAW NC II",
-                            match: "94% Match",
-                            status: "Pending Review",
-                            statusStyle: "bg-amber-50 text-amber-800 border-amber-200"
-                          },
-                          {
-                            initials: "MS",
-                            name: "Maria Clara Santos",
-                            barangay: "Brgy. Sta. Monica",
-                            program: "Computer Systems Servicing NC II",
-                            match: "91% Match",
-                            status: "Approved",
-                            statusStyle: "bg-blue-50 text-blue-800 border-blue-200"
-                          },
-                          {
-                            initials: "CP",
-                            name: "Carlo D. Pangilinan",
-                            barangay: "Brgy. Sto. Tomas",
-                            program: "Electrical Installation NC II",
-                            match: "89% Match",
-                            status: "Enrolled",
-                            statusStyle: "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          }
-                        ].map((app, idx) => (
-                          <div
-                            key={idx}
-                            className="py-2 first:pt-1 last:pb-0 flex items-center justify-between gap-2"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 text-[#0A6B43] font-black text-[11px] flex items-center justify-center shrink-0">
-                                {app.initials}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-extrabold text-gray-900 truncate">
-                                  {app.name}
-                                </p>
-                                <p className="text-[10px] font-semibold text-gray-500 truncate">
-                                  {app.barangay} • {app.program}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-extrabold text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                <Flame className="w-3 h-3 fill-amber-400 text-amber-500" />
-                                {app.match}
-                              </span>
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${app.statusStyle}`}
-                              >
-                                {app.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-black text-gray-600 pt-0.5">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                        <span>Accredited TTI</span>
+                      </span>
+                      <span className="bg-gray-100 hover:bg-emerald-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-gray-200/60 inline-flex items-center gap-1.5">
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0A6B43] stroke-[2.5] shrink-0" />
+                        <span>Direct Roster</span>
+                      </span>
+                    </div>
+                    <div className="bg-[#0A6B43] text-white px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl font-bold inline-flex items-center gap-1 sm:gap-1.5 shadow-xs select-none">
+                      <span>Review Applicants</span>
+                      <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                     </div>
                   </div>
                 </div>
 
-                {/* Floating Overlap Badge */}
-                <div className="mt-3 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xl shadow-emerald-950/40 flex items-center gap-3 max-w-full sm:max-w-[330px] z-10">
-                  <div className="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 text-emerald-300">
-                    <ShieldCheck className="w-4.5 h-4.5 stroke-[2.5]" />
+                {/* Mini overlap card (matching youth landing page) */}
+                <div className="mt-2.5 sm:mt-0 sm:absolute sm:-bottom-5 sm:-left-5 bg-[#1C2B20] text-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xl shadow-emerald-950/50 flex items-center gap-3 sm:gap-3.5 max-w-full sm:max-w-[325px] z-10">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 text-emerald-300 shadow-inner">
+                    <Check className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
                   </div>
                   <div className="min-w-0 flex-1 space-y-0.5">
-                    <p className="text-xs sm:text-sm font-black leading-tight text-white">
-                      Verified Partner Ecosystem
+                    <p className="text-xs sm:text-base font-black leading-tight text-white">
+                      Institutional Portal Hub
                     </p>
                     <p className="text-[10px] sm:text-xs text-emerald-300 font-semibold leading-snug">
                       Direct applications from pre-profiled San Luis youth
@@ -737,84 +614,57 @@ export const TESDAPartnerLandingPage: React.FC = () => {
       {/* SECTION C – HOW IT WORKS */}
       <section
         id="how-it-works"
-        className="py-16 sm:py-24 lg:py-28 bg-[#FAFBF9] relative overflow-hidden"
+        className="py-12 sm:py-20 lg:py-28 bg-white border-b border-gray-100 overflow-hidden"
       >
-        <div
-          className="absolute inset-0 pointer-events-none z-0 opacity-35 mix-blend-multiply"
-          style={{
-            backgroundImage: "url('/redox-02.png')",
-            backgroundRepeat: "repeat",
-            backgroundSize: "200px 200px"
-          }}
-        />
-
-        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-16 items-start">
-            {/* Left Column: Section Heading */}
-            <div className="lg:col-span-5 space-y-4 sm:space-y-6">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 lg:gap-16 items-start">
+            {/* Left Column: Editorial Header aligned with top of right side */}
+            <div className="lg:col-span-5 space-y-3 sm:space-y-6 pt-0">
               <FadeIn direction="left" delay={0.1}>
-                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-[10px] sm:text-xs md:text-sm font-black px-4 py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
+                <span className="inline-flex items-center bg-[#D1FAE5] border border-[#A7F3D0] text-[#0A4D30] text-[10px] sm:text-base md:text-lg lg:text-sm font-black px-3 py-1 sm:px-5 sm:py-2 md:px-6 md:py-2.5 lg:px-4 lg:py-1.5 rounded-full uppercase tracking-wider shadow-2xs">
                   HOW IT WORKS
                 </span>
               </FadeIn>
 
-              <FadeIn direction="left" delay={0.18}>
-                <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight">
-                  Start Your <span className="text-[#0A6B43]">Partnership</span> with SiKap.
+              <FadeIn direction="left" delay={0.2}>
+                <h2 className="text-xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-5xl font-extrabold text-gray-900 tracking-tight leading-snug sm:leading-tight md:leading-[1.12]">
+                  Start Your <span className="text-[#0A6B43]">Partnership</span> with <span className="text-[#0A6B43]">SiKap</span>.
                 </h2>
               </FadeIn>
 
-              <FadeIn direction="left" delay={0.26}>
-                <p className="text-xs sm:text-base md:text-lg text-gray-600 font-medium leading-relaxed max-w-xl">
+              <FadeIn direction="left" delay={0.3}>
+                <p className="text-xs sm:text-xl md:text-2xl lg:text-xl xl:text-lg text-gray-500 font-normal leading-relaxed max-w-md md:max-w-xl">
                   A transparent, four-step onboarding workflow designed to uphold TESDA accreditation standards while connecting your programs with San Luis youth.
                 </p>
               </FadeIn>
-
-              <FadeIn direction="left" delay={0.34}>
-                <div className="pt-2">
-                  <Link
-                    href="/partners/register"
-                    className="inline-flex items-center gap-2 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs sm:text-sm font-extrabold px-5 py-3 rounded-xl shadow-sm hover:shadow-md transition-all group"
-                  >
-                    <span>Register Your Institution</span>
-                    <ArrowRight className="w-4 h-4 text-emerald-200 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                </div>
-              </FadeIn>
             </div>
 
-            {/* Right Column: Four-Step Process */}
-            <div className="lg:col-span-7 divide-y divide-gray-200/80 border-t border-gray-200/80 bg-white/80 backdrop-blur-xs rounded-2xl sm:rounded-3xl p-4 sm:p-8 border shadow-sm">
-              {howItWorksSteps.map((step, i) => {
-                const StepIcon = step.icon;
-                return (
-                  <FadeIn
-                    key={step.num}
-                    direction="up"
-                    delay={0.1 + i * 0.08}
-                    className="py-5 sm:py-6 first:pt-2 last:pb-2 group"
-                  >
-                    <div className="flex items-start gap-4 sm:gap-6">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
-                        <span className="text-xs sm:text-sm font-black text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
-                          {step.num}
-                        </span>
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className="text-base sm:text-xl font-extrabold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
-                            {step.title}
-                          </h3>
-                          <StepIcon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-[#0A6B43] transition-colors shrink-0" />
-                        </div>
-                        <p className="text-xs sm:text-base text-gray-600 font-medium leading-relaxed">
-                          {step.desc}
-                        </p>
-                      </div>
+            {/* Right Column: Numbered Process Rows */}
+            <div className="lg:col-span-7 divide-y divide-gray-200/70 border-t border-gray-200/70">
+              {howItWorksSteps.map((step, i) => (
+                <FadeIn
+                  key={step.num}
+                  direction="up"
+                  delay={0.1 + i * 0.08}
+                  className="py-4 sm:py-6 md:py-8 lg:py-8 group"
+                >
+                  <div className="flex items-start gap-3.5 sm:gap-6 md:gap-7">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-11 lg:h-11 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43]">
+                      <span className="text-[11px] sm:text-base md:text-lg lg:text-sm font-bold text-[#0A6B43] transition-colors duration-200 group-hover:text-white">
+                        {step.num}
+                      </span>
                     </div>
-                  </FadeIn>
-                );
-              })}
+                    <div className="space-y-1 sm:space-y-2">
+                      <h3 className="text-sm sm:text-xl md:text-2xl lg:text-xl font-bold text-gray-900 tracking-tight group-hover:text-[#0A6B43] transition-colors">
+                        {step.title}
+                      </h3>
+                      <p className="text-xs sm:text-base md:text-lg lg:text-base text-gray-500 font-normal leading-relaxed">
+                        {step.desc}
+                      </p>
+                    </div>
+                  </div>
+                </FadeIn>
+              ))}
             </div>
           </div>
         </div>
@@ -1121,14 +971,24 @@ export const TESDAPartnerLandingPage: React.FC = () => {
                 className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start lg:justify-end gap-3 sm:gap-4 shrink-0"
               >
                 <Link
-                  href="/partners/register"
+                  href="/?action=register&portal=partner"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem("sikap_login_portal", "partner");
+                    }
+                  }}
                   className="bg-[#F5A623] hover:bg-[#E59613] text-white font-black text-xs sm:text-base md:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2.5 group cursor-pointer whitespace-nowrap"
                 >
                   <span>Become a SiKap Partner</span>
                   <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100 group-hover:translate-x-1.5 transition-transform duration-200 shrink-0" />
                 </Link>
                 <Link
-                  href="/partners/login"
+                  href="/?action=login&portal=partner"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem("sikap_login_portal", "partner");
+                    }
+                  }}
                   className="bg-emerald-900/50 hover:bg-emerald-900/80 text-white border border-emerald-500/30 hover:border-emerald-500/50 font-bold text-xs sm:text-base md:text-lg px-5 sm:px-7 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   <span>Already have an account? Sign In</span>
@@ -1189,10 +1049,26 @@ export const TESDAPartnerLandingPage: React.FC = () => {
                   <Link href="/partners" className="hover:text-white transition-colors">
                     For TESDA Partners
                   </Link>
-                  <Link href="/partners/register" className="hover:text-white transition-colors">
+                  <Link
+                    href="/?action=register&portal=partner"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem("sikap_login_portal", "partner");
+                      }
+                    }}
+                    className="hover:text-white transition-colors"
+                  >
                     Partner Registration
                   </Link>
-                  <Link href="/partners/login" className="hover:text-white transition-colors">
+                  <Link
+                    href="/?action=login&portal=partner"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem("sikap_login_portal", "partner");
+                      }
+                    }}
+                    className="hover:text-white transition-colors"
+                  >
                     Partner Sign In
                   </Link>
                 </div>

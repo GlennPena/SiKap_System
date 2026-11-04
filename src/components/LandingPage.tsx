@@ -316,14 +316,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </div>
 
-            {/* Right Action Buttons: For TESDA Partners (Secondary Outlined) & Sign In (Primary Solid) */}
+            {/* Right Action Buttons: For Providers (Secondary Outlined) & Sign In (Primary Solid) */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <Link
                 href="/partners"
                 className="bg-white hover:bg-emerald-50/80 text-[#0A6B43] border border-[#0A6B43] sm:border-2 text-[11px] sm:text-base font-bold px-2.5 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-xl shadow-2xs hover:shadow-sm hover:-translate-y-0.5 transition-all flex items-center justify-center cursor-pointer shrink-0 whitespace-nowrap"
                 id="landing-for-tesda-partners-btn"
               >
-                <span>For TESDA Partners</span>
+                <span>For Providers</span>
               </Link>
               <button
                 onClick={onEnterLogin}
@@ -958,9 +958,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </button>
                   <Link
                     href="/partners"
-                    className="hover:text-emerald-300 text-emerald-400 transition-colors cursor-pointer text-left font-bold"
+                    className="hover:text-white transition-colors cursor-pointer text-left"
                   >
-                    For TESDA Partners →
+                    Become Training Provider
                   </Link>
                 </div>
               </div>

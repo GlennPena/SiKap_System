@@ -16,7 +16,8 @@ export enum SKOfficialScreen {
   ANNOUNCEMENTS = "SK Announcements",
   SETTINGS = "Settings & Profile",
   COUNCILORS = "My Team",
-  PENDING_APPROVALS = "Pending Approvals"
+  PENDING_APPROVALS = "Pending Approvals",
+  GRADUATES = "Program Graduates"
 }
 
 export enum YouthScreen {
@@ -407,7 +408,10 @@ export interface ProgramApplication {
   applicationDate?: string;
   referralDate?: string; // backwards compatibility alias
   rawDate?: string;
-  status: "Pending" | "Approved" | "Enrolled" | "Declined" | "Archived";
+  status: "Pending" | "Approved" | "Enrolled" | "Declined" | "Archived" | "Completed";
+  completionDate?: string;
+  certificationType?: string;
+  isGraduate?: boolean;
   program?: Partial<TESDAProgram>;
 }
 
@@ -461,3 +465,19 @@ export interface ProviderApplication {
   createdAt: string;
   updatedAt?: string;
 }
+
+export const DEFAULT_TESDA_REQUIREMENTS: string[] = [
+  "1 pc long brown envelope without label",
+  "Barangay Clearance",
+  "Photocopy of the latest academic (i.e. diploma or TOR)",
+  "Photocopy of PSA birth certificate",
+  "Photocopy of PSA marriage certificate (for married female)",
+  "Medical certificate that application is physically and mentally fit for TESDA training",
+  "Recent colored-picture",
+  "photo studio-quality white background attire with collar: 1 pc 2x2 3 pcs passport-sized 6 pcs 1x1",
+  "Proof of residence (for scholars)",
+  "Photocopy of valid NCs (for CBTM/TMI enrollees)",
+  "Photocopy of valid NTTCs (for FeLS enrollees)",
+  "Original documents for authentication/verification only",
+];
+

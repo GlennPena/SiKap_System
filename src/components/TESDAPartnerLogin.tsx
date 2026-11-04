@@ -229,7 +229,7 @@ export const TESDAPartnerLogin: React.FC = () => {
               transition={{ duration: 0.45, ease: "easeOut" }}
               className="text-3xl xl:text-[2.4rem] font-black leading-[1.08] tracking-tight text-white drop-shadow-xs"
             >
-              Connect Your Training Programs with San Luis Youth
+              Your Journey Starts Here
             </motion.h1>
 
             <motion.p
@@ -238,7 +238,7 @@ export const TESDAPartnerLogin: React.FC = () => {
               transition={{ duration: 0.45, ease: "easeOut", delay: 0.08 }}
               className="text-base text-emerald-100/90 leading-relaxed font-medium pr-4"
             >
-              Manage accredited technical-vocational cohorts, evaluate pre-matched youth profiles, and oversee training enrollments from one dedicated workspace.
+              Explore new possibilities and take the next step toward growth.
             </motion.p>
           </div>
 
