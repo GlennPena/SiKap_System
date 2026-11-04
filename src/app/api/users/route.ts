@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { validatePassword } from "@/lib/password-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,8 @@ export async function GET() {
         dateCreated: u.createdAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
         institutionName: u.officialAcc?.institutionName || (u.role === "TESDA_PARTNER" && (u.email.includes("gpsat") || u.name.includes("GPSAT")) ? "Gonzalo Puyat School of Arts and Trades (GPSAT)" : undefined),
         cptrNumber: u.officialAcc?.cptrNumber || undefined,
-        contactNumber: u.officialAcc?.contactNumber || u.contactNumber || undefined
+        contactNumber: u.officialAcc?.contactNumber || u.contactNumber || undefined,
+        providerType: u.officialAcc?.providerType || (u.role === "TESDA_PARTNER" && (u.email.includes("gpsat") || u.officialAcc?.role === "TESDA Representative") ? "Public TESDA Institute" : "Private TVET Institute")
       }));
 
     return NextResponse.json({ success: true, data: formatted });
@@ -173,6 +175,10 @@ export async function PUT(req: Request) {
 
       // Password Reset to new temporary password
       if (body.newTempPassword) {
+        const pwdVal = validatePassword(body.newTempPassword);
+        if (!pwdVal.isValid) {
+          return NextResponse.json({ success: false, message: pwdVal.errors[0] || "Temporary password does not meet security requirements" }, { status: 400 });
+        }
         adminUpdateData.passwordHash = await bcrypt.hash(body.newTempPassword, 10);
       }
 
@@ -207,7 +213,7 @@ export async function PUT(req: Request) {
 
     // 2. Standard User Self-Update
     const userId = currentUserId;
-    const { name, email, currentPassword, newPassword, institutionName, centerName, contactNumber, phone, representativeName } = body;
+    const { name, email, currentPassword, newPassword, institutionName, centerName, contactNumber, phone, representativeName, providerType } = body;
     const resolvedInstitution = institutionName || centerName;
     const resolvedPhone = contactNumber || phone;
     const resolvedRepName = representativeName || name;
@@ -226,6 +232,10 @@ export async function PUT(req: Request) {
     if (newPassword) {
       if (!currentPassword) {
         return NextResponse.json({ success: false, message: "Current password is required to set a new password" }, { status: 400 });
+      }
+      const pwdVal = validatePassword(newPassword);
+      if (!pwdVal.isValid) {
+        return NextResponse.json({ success: false, message: pwdVal.errors[0] || "New password does not meet security requirements" }, { status: 400 });
       }
       const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!isValidPassword) {
@@ -258,6 +268,7 @@ export async function PUT(req: Request) {
     if (email) officialUpdateData.email = email.toLowerCase();
     if (resolvedInstitution) officialUpdateData.institutionName = resolvedInstitution;
     if (resolvedPhone) officialUpdateData.contactNumber = resolvedPhone;
+    if (providerType) officialUpdateData.providerType = providerType;
 
     let refreshedOfficialAcc: any = null;
     if (Object.keys(officialUpdateData).length > 0) {
@@ -276,7 +287,8 @@ export async function PUT(req: Request) {
             role: user.role === Role.TESDA_PARTNER ? "TVET Partner Liaison" : user.role === Role.BARANGAY_CAPTAIN ? "Barangay Captain" : "SK Chairperson",
             status: "Active",
             institutionName: resolvedInstitution || undefined,
-            contactNumber: resolvedPhone || undefined
+            contactNumber: resolvedPhone || undefined,
+            providerType: providerType || (user.role === Role.TESDA_PARTNER ? "Private TVET Institute" : undefined)
           }
         });
       }

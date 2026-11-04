@@ -3,6 +3,8 @@ import { db, sanitizeApiError } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { validatePassword } from "@/lib/password-policy";
+import { notifySuperAdminNewProviderApplication } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,15 @@ export async function POST(req: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    // Password validation against enterprise security criteria
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.isValid) {
+      return NextResponse.json(
+        { success: false, message: passwordCheck.errors[0] || "Password does not meet security requirements." },
+        { status: 400 }
+      );
+    }
 
     // 1. Verify email format
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,6 +123,16 @@ export async function POST(req: Request) {
             status: "Pending"
           }
         });
+
+    // Notify Super Admin of incoming TVET Provider CPTR application
+    notifySuperAdminNewProviderApplication({
+      institutionName: application.institutionName,
+      representativeName: application.representativeName,
+      cptrNumber: application.cptrNumber,
+      providerType: application.providerType,
+      email: application.email,
+      contactNumber: application.contactNumber
+    }).catch((err) => console.error("[Notification SuperAdmin Provider App Error]:", err));
 
     return NextResponse.json(
       {

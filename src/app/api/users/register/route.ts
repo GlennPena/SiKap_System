@@ -9,6 +9,7 @@ import { notifyNewYouthRegistered } from "@/lib/notifications";
 import { normalizeEducationalAttainment } from "@/types";
 import { calculateAge } from "@/lib/utils";
 import { isEmailVerifiedForRegistration, clearRegisterOtp } from "@/lib/register-otp-store";
+import { validatePassword } from "@/lib/password-policy";
 
 export async function POST(req: Request) {
   try {
@@ -47,6 +48,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
     }
 
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.isValid) {
+      return NextResponse.json(
+        { success: false, message: passwordCheck.errors[0] || "Password does not meet security requirements." },
+        { status: 400 }
+      );
+    }
+
     // Check if email already exists
     const existingUser = await db.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -64,7 +73,7 @@ export async function POST(req: Request) {
     );
 
     // Verify email was verified via registration OTP (bypassed for in-person SK Official registrations)
-    if (!isOfficialRegistration && !isEmailVerifiedForRegistration(email)) {
+    if (!isOfficialRegistration && !(await isEmailVerifiedForRegistration(email))) {
       return NextResponse.json(
         { success: false, message: "Please verify your email address with the 6-digit security code before completing registration." },
         { status: 400 }
@@ -286,7 +295,7 @@ export async function POST(req: Request) {
     });
 
     // Clean up OTP token
-    clearRegisterOtp(email);
+    await clearRegisterOtp(email);
 
     return response;
 

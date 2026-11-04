@@ -122,7 +122,7 @@ export const SettingsSecurityGuideCard: React.FC<SettingsSecurityGuideCardProps>
   accountTypeLabel = "Official LGU Account",
   accountNotice = "Your SiKap account is tied to official administrative records. Keep your credentials private and never share your password.",
 }) => {
-  const isPassLengthValid = newPassword.length >= 6;
+  const isPassLengthValid = newPassword.length >= 8;
   const isPassCaseValid = /[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword);
   const isPassCharTypeValid = /[0-9]/.test(newPassword) || /[^A-Za-z0-9]/.test(newPassword);
 
@@ -165,7 +165,7 @@ export const SettingsSecurityGuideCard: React.FC<SettingsSecurityGuideCardProps>
                 </div>
               )}
               <span className="text-[11px] sm:text-xs">
-                At least <strong>6 characters long</strong>
+                At least <strong>8 characters long</strong>
               </span>
             </div>
             {isPassLengthValid && (

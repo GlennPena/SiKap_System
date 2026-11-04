@@ -17,6 +17,7 @@ import { MetricCard, SikapLogo, ConfirmationModal, NotificationBellButton } from
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { motion, AnimatePresence } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
+import { validatePassword } from "@/lib/password-policy";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard, SettingsTabItem } from "./SettingsShared";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { isProgramEnded } from "../lib/utils";
@@ -1718,32 +1719,56 @@ Please sign in at ${window.location.origin} and change your password immediately
   };
 
   // Memoized Central Alerts
-  const allCentralAlerts = useMemo(() => [
-    {
-      id: "alert-demographics",
-      title: "Registered KK Demographics",
-      desc: `${youthProfiles.length} active youth profiles registered across 17 barangays.`,
-      targetTab: "youth_masterlist" as const,
-      icon: Users,
-      iconBg: "bg-emerald-100 text-[#0A6B43]",
-    },
-    {
-      id: "alert-leaders",
-      title: "Barangay Leaders Sync",
-      desc: `${officialAccounts.length} authorized official accounts active in database.`,
-      targetTab: "barangays" as const,
-      icon: Shield,
-      iconBg: "bg-amber-100 text-amber-800",
-    },
-    {
-      id: "alert-tesda",
-      title: "TESDA Vocational Programs",
-      desc: `${programs.length} published TVET program offerings available municipal-wide.`,
-      targetTab: "tesda_records" as const,
-      icon: Briefcase,
-      iconBg: "bg-blue-100 text-blue-800",
-    },
-  ], [youthProfiles.length, officialAccounts.length, programs.length]);
+  const allCentralAlerts = useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      desc: string;
+      targetTab: any;
+      icon: any;
+      iconBg: string;
+    }> = [];
+
+    if (pendingApplicationsCount > 0) {
+      list.push({
+        id: "alert-pending-providers",
+        title: `Pending TVET Accreditations (${pendingApplicationsCount})`,
+        desc: `${pendingApplicationsCount} training institution application(s) awaiting CPTR verification & provisioning.`,
+        targetTab: "provider_applications" as const,
+        icon: Building2,
+        iconBg: "bg-amber-100 text-amber-800",
+      });
+    }
+
+    list.push(
+      {
+        id: "alert-demographics",
+        title: "Registered KK Demographics",
+        desc: `${youthProfiles.length} active youth profiles registered across 17 barangays.`,
+        targetTab: "youth_masterlist" as const,
+        icon: Users,
+        iconBg: "bg-emerald-100 text-[#0A6B43]",
+      },
+      {
+        id: "alert-leaders",
+        title: "Barangay Leaders Sync",
+        desc: `${officialAccounts.length} authorized official accounts active in database.`,
+        targetTab: "barangays" as const,
+        icon: Shield,
+        iconBg: "bg-amber-100 text-amber-800",
+      },
+      {
+        id: "alert-tesda",
+        title: "TESDA Vocational Programs",
+        desc: `${programs.length} published TVET program offerings available municipal-wide.`,
+        targetTab: "tesda_records" as const,
+        icon: Briefcase,
+        iconBg: "bg-blue-100 text-blue-800",
+      }
+    );
+
+    return list;
+  }, [pendingApplicationsCount, youthProfiles.length, officialAccounts.length, programs.length]);
 
   const systemAlerts = useMemo(() => {
     return allCentralAlerts.filter((a) => !clearedNotificationIds.includes(a.id));
@@ -5048,7 +5073,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                                   placeholder="Enter new password..."
                                   className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
                                   required
-                                  minLength={6}
+                                  minLength={8}
                                 />
                                 <button
                                   type="button"
@@ -5101,7 +5126,7 @@ Please sign in at ${window.location.origin} and change your password immediately
                             <div className="pt-2">
                               <button
                                 type="submit"
-                                disabled={isChangingPassword}
+                                disabled={isChangingPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword || !currentPassword}
                                 className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-[#0A6B43] hover:bg-[#085435] text-white shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                               >
                                 {isChangingPassword ? (

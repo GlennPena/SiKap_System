@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save to token store
-    const saveResult = savePasswordResetCode(user.email, user.id, user.name, resetCode);
+    const saveResult = await savePasswordResetCode(user.email, user.id, user.name, resetCode);
     if (!saveResult.success) {
       return NextResponse.json(
         { success: false, message: saveResult.error || "Rate limit reached. Please wait." },

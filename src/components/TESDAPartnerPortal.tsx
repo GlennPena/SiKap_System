@@ -14,12 +14,13 @@ import {
 import { SAN_LUIS_BARANGAYS, normalizeBarangayName } from "../lib/barangay-data";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
 import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
-import { formatLocationWithCoords, extractLocationDisplay } from "../lib/training-venues";
+import { formatLocationWithCoords, extractLocationDisplay, extractLocationCoords, resolveProgramCoordinates, PRESET_TRAINING_VENUES } from "../lib/training-venues";
 import { SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
 import { motion, AnimatePresence } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { validatePassword } from "@/lib/password-policy";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard } from "./SettingsShared";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { formatTrainingDays, formatProgramTimeslot, formatProgramDate, formatProgramDateRange, computeProgramTrainingHours } from "../lib/cbf-matcher";
@@ -887,7 +888,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       perks: progPerks || [],
       certificationType: progLevel === "None" ? "None" : (progLevel || "NC II"),
       categoryId: progCategoryId,
-      location: progLocation,
+      location: formatLocationWithCoords(
+        progLocation || "GPSAT San Luis Campus",
+        typeof progLat === "number" && !isNaN(progLat) && progLat !== 0 ? progLat : resolveProgramCoordinates(progLocation).lat,
+        typeof progLng === "number" && !isNaN(progLng) && progLng !== 0 ? progLng : resolveProgramCoordinates(progLocation).lng
+      ),
       trainingHours: Number(progTrainingHours),
       cost: progCost,
       slotsTotal: Number(progSlots),
@@ -1184,7 +1189,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setModalEditCategoryId(catId);
 
     setModalEditTrainingHours(prog.trainingHours || "");
+    const existingCoords = extractLocationCoords(prog.location);
+    const resolvedCoords = resolveProgramCoordinates(prog.location);
+    const initialLat = existingCoords ? existingCoords.lat : resolvedCoords.lat;
+    const initialLng = existingCoords ? existingCoords.lng : resolvedCoords.lng;
     setModalEditLocation(extractLocationDisplay(prog.location) || "");
+    setModalEditLat(initialLat);
+    setModalEditLng(initialLng);
     setModalEditCost(prog.cost || "Free");
     setModalEditDeliveryMode(prog.deliveryMode || "Face-to-Face");
     setModalEditSlotsTotal(prog.slotsTotal || 25);
@@ -1268,12 +1279,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     const newTotal = Number(modalEditSlotsTotal);
     const newRemaining = Math.max(0, newTotal - currentOccupied);
 
+    // Guaranteed coordinate preservation and formatting
+    const finalLat = typeof modalEditLat === "number" && !isNaN(modalEditLat) && modalEditLat !== 0
+      ? modalEditLat
+      : resolveProgramCoordinates(modalEditLocation).lat;
+    const finalLng = typeof modalEditLng === "number" && !isNaN(modalEditLng) && modalEditLng !== 0
+      ? modalEditLng
+      : resolveProgramCoordinates(modalEditLocation).lng;
+    const locationWithCoords = formatLocationWithCoords(modalEditLocation || "GPSAT San Luis Campus", finalLat, finalLng);
+
     const payload = {
       id: viewingProgram.id,
       title: fullTitle,
       certificationType: modalEditLevel === "None" ? "None" : (modalEditLevel || "NC II"),
       categoryId: modalEditCategoryId,
-      location: modalEditLocation,
+      location: locationWithCoords,
       trainingHours: Number(modalEditTrainingHours),
       cost: modalEditCost,
       deliveryMode: modalEditDeliveryMode || "Face-to-Face",
@@ -1335,7 +1355,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Dynamic brand label for left navbar header
   const partnerNavbarBrand = useMemo(() => {
-    if (isGPSAT) return "TESDA";
+    if (isGPSAT) return "TESDA GPSAT";
     const raw = (myInstitutionName || "TVET").trim();
     const clean = raw.replace(/^TESDA\s*[-–—]?\s*/i, "");
     return clean || "TVET";
@@ -1343,8 +1363,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Scoped to this specific training provider
   const scopedPrograms = useMemo(() => {
+    const currentUserId = currentUser?.id || (sessionData?.user as any)?.id;
     if (isGPSAT) {
       return programs.filter(p => {
+        if (p.partnerId && currentUserId && p.partnerId === currentUserId) return true;
         const prov = (p.provider || "").toLowerCase().trim();
         return (
           prov === "" ||
@@ -1358,10 +1380,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
     const instClean = myInstitutionName.toLowerCase().trim();
     return programs.filter(p => {
+      if (p.partnerId && currentUserId && p.partnerId === currentUserId) return true;
       const prov = (p.provider || "").toLowerCase().trim();
       return prov === instClean || prov.includes(instClean) || instClean.includes(prov);
     });
-  }, [programs, isGPSAT, myInstitutionName]);
+  }, [programs, isGPSAT, myInstitutionName, currentUser?.id, sessionData]);
 
   // Only active, non-closed programs belonging to this institution should appear on the dashboard
   const activePrograms = useMemo(() => {
@@ -1932,6 +1955,36 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       });
     }
 
+    // Capacity Alert: Full Classes (100% capacity reached)
+    const fullPrograms = activePrograms.filter(p => p.slotsRemaining === 0);
+    fullPrograms.forEach(p => {
+      list.push({
+        id: `notif-tesda-full-${p.id}`,
+        title: `Class Quota Full: ${p.title}`,
+        desc: `All ${p.slotsTotal} slots are filled (100% capacity). You can finalize and export the cohort roster.`,
+        icon: <Users className="w-4 h-4 text-emerald-800" />,
+        bg: "bg-emerald-50 border border-emerald-200",
+        action: () => {
+          setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+        }
+      });
+    });
+
+    // Capacity Alert: Low Remaining Slots (3 or fewer open slots)
+    const lowSlotPrograms = activePrograms.filter(p => p.slotsRemaining > 0 && p.slotsRemaining <= 3);
+    lowSlotPrograms.forEach(p => {
+      list.push({
+        id: `notif-tesda-low-${p.id}`,
+        title: `Low Slots Remaining: ${p.title}`,
+        desc: `Only ${p.slotsRemaining} training slot(s) remaining out of ${p.slotsTotal}. Class is nearing quota.`,
+        icon: <AlertTriangle className="w-4 h-4 text-amber-800" />,
+        bg: "bg-amber-50 border border-amber-200",
+        action: () => {
+          setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+        }
+      });
+    });
+
     if (activePrograms.length > 0) {
       list.push({
         id: "notif-tesda-programs",
@@ -2219,12 +2272,17 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         <div className="p-4 sm:p-5 overflow-y-auto overscroll-y-contain min-h-0 flex-1">
           {/* Logo Header */}
           <div className="flex items-center justify-between mb-6 px-0.5 pt-0.5">
-            <div className="flex items-center gap-2.5 min-w-0 sidebar-brand-container">
-              <SikapLogo size={36} logoSize={38} textSize={27} variant="white" showText={true} disableHover={true} className="sidebar-brand-logo" />
-              <div className="border-l border-white/20 pl-2.5 min-w-0 shrink-0 flex flex-col justify-center sidebar-brand-divider">
-                <span className="text-xs sm:text-[13px] font-black text-amber-400 uppercase tracking-wider block leading-tight sidebar-brand-position">Partner</span>
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 sidebar-brand-container">
+              <SikapLogo size={34} logoSize={36} textSize={25} variant="white" showText={true} disableHover={true} className="sidebar-brand-logo shrink-0" />
+              <div className="border-l border-white/20 pl-2 sm:pl-2.5 min-w-0 flex-1 flex flex-col justify-center sidebar-brand-divider">
+                <span 
+                  className="text-[9px] xs:text-[9.5px] sm:text-[10px] xl:text-[9.5px] 2xl:text-[11px] font-black text-amber-400 uppercase tracking-wide block whitespace-nowrap leading-tight sidebar-brand-position"
+                  title={isGPSAT ? "TESDA Institution" : "TVET Partner"}
+                >
+                  {isGPSAT ? "TESDA Institution" : "TVET Partner"}
+                </span>
                 <span
-                  className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-[105px] sm:max-w-[120px] xl:max-w-[135px] sidebar-brand-barangay"
+                  className="text-[9.5px] sm:text-[10.5px] xl:text-[10px] 2xl:text-[11px] font-bold text-gray-400 uppercase tracking-wide block truncate leading-tight mt-0.5 max-w-full sidebar-brand-barangay"
                   title={isGPSAT ? "TESDA GPSAT Partner" : myInstitutionName}
                 >
                   {partnerNavbarBrand}
@@ -5582,9 +5640,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                           <div className="relative min-w-0 w-full">
                             <input
                               type="text"
-                              placeholder="e.g. San Luis Training Center / GPSAT Guagua"
+                              placeholder="e.g. GPSAT San Luis / Guagua, Sindalan, Mexico..."
                               value={extractLocationDisplay(progLocation)}
-                              onChange={(e) => setProgLocation(e.target.value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setProgLocation(val);
+                                const q = val.toLowerCase().trim();
+                                const matched = PRESET_TRAINING_VENUES.find(v =>
+                                  q.includes(v.shortName.toLowerCase()) ||
+                                  v.shortName.toLowerCase().includes(q) ||
+                                  q.includes(v.name.toLowerCase()) ||
+                                  (q.includes("mexico-san luis") && v.id === "gpsat-san-luis")
+                                );
+                                if (matched) {
+                                  setProgLat(matched.latitude);
+                                  setProgLng(matched.longitude);
+                                }
+                              }}
                               className="w-full min-w-0 h-[38px] pl-3.5 pr-20 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
                               title={extractLocationDisplay(progLocation)}
                             />
@@ -6229,7 +6301,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   required
                                   value={newPassword}
                                   onChange={(e) => setNewPassword(e.target.value)}
-                                  placeholder="Enter new password (min. 6 characters)..."
+                                  placeholder="Enter new password (min. 8 characters)..."
                                   className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                                 />
                                 <button
@@ -6274,7 +6346,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             <div className="pt-2 flex justify-end">
                               <button
                                 type="submit"
-                                disabled={isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword}
+                                disabled={isChangingPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword || !currentPassword}
                                 className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword
                                     ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
                                     : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98"
@@ -6363,11 +6435,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 </div>
                                 <div>
                                   <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Republic of the Philippines</p>
-                                  <p className="text-xs font-extrabold tracking-wide text-white">TESDA TVET Training Partner</p>
+                                  <p className="text-xs font-extrabold tracking-wide text-white">{isGPSAT ? "Public TESDA Technology Institution" : "TESDA Accredited TVET Partner"}</p>
                                 </div>
                               </div>
                               <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                                Official Partner
+                                {isGPSAT ? "Public Institute" : "CPTR Accredited"}
                               </span>
                             </div>
 
@@ -6382,6 +6454,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                 <p className="text-[11px] text-slate-300 font-mono pt-1">
                                   Provincial Office: Pampanga · Region III
                                 </p>
+                                {((currentUser as any)?.cptrNumber || (sessionData?.user as any)?.cptrNumber) && (
+                                  <div className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-0.5 rounded-md bg-blue-500/20 border border-blue-400/30 text-[10px] font-mono text-blue-200">
+                                    <span>CPTR NO:</span>
+                                    <span className="font-bold">{(currentUser as any)?.cptrNumber || (sessionData?.user as any)?.cptrNumber}</span>
+                                  </div>
+                                )}
                                 <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 rounded-lg bg-white/10 border border-white/10 text-[10px] font-mono text-emerald-300">
                                   <span>REG-ID:</span>
                                   <span className="font-bold">{currentUser?.id?.slice(0, 12) || "TESDA-R03-GPSAT-01"}</span>
@@ -7550,9 +7628,23 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                       <div className="relative min-w-0 w-full">
                         <input
                           type="text"
-                          placeholder="e.g. San Luis Training Center / GPSAT Guagua"
+                          placeholder="e.g. GPSAT San Luis / Guagua, Sindalan, Mexico..."
                           value={extractLocationDisplay(modalEditLocation)}
-                          onChange={(e) => setModalEditLocation(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setModalEditLocation(val);
+                            const q = val.toLowerCase().trim();
+                            const matched = PRESET_TRAINING_VENUES.find(v =>
+                              q.includes(v.shortName.toLowerCase()) ||
+                              v.shortName.toLowerCase().includes(q) ||
+                              q.includes(v.name.toLowerCase()) ||
+                              (q.includes("mexico-san luis") && v.id === "gpsat-san-luis")
+                            );
+                            if (matched) {
+                              setModalEditLat(matched.latitude);
+                              setModalEditLng(matched.longitude);
+                            }
+                          }}
                           className="w-full min-w-0 h-[36px] sm:h-[38px] pl-3 pr-16 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
                           title={extractLocationDisplay(modalEditLocation)}
                         />
@@ -8416,22 +8508,22 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         isOpen={isVenueMapModalOpen}
         onClose={() => setIsVenueMapModalOpen(false)}
         mode={venueMapModalMode}
-        programTitle={venueMapTarget === "create" || venueMapTarget === "editModal" ? progTitle : (viewingProgram?.title || progTitle)}
+        programTitle={venueMapTarget === "create" ? progTitle : (viewingProgram?.title || progTitle)}
         provider={viewingProgram?.provider || "TESDA Partner"}
         initialLocation={
           venueMapModalMode === "viewer"
             ? (viewingProgram?.location || progLocation)
-            : (venueMapTarget === "create" || venueMapTarget === "editModal" ? progLocation : modalEditLocation)
+            : (venueMapTarget === "create" ? progLocation : modalEditLocation)
         }
         initialLat={
           venueMapModalMode === "viewer"
-            ? (viewingProgram?.latitude || progLat)
-            : (venueMapTarget === "create" || venueMapTarget === "editModal" ? progLat : modalEditLat)
+            ? (viewingProgram?.latitude || (viewingProgram?.location ? extractLocationCoords(viewingProgram.location)?.lat : undefined) || progLat)
+            : (venueMapTarget === "create" ? progLat : modalEditLat)
         }
         initialLng={
           venueMapModalMode === "viewer"
-            ? (viewingProgram?.longitude || progLng)
-            : (venueMapTarget === "create" || venueMapTarget === "editModal" ? progLng : modalEditLng)
+            ? (viewingProgram?.longitude || (viewingProgram?.location ? extractLocationCoords(viewingProgram.location)?.lng : undefined) || progLng)
+            : (venueMapTarget === "create" ? progLng : modalEditLng)
         }
         room={viewingProgram?.room || progRoom}
         instructor={viewingProgram?.instructor || progInstructor}
@@ -8439,7 +8531,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         contactNumber={viewingProgram?.contactNumber || savedRepPhone}
         onSelectLocation={(res: { location: string; latitude: number; longitude: number }) => {
           const locWithCoords = formatLocationWithCoords(res.location, res.latitude, res.longitude);
-          if (venueMapTarget === "create" || venueMapTarget === "editModal") {
+          if (venueMapTarget === "create") {
             setProgLocation(locWithCoords);
             setProgLat(res.latitude);
             setProgLng(res.longitude);

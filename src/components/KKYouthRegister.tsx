@@ -14,6 +14,8 @@ import { formatContactNumber, isValidContactNumber, calculateAge, sanitizeClient
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
 import { broadcastDataChange } from "../lib/realtime-sync";
+import { validatePassword } from "../lib/password-policy";
+import { PasswordChecklist } from "./PasswordChecklist";
 
 interface KKYouthRegisterProps {
   onRegisterComplete: (newProfile: YouthProfile) => void;
@@ -245,7 +247,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
   };
 
   const handleVerifyOtp = async () => {
-    if (otpCode.trim().length !== 6) return;
+    const cleanCode = otpCode.replace(/\D/g, "").trim();
+    if (cleanCode.length !== 6) return;
 
     setIsVerifyingOtp(true);
     setOtpError(null);
@@ -254,7 +257,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
       const res = await fetch("/api/auth/register-otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail.trim(), code: otpCode.trim() })
+        body: JSON.stringify({ email: regEmail.trim().toLowerCase(), code: cleanCode })
       });
       const data = await res.json();
 
@@ -603,7 +606,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const computedAge = regDOB ? calculateAge(regDOB) : "";
         const isAgeValid = computedAge !== "" && Number(computedAge) >= 18 && Number(computedAge) <= 30;
-        const isPasswordValid = regPassword.length >= 6 && regPassword === regConfirmPassword;
+        const passwordValidation = validatePassword(regPassword);
+        const isPasswordValid = passwordValidation.isValid && regPassword === regConfirmPassword;
         return !!regName.trim() && !!regGender && isValidContactNumber(regContact) && isAgeValid && emailRegex.test(regEmail) && !emailExists && isPasswordValid && isEmailVerified;
       }
       case 2:
@@ -1038,6 +1042,10 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                             required
                             disabled={isEmailVerified}
                             value={regEmail}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            inputMode="email"
                             onChange={(e) => {
                               setRegEmail(e.target.value);
                               setIsEmailVerified(false);
@@ -1120,11 +1128,18 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                                         type="text"
                                         inputMode="numeric"
                                         autoComplete="one-time-code"
-                                        maxLength={6}
+                                        maxLength={8}
                                         value={otpCode}
                                         onChange={(e) => {
-                                          const val = e.target.value.replace(/\D/g, "");
+                                          const val = e.target.value.replace(/\D/g, "").slice(0, 6);
                                           setOtpCode(val);
+                                          if (otpError) setOtpError(null);
+                                        }}
+                                        onPaste={(e) => {
+                                          e.preventDefault();
+                                          const pasted = e.clipboardData.getData("text") || "";
+                                          const clean = pasted.replace(/\D/g, "").slice(0, 6);
+                                          setOtpCode(clean);
                                           if (otpError) setOtpError(null);
                                         }}
                                         placeholder="000000"
@@ -1206,8 +1221,8 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               required
                               value={regPassword}
                               onChange={(e) => setRegPassword(e.target.value)}
-                              placeholder="••••••••"
-                              className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && regPassword.length < 6 ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
+                              placeholder="Min. 8 characters"
+                              className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regPassword && !validatePassword(regPassword).isValid ? "border-amber-300 bg-amber-50/20" : "border-gray-200"
                                 }`}
                             />
                             <button
@@ -1219,12 +1234,6 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
-                          {regPassword && regPassword.length < 6 && (
-                            <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                              <AlertCircle className="w-3 h-3 shrink-0" />
-                              <span>Password too short: Must be at least 6 characters (Current: {regPassword.length}/6).</span>
-                            </p>
-                          )}
                         </div>
 
                         <div className="space-y-1">
@@ -1245,7 +1254,7 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               required
                               value={regConfirmPassword}
                               onChange={(e) => setRegConfirmPassword(e.target.value)}
-                              placeholder="••••••••"
+                              placeholder="Repeat password"
                               className={`w-full pl-3.5 sm:pl-4 pr-10 py-2 sm:py-2.5 bg-gray-50/80 border rounded-lg sm:rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:border-[#0A6B43] focus:outline-hidden transition-all placeholder:text-gray-400 font-medium text-gray-900 shadow-2xs ${regConfirmPassword && regPassword !== regConfirmPassword ? "border-rose-300 bg-rose-50/30" : "border-gray-200"
                                 }`}
                             />
@@ -1258,14 +1267,17 @@ export const KKYouthRegister: React.FC<KKYouthRegisterProps> = ({
                               {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
-                          {regConfirmPassword && regPassword !== regConfirmPassword && (
-                            <p className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 pt-0.5">
-                              <AlertCircle className="w-3 h-3 shrink-0" />
-                              <span>Mismatch: Confirm password must match your password above.</span>
-                            </p>
-                          )}
                         </div>
                       </div>
+
+                      {/* Real-time Password Security Requirements Checklist */}
+                      {(regPassword || regConfirmPassword) && (
+                        <PasswordChecklist
+                          password={regPassword}
+                          confirmPassword={regConfirmPassword}
+                          className="mt-2.5"
+                        />
+                      )}
 
                     </div>
                   </div>

@@ -63,6 +63,7 @@ model User {
   councilor              Councilor?
   pushSubscriptions      PushSubscription[]
   notificationPreference NotificationPreference?
+  publishedPrograms      TESDAProgram[]
 }
 
 model Barangay {
@@ -101,6 +102,8 @@ model YouthProfile {
   userId                  String?        @unique
   user                    User?          @relation(fields: [userId], references: [id])
   name                    String
+  firstName               String?
+  lastName                String?
   birthdate               DateTime?
   age                     Int
   gender                  String?
@@ -181,6 +184,8 @@ model TESDAProgram {
   categoryId         String?
   category           Category?     @relation(fields: [categoryId], references: [id])
   
+  partnerId          String?
+  partner            User?         @relation(fields: [partnerId], references: [id])
   referrals          Referral[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -224,6 +229,7 @@ model OfficialAccount {
   barangay   Barangay? @relation(fields: [barangayId], references: [id])
   status          String    @default("Active")
   institutionName String?
+  providerType    String?
   cptrNumber      String?
   contactNumber   String?
   createdAt       DateTime  @default(now())
@@ -288,4 +294,23 @@ model ProviderApplication {
   reviewedAt             DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
+}
+
+
+model AppVerificationCode {
+  id              String    @id @default(cuid())
+  email           String
+  code            String
+  type            String    @default("REGISTER") // "REGISTER" | "RESET_PASSWORD"
+  expiresAt       DateTime
+  attempts        Int       @default(0)
+  lastRequestedAt DateTime  @default(now())
+  isVerified      Boolean   @default(false)
+  verifiedAt      DateTime?
+  metadata        String?   // JSON for extra context like userId or name
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([email, type])
+  @@index([email, type])
 }

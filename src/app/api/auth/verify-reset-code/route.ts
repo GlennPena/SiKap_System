@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const verification = verifyPasswordResetCode(email, code);
+    const verification = await verifyPasswordResetCode(email, code);
     if (!verification.valid) {
       return NextResponse.json(
         { 

@@ -377,6 +377,19 @@ export interface TESDAProgram {
   cptrCourseCode?: string;
   certificationType?: string;
   centerName?: string;
+  partnerId?: string;
+  providerType?: "Public TESDA Institute" | "Private TVET Institute" | "LGU Training Center" | "HEI / SUC" | string;
+  partner?: {
+    id: string;
+    name: string;
+    email: string;
+    officialAcc?: {
+      institutionName?: string;
+      providerType?: string;
+      cptrNumber?: string;
+      role?: string;
+    };
+  };
 }
 
 export interface SKAnnouncement {
@@ -427,6 +440,7 @@ export interface OfficialAccount {
   status: "Active" | "Inactive" | "Suspended";
   dateCreated: string;
   institutionName?: string;
+  providerType?: "Public TESDA Institute" | "Private TVET Institute" | "LGU Training Center" | "HEI / SUC" | string;
   cptrNumber?: string;
 }
 
@@ -467,17 +481,17 @@ export interface ProviderApplication {
 }
 
 export const DEFAULT_TESDA_REQUIREMENTS: string[] = [
-  "1 pc long brown envelope without label",
+  "1 Pc Long Brown Envelope Without Label",
   "Barangay Clearance",
-  "Photocopy of the latest academic (i.e. diploma or TOR)",
-  "Photocopy of PSA birth certificate",
-  "Photocopy of PSA marriage certificate (for married female)",
-  "Medical certificate that application is physically and mentally fit for TESDA training",
-  "Recent colored-picture",
-  "photo studio-quality white background attire with collar: 1 pc 2x2 3 pcs passport-sized 6 pcs 1x1",
-  "Proof of residence (for scholars)",
-  "Photocopy of valid NCs (for CBTM/TMI enrollees)",
-  "Photocopy of valid NTTCs (for FeLS enrollees)",
-  "Original documents for authentication/verification only",
+  "Photocopy of the Latest Academic (i.e. Diploma or TOR)",
+  "Photocopy of PSA Birth Certificate",
+  "Photocopy of PSA Marriage Certificate (for Married Female)",
+  "Medical Certificate that Application is Physically and Mentally Fit for TESDA Training",
+  "Recent Colored-Picture",
+  "Photo Studio-Quality White Background Attire with Collar: 1 Pc 2x2, 3 Pcs Passport-Sized, 6 Pcs 1x1",
+  "Proof of Residence (for Scholars)",
+  "Photocopy of Valid NCs (for CBTM/TMI Enrollees)",
+  "Photocopy of Valid NTTCs (for FeLS Enrollees)",
+  "Original Documents for Authentication/Verification Only",
 ];
 

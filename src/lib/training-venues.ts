@@ -18,6 +18,18 @@ export interface PresetTrainingVenue {
 
 export const PRESET_TRAINING_VENUES: PresetTrainingVenue[] = [
   {
+    id: "gpsat-san-luis",
+    name: "TESDA - Gonzalo Puyat School of Arts and Trades (San Luis / Mexico Campus)",
+    shortName: "GPSAT San Luis Campus",
+    fullAddress: "Mexico-San Luis Road, Purok 1, San Luis, Pampanga",
+    municipality: "San Luis",
+    province: "Pampanga",
+    latitude: 15.048327,
+    longitude: 120.785046,
+    commuteTip: "Located right along the Mexico-San Luis Provincial Road (Purok 1), accessible directly by San Luis-Mexico tricycles and jeepneys.",
+    isSanLuis: true
+  },
+  {
     id: "san-luis-tc",
     name: "San Luis Municipal Training & Livelihood Center",
     shortName: "San Luis Training Center",
@@ -31,8 +43,8 @@ export const PRESET_TRAINING_VENUES: PresetTrainingVenue[] = [
   },
   {
     id: "gpsat-guagua",
-    name: "Gonzalo Puyat School of Arts and Trades (GPSAT)",
-    shortName: "GPSAT Guagua",
+    name: "Gonzalo Puyat School of Arts and Trades (GPSAT) - Guagua Main",
+    shortName: "GPSAT Guagua Main",
     fullAddress: "San Sebastian, Guagua, Pampanga",
     municipality: "Guagua",
     province: "Pampanga",
@@ -78,18 +90,6 @@ export const PRESET_TRAINING_VENUES: PresetTrainingVenue[] = [
     isSanLuis: false
   },
   {
-    id: "rtcl-guiguinto",
-    name: "Regional Training Center - Central Luzon (RTCCL)",
-    shortName: "RTC Central Luzon",
-    fullAddress: "Tabang, Guiguinto, Bulacan (Central Luzon Regional Center)",
-    municipality: "Guiguinto",
-    province: "Bulacan",
-    latitude: 14.834,
-    longitude: 120.879,
-    commuteTip: "Accessible via provincial bus (Victory Liner / Genesis / Bataan Transit) along MacArthur Highway.",
-    isSanLuis: false
-  },
-  {
     id: "megaup-skills",
     name: "Megaup Skills Training & Assessment Center",
     shortName: "Megaup Skills CSFP",
@@ -100,12 +100,24 @@ export const PRESET_TRAINING_VENUES: PresetTrainingVenue[] = [
     longitude: 120.6865,
     commuteTip: "Accessible via MacArthur Highway / Dolores intersection.",
     isSanLuis: false
+  },
+  {
+    id: "rtcl-guiguinto",
+    name: "Regional Training Center - Central Luzon (RTCCL)",
+    shortName: "RTC Central Luzon",
+    fullAddress: "Tabang, Guiguinto, Bulacan (Central Luzon Regional Center)",
+    municipality: "Guiguinto",
+    province: "Bulacan",
+    latitude: 14.834,
+    longitude: 120.879,
+    commuteTip: "Accessible via provincial bus (Victory Liner / Genesis / Bataan Transit) along MacArthur Highway.",
+    isSanLuis: false
   }
 ];
 
 export const DEFAULT_MAP_CENTER = {
-  lat: 15.0422,
-  lng: 120.7397,
+  lat: 15.048327,
+  lng: 120.785046,
   zoom: 14,
   label: "San Luis, Pampanga"
 };
@@ -113,6 +125,7 @@ export const DEFAULT_MAP_CENTER = {
 /**
  * Extracts embedded coordinates from a location string if present:
  * e.g. "San Sebastian, Guagua, Pampanga <!-- geo: 14.9667, 120.6333 -->"
+ * or "[geo: 14.9667, 120.6333]"
  */
 export function extractLocationCoords(str?: string | null): { lat: number; lng: number } | null {
   if (!str) return null;
@@ -146,7 +159,7 @@ export function extractLocationDisplay(str?: string | null): string {
  * Encodes verified latitude and longitude directly inside the location string
  */
 export function formatLocationWithCoords(name: string, lat: number, lng: number): string {
-  const clean = extractLocationDisplay(name) || "San Luis Training Center";
+  const clean = extractLocationDisplay(name) || "GPSAT San Luis Campus";
   return `${clean} <!-- geo: ${lat.toFixed(6)}, ${lng.toFixed(6)} -->`;
 }
 
@@ -159,7 +172,7 @@ export function resolveProgramCoordinates(
   savedLat?: number | null,
   savedLng?: number | null
 ): { lat: number; lng: number; venue?: PresetTrainingVenue; isPreset: boolean } {
-  // 1. Check if coordinates are explicitly passed or embedded in the location string
+  // 1. Check if coordinates are explicitly passed or embedded in the location string (Absolute Ground Truth)
   const embedded = extractLocationCoords(locationString);
   const effectiveLat =
     typeof savedLat === "number" && !isNaN(savedLat) && savedLat !== 0
@@ -172,7 +185,7 @@ export function resolveProgramCoordinates(
 
   if (typeof effectiveLat === "number" && typeof effectiveLng === "number") {
     const matched = PRESET_TRAINING_VENUES.find(
-      (v) => Math.abs(v.latitude - effectiveLat) < 0.001 && Math.abs(v.longitude - effectiveLng) < 0.001
+      (v) => Math.abs(v.latitude - effectiveLat) < 0.0015 && Math.abs(v.longitude - effectiveLng) < 0.0015
     );
     return {
       lat: effectiveLat,
@@ -182,57 +195,71 @@ export function resolveProgramCoordinates(
     };
   }
 
-  // 2. If no saved or embedded coordinates, match clean location string against presets & keywords
+  // 2. If no saved or embedded coordinates, match clean location string against presets with priority
   if (locationString) {
     const cleanLocation = extractLocationDisplay(locationString);
     const query = cleanLocation.toLowerCase().trim();
 
-    // Check exact or partial matches
-    const matched = PRESET_TRAINING_VENUES.find((v) => {
-      const vName = v.name.toLowerCase();
-      const vShort = v.shortName.toLowerCase();
-      const vAddr = v.fullAddress.toLowerCase();
-      return (
-        query.includes(vShort) ||
-        vName.includes(query) ||
-        (query.includes(v.municipality.toLowerCase()) && (query.includes("training") || query.includes("tesda"))) ||
-        vAddr.includes(query)
-      );
-    });
-
-    if (matched) {
-      return {
-        lat: matched.latitude,
-        lng: matched.longitude,
-        venue: matched,
-        isPreset: true
-      };
+    // Specific GPSAT campus check: Mexico-San Luis Road vs Guagua Main
+    if (query.includes("mexico-san luis") || query.includes("purok 1") || ((query.includes("gpsat") || query.includes("puyat")) && (query.includes("san luis") || query.includes("mexico")))) {
+      const gpsatSL = PRESET_TRAINING_VENUES.find((v) => v.id === "gpsat-san-luis")!;
+      return { lat: gpsatSL.latitude, lng: gpsatSL.longitude, venue: gpsatSL, isPreset: true };
     }
 
-    // Keyword heuristics
-    if (query.includes("guagua") || query.includes("puyat") || query.includes("gpsat")) {
-      const gpsat = PRESET_TRAINING_VENUES.find((v) => v.id === "gpsat-guagua")!;
-      return { lat: gpsat.latitude, lng: gpsat.longitude, venue: gpsat, isPreset: true };
+    if (query.includes("guagua") || ((query.includes("gpsat") || query.includes("puyat")) && !query.includes("san luis"))) {
+      const gpsatGuagua = PRESET_TRAINING_VENUES.find((v) => v.id === "gpsat-guagua")!;
+      return { lat: gpsatGuagua.latitude, lng: gpsatGuagua.longitude, venue: gpsatGuagua, isPreset: true };
     }
-    if (query.includes("sindalan") || query.includes("provincial training center") || query.includes("ptc")) {
+
+    if (query.includes("sindalan") || query.includes("ptc pampanga") || query.includes("provincial training center")) {
       const ptc = PRESET_TRAINING_VENUES.find((v) => v.id === "ptc-pampanga")!;
       return { lat: ptc.latitude, lng: ptc.longitude, venue: ptc, isPreset: true };
     }
-    if (query.includes("mexico")) {
+
+    if (query.includes("mexico tvi") || query.includes("mtvi") || (query.includes("mexico") && query.includes("vocational"))) {
       const mtvi = PRESET_TRAINING_VENUES.find((v) => v.id === "mexico-tvi")!;
       return { lat: mtvi.latitude, lng: mtvi.longitude, venue: mtvi, isPreset: true };
     }
-    if (query.includes("san fernando") || query.includes("capitol") || query.includes("manpower")) {
+
+    if (query.includes("megaup") || query.includes("dolores")) {
+      const megaup = PRESET_TRAINING_VENUES.find((v) => v.id === "megaup-skills")!;
+      return { lat: megaup.latitude, lng: megaup.longitude, venue: megaup, isPreset: true };
+    }
+
+    if (query.includes("pmtc") || query.includes("capitol") || query.includes("manpower")) {
       const pmtc = PRESET_TRAINING_VENUES.find((v) => v.id === "pmtc-csfp")!;
       return { lat: pmtc.latitude, lng: pmtc.longitude, venue: pmtc, isPreset: true };
     }
-    if (query.includes("san luis") || query.includes("municipal") || query.includes("poblacion")) {
+
+    if (query.includes("guiguinto") || query.includes("rtc") || query.includes("bulacan")) {
+      const rtc = PRESET_TRAINING_VENUES.find((v) => v.id === "rtcl-guiguinto")!;
+      return { lat: rtc.latitude, lng: rtc.longitude, venue: rtc, isPreset: true };
+    }
+
+    if (query.includes("san luis") || query.includes("poblacion") || query.includes("sta. cruz")) {
       const sanLuis = PRESET_TRAINING_VENUES.find((v) => v.id === "san-luis-tc")!;
       return { lat: sanLuis.latitude, lng: sanLuis.longitude, venue: sanLuis, isPreset: true };
     }
+
+    // Direct match against preset shortName or name
+    const directMatch = PRESET_TRAINING_VENUES.find((v) => {
+      const q = query;
+      const vShort = v.shortName.toLowerCase();
+      const vName = v.name.toLowerCase();
+      return q.includes(vShort) || vShort.includes(q) || vName.includes(q);
+    });
+
+    if (directMatch) {
+      return {
+        lat: directMatch.latitude,
+        lng: directMatch.longitude,
+        venue: directMatch,
+        isPreset: true
+      };
+    }
   }
 
-  // Fallback to San Luis Town Center
+  // Fallback to GPSAT San Luis / Mexico Campus (primary partner venue for San Luis)
   const defaultVenue = PRESET_TRAINING_VENUES[0];
   return {
     lat: DEFAULT_MAP_CENTER.lat,
@@ -253,4 +280,3 @@ export function getMapNavigationLinks(lat: number, lng: number, label?: string) 
     waze: `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`
   };
 }
-

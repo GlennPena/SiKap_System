@@ -5,6 +5,8 @@ import {
   Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, 
   AlertCircle, RefreshCw, X, Sparkles, ShieldCheck
 } from "lucide-react";
+import { validatePassword } from "@/lib/password-policy";
+import { PasswordChecklist } from "./PasswordChecklist";
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -418,13 +420,22 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                   <input
                     ref={codeInputRef}
                     type="text"
-                    maxLength={6}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={8}
                     required
                     autoFocus
                     placeholder="• • • • • •"
                     value={code}
                     onChange={(e) => {
-                      setCode(e.target.value.replace(/\D/g, ""));
+                      setCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                      if (codeError) setCodeError(null);
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData("text") || "";
+                      const clean = pasted.replace(/\D/g, "").slice(0, 6);
+                      setCode(clean);
                       if (codeError) setCodeError(null);
                     }}
                     className={`w-full text-center text-xl sm:text-2xl font-mono font-bold tracking-[0.35em] px-4 py-3 rounded-xl border transition-all placeholder:text-gray-300 placeholder:tracking-[0.35em] ${
@@ -554,21 +565,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </div>
               </div>
 
-              {/* Validation indicators */}
-              <div className="p-3 bg-gray-50/80 border border-gray-200/70 rounded-xl space-y-1.5 text-xs">
-                <div className={`flex items-center gap-2 ${newPassword.length >= 6 ? "text-emerald-700 font-bold" : "text-gray-400 font-medium"}`}>
-                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white border border-current shrink-0">
-                    {newPassword.length >= 6 ? "✓" : "•"}
-                  </span>
-                  <span>At least 6 characters long</span>
-                </div>
-                <div className={`flex items-center gap-2 ${newPassword && newPassword === confirmPassword ? "text-emerald-700 font-bold" : "text-gray-400 font-medium"}`}>
-                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white border border-current shrink-0">
-                    {newPassword && newPassword === confirmPassword ? "✓" : "•"}
-                  </span>
-                  <span>Password confirmation matches</span>
-                </div>
-              </div>
+              {/* Real-time Password Security Requirements Checklist */}
+              <PasswordChecklist
+                password={newPassword}
+                confirmPassword={confirmPassword}
+                className="mt-1"
+              />
 
               <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
                 <button
@@ -581,7 +583,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading || newPassword.length < 6 || newPassword !== confirmPassword}
+                  disabled={isLoading || !validatePassword(newPassword).isValid || newPassword !== confirmPassword}
                   className="group px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (

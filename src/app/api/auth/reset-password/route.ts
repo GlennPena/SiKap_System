@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { verifyPasswordResetCode, consumePasswordResetCode } from "@/lib/password-reset-store";
+import { validatePassword } from "@/lib/password-policy";
 
 export async function POST(req: Request) {
   try {
@@ -15,15 +16,16 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+    const passwordCheck = validatePassword(newPassword);
+    if (!passwordCheck.isValid) {
       return NextResponse.json(
-        { success: false, message: "New password must be at least 6 characters long." },
+        { success: false, message: passwordCheck.errors[0] || "New password does not meet security requirements." },
         { status: 400 }
       );
     }
 
     // Verify recovery code
-    const verification = verifyPasswordResetCode(email, code);
+    const verification = await verifyPasswordResetCode(email, code);
     if (!verification.valid || !verification.userId) {
       return NextResponse.json(
         { success: false, message: verification.message || "Invalid or expired recovery code." },
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
     });
 
     // Invalidate the code
-    consumePasswordResetCode(email);
+    await consumePasswordResetCode(email);
 
     return NextResponse.json({
       success: true,

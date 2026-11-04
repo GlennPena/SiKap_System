@@ -381,6 +381,43 @@ export const GeminiExplanationBox: React.FC<{
 };
 
 // Pathway Timeline component (Desktop Horizontal & Mobile Vertical) with Detailed Application Status Step Icons
+const TimelineCompletedStepIcon: React.FC<{ num: number }> = ({ num }) => {
+  if (num === 1) {
+    return (
+      <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="7" r="4" fill="white" stroke="white" strokeWidth="2" />
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2z" fill="white" stroke="white" strokeWidth="2" strokeLinejoin="round" />
+        <polyline points="16 11 18 13 22 9" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (num === 2) {
+    return (
+      <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" fill="white" stroke="white" />
+        <path d="M14 2v4a2 2 0 0 0 2 2h4" fill="#0A6B43" stroke="#0A6B43" />
+        <path d="m9 15 2 2 4-4" fill="none" stroke="#0A6B43" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+  if (num === 3) {
+    return (
+      <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" fill="white" stroke="white" />
+        <path d="M22 10v6" stroke="white" />
+        <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" fill="white" stroke="white" />
+        <path d="m9.5 14.5 1.8 1.8 3.5-3.5" fill="none" stroke="#0A6B43" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </svg>
+  );
+};
+
 export const PathwayTimeline: React.FC<{
   currentStep: number; // 1, 2, 3, 4, or 5 (5 = all steps completed including step 4 plan saved)
   appStatus?: "Pending" | "Enrolled" | "Declined" | "Archived" | string;
@@ -409,6 +446,7 @@ export const PathwayTimeline: React.FC<{
   const steps = [
     {
       num: 1,
+      dashboardLabel: "Register Profile",
       stageTag: "Stage 1 • Profile & CBF Match",
       title: "KK Profile Verified",
       desc: "Katipunan ng Kabataan identity & CBF skill profile verified by SK",
@@ -416,10 +454,12 @@ export const PathwayTimeline: React.FC<{
       completedSub: "Verified ✓",
       upcomingSub: "Required",
       icon: UserCheck,
-      completedIcon: ShieldCheck
+      completedIcon: ShieldCheck,
+      status: "done" as const,
     },
     {
       num: 2,
+      dashboardLabel: "Apply / Enroll",
       stageTag: "Stage 2 • TESDA Review",
       title: isDeclined
         ? "Application Declined"
@@ -435,10 +475,12 @@ export const PathwayTimeline: React.FC<{
       completedSub: "Approved & Enrolled ✓",
       upcomingSub: "Awaiting Application",
       icon: isDeclined ? XCircle : isPending ? FileText : FileCheck,
-      completedIcon: FileCheck
+      completedIcon: FileCheck,
+      status: (isEnrolled || isArchived) ? ("done" as const) : isDeclined ? ("declined" as const) : ("current" as const),
     },
     {
       num: 3,
+      dashboardLabel: "Training Course",
       stageTag: "Stage 3 • Skills Training",
       title: isArchived
         ? "Training & NC II Completed"
@@ -454,10 +496,12 @@ export const PathwayTimeline: React.FC<{
       completedSub: "Graduated & Certified ✓",
       upcomingSub: isDeclined ? "Paused" : "Unlocks on Enrollment",
       icon: GraduationCap,
-      completedIcon: Award
+      completedIcon: Award,
+      status: isArchived ? ("done" as const) : isEnrolled ? ("current" as const) : ("not_done" as const),
     },
     {
       num: 4,
+      dashboardLabel: "AI Career Guide",
       stageTag: "Stage 4 • AI Career Guide",
       title: isPlanSaved
         ? "Career Guide Plan Saved"
@@ -471,164 +515,144 @@ export const PathwayTimeline: React.FC<{
       completedSub: "Guide Saved ✓",
       upcomingSub: isDeclined ? "Paused" : isPlanSaved ? "Guide Generated ✓" : "AI Preview Available ✨",
       icon: TrendingUp,
-      completedIcon: Briefcase
+      completedIcon: Briefcase,
+      status: isPlanSaved ? ("done" as const) : isArchived ? ("current" as const) : ("not_done" as const),
     }
   ];
 
-  // Mobile Vertical Timeline (Detailed step icons + corner badges + status cards)
+  // Mobile Vertical Timeline (Matches Dashboard Stepper Layout + Photo 2 details container)
   const renderVerticalTimeline = () => {
     return (
-      <div className="py-1" id="pathway-timeline-mobile">
-        {steps.map((step, idx) => {
-          const isCompleted = step.num < currentStep && !(isDeclined && step.num >= 2);
-          const isActive = step.num === currentStep || (isDeclined && step.num === 2);
-          const isStepDeclined = isDeclined && step.num === 2;
-          const isStep4Preview = step.num === 4 && !isDeclined && !isCompleted && !isActive;
+      <div className="py-2 space-y-4" id="pathway-timeline-mobile">
+        {steps.map((st, idx) => {
+          const isDone = st.status === "done";
+          const isCurrent = st.status === "current";
+          const isStepDeclined = st.status === "declined";
           const isLast = idx === steps.length - 1;
-          const StepIcon = isCompleted ? step.completedIcon : step.icon;
+          const StepIcon = st.icon;
 
           return (
             <div
-              key={step.num}
-              onClick={() => onStepClick?.(step.num)}
+              key={st.num}
+              onClick={() => onStepClick?.(st.num)}
               className={`flex items-start gap-3.5 transition-all ${onStepClick ? "cursor-pointer group" : ""}`}
             >
-              {/* Stepper Icon Column (w-11 matches icon container width so vertical line is dead-center) */}
-              <div className="w-11 shrink-0 relative flex justify-center self-stretch">
-                {/* Connecting vertical line segment to next icon */}
+              {/* Stepper Icon Column */}
+              <div className="w-10 shrink-0 relative flex justify-center self-stretch">
                 {!isLast && (
-                  <div className="absolute top-[22px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-gray-200 z-0">
+                  <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-gray-200 z-0">
                     <div
                       className={`w-full transition-all duration-500 ${
-                        isCompleted ? "h-full bg-[#0A6B43]" : isActive ? "h-1/2 bg-emerald-500/50" : "h-0"
+                        isDone ? "h-full bg-[#0A6B43]" : isCurrent ? "h-1/2 bg-emerald-500/50" : "h-0"
                       }`}
                     />
                   </div>
                 )}
 
-                {/* Detailed Rounded-2xl Icon Box with Corner Status Micro-Badge */}
-                <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center border-2 transition-all shrink-0 relative z-10 ${
-                    isCompleted
-                      ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-sm shadow-emerald-950/10"
-                      : isStepDeclined
-                        ? "bg-rose-50 border-rose-500 text-rose-600 shadow-sm ring-4 ring-rose-100"
-                        : isActive
-                          ? isPending && step.num === 2
-                            ? "bg-blue-50 border-blue-600 text-blue-700 shadow-md ring-4 ring-blue-100/80"
-                            : "bg-emerald-50 border-[#0A6B43] text-[#0A6B43] shadow-md ring-4 ring-emerald-100/80"
-                          : isStep4Preview
-                            ? isPlanSaved
-                              ? "bg-emerald-50/80 border-emerald-400 text-[#0A6B43] shadow-xs"
-                              : "bg-amber-50/80 border-amber-400 text-amber-700 shadow-xs"
-                            : "bg-gray-50 border-gray-200 text-gray-400"
-                  }`}
-                >
-                  <StepIcon className={`w-5 h-5 ${isActive && !isStepDeclined ? "animate-pulse" : ""}`} />
-
-                  {/* Corner Micro-Badge showing exact status */}
-                  <span
-                    className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white shadow-2xs ${
-                      isCompleted
-                        ? "bg-emerald-500 text-white"
-                        : isStepDeclined
-                          ? "bg-rose-600 text-white"
-                          : isActive
-                            ? isPending && step.num === 2
-                              ? "bg-amber-500 text-white"
-                              : "bg-[#0A6B43] text-white"
-                            : isStep4Preview
-                              ? isPlanSaved
-                                ? "bg-emerald-500 text-white"
-                                : "bg-amber-500 text-white"
-                              : "bg-gray-200 text-gray-500"
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <Check className="w-2.5 h-2.5 stroke-[3.5]" />
-                    ) : isStepDeclined ? (
-                      <X className="w-2.5 h-2.5 stroke-[3.5]" />
-                    ) : isActive ? (
-                      isPending && step.num === 2 ? (
-                        <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
-                      ) : (
-                        <span>{step.num}</span>
-                      )
-                    ) : isStep4Preview ? (
-                      isPlanSaved ? (
-                        <Check className="w-2.5 h-2.5 stroke-[3.5]" />
-                      ) : (
-                        <Sparkles className="w-2.5 h-2.5" />
-                      )
-                    ) : (
-                      <Lock className="w-2.5 h-2.5" />
-                    )}
-                  </span>
+                <div className="relative z-10">
+                  {isDone ? (
+                    <div className="w-9 h-9 rounded-xl bg-[#0A6B43] text-white flex items-center justify-center shadow-xs relative">
+                      <TimelineCompletedStepIcon num={st.num} />
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 text-white border border-white flex items-center justify-center">
+                        <Check className="w-2 h-2 stroke-[3]" />
+                      </span>
+                    </div>
+                  ) : isStepDeclined ? (
+                    <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-400 text-rose-600 flex items-center justify-center shadow-xs relative">
+                      <XCircle className="w-4 h-4" />
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-600 text-white border border-white flex items-center justify-center">
+                        <X className="w-2 h-2 stroke-[3]" />
+                      </span>
+                    </div>
+                  ) : isCurrent ? (
+                    <div className="relative flex items-center justify-center">
+                      <span className="animate-ping-gentle absolute inline-flex h-full w-full rounded-xl bg-emerald-200 pointer-events-none" />
+                      <div className="w-9 h-9 rounded-xl border border-[#0A6B43] flex items-center justify-center bg-emerald-50 text-[#0A6B43] shadow-sm relative z-10">
+                        <StepIcon className="w-4 h-4" />
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 text-white border border-white flex items-center justify-center">
+                          <Clock className="w-2 h-2 stroke-[2.5]" />
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center relative">
+                      <StepIcon className="w-4 h-4" />
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-gray-200 text-gray-500 border border-white flex items-center justify-center">
+                        <Lock className="w-1.5 h-1.5" />
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Stepper Content Column */}
-              <div className={`flex-1 min-w-0 ${!isLast ? "pb-4" : "pb-1"}`}>
+              {/* Content Column */}
+              <div className="flex-1 min-w-0 pb-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block">
+                      STEP {st.num}
+                    </span>
+                    <h5 className="font-extrabold text-xs text-gray-900 leading-snug">
+                      {st.dashboardLabel}
+                    </h5>
+                  </div>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      isDone
+                        ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200"
+                        : isCurrent
+                        ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200"
+                        : isStepDeclined
+                        ? "bg-rose-50 text-rose-600 border border-rose-200"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {isDone ? "Completed" : isStepDeclined ? "Declined" : isCurrent ? "In Progress" : "Pending"}
+                  </span>
+                </div>
+
+                {/* Details Container (Photo 2) */}
                 <div
-                  className={`p-3 rounded-xl border transition-all ${
-                    isCompleted
-                      ? "bg-emerald-50/35 border-emerald-200/70"
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    isDone
+                      ? "bg-emerald-50/40 border-emerald-200/90 shadow-2xs"
                       : isStepDeclined
-                        ? "bg-rose-50/70 border-rose-200 shadow-2xs"
-                        : isActive
-                          ? isPending && step.num === 2
+                        ? "bg-rose-50/60 border-rose-200 shadow-2xs"
+                        : isCurrent
+                          ? isPending && st.num === 2
                             ? "bg-blue-50/60 border-blue-200 shadow-2xs"
                             : "bg-emerald-50/60 border-emerald-300 shadow-2xs"
-                          : isStep4Preview
-                            ? isPlanSaved
-                              ? "bg-emerald-50/40 border-emerald-200/80"
-                              : "bg-amber-50/40 border-amber-200/80"
-                            : "bg-gray-50/60 border-gray-200/70"
+                          : "bg-gray-50/60 border-gray-200/70"
                   }`}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-0.5">
-                    <span className={`text-[9px] font-extrabold uppercase tracking-wider ${
-                      isCompleted
+                  <span
+                    className={`text-[9px] font-extrabold uppercase tracking-wider block ${
+                      isDone
                         ? "text-[#0A6B43]"
                         : isStepDeclined
                           ? "text-rose-600"
-                          : isActive
-                            ? isPending && step.num === 2
+                          : isCurrent
+                            ? isPending && st.num === 2
                               ? "text-blue-700"
                               : "text-[#0A6B43]"
-                            : isStep4Preview
-                              ? isPlanSaved
-                                ? "text-[#0A6B43]"
-                                : "text-amber-700"
-                              : "text-gray-400"
-                    }`}>
-                      {step.stageTag}
-                    </span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 border ${
-                        isCompleted
-                          ? "bg-emerald-100/80 text-[#0A6B43] border-emerald-200"
-                          : isStepDeclined
-                            ? "bg-rose-100 text-rose-700 border-rose-200 font-extrabold"
-                            : isActive
-                              ? isPending && step.num === 2
-                                ? "bg-amber-100/90 text-amber-900 border-amber-300 font-extrabold"
-                                : "bg-[#0A6B43] text-white border-[#0A6B43] font-extrabold"
-                              : isStep4Preview
-                                ? isPlanSaved
-                                  ? "bg-emerald-100 text-[#0A6B43] border-emerald-300 font-extrabold"
-                                  : "bg-amber-100 text-amber-800 border-amber-300 font-extrabold"
-                                : "bg-gray-100 text-gray-500 border-gray-200"
-                      }`}
-                    >
-                      {isCompleted ? step.completedSub : isActive ? step.activeSub : step.upcomingSub}
-                    </span>
-                  </div>
-                  <h4 className={`text-xs sm:text-sm font-extrabold ${isActive || isCompleted || isStep4Preview ? "text-gray-900" : "text-gray-500"}`}>
-                    {step.title}
-                  </h4>
-                  <p className={`text-[11px] mt-1 leading-relaxed ${isActive || isCompleted || isStep4Preview ? "text-gray-600 font-medium" : "text-gray-400"}`}>
-                    {step.desc}
+                            : "text-gray-400"
+                    }`}
+                  >
+                    {st.stageTag}
+                  </span>
+                  <h6
+                    className={`text-xs font-extrabold block leading-snug mt-0.5 ${
+                      isCurrent || isDone ? "text-gray-900" : "text-gray-500"
+                    }`}
+                  >
+                    {st.title}
+                  </h6>
+                  <p
+                    className={`text-[12px] leading-relaxed pt-0.5 ${
+                      isCurrent || isDone ? "text-gray-600 font-medium" : "text-gray-400"
+                    }`}
+                  >
+                    {st.desc}
                   </p>
                 </div>
               </div>
@@ -639,165 +663,148 @@ export const PathwayTimeline: React.FC<{
     );
   };
 
-  // Desktop Horizontal Timeline (Detailed step icons + corner micro-badges + rich stage cards)
+  // Desktop Horizontal Timeline (Matches Dashboard Stepper Layout + Photo 2 details container)
   const renderHorizontalTimeline = () => {
     return (
-      <div className="w-full py-2" id="pathway-timeline-desktop">
-        <div className="relative flex justify-between items-stretch w-full gap-2 lg:gap-3 pt-2">
-          {steps.map((step, idx) => {
-            const isCompleted = step.num < currentStep && !(isDeclined && step.num >= 2);
-            const isActive = step.num === currentStep || (isDeclined && step.num === 2);
-            const isStepDeclined = isDeclined && step.num === 2;
-            const isStep4Preview = step.num === 4 && !isDeclined && !isCompleted && !isActive;
-            const isLast = idx === steps.length - 1;
-            const StepIcon = isCompleted ? step.completedIcon : step.icon;
-            const isSegmentCompleted = step.num < currentStep && !isDeclined;
+      <div className="w-full py-3 px-1" id="pathway-timeline-desktop">
+        <div className="flex w-full items-stretch gap-3 lg:gap-4">
+          {steps.map((st, idx) => {
+            const isDone = st.status === "done";
+            const isCurrent = st.status === "current";
+            const isStepDeclined = st.status === "declined";
+
+            const StepIcon = st.icon;
+            const nextStep = steps[idx + 1];
+            const connectorWidth = isDone && nextStep?.status === "done"
+              ? "100%"
+              : isDone && nextStep?.status === "current"
+              ? "100%"
+              : isCurrent
+              ? "50%"
+              : "0%";
 
             return (
               <div
-                key={step.num}
-                onClick={() => onStepClick?.(step.num)}
-                className={`flex flex-col items-center text-center flex-1 min-w-0 relative ${onStepClick ? "cursor-pointer group" : ""}`}
+                key={st.num}
+                onClick={() => onStepClick?.(st.num)}
+                title={onStepClick ? `Click to view ${st.dashboardLabel}` : undefined}
+                className={`flex-1 relative flex flex-col items-center text-center px-1 min-w-0 ${
+                  onStepClick ? "cursor-pointer group" : ""
+                }`}
               >
-                {/* Connecting track line between this step's icon center and next step's icon center */}
-                {!isLast && (
-                  <div className="absolute top-[24px] -translate-y-1/2 left-1/2 w-[calc(100%+12px)] h-1 z-0 pointer-events-none">
-                    <div className="w-full h-full bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-500 ${
-                          isSegmentCompleted
-                            ? "w-full bg-[#0A6B43]"
-                            : isActive && !isStepDeclined
-                              ? "w-1/2 bg-emerald-500/60"
-                              : "w-0"
-                        }`}
-                      />
-                    </div>
+                {/* Connecting Gray Line with Green Progress Fill (Top Aligned to Icon Center) */}
+                {idx < steps.length - 1 && (
+                  <div className="absolute top-[18px] sm:top-5 -translate-y-1/2 left-1/2 w-full h-[3px] sm:h-[3.5px] bg-gray-300 rounded-full z-0 overflow-hidden pointer-events-none">
+                    <div
+                      className="h-full bg-[#0A6B43] rounded-full transition-all duration-500"
+                      style={{ width: connectorWidth }}
+                    />
                   </div>
                 )}
 
-                {/* Detailed Rounded-2xl Step Icon Box with Corner Status Micro-Badge */}
-                <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all shrink-0 relative z-10 ${
-                    isCompleted
-                      ? "bg-[#0A6B43] border-[#0A6B43] text-white shadow-sm shadow-emerald-950/10"
-                      : isStepDeclined
-                        ? "bg-rose-50 border-rose-500 text-rose-600 shadow-md ring-4 ring-rose-100"
-                        : isActive
-                          ? isPending && step.num === 2
-                            ? "bg-blue-50 border-blue-600 text-blue-700 shadow-md ring-4 ring-blue-100/80"
-                            : "bg-emerald-50 border-[#0A6B43] text-[#0A6B43] shadow-md ring-4 ring-emerald-100/80"
-                          : isStep4Preview
-                            ? isPlanSaved
-                              ? "bg-emerald-50/90 border-emerald-400 text-[#0A6B43] shadow-xs"
-                              : "bg-amber-50/90 border-amber-400 text-amber-700 shadow-xs"
-                            : "bg-white border-gray-200 text-gray-400"
-                  }`}
-                >
-                  <StepIcon className={`w-5 h-5 ${isActive && !isStepDeclined ? "animate-pulse" : ""}`} />
-
-                  {/* Corner Micro-Badge showing exact status */}
-                  <span
-                    className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white shadow-2xs ${
-                      isCompleted
-                        ? "bg-emerald-500 text-white"
-                        : isStepDeclined
-                          ? "bg-rose-600 text-white"
-                          : isActive
-                            ? isPending && step.num === 2
-                              ? "bg-amber-500 text-white"
-                              : "bg-[#0A6B43] text-white"
-                            : isStep4Preview
-                              ? isPlanSaved
-                                ? "bg-emerald-500 text-white"
-                                : "bg-amber-500 text-white"
-                              : "bg-gray-200 text-gray-500"
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <Check className="w-2.5 h-2.5 stroke-[3.5]" />
-                    ) : isStepDeclined ? (
-                      <X className="w-2.5 h-2.5 stroke-[3.5]" />
-                    ) : isActive ? (
-                      isPending && step.num === 2 ? (
-                        <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
-                      ) : (
-                        <span>{step.num}</span>
-                      )
-                    ) : isStep4Preview ? (
-                      isPlanSaved ? (
-                        <Check className="w-2.5 h-2.5 stroke-[3.5]" />
-                      ) : (
-                        <Sparkles className="w-2.5 h-2.5" />
-                      )
-                    ) : (
-                      <Lock className="w-2.5 h-2.5" />
-                    )}
-                  </span>
+                {/* Node Box Header (Exact Dashboard Match with Micro-Badges) */}
+                <div className="relative z-10 flex items-center justify-center">
+                  {isDone ? (
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform group-hover:scale-105 active:scale-95 relative">
+                      <TimelineCompletedStepIcon num={st.num} />
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white border border-white flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </span>
+                    </div>
+                  ) : isStepDeclined ? (
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 border border-rose-400 text-rose-600 flex items-center justify-center shadow-xs relative">
+                      <XCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white border border-white flex items-center justify-center shadow-xs">
+                        <X className="w-2.5 h-2.5 stroke-[3]" />
+                      </span>
+                    </div>
+                  ) : isCurrent ? (
+                    <div className="relative flex items-center justify-center">
+                      <span className="animate-ping-gentle absolute inline-flex h-full w-full rounded-xl bg-emerald-200 pointer-events-none" />
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-[#0A6B43] flex items-center justify-center bg-emerald-50 text-[#0A6B43] shadow-sm relative z-10 transition-transform group-hover:scale-105 active:scale-95">
+                        <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white border border-white flex items-center justify-center shadow-xs">
+                          <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center transition-transform group-hover:scale-105 active:scale-95 relative">
+                      <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gray-200 text-gray-500 border border-white flex items-center justify-center">
+                        <Lock className="w-2 h-2" />
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Detailed Stage Card below icon */}
+                {/* Dashboard Stepper Label & Status Text */}
+                <div className="pt-3 sm:pt-3.5 space-y-0.5 w-full flex flex-col items-center text-center">
+                  <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+                    STEP {st.num}
+                  </span>
+                  <h5 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-snug">
+                    {st.dashboardLabel}
+                  </h5>
+                  <p
+                    className={`text-[10px] sm:text-[11px] font-semibold pt-0.5 ${
+                      isDone
+                        ? "text-[#0A6B43]"
+                        : isCurrent
+                        ? "text-[#0A6B43]"
+                        : isStepDeclined
+                        ? "text-rose-600 font-bold"
+                        : "text-gray-400 font-medium"
+                    }`}
+                  >
+                    {isDone ? "Completed" : isStepDeclined ? "Declined" : isCurrent ? "In Progress" : "Pending"}
+                  </p>
+                </div>
+
+                {/* Small Details Container below (matching Photo 2) */}
                 <div
-                  className={`mt-3 p-3 rounded-xl border w-full flex-1 flex flex-col justify-between transition-all ${
-                    isCompleted
-                      ? "bg-emerald-50/35 border-emerald-200/80"
+                  className={`mt-3.5 p-3 sm:p-3.5 rounded-xl border w-full flex-1 flex flex-col justify-start text-center transition-all ${
+                    isDone
+                      ? "bg-emerald-50/40 border-emerald-200/90 shadow-2xs"
                       : isStepDeclined
-                        ? "bg-rose-50/70 border-rose-200 shadow-2xs"
-                        : isActive
-                          ? isPending && step.num === 2
+                        ? "bg-rose-50/60 border-rose-200 shadow-2xs"
+                        : isCurrent
+                          ? isPending && st.num === 2
                             ? "bg-blue-50/60 border-blue-200 shadow-2xs"
                             : "bg-emerald-50/60 border-emerald-300 shadow-2xs"
-                          : isStep4Preview
-                            ? isPlanSaved
-                              ? "bg-emerald-50/40 border-emerald-200/80"
-                              : "bg-amber-50/40 border-amber-200/80"
-                            : "bg-gray-50/60 border-gray-200/70"
+                          : "bg-gray-50/60 border-gray-200/70"
                   }`}
                 >
                   <div className="space-y-1">
-                    <span className={`text-[9px] font-extrabold uppercase tracking-wider block ${
-                      isCompleted
-                        ? "text-[#0A6B43]"
-                        : isStepDeclined
-                          ? "text-rose-600"
-                          : isActive
-                            ? isPending && step.num === 2
-                              ? "text-blue-700"
-                              : "text-[#0A6B43]"
-                            : isStep4Preview
-                              ? isPlanSaved
-                                ? "text-[#0A6B43]"
-                                : "text-amber-700"
+                    <span
+                      className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider block ${
+                        isDone
+                          ? "text-[#0A6B43]"
+                          : isStepDeclined
+                            ? "text-rose-600"
+                            : isCurrent
+                              ? isPending && st.num === 2
+                                ? "text-blue-700"
+                                : "text-[#0A6B43]"
                               : "text-gray-400"
-                    }`}>
-                      {step.stageTag}
+                      }`}
+                    >
+                      {st.stageTag}
                     </span>
-                    <span className={`text-xs font-extrabold block leading-snug ${isActive || isCompleted || isStep4Preview ? "text-gray-900" : "text-gray-500"}`}>
-                      {step.title}
-                    </span>
-                    <p className={`text-[11px] leading-snug pt-0.5 ${isActive || isCompleted || isStep4Preview ? "text-gray-600 font-medium" : "text-gray-400"}`}>
-                      {step.desc}
+                    <h6
+                      className={`text-xs sm:text-[13px] font-extrabold block leading-snug ${
+                        isCurrent || isDone ? "text-gray-900" : "text-gray-500"
+                      }`}
+                    >
+                      {st.title}
+                    </h6>
+                    <p
+                      className={`text-[12px] leading-relaxed pt-0.5 ${
+                        isCurrent || isDone ? "text-gray-600 font-medium" : "text-gray-400"
+                      }`}
+                    >
+                      {st.desc}
                     </p>
-                  </div>
-
-                  <div className="pt-2.5 mt-2 border-t border-black/5">
-                    <span className={`text-[10px] inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full border ${
-                      isCompleted
-                        ? "bg-emerald-100/80 text-[#0A6B43] font-bold border-emerald-200"
-                        : isStepDeclined
-                          ? "bg-rose-100 text-rose-700 font-extrabold border-rose-200"
-                          : isActive
-                            ? isPending && step.num === 2
-                              ? "bg-amber-100/90 text-amber-900 font-extrabold border-amber-300"
-                              : "bg-[#0A6B43] text-white font-extrabold border-[#0A6B43]"
-                            : isStep4Preview
-                              ? isPlanSaved
-                                ? "bg-emerald-100 text-[#0A6B43] font-extrabold border-emerald-300"
-                                : "bg-amber-100 text-amber-800 font-extrabold border-amber-300"
-                              : "bg-gray-100 text-gray-500 font-medium border-gray-200"
-                    }`}>
-                      {isCompleted ? step.completedSub : isActive ? step.activeSub : step.upcomingSub}
-                    </span>
                   </div>
                 </div>
               </div>

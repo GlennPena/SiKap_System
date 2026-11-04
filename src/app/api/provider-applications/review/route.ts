@@ -90,6 +90,7 @@ export async function POST(req: Request) {
             role: assignedRole,
             status: "Active",
             institutionName: application.institutionName,
+            providerType: application.providerType || (assignedRole === "TESDA Representative" ? "Public TESDA Institute" : "Private TVET Institute"),
             cptrNumber: application.cptrNumber
           }
         });
@@ -103,6 +104,7 @@ export async function POST(req: Request) {
             role: assignedRole,
             status: "Active",
             institutionName: application.institutionName,
+            providerType: application.providerType || (assignedRole === "TESDA Representative" ? "Public TESDA Institute" : "Private TVET Institute"),
             cptrNumber: application.cptrNumber
           }
         });

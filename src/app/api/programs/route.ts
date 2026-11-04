@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, sanitizeApiError } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { notifyNewProgramPublished } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,15 @@ export async function GET(request: Request) {
         ? { activeStatus: "Closed" }
         : { activeStatus: { not: "Closed" } },
       include: {
-        category: true
+        category: true,
+        partner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            officialAcc: true
+          }
+        }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -67,6 +76,7 @@ export async function POST(request: Request) {
         contactPerson: body.contactPerson || "TESDA Registrar",
         contactNumber: body.contactNumber || "+63 917 000 1122",
         activeStatus: "Active",
+        partnerId: (session?.user as any)?.id || undefined,
         categoryId: body.categoryId || undefined,
         requiredDocuments: body.requiredDocuments || ["Birth Certificate", "2x2 Picture"],
         requiredSkills: body.requiredSkills || [],
@@ -87,6 +97,15 @@ export async function POST(request: Request) {
         category: true
       }
     });
+
+    // Notify KK Youth members of the newly published scholarship course
+    notifyNewProgramPublished({
+      programId: newProgram.id,
+      title: newProgram.title,
+      provider: newProgram.provider,
+      location: newProgram.location,
+      trainingHours: newProgram.trainingHours
+    }).catch(err => console.error("[Notification Error - Program Published]:", err));
 
     return NextResponse.json({ success: true, data: newProgram }, { status: 201 });
   } catch (error: any) {
@@ -115,6 +134,10 @@ export async function PUT(request: Request) {
     
     const updateData: any = { ...body };
     delete updateData.id;
+    delete updateData.category;
+    delete updateData.partner;
+    delete updateData.referrals;
+    delete updateData._count;
 
     // Slot integrity recalculation
     if (body.slotsTotal !== undefined) {

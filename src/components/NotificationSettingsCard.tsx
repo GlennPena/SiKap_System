@@ -35,7 +35,7 @@ interface NotificationSettingsCardProps {
 export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> = ({
   userRole = "KK_YOUTH",
   userEmail,
-  addToast = () => {},
+  addToast = () => { },
   compact = false,
   className
 }) => {
@@ -337,15 +337,13 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                   type="button"
                   onClick={() => handleTogglePush(!pushEnabled || !pushStatus.subscribed)}
                   disabled={saving || !pushStatus.supported || pushStatus.permission === "denied"}
-                  className={`relative inline-flex h-5 sm:h-6 w-9 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    pushEnabled && pushStatus.subscribed ? "bg-[#0A6B43]" : "bg-gray-200"
-                  }`}
+                  className={`relative inline-flex h-5 sm:h-6 w-9 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${pushEnabled && pushStatus.subscribed ? "bg-[#0A6B43]" : "bg-gray-200"
+                    }`}
                   aria-label="Toggle Web Push Notifications"
                 >
                   <span
-                    className={`pointer-events-none inline-block h-4 sm:h-5 w-4 sm:w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      pushEnabled && pushStatus.subscribed ? "translate-x-4 sm:translate-x-5" : "translate-x-0"
-                    }`}
+                    className={`pointer-events-none inline-block h-4 sm:h-5 w-4 sm:w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${pushEnabled && pushStatus.subscribed ? "translate-x-4 sm:translate-x-5" : "translate-x-0"
+                      }`}
                   />
                 </button>
               </div>
@@ -386,15 +384,13 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
                     savePreferences({ emailEnabled: next });
                   }}
                   disabled={saving}
-                  className={`relative inline-flex h-5 sm:h-6 w-9 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    emailEnabled ? "bg-[#0A6B43]" : "bg-gray-200"
-                  }`}
+                  className={`relative inline-flex h-5 sm:h-6 w-9 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${emailEnabled ? "bg-[#0A6B43]" : "bg-gray-200"
+                    }`}
                   aria-label="Toggle Email Notifications"
                 >
                   <span
-                    className={`pointer-events-none inline-block h-4 sm:h-5 w-4 sm:w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      emailEnabled ? "translate-x-4 sm:translate-x-5" : "translate-x-0"
-                    }`}
+                    className={`pointer-events-none inline-block h-4 sm:h-5 w-4 sm:w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${emailEnabled ? "translate-x-4 sm:translate-x-5" : "translate-x-0"
+                      }`}
                   />
                 </button>
               </div>
@@ -408,7 +404,32 @@ export const NotificationSettingsCard: React.FC<NotificationSettingsCardProps> =
               <span>{isTESDA ? "TESDA Partner Notification Triggers" : isBarangayGov ? "Barangay Governance Alerts" : "Youth Notification Triggers"}</span>
             </div>
 
-            {/* Trigger 1: Application / Referral Updates */}
+            {/* Trigger: KK Membership & Account Verification Alerts */}
+            {isYouth && (
+              <label className="flex items-start justify-between gap-3 p-3 sm:p-3.5 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
+                <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
+                  <UserCheck className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-[14px] font-bold text-gray-800 leading-tight">KK Membership & Verification Alerts</p>
+                    <p className="text-[11px] sm:text-[12px] text-gray-500 font-medium leading-relaxed mt-0.5 sm:mt-1 break-words">
+                      Receive instant system alerts and official email dispatch when your Katipunan ng Kabataan registration is approved or reviewed by Barangay SK Officials.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={notifyOnNewRegistrations}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setNotifyOnNewRegistrations(next);
+                    savePreferences({ notifyOnNewRegistrations: next });
+                  }}
+                  className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-xs accent-[#0A6B43] text-[#0A6B43] mt-1 cursor-pointer shrink-0 ml-2"
+                />
+              </label>
+            )}
+
+            {/* Trigger 2: Application / Referral Updates */}
             {isYouth && (
               <label className="flex items-start justify-between gap-3 p-3 sm:p-3.5 bg-gray-50/70 hover:bg-gray-50 border border-gray-200 rounded-xl cursor-pointer transition-colors min-w-0">
                 <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">

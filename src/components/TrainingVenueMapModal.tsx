@@ -86,7 +86,7 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
   const [copiedCoords, setCopiedCoords] = useState<boolean>(false);
   const [isLeafletReady, setIsLeafletReady] = useState<boolean>(false);
 
-  // Sync state when modal opens
+  // Sync state and map position when modal opens or target program changes
   useEffect(() => {
     if (isOpen) {
       const res = resolveProgramCoordinates(initialLocation, initialLat, initialLng);
@@ -97,6 +97,21 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
       setSelectedPresetId(res.venue?.id || "");
       setSearchQuery("");
       setSearchError("");
+
+      // Instantly synchronize Leaflet map and marker if map instance is already live
+      if (mapInstanceRef.current && markerInstanceRef.current) {
+        mapInstanceRef.current.setView([res.lat, res.lng], 15, { animate: true });
+        markerInstanceRef.current.setLatLng([res.lat, res.lng]);
+        const popupContent = `
+          <div style="font-family: inherit; font-size: 12px; line-height: 1.4; padding: 2px;">
+            <strong style="color: #0A6B43; font-weight: 800; font-size: 13px;">${provider || "TESDA Partner Venue"}</strong>
+            <p style="margin: 4px 0 2px; color: #1f2937; font-weight: 600;">${clean}</p>
+            ${room ? `<p style="margin: 0; color: #4b5563; font-size: 11px;">Room: <strong>${room}</strong></p>` : ""}
+          </div>
+        `;
+        markerInstanceRef.current.setPopupContent(popupContent);
+        mapInstanceRef.current.invalidateSize();
+      }
 
       // Live geocoding fallback if no explicit coordinates were saved/embedded and not a preset
       const hasSavedCoords = extractLocationCoords(initialLocation) || (typeof initialLat === "number" && initialLat !== 0);
@@ -110,13 +125,17 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
               if (!isNaN(newLat) && !isNaN(newLng)) {
                 setCurrentLat(newLat);
                 setCurrentLng(newLng);
+                if (mapInstanceRef.current && markerInstanceRef.current) {
+                  mapInstanceRef.current.setView([newLat, newLng], 15, { animate: true });
+                  markerInstanceRef.current.setLatLng([newLat, newLng]);
+                }
               }
             }
           })
           .catch((e) => console.warn("Live geocode fallback error:", e));
       }
     }
-  }, [isOpen, initialLocation, initialLat, initialLng]);
+  }, [isOpen, initialLocation, initialLat, initialLng, provider, room]);
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -136,9 +155,14 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
           mapInstanceRef.current = null;
         }
 
+        // Fresh coordinates resolution directly from props to avoid stale React closure
+        const resInit = resolveProgramCoordinates(initialLocation, initialLat, initialLng);
+        const targetLat = resInit.lat;
+        const targetLng = resInit.lng;
+
         // Create Map
         const map = L.map(mapContainerRef.current, {
-          center: [currentLat, currentLng],
+          center: [targetLat, targetLng],
           zoom: 15,
           zoomControl: false
         });
@@ -187,7 +211,7 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
           popupAnchor: [0, -42]
         });
 
-        const marker = L.marker([currentLat, currentLng], {
+        const marker = L.marker([targetLat, targetLng], {
           icon: customPinIcon,
           draggable: mode === "picker"
         }).addTo(map);
@@ -253,12 +277,16 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
         markerInstanceRef.current = marker;
         setIsLeafletReady(true);
 
-        // Invalidate map size after animation
-        setTimeout(() => {
+        // Invalidate map size across animation frames to guarantee full render
+        const triggerInvalidate = () => {
           if (mapInstanceRef.current) {
             mapInstanceRef.current.invalidateSize();
           }
-        }, 250);
+        };
+        requestAnimationFrame(triggerInvalidate);
+        setTimeout(triggerInvalidate, 80);
+        setTimeout(triggerInvalidate, 200);
+        setTimeout(triggerInvalidate, 400);
       } catch (err) {
         console.error("Failed to load Leaflet:", err);
       }

@@ -27,6 +27,8 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { motion } from "motion/react";
+import { validatePassword } from "@/lib/password-policy";
+import { PasswordChecklist } from "./PasswordChecklist";
 import { SikapLogo, Toast } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { AnimatedGridBackground } from "./AnimatedGridBackground";
@@ -266,8 +268,9 @@ export const TESDAPartnerRegister: React.FC<TESDAPartnerRegisterProps> = ({
       setErrorMessage("Please provide a valid institutional email address.");
       return false;
     }
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters long.");
+    const pwdVal = validatePassword(password);
+    if (!pwdVal.isValid) {
+      setErrorMessage(pwdVal.errors[0] || "Password does not meet security requirements.");
       return false;
     }
     if (password !== confirmPassword) {
@@ -762,7 +765,7 @@ export const TESDAPartnerRegister: React.FC<TESDAPartnerRegisterProps> = ({
                             <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
                             <input
                               type={showPassword ? "text" : "password"}
-                              placeholder="At least 6 characters"
+                              placeholder="Min. 8 characters"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
                               className="w-full h-11 pl-10 pr-10 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm font-medium text-gray-900 focus:border-[#0A6B43] focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
@@ -797,6 +800,15 @@ export const TESDAPartnerRegister: React.FC<TESDAPartnerRegisterProps> = ({
                           </div>
                         </div>
                       </div>
+
+                      {/* Real-time Password Security Requirements Checklist */}
+                      {(password || confirmPassword) && (
+                        <PasswordChecklist
+                          password={password}
+                          confirmPassword={confirmPassword}
+                          className="mt-3"
+                        />
+                      )}
                     </div>
                   </div>
                 )}

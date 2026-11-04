@@ -312,7 +312,9 @@ export async function POST(request: Request) {
         referralId: txResult.referral.id,
         youthName: txResult.referral.youth?.name || "Youth Applicant",
         barangayName: txResult.referral.youth?.barangay?.name || "San Luis",
-        programTitle: txResult.referral.program?.title || "TESDA Program"
+        programTitle: txResult.referral.program?.title || "TESDA Program",
+        provider: txResult.referral.program?.provider || null,
+        programId: txResult.referral.programId,
       }).catch((err) => console.error("[New Application Notification Error]:", err));
     }
 

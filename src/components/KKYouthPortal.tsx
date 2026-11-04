@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
-  Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
+  Calendar, CalendarDays, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
 
   BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2, BookOpen, Maximize2,
@@ -26,8 +26,9 @@ import { normalizeSkills } from "../lib/cbf-normalization";
 import { GeminiLongTermCareerPlan, getFallbackTagalogCareerPlan, getFallbackPersonalizedRationale, getFallbackPersonalized3StepPathway } from "../lib/gemini";
 import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
 import { broadcastDataChange } from "../lib/realtime-sync";
+import { validatePassword } from "../lib/password-policy";
 import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
-import { extractLocationDisplay, resolveProgramCoordinates, getMapNavigationLinks } from "../lib/training-venues";
+import { extractLocationDisplay, resolveProgramCoordinates, extractLocationCoords, getMapNavigationLinks } from "../lib/training-venues";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 
 // --- KK PORTAL REAL-TIME SCROLL VELOCITY TRACKER ---
@@ -243,9 +244,9 @@ export const EnrolledProgramMiniMap: React.FC<{
   }, [coords.lat, coords.lng]);
 
   return (
-    <div className="bg-gray-50 rounded-2xl border border-gray-200/90 overflow-hidden flex flex-col h-full shadow-2xs group">
+    <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden flex flex-col h-full shadow-2xs">
       {/* Map Canvas with Floating Elements & Scrollable Zoom */}
-      <div className="relative flex-1 min-h-[220px] w-full bg-slate-100 overflow-hidden">
+      <div className="relative flex-1 min-h-[160px] w-full bg-slate-100 overflow-hidden">
         {/* Floating Pill: Training Venue Map */}
         <div className="absolute top-2.5 left-2.5 z-[500] pointer-events-none">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 text-gray-800 text-[10px] font-extrabold uppercase tracking-wider shadow-md border border-gray-200/80 backdrop-blur-xs">
@@ -270,15 +271,15 @@ export const EnrolledProgramMiniMap: React.FC<{
       </div>
 
       {/* Footer: Expand Map, Google Maps, and Waze located on the right part */}
-      <div className="p-2.5 px-3 bg-white border-t border-gray-200/80 flex items-center justify-end gap-3 text-[11px] font-bold text-gray-600 shrink-0">
+      <div className="py-3 sm:py-3.5 px-4 bg-white border-t border-gray-200 flex items-center justify-center gap-3 sm:gap-5 text-[11px] sm:text-xs font-semibold text-gray-600 shrink-0 leading-normal">
         <button
           type="button"
           onClick={onOpenFullMap}
-          className="inline-flex items-center gap-1 text-[#0A6B43] hover:text-[#075332] hover:underline cursor-pointer transition-colors"
+          className="inline-flex items-center gap-1.5 hover:text-[#0A6B43] hover:underline cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
           title="Expand Map"
         >
-          <Maximize2 className="w-3 h-3" />
           <span>Expand Map</span>
+          <Maximize2 className="w-3 h-3" />
         </button>
         <span className="text-gray-300">•</span>
         <a
@@ -286,7 +287,7 @@ export const EnrolledProgramMiniMap: React.FC<{
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 hover:text-[#0A6B43] hover:underline transition-colors"
+          className="inline-flex items-center gap-1 hover:text-[#0A6B43] hover:underline transition-all duration-200 hover:scale-105 active:scale-95"
         >
           <span>Google Maps</span>
           <ExternalLink className="w-2.5 h-2.5" />
@@ -297,7 +298,7 @@ export const EnrolledProgramMiniMap: React.FC<{
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 hover:text-[#0A6B43] hover:underline transition-colors"
+          className="inline-flex items-center gap-1 hover:text-[#0A6B43] hover:underline transition-all duration-200 hover:scale-105 active:scale-95"
         >
           <span>Waze</span>
           <ExternalLink className="w-2.5 h-2.5" />
@@ -320,10 +321,15 @@ export const DashboardDonutVisual: React.FC<{
     pctStrong: number;
     pctModerate: number;
     pctLow: number;
+    excellentProgram?: { id: string; title: string } | null;
+    strongProgram?: { id: string; title: string } | null;
+    moderateProgram?: { id: string; title: string } | null;
+    lowProgram?: { id: string; title: string } | null;
   };
   hoveredSlice: number | null;
   setHoveredSlice: (idx: number | null) => void;
-}> = ({ matchDistribution, hoveredSlice, setHoveredSlice }) => {
+  onProgramClick?: (progId: string) => void;
+}> = ({ matchDistribution, hoveredSlice, setHoveredSlice, onProgramClick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [donutProgress, setDonutProgress] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
@@ -403,10 +409,10 @@ export const DashboardDonutVisual: React.FC<{
   const animatedTotalMatches = Math.round((matchDistribution.total || 0) * donutProgress);
 
   const donutSlices = [
-    { label: "Excellent Match", count: matchDistribution.excellent, pct: matchDistribution.pctExcellent, color: "#0A6B43" },
-    { label: "Strong Match", count: matchDistribution.strong, pct: matchDistribution.pctStrong, color: "#10b981" },
-    { label: "Moderate Match", count: matchDistribution.moderate, pct: matchDistribution.pctModerate, color: "#f59e0b" },
-    { label: "Low Match", count: matchDistribution.low, pct: matchDistribution.pctLow, color: "#94a3b8" },
+    { label: "Excellent Match", count: matchDistribution.excellent, pct: matchDistribution.pctExcellent, color: "#0A6B43", prog: matchDistribution.excellentProgram },
+    { label: "Strong Match", count: matchDistribution.strong, pct: matchDistribution.pctStrong, color: "#10b981", prog: matchDistribution.strongProgram },
+    { label: "Moderate Match", count: matchDistribution.moderate, pct: matchDistribution.pctModerate, color: "#f59e0b", prog: matchDistribution.moderateProgram },
+    { label: "Low Match", count: matchDistribution.low, pct: matchDistribution.pctLow, color: "#94a3b8", prog: matchDistribution.lowProgram },
   ];
   const R = 48;
   const C = 2 * Math.PI * R; // ~301.59
@@ -442,7 +448,12 @@ export const DashboardDonutVisual: React.FC<{
                 strokeDashoffset={offset}
                 onMouseEnter={() => setHoveredSlice(idx)}
                 onMouseLeave={() => setHoveredSlice(null)}
-                className="cursor-pointer transition-[stroke-width] duration-150"
+                onClick={() => {
+                  if (s.count > 0 && s.prog?.id && onProgramClick) {
+                    onProgramClick(s.prog.id);
+                  }
+                }}
+                className={`transition-[stroke-width] duration-150 ${s.count > 0 ? "cursor-pointer" : "cursor-default"}`}
               />
             );
           })}
@@ -476,17 +487,30 @@ export const DashboardDonutVisual: React.FC<{
       <div className="w-full sm:w-auto min-w-[180px] sm:min-w-[200px] lg:min-w-[250px] space-y-1.5 lg:space-y-2.5">
         {donutSlices.map((s, idx) => {
           const isHovered = hoveredSlice === idx;
+          const hasResults = s.count > 0;
           return (
             <div
               key={s.label}
               onMouseEnter={() => setHoveredSlice(idx)}
               onMouseLeave={() => setHoveredSlice(null)}
+              onClick={() => {
+                if (hasResults && s.prog?.id && onProgramClick) {
+                  onProgramClick(s.prog.id);
+                }
+              }}
+              title={
+                hasResults
+                  ? `Click to view ${s.prog?.title ? `"${s.prog.title}"` : "matched program"}`
+                  : `${s.label}: 0 programs`
+              }
               style={{
                 animationDelay: hasStarted ? `${180 + idx * 120}ms` : "0ms",
                 animationFillMode: "both"
               }}
-              className={`flex items-center justify-between gap-4 sm:gap-8 lg:gap-10 py-1.5 px-3 lg:py-2.5 lg:px-6 lg:-mx-4 rounded-xl lg:rounded-full transition-all cursor-pointer ${
+              className={`flex items-center justify-between gap-4 sm:gap-8 lg:gap-10 py-1.5 px-3 lg:py-2.5 lg:px-6 lg:-mx-4 rounded-xl lg:rounded-full transition-all ${
                 hasStarted ? "animate-legend-pill" : "opacity-0"
+              } ${
+                hasResults ? "cursor-pointer active:scale-98" : "cursor-default"
               } ${
                 isHovered
                   ? "bg-gray-100 shadow-2xs scale-[1.02]"
@@ -676,9 +700,48 @@ export const DashboardRegisteredSkillsList: React.FC<{
   );
 };
 
+const DashboardCompletedStepIcon: React.FC<{ num: number }> = ({ num }) => {
+  if (num === 1) {
+    return (
+      <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="7" r="4" fill="white" stroke="white" strokeWidth="2" />
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2z" fill="white" stroke="white" strokeWidth="2" strokeLinejoin="round" />
+        <polyline points="16 11 18 13 22 9" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (num === 2) {
+    return (
+      <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" fill="white" stroke="white" />
+        <path d="M14 2v4a2 2 0 0 0 2 2h4" fill="#0A6B43" stroke="#0A6B43" />
+        <path d="m9 15 2 2 4-4" fill="none" stroke="#0A6B43" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+  if (num === 3) {
+    return (
+      <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" fill="white" stroke="white" />
+        <path d="M22 10v6" stroke="white" />
+        <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" fill="white" stroke="white" />
+        <path d="m9.5 14.5 1.8 1.8 3.5-3.5" fill="none" stroke="#0A6B43" strokeWidth="2.5" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-4 h-4 sm:w-4.5 sm:h-4.5" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" fill="white" stroke="white" />
+      <circle cx="12" cy="8" r="6" fill="white" stroke="white" />
+      <path d="m9.5 8 1.8 1.8 3.5-3.5" fill="none" stroke="#0A6B43" strokeWidth="2.5" />
+    </svg>
+  );
+};
+
 export const DashboardLivelihoodPathway: React.FC<{
   steps: Array<{ num: number; label: string; status: "done" | "current" | "not_done" }>;
-}> = ({ steps }) => {
+  onNavigateToPathway?: (stepNum?: number) => void;
+}> = ({ steps, onNavigateToPathway }) => {
   const isRevealed = useScrollReveal();
 
   return (
@@ -701,11 +764,15 @@ export const DashboardLivelihoodPathway: React.FC<{
           return (
             <div
               key={st.num}
-              className="flex-1 relative flex flex-col items-center text-center px-1 sm:px-2 min-w-0"
+              onClick={() => onNavigateToPathway?.(st.num)}
+              title="Click to view Livelihood Pathway"
+              className={`flex-1 relative flex flex-col items-center text-center px-1 sm:px-2 min-w-0 ${
+                onNavigateToPathway ? "cursor-pointer group" : ""
+              }`}
             >
               {/* Connecting Gray Line with Green Progress Fill */}
               {idx < steps.length - 1 && (
-                <div className="absolute top-4 sm:top-4.5 -translate-y-1/2 left-1/2 w-full h-[2.5px] sm:h-[3px] bg-gray-200 rounded-full z-0 overflow-hidden">
+                <div className="absolute top-[18px] sm:top-5 -translate-y-1/2 left-1/2 w-full h-[3px] sm:h-[3.5px] bg-gray-300 rounded-full z-0 overflow-hidden pointer-events-none">
                   <div
                     className={`h-full bg-[#0A6B43] rounded-full ${
                       !isRevealed
@@ -734,21 +801,27 @@ export const DashboardLivelihoodPathway: React.FC<{
                 className={`${isRevealed ? "animate-pathway-circle" : "opacity-0"} relative z-10 flex items-center justify-center`}
               >
                 {isDone ? (
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform hover:scale-105 relative">
-                    <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0A6B43] text-white flex items-center justify-center shadow-xs transition-transform group-hover:scale-110 hover:scale-110 active:scale-95 relative">
+                    <DashboardCompletedStepIcon num={st.num} />
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white border border-white flex items-center justify-center">
                       <Check className="w-2.5 h-2.5 stroke-[3]" />
                     </span>
                   </div>
                 ) : isCurrent ? (
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border-2 border-[#0A6B43] flex items-center justify-center bg-emerald-50 text-[#0A6B43] shadow-xs ring-2 ring-emerald-100 transition-transform hover:scale-105 relative">
-                    <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5 animate-pulse" />
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white border border-white flex items-center justify-center">
-                      <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
-                    </span>
+                  <div className="relative flex items-center justify-center">
+                    {/* Pulse ping ring in the back (matching officially enrolled pill dot animation) */}
+                    <span className="animate-ping-gentle absolute inline-flex h-full w-full rounded-xl bg-emerald-200 pointer-events-none" />
+
+                    {/* The box itself remains 100% visible (never becomes invisible) */}
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-[#0A6B43] flex items-center justify-center bg-emerald-50 text-[#0A6B43] shadow-sm relative z-10 transition-transform group-hover:scale-110 hover:scale-110 active:scale-95">
+                      <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white border border-white flex items-center justify-center shadow-xs">
+                        <Clock className="w-2.5 h-2.5 stroke-[2.5]" />
+                      </span>
+                    </div>
                   </div>
                 ) : (
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center transition-transform hover:scale-105 relative">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center transition-transform group-hover:scale-110 hover:scale-110 active:scale-95 relative">
                     <StepIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gray-200 text-gray-500 border border-white flex items-center justify-center">
                       <Lock className="w-2 h-2" />
@@ -765,10 +838,10 @@ export const DashboardLivelihoodPathway: React.FC<{
                 }}
                 className={`${isRevealed ? "animate-pathway-text" : "opacity-0"} pt-3 sm:pt-3.5 space-y-0.5 w-full flex flex-col items-center text-center`}
               >
-                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest block">
+                <span className="text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-widest block group-hover:text-emerald-700 transition-colors">
                   STEP {st.num}
                 </span>
-                <h5 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-snug">
+                <h5 className="font-extrabold text-xs sm:text-sm text-gray-900 leading-snug group-hover:text-[#0A6B43] transition-colors">
                   {st.label}
                 </h5>
                 <p
@@ -1573,6 +1646,27 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
   };
 
+  const parseImmediateStep = (stepText: string) => {
+    if (!stepText) return { title: "", desc: "" };
+    if (stepText.includes(" - ")) {
+      const parts = stepText.split(" - ");
+      return { title: parts[0].trim(), desc: parts.slice(1).join(" - ").trim() };
+    }
+    if (stepText.includes(" – ")) {
+      const parts = stepText.split(" – ");
+      return { title: parts[0].trim(), desc: parts.slice(1).join(" – ").trim() };
+    }
+    if (stepText.includes(": ")) {
+      const parts = stepText.split(": ");
+      return { title: parts[0].trim(), desc: parts.slice(1).join(": ").trim() };
+    }
+    const dotIndex = stepText.indexOf(". ");
+    if (dotIndex > 10 && dotIndex < 60) {
+      return { title: stepText.slice(0, dotIndex).trim(), desc: stepText.slice(dotIndex + 2).trim() };
+    }
+    return { title: stepText, desc: "" };
+  };
+
   // Render Step 4 Gemini AI Career & Livelihood Guide (unlocked during Enrolled stage for active trainees)
   const renderMotivationalCareerGuideCard = (programTitle: string, prog?: TESDAProgram | null) => {
     const matchingRoadmap = savedRoadmaps.find(r => r.programTitle?.toLowerCase().trim() === programTitle?.toLowerCase().trim());
@@ -1583,278 +1677,318 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       : planToShow;
 
     return (
-      <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-4 sm:p-6 lg:p-7 shadow-lg border border-emerald-700/60 space-y-5 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 border-b border-white/15 pb-4">
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse shrink-0" />
-              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
-                Google Gemini AI • Step 4 Future Career & Livelihood Guide
-              </span>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-400/20 text-emerald-200 border border-emerald-300/30 px-2 py-0.5 rounded-full">
-                {careerPlanLang === "tl" ? "Bukas para sa Naka-Enroll ✨" : "Unlocked for Enrolled Trainee ✨"}
-              </span>
-              {planToShow && (
-                <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCareerPlanLang("en")}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${careerPlanLang === "en"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-emerald-200 hover:text-white"
-                      }`}
-                  >
-                    English
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCareerPlanLang("tl")}
-                    disabled={isTranslatingPlan}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${careerPlanLang === "tl"
-                      ? "bg-amber-400 text-slate-950 font-black shadow-xs"
-                      : "text-emerald-200 hover:text-white"
-                      }`}
-                  >
-                    {isTranslatingPlan ? (
-                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                    ) : (
-                      <span>🇵🇭 Tagalog</span>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-            <h4 className="text-base sm:text-lg md:text-xl font-black text-white leading-snug">
-              {displayPlan?.roadmapTitle || (
-                careerPlanLang === "tl"
-                  ? "Plano para sa Trabaho at Negosyo Pagkatapos ng Training"
-                  : `Future Career & Livelihood Opportunities After ${programTitle}`
-              )}
-            </h4>
-            <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
-              {displayPlan?.summary || (
-                careerPlanLang === "tl"
-                  ? `Dahil opisyal ka nang naka-enroll sa ${programTitle}, buuin ang iyong praktikal na gabay sa trabaho, suweldo, at pagnenegosyo sa San Luis, Pampanga habang nagsasanay.`
-                  : `Now that you are officially enrolled in ${programTitle}, generate your personalized career action plan showing entry job roles, realistic Pampanga salary outlook, and local entrepreneurship pathways.`
-              )}
-            </p>
+      <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 space-y-5 sm:space-y-6 relative overflow-hidden animate-in fade-in duration-200">
+        {/* Top Header Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0A6B43]">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+              <span>Step 4 · Future Career &amp; Livelihood Guide</span>
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0A6B43] bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full shadow-2xs">
+              <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43]" />
+              <span>{careerPlanLang === "tl" ? "Bukas para sa Naka-Enroll" : "Unlocked for enrolled trainee"}</span>
+            </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
-            {isSaved ? (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <span className="w-full sm:w-auto justify-center px-3.5 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
-                  <BookmarkCheck className="w-4 h-4 text-emerald-300" />
-                  {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileActiveTab("badge");
-                    setCredentialsCompartment("roadmaps");
-                    setActiveTab(YouthScreen.PROFILE);
-                  }}
-                  className="w-full sm:w-auto justify-center px-3 py-2.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all flex items-center gap-1.5 cursor-pointer text-center border border-white/20"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>View in Credentials Hub →</span>
-                </button>
-              </div>
-            ) : planToShow ? (
-              <button
-                onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
-                disabled={isSavingPlan}
-                className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
-              >
-                {isSavingPlan ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    {careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}
-                  </>
-                ) : (
-                  <>
-                    <Bookmark className="w-3.5 h-3.5" />
-                    {careerPlanLang === "tl" ? "I-save sa Digital ID Card" : "Save Plan to Digital ID Card"}
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={() => handleGenerateCareerPlan(prog)}
-                disabled={isGeneratingPlan}
-                className="w-full sm:w-auto justify-center px-4 py-2.5 bg-white hover:bg-gray-100 active:scale-95 text-slate-900 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
-              >
-                {isGeneratingPlan ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
-                    {careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    {careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}
-                  </>
-                )}
-              </button>
-            )}
+          {/* Language Switcher */}
+          <div className="inline-flex items-center rounded-full bg-gray-100 p-0.5 border border-gray-200 self-start sm:self-auto shrink-0 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleToggleCareerPlanLang("en")}
+              className={`px-3 py-1 text-xs font-extrabold rounded-full transition-all cursor-pointer ${
+                careerPlanLang === "en"
+                  ? "bg-white text-gray-900 shadow-xs"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              English
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleCareerPlanLang("tl")}
+              disabled={isTranslatingPlan}
+              className={`px-3 py-1 text-xs font-extrabold rounded-full transition-all cursor-pointer flex items-center gap-1 ${
+                careerPlanLang === "tl"
+                  ? "bg-white text-gray-900 shadow-xs"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              {isTranslatingPlan ? (
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+              ) : (
+                <span>Tagalog</span>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Display Generated Plan Content */}
+        {/* Main Title, Subtitle, and Description */}
+        <div className="space-y-1.5">
+          <h3 className="text-[20px] sm:text-[24px] md:text-[26px] font-black text-gray-900 tracking-tight leading-snug">
+            {displayPlan?.roadmapTitle || (
+              careerPlanLang === "tl"
+                ? "Plano para sa Trabaho at Negosyo Pagkatapos ng Training"
+                : `Future Career & Livelihood Opportunities After ${programTitle}`
+            )}
+          </h3>
+          <p className="text-xs sm:text-sm font-bold text-[#0A6B43]">
+            {youthProfile.name} · Career Blueprint
+          </p>
+          <p className="text-xs sm:text-sm text-gray-600 font-medium leading-relaxed max-w-3xl pt-0.5">
+            {displayPlan?.summary || (
+              careerPlanLang === "tl"
+                ? `Dahil opisyal ka nang naka-enroll sa ${programTitle}, buuin ang iyong praktikal na gabay sa trabaho, suweldo, at pagnenegosyo sa San Luis, Pampanga habang nagsasanay.`
+                : `A step-by-step plan to turn his TESDA CSS NC II credential from GPSAT into steady employment or a home-based tech business in San Luis, Pampanga.`
+            )}
+          </p>
+        </div>
+
+        {/* Action Buttons Row */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-1">
+          {isSaved ? (
+            <>
+              <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 font-bold text-xs shadow-2xs">
+                <CheckCircle className="w-4 h-4 text-[#0A6B43]" />
+                <span>{careerPlanLang === "tl" ? "Nai-save na Career Roadmap" : "Saved Career Roadmap"}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileActiveTab("badge");
+                  setCredentialsCompartment("roadmaps");
+                  setActiveTab(YouthScreen.PROFILE);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-700 hover:text-[#0A6B43] hover:bg-gray-50 border border-gray-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+              >
+                <span>View Credentials Hub</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </>
+          ) : planToShow ? (
+            <button
+              onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
+              disabled={isSavingPlan}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 cursor-pointer"
+            >
+              {isSavingPlan ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>{careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className="w-3.5 h-3.5" />
+                  <span>{careerPlanLang === "tl" ? "I-save sa Digital ID Card" : "Save Plan to Digital ID Card"}</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => handleGenerateCareerPlan(prog)}
+              disabled={isGeneratingPlan}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0A6B43] hover:bg-[#075332] text-white font-extrabold text-xs shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              {isGeneratingPlan ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  <span>{careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>{careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Display Plan Content */}
         {planToShow && displayPlan ? (
-          <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
-            {/* Phase 1: Immediate 30 Days */}
-            <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-2.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
-                  {careerPlanLang === "tl" ? "Yugto 1 • Unang 30 Araw Pagkatapos ng Training" : "Phase 1 • First 30 Days After Training"}
-                </span>
-                <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
-                  {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & Jobseeker Registration"}
-                </h6>
+          <div className="space-y-5 sm:space-y-6 pt-2">
+            {/* Phase 1: First 30 Days */}
+            <div className="bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-emerald-50/30 border border-emerald-200/80 rounded-2xl p-5 sm:p-6 space-y-3.5 shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase text-[#0A6B43] tracking-widest block">
+                {careerPlanLang === "tl" ? "YUGTO 1 · UNANG 30 ARAW PAGKATAPOS NG TRAINING" : "PHASE 1 · FIRST 30 DAYS AFTER TRAINING"}
+              </span>
+              <h4 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight -mt-1">
+                {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & jobseeker registration"}
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => {
+                  const parsed = parseImmediateStep(stepItem);
+                  return (
+                    <div key={sIdx} className="flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[#0A6B43] text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                        {sIdx + 1}
+                      </span>
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <h5 className="text-xs sm:text-[13px] font-bold text-gray-900 leading-snug">
+                          {parsed.title}
+                        </h5>
+                        {parsed.desc && (
+                          <p className="text-[11px] sm:text-xs text-gray-600 font-medium leading-relaxed">
+                            {parsed.desc}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => (
-                  <li key={sIdx} className="bg-black/25 p-3 rounded-xl border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2.5 font-medium">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 shadow-2xs">
-                      {sIdx + 1}
-                    </span>
-                    <span className="leading-snug">{stepItem}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
 
-            {/* Phase 2: Dual Pathways (Wage Employment & Local Entrepreneurship) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
+            {/* Row 2: Track A & Track B Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
               {/* Track A: Wage Employment */}
-              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
-                    <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md w-fit">
-                      {careerPlanLang === "tl" ? "Opsyon A • Trabaho at Suweldo" : "Track A • Wage Employment"}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs flex flex-col justify-between hover:border-emerald-300 transition-colors">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200/80 text-blue-700 font-extrabold text-[10px] sm:text-[11px] uppercase tracking-wider">
+                      <Briefcase className="w-3.5 h-3.5" />
+                      <span>{careerPlanLang === "tl" ? "TRACK A · TRABAHO AT SUWELDO" : "TRACK A · WAGE EMPLOYMENT"}</span>
                     </span>
-                    <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-400/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
-                      <Coins className="w-3 h-3 text-emerald-300 shrink-0" />
-                      <span>{displayPlan.employmentTrack.estimatedSalary}</span>
+                    <span className="text-[#0A6B43] font-black text-xs bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                      {displayPlan.employmentTrack.estimatedSalary}
                     </span>
                   </div>
-                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                    <span><strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}</span>
-                  </p>
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
-                      {careerPlanLang === "tl" ? "Mga Trabahong Bagay Sayo:" : "Recommended Entry Job Roles:"}
+
+                  <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
+                    <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                    <span><strong className="text-gray-900">Target areas:</strong> {displayPlan.employmentTrack.targetLocations}</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                      {careerPlanLang === "tl" ? "MGA TRABAHONG BAGAY SAYO" : "ENTRY ROLES"}
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {displayPlan.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
-                        <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-lg text-white border border-white/10 shadow-2xs flex items-center gap-1.5">
-                          <Briefcase className="w-3 h-3 text-cyan-300 shrink-0" />
-                          <span>{role}</span>
+                        <span key={rIdx} className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50/80 text-xs text-gray-800 font-semibold shadow-2xs">
+                          {role}
                         </span>
                       ))}
                     </div>
                   </div>
-                </div>
-                <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-xs text-emerald-100">
-                  {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
-                    <p key={stIdx} className="flex items-start gap-2 text-[11px] sm:text-xs leading-relaxed">
-                      <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
-                      <span>{step}</span>
-                    </p>
-                  ))}
+
+                  <div className="space-y-2 pt-1 border-t border-gray-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                      {careerPlanLang === "tl" ? "MGA HAKBANG" : "NEXT MOVES"}
+                    </span>
+                    <div className="space-y-2">
+                      {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
+                        <div key={stIdx} className="flex items-start gap-2.5 text-xs text-gray-700 leading-relaxed font-medium">
+                          <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43] shrink-0 mt-0.5" />
+                          <span>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Track B: Entrepreneurship & Freelancing */}
-              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
-                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md w-fit">
-                      {careerPlanLang === "tl" ? "Opsyon B • Sariling Negosyo at Raket" : "Track B • Self-Employment & Freelance"}
-                    </span>
-                    <span className="text-[11px] font-bold text-amber-200 bg-amber-400/15 border border-amber-300/25 px-2.5 py-0.5 rounded-md flex items-center gap-1.5 w-fit">
-                      <Wrench className="w-3 h-3 text-amber-300 shrink-0" />
-                      <span>{careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}</span>
-                    </span>
+              {/* Track B: Self-Employment & Freelance */}
+              <div className="bg-white border border-gray-200/80 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs flex flex-col justify-between hover:border-amber-300 transition-colors">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-800 font-extrabold text-[10px] sm:text-[11px] uppercase tracking-wider">
+                        <Store className="w-3.5 h-3.5" />
+                        <span>{careerPlanLang === "tl" ? "TRACK B · SARILING NEGOSYO AT RAKET" : "TRACK B · SELF-EMPLOYMENT & FREELANCE"}</span>
+                      </span>
+                      <span className="inline-block px-2.5 py-0.5 rounded-md bg-amber-100/70 border border-amber-300 text-amber-900 text-[10px] font-extrabold uppercase tracking-wide">
+                        {careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter grants available"}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
-                    <Store className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                    <span><strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}</span>
-                  </p>
-                  <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
-                    <p className="text-xs text-amber-100 leading-relaxed font-medium flex items-start gap-1.5">
-                      <Gift className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                      <span><strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}</span>
-                    </p>
+
+                  <div className="flex items-start gap-2 text-xs text-gray-800 font-medium">
+                    <Briefcase className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <span><strong className="text-gray-900">{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}</span>
                   </div>
-                </div>
-                <div className="pt-2.5 border-t border-white/10 space-y-1.5">
-                  <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
-                    {careerPlanLang === "tl" ? "Mga Serbisyo o Produktong Pwedeng Simulan:" : "Initial Services to Offer:"}
-                  </span>
-                  {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
-                    <p key={sIdx} className="text-[11px] sm:text-xs text-emerald-100 flex items-start gap-2 font-medium leading-relaxed">
-                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
-                      <span>{srv}</span>
-                    </p>
-                  ))}
+
+                  {/* Funding highlight box */}
+                  <div className="border border-amber-200/90 bg-amber-50/70 rounded-xl p-3 sm:p-3.5 flex items-start gap-2.5 text-xs text-amber-950 font-semibold shadow-2xs">
+                    <Coins className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <span><strong>{careerPlanLang === "tl" ? "Tulong Pinansyal:" : "Funding:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}</span>
+                  </div>
+
+                  <div className="space-y-2 pt-1 border-t border-gray-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                      {careerPlanLang === "tl" ? "MGA SERBISYONG PWEDENG SIMULAN" : "SERVICES TO OFFER"}
+                    </span>
+                    <div className="space-y-2">
+                      {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
+                        <div key={sIdx} className="flex items-start gap-2 text-xs text-gray-700 leading-relaxed font-medium">
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0 mt-0.5" />
+                          <span>{srv}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Phase 3 & Local Support Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 text-xs bg-black/25 p-3.5 sm:p-4.5 rounded-xl border border-white/10">
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-purple-300 shrink-0" />
-                  <span>{careerPlanLang === "tl" ? "1–2 Taon na Pag-asenso sa Karera:" : "1–2 Year Long-Term Elevation:"}</span>
+            {/* Row 3: Long-term elevation & Local support */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              {/* 1-2 Year Long-Term Elevation */}
+              <div className="bg-gray-50/70 border border-gray-200/70 rounded-2xl p-5 sm:p-6 space-y-3 shadow-2xs">
+                <span className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-purple-600" />
+                  <span>{careerPlanLang === "tl" ? "1–2 TAON NA PAG-ASENSO SA KARERA" : "1–2 YEAR LONG-TERM ELEVATION"}</span>
                 </span>
-                {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
-                  <p key={mIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
-                    <span className="text-purple-400 shrink-0 mt-0.5">◆</span>
-                    <span>{milestone}</span>
-                  </p>
-                ))}
+                <div className="space-y-2 pt-1">
+                  {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
+                    <div key={mIdx} className="flex items-start gap-2 text-xs text-gray-700 leading-relaxed font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 mt-1.5" />
+                      <span>{milestone}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
-                  <Handshake className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                  <span>{careerPlanLang === "tl" ? "Mga Malalapit na Tanggapan sa San Luis:" : "Local Support Contacts in San Luis:"}</span>
+
+              {/* Local Support */}
+              <div className="bg-gray-50/70 border border-gray-200/70 rounded-2xl p-5 sm:p-6 space-y-3 shadow-2xs">
+                <span className="text-xs font-black uppercase tracking-wider text-[#0A6B43] flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-[#0A6B43]" />
+                  <span>{careerPlanLang === "tl" ? "MGA MALALAPIT NA TANGGAPAN SA SAN LUIS" : "LOCAL SUPPORT IN SAN LUIS"}</span>
                 </span>
-                {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
-                  <p key={cIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    <span>{contact}</span>
-                  </p>
-                ))}
+                <div className="space-y-2 pt-1">
+                  {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
+                    <div key={cIdx} className="flex items-start gap-2 text-xs text-gray-700 leading-relaxed font-medium">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{contact}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-center py-6 sm:py-8 space-y-3 bg-black/20 rounded-xl border border-dashed border-white/20 p-4 sm:p-6">
-            <Sparkles className="w-9 h-9 sm:w-10 sm:h-10 text-amber-400 mx-auto animate-pulse" />
-            <h5 className="font-extrabold text-white text-sm sm:text-base leading-snug">
-              Preview Your Future Opportunities After Completing {programTitle}!
+          <div className="text-center py-6 sm:py-8 space-y-3 bg-gray-50/70 rounded-2xl border border-dashed border-gray-200 p-4 sm:p-6">
+            <Sparkles className="w-9 h-9 sm:w-10 sm:h-10 text-amber-500 mx-auto animate-pulse" />
+            <h5 className="font-extrabold text-gray-900 text-sm sm:text-base leading-snug">
+              Your Training is Active! Ready to Build Your Post-Graduation Career Plan?
             </h5>
-            <p className="text-xs text-emerald-100 max-w-lg mx-auto leading-relaxed font-medium">
-              Stay motivated while in training! Click below to let Google Gemini AI show you the career paths, estimated salary, and local business opportunities waiting for you in San Luis, Pampanga once you finish <strong>{programTitle}</strong>.
+            <p className="text-xs text-gray-600 max-w-lg mx-auto leading-relaxed font-medium">
+              Click below to generate a Gemini AI career strategy tailored for your credentials.
             </p>
             <button
               onClick={() => handleGenerateCareerPlan(prog)}
               disabled={isGeneratingPlan}
-              className="w-full sm:w-auto mt-3 px-6 py-3 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
+              className="w-full sm:w-auto mt-3 px-6 py-3 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
             >
               {isGeneratingPlan ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                  Generating your realistic Gemini plan...
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  <span>Generating your realistic Gemini plan...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-slate-950" />
-                  Preview My Future Career Guide with Gemini AI
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Generate Gemini Post-Graduation Career Plan</span>
                 </>
               )}
             </button>
@@ -2282,15 +2416,33 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     let moderate = 0;  // score >= 50 && score < 75
     let low = 0;       // score > 0 && score < 50
 
+    let excellentProgram: { id: string; title: string } | null = null;
+    let strongProgram: { id: string; title: string } | null = null;
+    let moderateProgram: { id: string; title: string } | null = null;
+    let lowProgram: { id: string; title: string } | null = null;
+
     scoredPrograms.forEach(sp => {
+      const progInfo = { id: sp.program.id, title: sp.program.title };
       if (sp.matchScore >= 90) {
         excellent++;
+        if (!excellentProgram || (!sp.isCompleted && excellentProgram)) {
+          excellentProgram = progInfo;
+        }
       } else if (sp.matchScore >= 75) {
         strong++;
+        if (!strongProgram || (!sp.isCompleted && strongProgram)) {
+          strongProgram = progInfo;
+        }
       } else if (sp.matchScore >= 50) {
         moderate++;
+        if (!moderateProgram || (!sp.isCompleted && moderateProgram)) {
+          moderateProgram = progInfo;
+        }
       } else if (sp.matchScore > 0) {
         low++;
+        if (!lowProgram || (!sp.isCompleted && lowProgram)) {
+          lowProgram = progInfo;
+        }
       }
     });
 
@@ -2305,6 +2457,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       pctStrong: total > 0 ? Math.round((strong / total) * 100) : 0,
       pctModerate: total > 0 ? Math.round((moderate / total) * 100) : 0,
       pctLow: total > 0 ? Math.max(0, 100 - Math.round((excellent / total) * 100) - Math.round((strong / total) * 100) - Math.round((moderate / total) * 100)) : 0,
+      excellentProgram,
+      strongProgram,
+      moderateProgram,
+      lowProgram,
     };
   }, [scoredPrograms]);
 
@@ -2712,20 +2868,25 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
     }
   };
 
-  // Helper to convert strings to Title Case for newly added skills, interests, and experiences
+  // Helper to convert strings to Title Case for newly added skills, interests, experiences, and modal requirements/eligibility
   const toTitleCase = (str: string): string => {
     if (!str) return "";
     return str
       .trim()
       .split(/\s+/)
       .map(word => {
-        // If word is an acronym (2-5 uppercase letters/digits like IT, HVAC, CNC, SMAW), keep as uppercase
-        if (word.length >= 2 && word.length <= 5 && word === word.toUpperCase() && /^[A-Z0-9/]+$/.test(word)) {
+        // Strip common punctuation to check if it's an acronym or special term
+        const stripped = word.replace(/[^a-zA-Z0-9]/g, "");
+        if (
+          (stripped.length >= 2 && stripped.length <= 6 && stripped === stripped.toUpperCase() && /^[A-Z0-9]+$/.test(stripped)) ||
+          (stripped.length >= 3 && stripped.endsWith("s") && stripped.slice(0, -1) === stripped.slice(0, -1).toUpperCase() && /^[A-Z0-9]+s$/.test(stripped)) ||
+          /^FeLS|CBTM|TMI|PSA|TOR|NCs|NTTCs$/i.test(stripped)
+        ) {
           return word;
         }
         return word
           .split("-")
-          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .map(part => part.replace(/([a-zA-Z])([a-zA-Z]*)/, (_, f, r) => f.toUpperCase() + r.toLowerCase()))
           .join("-");
       })
       .join(" ");
@@ -3049,7 +3210,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       return;
     }
     if (!isPassLengthValid) {
-      addToast("New password must be at least 6 characters long", "error");
+      addToast("New password must be at least 8 characters long", "error");
       return;
     }
     if (!isPassCaseValid) {
@@ -3539,6 +3700,36 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 const userApps = referrals?.filter(r => isSameYouth(r.youthName, youthProfile.name, r.youthId, (r as any).email || r.youthEmail)) || [];
                 const rawNotifications: Array<{ id: string; text: string; subtext: string; date: string; type: "pending" | "enrolled" | "declined" | "general"; targetTab: YouthScreen }> = [];
 
+                // Official Katipunan ng Kabataan (KK) Account Verification Alert
+                if (youthProfile.approvalStatus === "Approved") {
+                  rawNotifications.push({
+                    id: `notify-account-approved-${youthProfile.id}`,
+                    text: "KK Membership Approved!",
+                    subtext: `Your Katipunan ng Kabataan account has been verified and approved by Barangay ${youthProfile.barangay || "San Luis"} SK Officials. You now have full access to municipal youth programs.`,
+                    date: youthProfile.registeredDate || "Verified",
+                    type: "enrolled",
+                    targetTab: YouthScreen.HOME
+                  });
+                } else if (youthProfile.approvalStatus === "Rejected") {
+                  rawNotifications.push({
+                    id: `notify-account-rejected-${youthProfile.id}`,
+                    text: "Registration Verification Update",
+                    subtext: `Your Katipunan ng Kabataan registration for Barangay ${youthProfile.barangay || "San Luis"} could not be approved. Please connect with your SK Chairperson with your valid ID.`,
+                    date: "Action Required",
+                    type: "declined",
+                    targetTab: YouthScreen.PROFILE
+                  });
+                } else if (youthProfile.approvalStatus === "Pending") {
+                  rawNotifications.push({
+                    id: `notify-account-pending-${youthProfile.id}`,
+                    text: "Registration Pending SK Verification",
+                    subtext: `Your Katipunan ng Kabataan account is awaiting verification by Barangay ${youthProfile.barangay || "San Luis"} SK Officials. Full catalog application will unlock upon approval.`,
+                    date: youthProfile.registeredDate || "Pending Review",
+                    type: "pending",
+                    targetTab: YouthScreen.PROFILE
+                  });
+                }
+
                 userApps.forEach(app => {
                   if (app.status === "Pending") {
                     rawNotifications.push({
@@ -3567,7 +3758,28 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       type: "declined",
                       targetTab: YouthScreen.PATHWAY
                     });
+                  } else if (app.status === "Archived" || (app as any).status === "Completed") {
+                    rawNotifications.push({
+                      id: `notify-${app.id}-completed`,
+                      text: `Certified Graduate: ${app.programTitle} 🎓`,
+                      subtext: `Congratulations! You have completed this course. Your verified credential is archived in your Digital ID & Credentials Hub.`,
+                      date: app.referralDate || "Completed",
+                      type: "enrolled",
+                      targetTab: YouthScreen.PROFILE
+                    });
                   }
+                });
+
+                // Published TESDA Scholarship Program Offerings
+                programs.filter(p => p.activeStatus === "Active").slice(0, 2).forEach(prog => {
+                  rawNotifications.push({
+                    id: `notify-prog-${prog.id}`,
+                    text: `New Program: ${prog.title}`,
+                    subtext: `${prog.provider} opened ${prog.slotsRemaining} scholarship slot(s). Check requirements and apply.`,
+                    date: "Available Now",
+                    type: "general",
+                    targetTab: YouthScreen.PATHWAY
+                  });
                 });
 
                 localAnnouncements.forEach((ann, idx) => {
@@ -3654,7 +3866,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     key={item.id}
                                     onClick={() => {
                                       markAsRead(item.id);
-                                      if (!isUnverified) {
+                                      if (!isUnverified || item.targetTab === YouthScreen.HOME || item.targetTab === YouthScreen.PROFILE) {
                                         setActiveTab(item.targetTab);
                                       } else {
                                         addToast("Locked in View-Only Mode while awaiting verification", "info");
@@ -3785,10 +3997,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       <h4 className="text-[18px] font-extrabold tracking-tight text-white">Active Class &amp; Training Schedule</h4>
                       <p className="text-xs text-emerald-200/90 font-medium mt-0.5">Your official class schedule, training venue, and instructor details</p>
                     </div>
-                    <span className="self-start sm:self-auto inline-flex items-center gap-2 bg-orange-500/20 text-orange-300 text-[10px] sm:text-[11px] font-extrabold px-3 py-1 rounded-full border border-orange-400/40 uppercase tracking-wider shadow-2xs">
+                    <span className="self-start sm:self-auto inline-flex items-center gap-2 bg-[#F5A623]/20 text-[#F5A623] text-[10px] sm:text-[11px] font-extrabold px-3 py-1 rounded-full border border-[#F5A623]/40 uppercase tracking-wider shadow-2xs">
                       <span className="relative flex h-2 w-2 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F5A623] opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F5A623]"></span>
                       </span>
                       <span>Officially Enrolled</span>
                     </span>
@@ -3821,14 +4033,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               {/* Program Title & Provider (no icon) */}
                               <div>
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                                  <h5 className="font-extrabold text-gray-900 text-[18px] leading-snug">
+                                  <h5 className="font-extrabold text-gray-900 text-[18px] leading-tight">
                                     {ref.programTitle}
                                   </h5>
                                   <span className="text-[10px] bg-emerald-50 text-[#0A6B43] border border-emerald-200 px-2.5 py-0.5 rounded-md font-bold uppercase shrink-0 self-start sm:self-auto">
                                     Enrolled on {ref.applicationDate || ref.referralDate || "Recently"}
                                   </span>
                                 </div>
-                                <p className="text-[12px] font-semibold text-emerald-900/90 mt-1">
+                                <p className="text-[14px] font-semibold text-gray-500 mt-0.5">
                                   {provider}
                                 </p>
                               </div>
@@ -3838,64 +4050,64 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
                                   Class &amp; Training Specifications
                                 </span>
-                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:text-[13px] text-gray-700 font-medium">
+                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-[12px] text-gray-700 font-medium">
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <Timer className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Total Training Hours:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Total Training Hours:</strong>{" "}
                                       {program?.trainingHours ? `${program.trainingHours} Hours` : "Flexible"}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <Calendar className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Training Period:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Training Period:</strong>{" "}
                                       {(program?.startDate && program?.endDate)
                                         ? formatProgramDateRange(program.startDate, program.endDate)
                                         : "Flexible Schedule"}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <CalendarDays className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Training Days:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Training Days:</strong>{" "}
                                       {scheduleDays}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Training Hours:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Training Hours:</strong>{" "}
                                       {timeslot.formattedRange}
                                       {timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <GraduationCap className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Mode:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Mode:</strong>{" "}
                                       {program?.deliveryMode || "Face-to-Face"}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <UserCheck className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Instructor:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Instructor:</strong>{" "}
                                       {instructor}
                                     </span>
                                   </li>
                                   {/* Contact Person & Contact Number aligned in one row */}
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <User className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Contact Person:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Contact Person:</strong>{" "}
                                       {program?.contactPerson || "TESDA Registrar"}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <Phone className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Contact Number:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Contact Number:</strong>{" "}
                                       {program?.contactNumber || "N/A"}
                                     </span>
                                   </li>
@@ -3907,23 +4119,23 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
                                   Location &amp; Training Facility
                                 </span>
-                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:text-[13px] text-gray-700 font-medium">
+                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-[12px] text-gray-700 font-medium">
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Location:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Location:</strong>{" "}
                                       {location}
                                       {program?.centerName && (
-                                        <span className="text-gray-500 font-normal block sm:inline sm:ml-1 text-xs">
+                                        <span className="text-gray-500 font-normal block sm:inline sm:ml-1 text-[12px]">
                                           ({program.centerName})
                                         </span>
                                       )}
                                     </span>
                                   </li>
                                   <li className="flex items-start gap-2 leading-relaxed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A6B43] shrink-0 mt-2" />
+                                    <Building2 className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                     <span>
-                                      <strong className="text-gray-900 font-bold">Room / Training Facility:</strong>{" "}
+                                      <strong className="text-gray-500 font-bold uppercase text-[12px]">Room / Training Facility:</strong>{" "}
                                       {room}
                                     </span>
                                   </li>
@@ -3970,6 +4182,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         matchDistribution={matchDistribution}
                         hoveredSlice={hoveredSlice}
                         setHoveredSlice={setHoveredSlice}
+                        onProgramClick={handleNavigateToMatchedProgram}
                       />
                     )}
                   </div>
@@ -4047,10 +4260,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       </div>
                       <button
                         onClick={() => setActiveTab(YouthScreen.MATCHES)}
-                        className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 cursor-pointer transition-colors"
+                        className="group text-xs font-bold flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-200 text-[#0A6B43] bg-emerald-50/60 hover:bg-[#0A6B43] hover:text-white active:scale-95 cursor-pointer transition-all shadow-2xs"
                       >
                         <span>View All</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-1 group-hover:scale-110" />
                       </button>
                     </div>
 
@@ -4108,14 +4321,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           setShowAddSkillModal(true);
                         }}
                         disabled={isUnverified}
-                        className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all ${
+                        className={`group text-xs font-bold flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all ${
                           isUnverified
                             ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50"
                             : "border-emerald-200 text-[#0A6B43] bg-emerald-50/60 hover:bg-[#0A6B43] hover:text-white active:scale-95 cursor-pointer shadow-2xs"
                         }`}
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Skill
+                        <Plus className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" />
+                        <span>Add Skill</span>
                       </button>
                     </div>
 
@@ -4194,7 +4407,10 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                         </div>
 
                         {/* Modern Stepped Progress Stepper (Centered Layout) */}
-                        <DashboardLivelihoodPathway steps={steps} />
+                        <DashboardLivelihoodPathway
+                          steps={steps}
+                          onNavigateToPathway={() => setActiveTab(YouthScreen.PATHWAY)}
+                        />
                       </div>
                     </div>
                   </PortalScrollReveal>
@@ -4461,7 +4677,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               {isTopMatch && (
                                 <div className="flex items-center justify-between pb-3 -mt-1 border-b border-emerald-100">
                                   <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-linear-to-r from-amber-500 via-amber-400 to-[#0A6B43] text-white text-[10px] sm:text-[11px] font-black uppercase tracking-wider shadow-2xs shrink-0">
-                                    <Sparkles className="w-3.5 h-3.5 text-white fill-white shrink-0" />
                                     <span className="xl:hidden">Top Match</span>
                                     <span className="hidden xl:inline">Top Match Designation</span>
                                   </span>
@@ -4490,9 +4705,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
                               {/* Card Header: Term Ended Badge, Title & Match Score */}
                               <div className="flex justify-between items-start gap-3 pb-3 border-b border-gray-100">
-                                <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex-1 min-w-0">
                                   {isProgramEnded(prog) && (
-                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
                                       <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
                                         <Clock className="w-3 h-3 text-purple-600" />
                                         Term Ended
@@ -4501,17 +4716,25 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   )}
                                   <h4
                                     onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
-                                    className="font-bold text-gray-900 text-[14px] sm:text-[15px] xl:text-[18px] leading-snug tracking-tight group-hover:text-[#0A6B43] cursor-pointer transition-colors duration-200"
+                                    className="font-extrabold text-gray-900 text-[18px] leading-tight tracking-tight group-hover:text-[#0A6B43] cursor-pointer transition-colors duration-200"
                                     title="Click to view full program specifications"
                                   >
                                     {prog.title}
                                   </h4>
 
-                                  {/* Training Provider Subheader (no pill, no ellipsis, responsive text size, no icon) */}
-                                  <div className="text-xs sm:text-[13px] xl:text-sm font-semibold text-emerald-900/90 pt-0.5">
-                                    <span className="break-words">
+                                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                    <p className="text-[14px] font-semibold text-gray-500 break-words">
                                       {(prog.provider || prog.centerName) || "TESDA Pampanga (GPSAT)"}
-                                    </span>
+                                    </p>
+                                    {(() => {
+                                      const pType = (prog as any).providerType || (prog as any).partner?.officialAcc?.providerType || (((prog.provider || "").toLowerCase().includes("gpsat") || (prog.provider || "").toLowerCase().includes("tesda")) ? "Public TESDA Institute" : "Accredited TVET Partner");
+                                      const isPublic = pType.toLowerCase().includes("public") || (prog.provider || "").toLowerCase().includes("gpsat");
+                                      return (
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide ${isPublic ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200/80" : "bg-blue-50 text-blue-700 border border-blue-200/80"}`}>
+                                          {isPublic ? "Public Institute" : "Accredited Partner"}
+                                        </span>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                                 <div className="shrink-0 pt-0.5">
@@ -4570,18 +4793,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               ) : (
                                 /* Non-Top Match: Match Category + Relevant Matched Skills / Preferences ONLY */
                                 <div className="bg-gray-50/80 p-3.5 rounded-xl border border-gray-200/80 space-y-2.5">
-                                  <div className="flex items-center justify-between gap-1 flex-wrap">
-                                    <span className="text-[10px] font-extrabold uppercase text-gray-600 tracking-wider flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-gray-500 tracking-wider flex items-center gap-1.5">
                                       <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
                                       Match Category
                                     </span>
-                                    {categoryMeta.label !== "Not Match" && categoryMeta.label !== "Not Enough Matching Data" && (
-                                      <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border ${categoryMeta.badgeBg} ${categoryMeta.badgeText} ${categoryMeta.badgeBorder}`}>
-                                        {categoryMeta.label}
-                                      </span>
-                                    )}
                                   </div>
-                                  <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                                  <p className="text-[13px] text-gray-600 leading-relaxed font-medium">
                                     {categoryMeta.description}
                                   </p>
 
@@ -4604,28 +4822,29 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </div>
                               )}
 
-                              {/* Breakline between Match Category and Program Description */}
-                              <hr className="border-gray-200/80 my-1" />
-
-                              {/* Program Description from Database */}
+                              {/* Program Description with Centered Top & Bottom Breaklines */}
                               {(() => {
                                 const progDesc = getProgramDescription(prog);
                                 if (!progDesc) return null;
                                 return (
-                                  <div className="bg-gray-50/70 p-3 sm:p-3.5 rounded-xl border border-gray-200/80 space-y-1 shadow-2xs">
-                                    <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-gray-500 tracking-wider flex items-center gap-1.5">
-                                      <BookOpen className="w-3.5 h-3.5 text-[#0A6B43]" />
-                                      Program Description
-                                    </span>
-                                    <p className="text-xs sm:text-[13px] text-gray-700 font-medium leading-relaxed">
-                                      {progDesc}
-                                    </p>
+                                  <div className="space-y-4">
+                                    <hr className="border-gray-200/80" />
+                                    <div className="bg-gray-50/70 p-3 sm:p-3.5 rounded-xl border border-gray-200/80 space-y-1 shadow-2xs">
+                                      <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-gray-500 tracking-wider flex items-center gap-1.5">
+                                        <BookOpen className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                        Program Description
+                                      </span>
+                                      <p className="text-xs sm:text-[13px] text-gray-700 font-medium leading-relaxed">
+                                        {progDesc}
+                                      </p>
+                                    </div>
+                                    <hr className="border-gray-200/80" />
                                   </div>
                                 );
                               })()}
 
                               {/* 2-Column Program Specifications */}
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-3 sm:px-4 pt-3 pb-3.5 border-y border-gray-100">
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-3 sm:px-4">
                                 {/* Total Training Hours */}
                                 <div className="min-w-0 flex items-start gap-1.5">
                                   <Timer className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
@@ -4707,42 +4926,19 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   </div>
                                 </div>
 
-
-                                {/* Venue */}
-                                <div className="min-w-0 flex items-start gap-1.5 col-span-2 pt-1 border-t border-gray-100/80">
+                                {/* Venue (no breakline above or below, not underlined, not clickable, no view map button) */}
+                                <div className="min-w-0 flex items-start gap-1.5 col-span-2">
                                   <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                                   <div className="min-w-0 space-y-0.5 flex-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
-                                        Venue
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenVenueMap(prog);
-                                        }}
-                                        className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-emerald-800 underline underline-offset-2 cursor-pointer transition-colors"
-                                      >
-                                        View Map
-                                      </button>
-
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenVenueMap(prog);
-                                      }}
-                                      className="text-left text-xs sm:text-sm font-bold text-emerald-800 hover:text-emerald-950 underline underline-offset-2 decoration-emerald-300 hover:decoration-emerald-700 line-clamp-2 break-words leading-snug cursor-pointer transition-colors block"
-                                      title="Click to view interactive campus map"
-                                    >
+                                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-wider uppercase block">
+                                      Venue
+                                    </span>
+                                    <p className="text-xs sm:text-sm font-bold text-gray-800 line-clamp-2 break-words leading-snug">
                                       {extractLocationDisplay(prog.location) || "San Luis, Pampanga"}
-                                    </button>
+                                    </p>
                                   </div>
                                 </div>
                               </div>
-
                             </div>
 
                             {/* Card Footer: Slots and Action Buttons (Mobile & Tablet optimized to prevent overlap) */}
@@ -4759,11 +4955,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setViewingProgramModal({ program: prog, matchScore: score })}
-                                  className="group/details text-[11px] xl:text-xs font-bold text-gray-700 hover:text-[#0A6B43] px-2.5 xl:px-4 py-1.5 xl:py-2 rounded-lg xl:rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all flex items-center justify-center gap-1 xl:gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+                                  className="group/details text-[11px] xl:text-xs font-bold text-gray-700 hover:text-[#0A6B43] px-2.5 xl:px-4 py-1.5 xl:py-2 rounded-lg xl:rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all flex items-center justify-center gap-1 xl:gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap shrink-0 active:scale-95"
                                   title="View full specifications & breakdown"
                                 >
-                                  <Eye className="w-3 h-3 xl:w-3.5 xl:h-3.5 text-gray-500 group-hover/details:text-[#0A6B43] group-hover/details:scale-125 transition-all duration-200 shrink-0" />
-                                  <span>Details</span>
+                                  <Eye className="w-3 h-3 xl:w-3.5 xl:h-3.5 text-gray-500 group-hover/details:text-[#0A6B43] group-hover/details:scale-120 transition-all duration-200 shrink-0" />
+                                  <span className="transition-transform duration-200 group-hover/details:scale-105 inline-block">Details</span>
                                 </button>
 
                                 {(() => {
@@ -4840,18 +5036,29 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     );
                                   }
 
+                                  const isApplyDisabled = isUnverified || !!overlapWarning;
+
+                                  if (isApplyDisabled) {
+                                    return (
+                                      <button
+                                        disabled
+                                        className="text-[11px] xl:text-xs font-bold px-2.5 xl:px-4 py-1.5 xl:py-2 rounded-lg xl:rounded-xl flex items-center gap-1 xl:gap-1.5 shadow-xs whitespace-nowrap shrink-0 bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed select-none"
+                                        title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
+                                      >
+                                        <Send className="w-3 h-3 xl:w-3.5 xl:h-3.5 shrink-0 text-gray-400" />
+                                        <span className="whitespace-nowrap">Apply Now</span>
+                                      </button>
+                                    );
+                                  }
+
                                   return (
                                     <button
                                       onClick={() => handleDirectApply(prog)}
-                                      disabled={isUnverified || !!overlapWarning}
-                                      className={`group/apply text-[11px] xl:text-xs font-bold px-2.5 xl:px-4 py-1.5 xl:py-2 rounded-lg xl:rounded-xl flex items-center gap-1 xl:gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 ${isUnverified || !!overlapWarning
-                                        ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                                        : "bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-98"
-                                        }`}
-                                      title={isUnverified ? "Cannot apply while awaiting SK verification" : overlapWarning || "Apply for this TESDA training program"}
+                                      className="group/apply text-[11px] xl:text-xs font-bold px-2.5 xl:px-4 py-1.5 xl:py-2 rounded-lg xl:rounded-xl flex items-center gap-1 xl:gap-1.5 transition-all shadow-xs whitespace-nowrap shrink-0 bg-[#0A6B43] hover:bg-[#075332] text-white cursor-pointer active:scale-95"
+                                      title="Apply for this TESDA training program"
                                     >
                                       <Send className="w-3 h-3 xl:w-3.5 xl:h-3.5 transition-transform duration-200 group-hover/apply:translate-x-1 group-hover/apply:-translate-y-0.5 group-hover/apply:scale-110 shrink-0" />
-                                      <span className="whitespace-nowrap">Apply Now</span>
+                                      <span className="whitespace-nowrap transition-transform duration-200 group-hover/apply:translate-x-0.5 group-hover/apply:scale-105 inline-block">Apply Now</span>
                                     </button>
                                   );
                                 })()}
@@ -5076,14 +5283,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           const dateRange = (program?.startDate || program?.endDate)
                             ? ` (${formatProgramDateRange(program.startDate, program.endDate)})`
                             : "";
-                          const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0
-                            ? program.requiredDocuments
-                            : [
-                              "Original & Photocopy of Birth Certificate (PSA)",
-                              "2 copies of 2x2 / 1x1 ID Pictures (white background, with name tag)",
-                              "High School Diploma or Form 137 / Report Card",
-                              "Certificate of Barangay Residency (San Luis, Pampanga)"
-                            ];
+                          const requiredDocs = program?.requiredDocuments && program.requiredDocuments.length > 0 ? program.requiredDocuments : DEFAULT_TESDA_REQUIREMENTS;
 
                           return (
                             <div className="space-y-6">
@@ -5171,88 +5371,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                               )}
 
                               {/* Focused Active Pathway Card */}
-                              <div key={app.id} className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden animate-in fade-in duration-200">
-                                    {/* Top Tag indicating Program - Mobile Optimized Responsive Header */}
-                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-gray-100">
-                                      <div className="space-y-1.5 flex-1 min-w-0">
-                                        <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] uppercase font-bold tracking-wider text-[#0A6B43] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold">
-                                          <Building2 className="w-3 h-3 text-[#0A6B43] shrink-0" />
-                                          <span className="truncate max-w-[260px] sm:max-w-none">{provider}</span>
-                                        </span>
-                                        <h4 className="font-extrabold text-gray-900 text-base sm:text-lg lg:text-xl mt-1.5 leading-snug break-words">
-                                          {app.programTitle}
-                                        </h4>
-                                        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-gray-600 font-medium">
-                                          <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200/80 px-2.5 py-0.5 rounded-lg text-[11px] sm:text-xs text-gray-700">
-                                            <MapPin className="w-3 h-3 text-[#0A6B43] shrink-0" />
-                                            <span>{location}</span>
-                                          </span>
-                                          <span className="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200/80 px-2.5 py-0.5 rounded-lg text-[11px] sm:text-xs text-gray-700">
-                                            <Timer className="w-3 h-3 text-[#0A6B43] shrink-0" />
-                                            <span>{trainingHours}</span>
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {/* Status & Actions - Mobile Optimized Layout */}
-                                      <div className="flex flex-wrap items-center justify-between sm:flex-col sm:items-end gap-2 pt-2.5 sm:pt-0 border-t border-gray-100/90 sm:border-0 w-full sm:w-auto shrink-0">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Status:</span>
-                                          <span className={`inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold px-2.5 sm:px-3 py-1 rounded-full border shadow-2xs ${isArchived
-                                            ? "bg-purple-50 text-purple-700 border-purple-200"
-                                            : isEnrolled
-                                              ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                                              : isDeclined
-                                                ? "bg-red-50 text-red-700 border-red-200"
-                                                : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                                            }`}>
-                                            {isArchived ? (
-                                              <>
-                                                <CheckCircle className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                                                <span>Archived (Completed)</span>
-                                              </>
-                                            ) : isEnrolled ? (
-                                              <>
-                                                <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                                <span>Officially Enrolled</span>
-                                              </>
-                                            ) : isDeclined ? (
-                                              <>
-                                                <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                                                <span>Declined</span>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                                <span>Pending Approval</span>
-                                              </>
-                                            )}
-                                          </span>
-                                        </div>
-
-                                        {isPending && (
-                                          <button
-                                            onClick={() => handleCancelApplication(app.id)}
-                                            className="px-2.5 py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                                            title="Cancel Application"
-                                            id={`cancel-application-header-${app.id}`}
-                                          >
-                                            <XCircle className="w-3.5 h-3.5" />
-                                            <span className="inline">Cancel Application</span>
-                                          </button>
-                                        )}
-                                        {isDeclined && (
-                                          <button
-                                            onClick={() => handleDeletePathway(app.id)}
-                                            className="px-2.5 py-1 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors border border-red-200 flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                                            title="Delete Declined Pathway"
-                                            id={`delete-pathway-header-${app.id}`}
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                            <span className="inline">Delete Pathway</span>
-                                          </button>
-                                        )}
-                                      </div>
+                                <React.Fragment key={app.id}>
+                                  {/* 1. Training Journey Card (At the top of the pathway) */}
+                                  <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden animate-in fade-in duration-200">
+                                    <div>
+                                      <h3 className="text-[26px] font-black text-gray-900 tracking-tight leading-none">
+                                        Training Journey
+                                      </h3>
                                     </div>
 
                                     {(() => {
@@ -5268,166 +5393,243 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         />
                                       );
                                     })()}
+                                  </div>
 
-                                    {/* Visual Feedback on Application Status with explicit Instructions */}
-                                    {(() => {
-                                      if (isPending) {
-                                        return (
-                                          <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 sm:p-5 space-y-3.5 sm:space-y-4 shadow-xs">
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-blue-100/80 pb-3">
-                                              <div className="flex items-start sm:items-center gap-2.5">
-                                                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                                                  <Sparkles className="w-4 h-4 animate-pulse" />
-                                                </div>
-                                                <div>
-                                                  <span className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider block">
-                                                    Step 2 Status
-                                                  </span>
-                                                  <h5 className="font-extrabold text-blue-950 text-sm">
-                                                    Application Under Review
-                                                  </h5>
-                                                </div>
-                                              </div>
-                                              <button
-                                                onClick={() => handleCancelApplication(app.id)}
-                                                className="w-full sm:w-auto justify-center text-[11px] bg-white hover:bg-red-50 text-red-700 px-3 py-2 sm:py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 shrink-0 border border-red-200 shadow-2xs hover:border-red-300 cursor-pointer"
-                                                id={`cancel-pathway-box-${app.id}`}
-                                              >
-                                                <XCircle className="w-3.5 h-3.5" />
-                                                Cancel Application
-                                              </button>
-                                            </div>
+                                  {/* 2. Program Details Card (Photo 1 layout: MiniMap + Specifications, with Title, Provider & Status badge header) */}
+                                  <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden animate-in fade-in duration-200">
+                                    {/* Card Header: Program Title & Provider on Left, Status Badge on Right (no "Status:" label) */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-extrabold text-gray-900 text-[18px] sm:text-[20px] leading-tight break-words">
+                                          {app.programTitle}
+                                        </h4>
+                                        <p className="text-[14px] font-semibold text-gray-500 mt-0.5">
+                                          {provider}
+                                        </p>
+                                      </div>
 
-                                            <p className="text-xs text-blue-900 leading-relaxed font-medium">
-                                              Your application for <strong className="text-blue-950 font-bold">{app.programTitle}</strong> at <strong className="text-blue-950 font-bold">{provider}</strong> has been received by TESDA. Please review the program details and submit your required documents below to finalize your enrollment:
-                                            </p>
-
-                                            {/* Program Details Overview Card */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs bg-white/95 p-3.5 sm:p-4 rounded-xl border border-blue-150 shadow-2xs">
-                                    <div className="space-y-2">
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Briefcase className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Training Provider:</strong> <span className="text-gray-900 font-bold break-words">{provider}</span></span>
-                                      </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug">
-                                          <strong className="text-gray-700">Location / Campus:</strong>{" "}
-                                          <button
-                                            type="button"
-                                            onClick={() => handleOpenVenueMap(program || { id: "pathway", title: app.programTitle, provider, location } as any)}
-                                            className="text-emerald-800 hover:text-emerald-950 underline underline-offset-2 font-bold cursor-pointer transition-colors text-left"
-                                            title="View Campus on Interactive Map"
-                                          >
-                                            <span className="text-gray-900 font-semibold break-words hover:text-emerald-900">{extractLocationDisplay(location)}</span>
-                                          </button>
+                                      {/* Status Badge without label */}
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold px-3 py-1.5 rounded-full border shadow-2xs ${
+                                          isArchived
+                                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                                            : isEnrolled
+                                              ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                              : isDeclined
+                                                ? "bg-red-50 text-red-700 border-red-200"
+                                                : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
+                                        }`}>
+                                          {isArchived ? (
+                                            <>
+                                              <CheckCircle className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                              <span>Archived (Completed)</span>
+                                            </>
+                                          ) : isEnrolled ? (
+                                            <>
+                                              <CheckCircle className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                                              <span>Officially Enrolled</span>
+                                            </>
+                                          ) : isDeclined ? (
+                                            <>
+                                              <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                              <span>Declined</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                              <span>Pending Approval</span>
+                                            </>
+                                          )}
                                         </span>
-                                      </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Program Duration:</strong> <span className="text-gray-900 font-semibold break-words">{trainingHours}{dateRange}</span></span>
-                                      </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Tag className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Program Cost:</strong> <span className="font-bold text-emerald-700 break-words">{program?.cost || "100% Free / Subsidized"}</span></span>
-                                      </p>
-                                    </div>
-                                    <div className="space-y-2">
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Calendar className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Class Schedule:</strong> <span className="text-gray-900 font-semibold break-words">{scheduleDays}</span></span>
-                                      </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Clock className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Training Hours:</strong> <span className="text-gray-900 font-semibold break-words">{timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}</span></span>
-                                      </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Facility / Room:</strong> <span className="text-gray-900 font-semibold break-words">{room}</span></span>
-                                      </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold break-words">{instructor}</span></span>
-                                      </p>
-                                      
-        </div>
-    </div>
 
-  {/* Action Required: Physical Documents for Verification */ }
-  <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-4 space-y-2.5 text-xs">
-    <p className="font-extrabold text-amber-950 flex items-start sm:items-center gap-1.5 uppercase text-[11px] tracking-wider leading-snug">
-                                      <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                                      <span>Action Required to Complete Enrollment Verification:</span>
-                                    </p >
-                                    <p className="leading-relaxed font-medium text-amber-900">
-                                      Please bring and submit the following physical requirements to the <strong>{provider} Admissions Office (
+                                        {isPending && (
+                                          <button
+                                            onClick={() => handleCancelApplication(app.id)}
+                                            className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold px-3 py-1.5 rounded-full border border-red-200 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                            title="Cancel Application"
+                                            id={`cancel-application-header-${app.id}`}
+                                          >
+                                            <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                            <span>Cancel Application</span>
+                                          </button>
+                                        )}
+                                        {isDeclined && (
+                                          <button
+                                            onClick={() => handleDeletePathway(app.id)}
+                                            className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold px-3 py-1.5 rounded-full border border-red-200 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                            title="Delete Declined Pathway"
+                                            id={`delete-pathway-header-${app.id}`}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                                            <span>Delete Pathway</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* 2-Column Responsive Layout: 30% Map | 70% Details (Matching Photo 1) */}
+                                    <div className="flex flex-col lg:flex-row items-stretch gap-5 sm:gap-6">
+                                      {/* Left Column (30%): Map showing program location */}
+                                      <div className="w-full lg:w-[30%] flex flex-col shrink-0 min-h-[260px]">
+                                        <EnrolledProgramMiniMap
+                                          program={program}
+                                          locationString={program?.location || location}
+                                          onOpenFullMap={() => handleOpenVenueMap(program || { id: "pathway", title: app.programTitle, provider, location } as any)}
+                                        />
+                                      </div>
+
+                                      {/* Right Column (70%): Details */}
+                                      <div className="w-full lg:w-[70%] min-w-0 flex flex-col space-y-3.5">
+                                        {/* Card 1: Class & Training Specifications */}
+                                        <div className="border border-gray-200/90 rounded-2xl bg-white p-4 sm:p-5 space-y-2.5 shadow-2xs">
+                                          <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                                            Class &amp; Training Specifications
+                                          </span>
+                                          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-[12px] text-gray-700 font-medium">
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <Timer className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Total Training Hours:</strong>{" "}
+                                                {program?.trainingHours ? `${program.trainingHours} Hours` : trainingHours || "Flexible"}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <Calendar className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Training Period:</strong>{" "}
+                                                {(program?.startDate && program?.endDate)
+                                                  ? formatProgramDateRange(program.startDate, program.endDate)
+                                                  : dateRange || "Flexible Schedule"}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <CalendarDays className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Training Days:</strong>{" "}
+                                                {scheduleDays}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Training Hours:</strong>{" "}
+                                                {timeslot.formattedRange}
+                                                {timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <GraduationCap className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Mode:</strong>{" "}
+                                                {program?.deliveryMode || "Face-to-Face"}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <UserCheck className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Instructor:</strong>{" "}
+                                                {instructor}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <User className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Contact Person:</strong>{" "}
+                                                {contactPerson}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <Phone className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Contact Number:</strong>{" "}
+                                                {contactNumber}
+                                              </span>
+                                            </li>
+                                          </ul>
+                                        </div>
+
+                                        {/* Card 2: Location, Room / Training Facility */}
+                                        <div className="border border-gray-200/90 rounded-2xl bg-white p-4 sm:p-5 space-y-2.5 shadow-2xs">
+                                          <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                                            Location &amp; Training Facility
+                                          </span>
+                                          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-[12px] text-gray-700 font-medium">
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Location:</strong>{" "}
+                                                {location}
+                                                {program?.centerName && (
+                                                  <span className="text-gray-500 font-normal block sm:inline sm:ml-1 text-[12px]">
+                                                    ({program.centerName})
+                                                  </span>
+                                                )}
+                                              </span>
+                                            </li>
+                                            <li className="flex items-start gap-2 leading-relaxed">
+                                              <Building2 className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                                              <span>
+                                                <strong className="text-gray-500 font-bold uppercase text-[12px]">Room / Training Facility:</strong>{" "}
+                                                {room}
+                                              </span>
+                                            </li>
+                                          </ul>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {isPending && (
+                                      <>
+                                        {/* Breakline before Action Required with generous spacing */}
+                                     <hr className="border-t border-gray-100 mt-2 mb-5 sm:mb-6" />
+
+                                     {/* Action Required to Complete Enrollment Verification (Yellow Card) */}
+                                     <div className="border border-amber-200/90 rounded-2xl bg-amber-50/70 p-4 sm:p-5 space-y-3.5 shadow-2xs">
+                                       <span className="text-[10px] sm:text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                                         <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                         <span>Action Required to Complete Enrollment Verification:</span>
+                                       </span>
+                                       <hr className="border-t border-amber-200/80 mt-1 mb-2.5 sm:mb-3" />
+                                       <p className="text-[12px] text-amber-950 font-medium leading-relaxed pt-1.5 sm:pt-2">
+                                        Your application for <strong className="text-amber-950 font-bold">{app.programTitle}</strong> has been received! Please submit the required physical documents to the{" "}
                                         <button
                                           type="button"
                                           onClick={() => handleOpenVenueMap(program || { id: "admissions", title: app.programTitle, provider, location } as any)}
-                                          className="text-amber-950 underline underline-offset-2 font-bold hover:text-emerald-800 cursor-pointer"
+                                          className="text-amber-950 underline underline-offset-2 font-bold hover:text-emerald-800 cursor-pointer inline transition-colors"
                                           title="View on Interactive Map"
                                         >
-                                          {extractLocationDisplay(location)}
-                                        </button>
-                                      )</strong>:
-                                    </p>
-                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 list-disc text-amber-950 font-semibold">
-                                      {requiredDocs.map((doc: string, dIdx: number) => (
-                                        <li key={dIdx}>{doc}</li>
-                                      ))}
-                                    </ul>
-                                    <p className="text-[10px] text-amber-800 italic pt-1 border-t border-amber-200 font-medium">
-                                      Once your physical documents are verified by the TESDA registrar, your enrollment will be officially approved and this pathway will advance to <strong>Step 3: Officially Enrolled & Active Training</strong>!
-                                    </p>
-                                  </div>
-                                  {/* Step 4: Locked Milestone during Pending Stage */}
-                                  <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
-                                      <div className="flex items-start sm:items-center gap-3">
-                                        <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 shadow-2xs">
-                                          <Lock className="w-4 h-4 text-slate-600" />
-                                        </div>
-                                        <div>
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-200/70 px-2.5 py-0.5 rounded-full border border-slate-300/60">
-                                              Locked Milestone • Unlocks Upon Enrollment
-                                            </span>
-                                          </div>
-                                          <h5 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight mt-1">
-                                            Step 4: AI Career & Livelihood Guide Plan
-                                          </h5>
-                                        </div>
-                                      </div>
-                                      <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg shrink-0 self-start sm:self-auto flex items-center gap-1.5 shadow-2xs">
-                                        <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                                        <span>Pending Step 2 Verification</span>
-                                      </span>
-                                    </div>
+                                          {provider}
+                                        </button>{" "}
+                                        Admissions Office:
+                                      </p>
+                                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 pl-4 list-disc text-[12px] text-amber-950 font-semibold">
+                                        {requiredDocs.map((doc: string, dIdx: number) => (
+                                          <li key={dIdx} className="leading-relaxed">{toTitleCase(doc)}</li>
+                                        ))}
+                                      </ul>
+                                      <p className="text-[11px] text-amber-800 italic pt-2 border-t border-amber-200/80 font-medium leading-normal">
+                                        {isEnrolled ? (
+                                          <>
+                                            Your physical documents have been verified by the TESDA registrar. Enrollment is <strong className="font-bold text-amber-900 not-italic">Officially Enrolled &amp; Active Training</strong>!
+                                          </>
+                                        ) : (
+                                          <>
+                                            Once your physical documents are verified by the TESDA registrar, your enrollment will be officially approved and this pathway will advance to <strong className="font-bold text-amber-900 not-italic">Step 3: Officially Enrolled &amp; Active Training</strong>!
+                                          </>
+                                        )}
+                                      </p>
+                                     </div>
+                                   </>
+                                 )}
+                               </div>
 
-                                    <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                                      Your personalized <strong>Google Gemini Career & Livelihood Guide Plan</strong> will unlock automatically as soon as your physical documents are verified and your enrollment is officially accepted by the training center (Step 2 Completed).
-                                    </p>
+                                    {/* Active Stage Details & Actions Card (For Declined, Archived/Step 4, and Enrolled stages) */}
+                                   {!isPending && (() => {
 
-                                    <div className="bg-white rounded-xl p-3 border border-slate-200/70 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
-                                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                                        <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                        <span>Pampanga Wage Job Matches</span>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                                        <TrendingUp className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                        <span>Self-Employment & Grants</span>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                                        <Compass className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                        <span>PESO & SK Direct Linkages</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div >
-                              );
-                            } else if (isDeclined) {
+                                         if (isDeclined) {
   return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3.5 shadow-2xs">
+    <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-5 sm:space-y-6 relative overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3.5 shadow-2xs">
       <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-1" />
       <div className="flex-1 space-y-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-red-100 pb-2">
@@ -5450,20 +5652,13 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </p>
       </div>
     </div>
+    </div>
   );
 } else if (isArchived) {
-  // STEP 4 IS UNLOCKED: Step 3 is completed!
-  const matchingRoadmap = savedRoadmaps.find(r => r.programTitle?.toLowerCase().trim() === app.programTitle?.toLowerCase().trim());
-  const planToShow = matchingRoadmap || generatedPlan || currentSavedPlan || parseCareerPlan(youthProfile.savedCareerPlan);
-  const isSaved = Boolean(planToShow && planToShow.roadmapTitle);
-  const displayPlan = (careerPlanLang === "tl" && planToShow)
-    ? (translatedPlanTl || getFallbackTagalogCareerPlan(planToShow, youthProfile))
-    : planToShow;
-
   return (
-    <div className="space-y-5 sm:space-y-6 w-full">
+    <div className="space-y-6 w-full">
       {/* Completion & Step 4 Banner */}
-      <div className="bg-linear-to-br from-purple-50 via-purple-50/80 to-indigo-50/50 border border-purple-200/90 rounded-2xl p-3.5 sm:p-5 md:p-6 flex items-start gap-3 sm:gap-4 shadow-xs">
+      <div className="bg-gradient-to-br from-purple-50 via-purple-50/80 to-indigo-50/50 border border-purple-200/90 rounded-2xl p-4 sm:p-6 flex items-start gap-3 sm:gap-4 shadow-xs">
         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs sm:shadow-sm mt-0.5">
           <Award className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
         </div>
@@ -5475,7 +5670,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </span>
           </div>
           <h5 className="font-black text-purple-950 text-sm sm:text-base md:text-lg leading-tight tracking-tight">
-            Training Completed & NC II Certified!
+            Training Completed &amp; NC II Certified!
           </h5>
           <p className="text-xs sm:text-[13px] text-purple-900/90 leading-relaxed font-medium break-words">
             Congratulations! You have completed your certified training for <strong className="font-bold text-purple-950">{app.programTitle}</strong> at <strong className="font-bold text-purple-950">{provider}</strong>.
@@ -5483,334 +5678,21 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           <div className="pt-0.5">
             <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-purple-900 bg-purple-100/90 border border-purple-200/80 px-2.5 py-1 rounded-lg">
               <Award className="w-3.5 h-3.5 text-purple-700 shrink-0" />
-              <span>Achieved <strong className="font-extrabold text-purple-950">Step 4: AI Career & Livelihood Guide Plan</strong></span>
+              <span>Achieved <strong className="font-extrabold text-purple-950">Step 4: AI Career &amp; Livelihood Guide Plan</strong></span>
             </span>
           </div>
         </div>
       </div>
 
-      {/* Gemini Long-Term Post-Graduation Career Plan Section */}
-      <div className="bg-linear-to-br from-[#1C2B20] to-[#0A6B43] text-white rounded-2xl p-4 sm:p-6 lg:p-7 shadow-lg border border-emerald-700/60 space-y-5 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 border-b border-white/15 pb-4">
-          <div className="space-y-1.5 flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 animate-pulse shrink-0" />
-              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wider">
-                Google Gemini AI • Step 4 Career Strategy
-              </span>
-              {planToShow && (
-                <div className="inline-flex items-center rounded-lg bg-black/40 p-0.5 border border-white/20 ml-1">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCareerPlanLang("en")}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer ${careerPlanLang === "en"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-emerald-200 hover:text-white"
-                      }`}
-                  >
-                    English
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCareerPlanLang("tl")}
-                    disabled={isTranslatingPlan}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${careerPlanLang === "tl"
-                      ? "bg-amber-400 text-slate-950 font-black shadow-xs"
-                      : "text-emerald-200 hover:text-white"
-                      }`}
-                  >
-                    {isTranslatingPlan ? (
-                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                    ) : (
-                      <span>🇵🇭 Tagalog</span>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-            <h4 className="text-base sm:text-lg md:text-xl font-black text-white leading-snug">
-              {displayPlan?.roadmapTitle || (careerPlanLang === "tl" ? "Plano para sa Trabaho at Negosyo" : `Post-Graduation Career Roadmap`)}
-            </h4>
-            <p className="text-xs text-emerald-100 font-medium leading-relaxed max-w-2xl">
-              {displayPlan?.summary || (careerPlanLang === "tl" ? `Praktikal at totoong gabay sa hanapbuhay mula sa ${app.programTitle} patungo sa trabaho o negosyo sa San Luis, Pampanga.` : `A pragmatic, real-life career action plan tailored for your transition from ${app.programTitle} into employment and entrepreneurship in San Luis, Pampanga.`)}
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
-            {isSaved ? (
-              <span className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 flex items-center gap-1.5 shadow-xs text-center">
-                <BookmarkCheck className="w-4 h-4 text-emerald-300" />
-                {careerPlanLang === "tl" ? "Nai-save na Plano sa Digital ID ✓" : "Saved Official Career Roadmap ✓"}
-              </span>
-            ) : planToShow ? (
-              <button
-                onClick={() => handleSaveCareerPlanToIDCard(planToShow)}
-                disabled={isSavingPlan}
-                className="w-full sm:w-auto justify-center px-4 py-2.5 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
-              >
-                {isSavingPlan ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    {careerPlanLang === "tl" ? "Sine-save..." : "Saving..."}
-                  </>
-                ) : (
-                  <>
-                    <Bookmark className="w-3.5 h-3.5" />
-                    {careerPlanLang === "tl" ? "I-save sa Digital ID Card" : "Save Plan to Digital ID Card"}
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={() => handleGenerateCareerPlan(program)}
-                disabled={isGeneratingPlan}
-                className="w-full sm:w-auto justify-center px-4 py-2.5 bg-white hover:bg-gray-100 active:scale-95 text-slate-900 text-xs font-extrabold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer text-center"
-              >
-                {isGeneratingPlan ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0A6B43]" />
-                    {careerPlanLang === "tl" ? "Bumubuo ng plano ang Gemini..." : "Gemini is generating plan..."}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    {careerPlanLang === "tl" ? "Gumawa ng Plano sa Gemini AI" : "Generate Gemini Post-Graduation Career Plan"}
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Display Generated Plan Content */}
-        {planToShow && displayPlan ? (
-          <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
-            {/* Phase 1: Immediate 30 Days */}
-            <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-2.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md">
-                  {careerPlanLang === "tl" ? "Yugto 1 • Unang 30 Araw" : "Phase 1 • First 30 Days"}
-                </span>
-                <h6 className="font-extrabold text-white text-xs uppercase tracking-wider">
-                  {careerPlanLang === "tl" ? "Mga Sertipiko at Pagpaparehistro sa Trabaho" : "Credentialing & Jobseeker Registration"}
-                </h6>
-              </div>
-              <ul className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                {displayPlan.immediate30Days.map((stepItem: string, sIdx: number) => (
-                  <li key={sIdx} className="bg-black/25 p-3 rounded-xl border border-white/10 text-xs text-emerald-50 leading-relaxed flex items-start gap-2.5 font-medium">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 shadow-2xs">
-                      {sIdx + 1}
-                    </span>
-                    <span className="leading-snug">{stepItem}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Phase 2: Dual Pathways (Wage Employment & Local Entrepreneurship) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
-              {/* Track A: Wage Employment */}
-              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
-                    <span className="text-[10px] font-black uppercase text-cyan-300 bg-cyan-400/20 border border-cyan-300/30 px-2 py-0.5 rounded-md w-fit">
-                      {careerPlanLang === "tl" ? "Opsyon A • Trabaho at Suweldo" : "Track A • Wage Employment"}
-                    </span>
-                    <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-400/25 px-2.5 py-0.5 rounded-md flex items-center gap-1 w-fit">
-                      <Coins className="w-3 h-3 text-emerald-300 shrink-0" />
-                      <span>{displayPlan.employmentTrack.estimatedSalary}</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                    <span><strong>{careerPlanLang === "tl" ? "Lugar na Pwedeng Aplayan:" : "Target Placement:"}</strong> {displayPlan.employmentTrack.targetLocations}</span>
-                  </p>
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
-                      {careerPlanLang === "tl" ? "Mga Trabahong Bagay Sayo:" : "Recommended Entry Job Roles:"}
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {displayPlan.employmentTrack.targetRoles.map((role: string, rIdx: number) => (
-                        <span key={rIdx} className="text-[11px] font-bold bg-white/15 px-2.5 py-1 rounded-lg text-white border border-white/10 shadow-2xs flex items-center gap-1.5">
-                          <Briefcase className="w-3 h-3 text-cyan-300 shrink-0" />
-                          <span>{role}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="pt-2.5 border-t border-white/10 space-y-1.5 text-xs text-emerald-100">
-                  {displayPlan.employmentTrack.actionSteps.map((step: string, stIdx: number) => (
-                    <p key={stIdx} className="flex items-start gap-2 text-[11px] sm:text-xs leading-relaxed">
-                      <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
-                      <span>{step}</span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-
-              {/* Track B: Entrepreneurship & Freelancing */}
-              <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3.5 sm:p-4.5 border border-white/15 space-y-3 flex flex-col justify-between">
-                <div className="space-y-2.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/10">
-                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 rounded-md w-fit">
-                      {careerPlanLang === "tl" ? "Opsyon B • Sariling Negosyo at Raket" : "Track B • Self-Employment & Freelance"}
-                    </span>
-                    <span className="text-[11px] font-bold text-amber-200 bg-amber-400/15 border border-amber-300/25 px-2.5 py-0.5 rounded-md flex items-center gap-1.5 w-fit">
-                      <Wrench className="w-3 h-3 text-amber-300 shrink-0" />
-                      <span>{careerPlanLang === "tl" ? "May Paunang Tulong / Puhunan" : "Starter Grants Available"}</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-100 font-medium leading-relaxed flex items-start gap-1.5">
-                    <Store className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                    <span><strong>{careerPlanLang === "tl" ? "Ideya sa Negosyo:" : "Business Concept:"}</strong> {displayPlan.entrepreneurshipTrack.businessConcept}</span>
-                  </p>
-                  <div className="bg-amber-400/10 p-2.5 sm:p-3 rounded-xl border border-amber-300/20">
-                    <p className="text-xs text-amber-100 leading-relaxed font-medium flex items-start gap-1.5">
-                      <Gift className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                      <span><strong>{careerPlanLang === "tl" ? "Tulong Pinansyal at Puhunan:" : "Funding & Grants:"}</strong> {displayPlan.entrepreneurshipTrack.starterFunding}</span>
-                    </p>
-                  </div>
-                </div>
-                <div className="pt-2.5 border-t border-white/10 space-y-1.5">
-                  <span className="text-[10px] font-bold text-gray-300 uppercase block tracking-wider">
-                    {careerPlanLang === "tl" ? "Mga Serbisyo o Produktong Pwedeng Simulan:" : "Initial Services to Offer:"}
-                  </span>
-                  {displayPlan.entrepreneurshipTrack.initialServices.map((srv: string, sIdx: number) => (
-                    <p key={sIdx} className="text-[11px] sm:text-xs text-emerald-100 flex items-start gap-2 font-medium leading-relaxed">
-                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
-                      <span>{srv}</span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Phase 3 & Local Support Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 text-xs bg-black/25 p-3.5 sm:p-4.5 rounded-xl border border-white/10">
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-purple-300 shrink-0" />
-                  <span>{careerPlanLang === "tl" ? "1–2 Taon na Pag-asenso sa Karera:" : "1–2 Year Long-Term Elevation:"}</span>
-                </span>
-                {displayPlan.longTerm1To2Years.map((milestone: string, mIdx: number) => (
-                  <p key={mIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
-                    <span className="text-purple-400 shrink-0 mt-0.5">◆</span>
-                    <span>{milestone}</span>
-                  </p>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
-                  <Handshake className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                  <span>{careerPlanLang === "tl" ? "Mga Malalapit na Tanggapan sa San Luis:" : "Local Support Contacts in San Luis:"}</span>
-                </span>
-                {displayPlan.localSupportContacts.map((contact: string, cIdx: number) => (
-                  <p key={cIdx} className="text-emerald-100 flex items-start gap-2 leading-relaxed font-medium text-[11px] sm:text-xs">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    <span>{contact}</span>
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-6 sm:py-8 space-y-3 bg-black/20 rounded-xl border border-dashed border-white/20 p-4 sm:p-6">
-            <Sparkles className="w-9 h-9 sm:w-10 sm:h-10 text-amber-400 mx-auto animate-pulse" />
-            <h5 className="font-extrabold text-white text-sm sm:text-base leading-snug">
-              Your Training is Certified! Ready to Build Your Post-Graduation Career Plan?
-            </h5>
-            <p className="text-xs text-emerald-100 max-w-lg mx-auto leading-relaxed font-medium">
-              Click the button below to have Google Gemini AI analyze your completed <strong>{app.programTitle}</strong> credentials and build a real-life wage employment & local entrepreneurship plan in San Luis, Pampanga.
-            </p>
-            <button
-              onClick={() => handleGenerateCareerPlan(program)}
-              disabled={isGeneratingPlan}
-              className="w-full sm:w-auto mt-3 px-6 py-3 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition-all shadow-md cursor-pointer inline-flex items-center justify-center gap-2"
-            >
-              {isGeneratingPlan ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                  Generating your realistic Gemini plan...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 text-slate-950" />
-                  Generate Gemini Post-Graduation Career Plan
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-} else {
-  return (
-    <div className="space-y-4 w-full">
-      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3.5 flex items-start gap-3">
-        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-        <div>
-          <p className="text-xs font-bold text-emerald-800">Enrolled and Active</p>
-          <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5 font-medium">
-            Congratulations! Your application has been approved by the TESDA office. You have successfully completed Step 2! You are now officially enrolled in <strong>{app.programTitle}</strong> at <strong>{provider}</strong> and on track to complete your training (Step 3).
-          </p>
-        </div>
-      </div>
-
-      {/* Beautiful Academic Schedule Details inside Pathway card */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3.5">
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-          <School className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-          <span>Active Academic & Class Schedule:</span>
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-            <Calendar className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
-            <div>
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Days</span>
-              <span className="text-xs font-bold text-gray-800">{scheduleDays}</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-            <Clock className="w-4 h-4 text-[#0A6B43] mt-0.5 shrink-0" />
-            <div>
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Class Hours & Session</span>
-              <span className="text-xs font-bold text-gray-800">
-                {timeslot.formattedRange}{timeslot.sessionType !== "Custom" ? ` (${timeslot.sessionType})` : ""}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-            <MapPin className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Room / Lab</span>
-              <span className="text-xs font-bold text-gray-800">{room} ({location})</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start gap-2.5">
-            <User className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Professor / Instructor</span>
-              <span className="text-xs font-bold text-gray-800">{instructor}</span>
-            </div>
-          </div>
-        </div>
-        <div className="text-[10px] text-gray-500 italic pt-1 border-t border-slate-100">
-          Please report to class at {location} in your proper training attire with your trainee ID card.
-        </div>
-      </div>
-
-      {/* Step 4: Unlocked for Enrolled Trainee */}
+      {/* Step 4 Career Guide with unified design matching the portal */}
       {renderMotivationalCareerGuideCard(app.programTitle, program)}
     </div>
   );
+} else {
+  return renderMotivationalCareerGuideCard(app.programTitle, program);
 }
-                          }) ()}
-                        </div >
+                          })()}
+                                </React.Fragment>
                       </div>
                     );
                   }) ()}
@@ -6893,7 +6775,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Enter new password (min. 6 characters)..."
+                      placeholder="Enter new password (min. 8 characters)..."
                       className="w-full px-3 py-2 pr-10 h-9 sm:h-10 border border-gray-200 rounded-lg text-xs sm:text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                     />
                     <button
@@ -6997,7 +6879,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                           </div>
                         )}
                         <span className="text-[11px] sm:text-xs">
-                          At least <strong>6 characters long</strong>
+                          At least <strong>8 characters long</strong>
                         </span>
                       </div>
                       {isPassLengthValid && (
@@ -7552,12 +7434,11 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                     </span>
                                   </div>
 
-                                  <h4 className="text-base sm:text-lg font-black text-gray-900 leading-snug">
+                                  <h4 className="font-extrabold text-gray-900 text-[18px] leading-tight break-words">
                                     {app.programTitle}
                                   </h4>
-                                  <p className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
-                                    <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                    <span>{prog?.provider || "TESDA Partner Training Center"}</span>
+                                  <p className="text-[14px] font-semibold text-gray-500 mt-0.5">
+                                    {prog?.provider || "TESDA Partner Training Center"}
                                   </p>
                                 </div>
 
@@ -8180,8 +8061,12 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     Top Match
                   </span>
                 ) : (
-                  <span className={`text-[10px] sm:text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-md border tracking-wider ${modalCategoryMeta.badgeBg} ${modalCategoryMeta.badgeText} ${modalCategoryMeta.badgeBorder}`}>
-                    {modalCategoryMeta.label}
+                  <span className={`text-[10px] sm:text-[11px] font-extrabold uppercase px-2.5 py-1 rounded-md border tracking-wider ${
+                    modalCategoryMeta.label === "Others" || modalCategoryMeta.label === "Not Match" || modalScore <= 0
+                      ? "bg-gray-100 text-gray-600 border-gray-300"
+                      : `${modalCategoryMeta.badgeBg} ${modalCategoryMeta.badgeText} ${modalCategoryMeta.badgeBorder}`
+                  }`}>
+                    {modalCategoryMeta.label === "Others" || modalScore <= 0 ? "Not Match" : modalCategoryMeta.label}
                   </span>
                 )}
                 {isProgramEnded(modalProg) && (
@@ -8205,7 +8090,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
             {/* Main Header: Title and % Match in Top Right */}
             <div className="mt-2.5 flex items-start justify-between gap-3">
-              <h3 className="font-extrabold text-gray-900 text-base sm:text-xl leading-snug flex-1 min-w-0 break-words">
+              <h3 className="font-extrabold text-gray-900 text-base sm:text-xl leading-tight flex-1 min-w-0 break-words">
                 {modalProg.title}
               </h3>
               <div className="shrink-0 pt-0.5">
@@ -8217,14 +8102,20 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </div>
             </div>
 
-            {/* Subheader: Sector & Institution */}
-            <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs sm:text-sm text-gray-600">
-              <span className="font-semibold text-gray-500">{modalProgSector}</span>
-              <span className="text-gray-300">•</span>
-              <span className="inline-flex items-center gap-1.5 font-bold text-emerald-900">
-                <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0A6B43] shrink-0" />
+            {/* Subheader: Program Provider */}
+            <div className="mt-1 flex items-center gap-2 flex-wrap text-xs sm:text-sm">
+              <span className="font-semibold text-gray-500">
                 {(modalProg.provider || modalProg.centerName) || "TESDA Pampanga (GPSAT)"}
               </span>
+              {(() => {
+                const pType = (modalProg as any).providerType || (modalProg as any).partner?.officialAcc?.providerType || (((modalProg.provider || "").toLowerCase().includes("gpsat") || (modalProg.provider || "").toLowerCase().includes("tesda")) ? "Public TESDA Institute" : "Accredited TVET Partner");
+                const isPublic = pType.toLowerCase().includes("public") || (modalProg.provider || "").toLowerCase().includes("gpsat");
+                return (
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide ${isPublic ? "bg-emerald-50 text-[#0A6B43] border border-emerald-200/80" : "bg-blue-50 text-blue-700 border border-blue-200/80"}`}>
+                    {isPublic ? "🏛️ Public TESDA Institute" : "⭐ Accredited TVET Partner"}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -8242,63 +8133,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               const desc = getProgramDescription(modalProg);
               if (!desc) return null;
               return (
-                <div className="bg-gray-50/90 rounded-xl sm:rounded-2xl border border-gray-200/80 p-3.5 sm:p-4 space-y-1.5 shadow-2xs">
-                  <span className="text-[11px] font-extrabold uppercase text-gray-700 tracking-wider flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-[#0A6B43] shrink-0" />
-                    Program Description &amp; Overview
+                <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 space-y-2.5 shadow-2xs">
+                  <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                    <span>PROGRAM DESCRIPTION &amp; OVERVIEW</span>
                   </span>
-                  <p className="text-xs sm:text-sm text-gray-700 font-medium leading-relaxed">
+                  <p className="text-xs sm:text-[13px] text-gray-700 font-normal leading-relaxed">
                     {desc}
                   </p>
                 </div>
               );
             })()}
-      {/* 4-Factor Transparent CBF Score Breakdown */}
-      {(() => {
-        const breakdown = calculateDetailedCBFMatch(youthProfile, viewingProgramModal.program);
-        return (
-          <div className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-800 pb-2">
-              <span className="text-[11px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 shrink-0" />
-                <span>Transparent CBF Match Breakdown</span>
-              </span>
-              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border shrink-0 ${breakdown.passedSkillGate
-                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
-                : "bg-red-950/80 text-red-300 border-red-500/40"
-                }`}>
-                {breakdown.passedSkillGate ? "Passed Skill Gate ✓" : "Skill Gate Excluded ✗"}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Skill (50%)</p>
-                <p className="text-sm sm:text-base font-black text-emerald-400 mt-0.5">{breakdown.skillPoints} pts</p>
-                <p className="text-[9px] text-gray-400">{breakdown.skillMatch}% Match</p>
-              </div>
-              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Pref (25%)</p>
-                <p className="text-sm sm:text-base font-black text-blue-400 mt-0.5">{breakdown.preferencePoints} pts</p>
-                <p className="text-[9px] text-gray-400">{breakdown.preferenceMatch}% Match</p>
-              </div>
-              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Exp (15%)</p>
-                <p className="text-sm sm:text-base font-black text-amber-400 mt-0.5">{breakdown.experiencePoints} pts</p>
-                <p className="text-[9px] text-gray-400">{breakdown.experienceMatch}% Match</p>
-              </div>
-              <div className="bg-slate-800/80 p-2 sm:p-2.5 rounded-lg border border-slate-700/80">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Goal (10%)</p>
-                <p className="text-sm sm:text-base font-black text-purple-400 mt-0.5">{breakdown.goalPoints} pts</p>
-                <p className="text-[9px] text-gray-400">{breakdown.goalMatch}% Match</p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs pt-2 border-t border-slate-800 gap-1.5">
-              <span className="text-gray-400 font-medium">Program Category: <strong className="text-slate-200">{breakdown.categoryName}</strong></span>
-              <span className="font-extrabold text-emerald-400 text-xs sm:text-sm">Overall Fit: {breakdown.finalScore}%</span>
-            </div>
-          </div>
-        );
-      })()}
+      
 
       {/* CONDITIONAL: Gemini AI Match Rationale & 3-Step Pathway ONLY for Top Match programs */}
       {(() => {
@@ -8324,7 +8170,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               {/* Top Match Designation Banner in Modal */}
               <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-linear-to-r from-amber-500/10 via-emerald-50 to-emerald-100/50 border border-emerald-200">
                 <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-black uppercase tracking-wider text-[#0A6B43]">
-                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-400 shrink-0" />
                   <span className="xl:hidden">Top Match</span>
                   <span className="hidden xl:inline">Top Match Designation</span>
                 </span>
@@ -8400,33 +8245,26 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
         // Non-Top Match: Match Category + Relevant Matched Skills / Preferences without Gemini Rationale or Pathway
         return (
-          <div className="bg-gray-50/90 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-gray-200/80 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-[10px] font-extrabold uppercase text-gray-700 tracking-wider flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 text-[#0A6B43]" />
-                Match Category
-              </span>
-              {modalCategoryMeta.label !== "Not Match" && modalCategoryMeta.label !== "Not Enough Matching Data" && (
-                <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border ${modalCategoryMeta.badgeBg} ${modalCategoryMeta.badgeText} ${modalCategoryMeta.badgeBorder}`}>
-                  {modalCategoryMeta.label} ({modalScore}%)
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-2xs">
+            <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+              <span>MATCH CATEGORY</span>
+            </span>
+            <p className="text-[13px] text-gray-600 leading-relaxed font-medium">
               {modalCategoryMeta.description}
             </p>
 
             {/* Relevant matched skills or preferences */}
             {modalBreakdown.matchedSkills && modalBreakdown.matchedSkills.length > 0 && (
-              <div className="pt-2 border-t border-gray-200/60 space-y-1.5">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
-                  Relevant Matched Competencies ({modalBreakdown.matchedSkills.length})
+              <div className="pt-2.5 border-t border-gray-100 space-y-1.5">
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  RELEVANT MATCHED COMPETENCIES ({modalBreakdown.matchedSkills.length})
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {modalBreakdown.matchedSkills.map((sk, sIdx) => (
                     <span key={sIdx} className="text-xs font-semibold text-[#0A6B43] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-150 flex items-center gap-1 shadow-2xs">
                       <Check className="w-3 h-3 text-[#0A6B43]" />
-                      {sk}
+                      {toTitleCase(sk)}
                     </span>
                   ))}
                 </div>
@@ -8437,58 +8275,61 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
       })()}
 
 
-      {/* Complete Program Details Grid */}
-      <div className="bg-gray-50/80 rounded-xl sm:rounded-2xl border border-gray-200/80 p-3.5 sm:p-4.5 space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-gray-200/60">
-          <span className="text-[11px] font-extrabold uppercase text-gray-700 tracking-wider flex items-center gap-1.5">
-            <ClipboardList className="w-4 h-4 text-[#0A6B43] shrink-0" />
-            Program Specifications & Logistics
-          </span>
-          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            Verified Schedule
-          </span>
-        </div>
+      {/* Program Schedule & Details Grid */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 space-y-3 shadow-2xs">
+        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <ClipboardList className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+          <span>PROGRAM SCHEDULE &amp; DETAILS</span>
+        </span>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-xs">
-          {/* Program Duration */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+          {/* Total Training Hours */}
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
               <Timer className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Program Duration</span>
-              <p className="font-bold text-gray-800 leading-snug break-words">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Total Training Hours</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
                 {viewingProgramModal.program.trainingHours} Hours
-                {(viewingProgramModal.program.startDate || viewingProgramModal.program.endDate) && (
-                  <span className="text-gray-500 font-normal block sm:inline sm:ml-1 text-[11px]">
-                    ({formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate)})
-                  </span>
-                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Training Period */}
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <CalendarDays className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Training Period</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
+                {formatProgramDateRange(viewingProgramModal.program.startDate, viewingProgramModal.program.endDate) || "Flexible Schedule"}
               </p>
             </div>
           </div>
 
           {/* Training Schedule */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
               <Calendar className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Training Schedule</span>
-              <p className="font-bold text-gray-800 leading-snug break-words">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Training Schedule</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
                 {formatTrainingDays(viewingProgramModal.program.trainingDays)}
               </p>
             </div>
           </div>
 
-          {/* Timeslot & Session */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+          {/* Training Hours (formerly Timeslot & Session) */}
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
               <Clock className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Timeslot & Session</span>
-              <p className="font-bold text-gray-800 leading-snug break-words">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Training Hours</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
                 {(() => {
                   const ts = formatProgramTimeslot(viewingProgramModal.program.startTime, viewingProgramModal.program.endTime);
                   return `${ts.formattedRange}${ts.sessionType !== "Custom" ? ` (${ts.sessionType})` : ""}`;
@@ -8497,109 +8338,42 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
           </div>
 
-          {/* Facility / Room */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
-            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <Building2 className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Facility / Room</span>
-              <p className="font-bold text-gray-800 leading-snug break-words">
-                {viewingProgramModal.program.room || "Main Training Facility"}
-              </p>
-            </div>
-          </div>
-
           {/* Trainer / Instructor */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
               <UserCheck className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Trainer / Instructor</span>
-              <p className="font-bold text-gray-800 leading-snug break-words">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Trainer / Instructor</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
                 {viewingProgramModal.program.instructor || "TESDA Certified Trainer"}
               </p>
             </div>
           </div>
 
           {/* Program Cost */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
             <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
               <Coins className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Program Cost</span>
-              <p className="font-black text-emerald-700 leading-snug break-words">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Program Cost</span>
+              <p className="text-[13px] font-black text-emerald-700 leading-snug break-words">
                 {viewingProgramModal.program.cost || "100% Free / Subsidized"}
               </p>
             </div>
           </div>
 
-          {/* Available Slots */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
-            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <Users className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Available Slots</span>
-              <p className="font-bold text-gray-900 leading-snug break-words">
-                <span className="font-black text-[#0A6B43]">{viewingProgramModal.program.slotsRemaining}</span>
-                <span className="text-gray-500 font-medium"> / {viewingProgramModal.program.slotsTotal} open</span>
-              </p>
-            </div>
-          </div>
-
-          
-
-
-
           {/* Delivery Mode */}
           {viewingProgramModal.program.deliveryMode && (
-            <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
+            <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
               <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-blue-50 border border-blue-100/80 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
                 <GraduationCap className="w-3.5 h-3.5" />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Delivery Mode</span>
-                <p className="font-bold text-gray-800 leading-snug break-words">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Delivery Mode</span>
+                <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
                   {viewingProgramModal.program.deliveryMode}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* TVET / CPTR Program Registration */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
-            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">TVET / CPTR Accreditation</span>
-              <p className="font-bold text-emerald-800 leading-snug break-words">
-                {viewingProgramModal.program.cptrCourseCode ? (
-                  <span className="font-mono text-[11px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                    {viewingProgramModal.program.cptrCourseCode}
-                  </span>
-                ) : (
-                  "TESDA UTPRAS Registered"
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Perks & Allowances (if available) */}
-          {(viewingProgramModal.program.fundingType || viewingProgramModal.program.perks) && (
-            <div className="sm:col-span-2 bg-emerald-50/70 p-2.5 sm:p-3 rounded-xl border border-emerald-200/80 flex items-start gap-2.5 shadow-2xs">
-              <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                <Gift className="w-3.5 h-3.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-tight block">
-                  Scholarship & Allowance Perks {viewingProgramModal.program.fundingType ? "(" + viewingProgramModal.program.fundingType + ")" : ""}
-                </span>
-                <p className="font-semibold text-emerald-950 text-xs leading-relaxed mt-0.5">
-                  {Array.isArray(viewingProgramModal.program.perks) ? viewingProgramModal.program.perks.join(", ") : (viewingProgramModal.program.perks || "Includes standard training allowance, toolkits, and assessment subsidies where applicable.")}
                 </p>
               </div>
             </div>
@@ -8607,10 +8381,57 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
         </div>
       </div>
 
-      {/* Card: ELIGIBILITY (Matching exact spec) */}
+      {/* Training Venue & Location Card */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 space-y-3 shadow-2xs">
+        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+          <span>TRAINING VENUE &amp; LOCATION</span>
+        </span>
+
+        {/* Map Canvas with Floating Elements & Expand Button */}
+        <div className="h-[260px] sm:h-[290px] w-full">
+          <EnrolledProgramMiniMap
+            program={viewingProgramModal.program}
+            locationString={viewingProgramModal.program.location}
+            onOpenFullMap={() => handleOpenVenueMap(viewingProgramModal.program)}
+          />
+        </div>
+
+        {/* Venue Details: Location and Facility / Room */}
+        <div className="space-y-2.5 text-xs pt-1">
+          {/* Location */}
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <MapPin className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Training Venue / Location</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
+                {extractLocationDisplay(viewingProgramModal.program.location) || viewingProgramModal.program.location || "San Luis, Pampanga"}
+              </p>
+            </div>
+          </div>
+
+          {/* Facility / Room */}
+          <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
+            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+              <Building2 className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Facility / Room</span>
+              <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
+                {viewingProgramModal.program.room || "Main Training Facility"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card: PROGRAM DESCRIPTION */}
       <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-2xs">
-        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider block">
-          ELIGIBILITY
+        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <BookOpen className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+          <span>PROGRAM DESCRIPTION</span>
         </span>
         <ul className="space-y-2 text-xs sm:text-[13px] text-gray-700 font-normal">
           {(() => {
@@ -8623,18 +8444,18 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             return items.map((item, idx) => (
               <li key={idx} className="flex items-start gap-2.5 leading-relaxed">
                 <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
-                <span>{item}</span>
+                <span>{toTitleCase(item)}</span>
               </li>
-
             ));
           })()}
         </ul>
       </div>
 
-      {/* Card: REQUIRED REQUIREMENTS (Matching exact spec) */}
+      {/* Card: REQUIRED REQUIREMENTS (Matching exact spec with automatic title case) */}
       <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 space-y-2.5 shadow-2xs">
-        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider block">
-          REQUIRED REQUIREMENTS
+        <span className="text-[11px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+          <FileText className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+          <span>REQUIRED REQUIREMENTS</span>
         </span>
         <ul className="space-y-2 text-xs sm:text-[13px] text-gray-700 font-normal">
           {(() => {
@@ -8644,35 +8465,16 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             return docs.map((doc, idx) => (
               <li key={idx} className="flex items-start gap-2.5 leading-relaxed">
                 <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
-                <span>{doc}</span>
+                <span>{toTitleCase(doc)}</span>
               </li>
             ));
           })()}
         </ul>
       </div>
-
-      {/* Required Skills */}
-      {viewingProgramModal.program.requiredSkills && viewingProgramModal.program.requiredSkills.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-            Recommended Prerequisite Competencies:
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {viewingProgramModal.program.requiredSkills.map((sk, sIdx) => (
-              <span key={sIdx} className="text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80 shadow-2xs">
-                {sk}
-              </span>
-            ))}
-          </div>
-
-        </div>
-      )}
     </div>
 
-    {/* Modal Action Footer (Pinned at Bottom) */ }
-    {
-      (() => {
+    {/* Modal Action Footer (Pinned at Bottom) */}
+    {(() => {
         const prog = viewingProgramModal.program;
         const app = referrals?.find(r => r.youthName === youthProfile.name && r.programTitle === prog.title);
         const isCompleted = isProgramCompleted(prog);
@@ -8685,13 +8487,14 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
 
         return (
           <div className="p-3.5 sm:p-5 border-t border-gray-200 shrink-0 bg-gray-50/95 rounded-b-2xl sm:rounded-b-3xl">
-            <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3">
-              <button
-                onClick={() => setViewingProgramModal(null)}
-                className="w-full sm:w-auto px-5 py-2.5 sm:py-3 border border-gray-200 text-gray-700 bg-white hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer text-center shadow-2xs active:scale-98"
-              >
-                Close Details
-              </button>
+            <div className="flex justify-between items-center gap-2.5 sm:gap-3">
+              {/* Slot Indicator in current position of Close Details (Left side) */}
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                <span>Slots:</span>
+                <span className="font-bold text-gray-800 bg-white px-2.5 py-1 rounded-lg border border-gray-200 text-xs shadow-2xs">
+                  <strong className="text-[#0A6B43]">{prog.slotsRemaining}</strong> / {prog.slotsTotal} open
+                </span>
+              </div>
 
               {isCompleted ? (
                 <button
@@ -8715,16 +8518,17 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     handleDirectApply(viewingProgramModal.program);
                   }}
                   disabled={isDisabled}
+                  title={overlapWarning || undefined}
                   className={`w-full sm:w-auto text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${app
-                    ? isEnrolled
+                    ? (isEnrolled
                       ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
                       : isDeclined
                         ? "bg-red-50 text-red-700 border border-red-200 cursor-default"
-                        : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse"
+                        : "bg-blue-50 text-blue-700 border border-blue-200 cursor-default animate-pulse")
                     : isFull
                       ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
                       : overlapWarning
-                        ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed"
+                        ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
                         : isUnverified
                           ? "bg-amber-100/60 text-amber-800 border border-amber-200 cursor-not-allowed"
                           : "bg-[#0A6B43] hover:bg-[#075332] active:scale-98 text-white cursor-pointer"
@@ -8749,8 +8553,6 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                     )
                   ) : isFull ? (
                     "Class Slots Full"
-                  ) : overlapWarning ? (
-                    "Schedule Overlap Detected"
                   ) : isUnverified ? (
                     "Pending SK Verification (View-Only)"
                   ) : (
@@ -8982,8 +8784,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
           programTitle={mapModalProgram?.title}
           provider={mapModalProgram?.provider || "TESDA Partner"}
           initialLocation={mapModalProgram?.location}
-          initialLat={mapModalProgram?.latitude}
-          initialLng={mapModalProgram?.longitude}
+          initialLat={mapModalProgram?.latitude || (mapModalProgram?.location ? extractLocationCoords(mapModalProgram.location)?.lat : undefined)}
+          initialLng={mapModalProgram?.longitude || (mapModalProgram?.location ? extractLocationCoords(mapModalProgram.location)?.lng : undefined)}
           room={mapModalProgram?.room}
           instructor={mapModalProgram?.instructor}
           contactPerson={mapModalProgram?.contactPerson}

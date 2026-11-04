@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save to token store
-    const saveResult = saveRegisterOtpCode(normalizedEmail, otpCode);
+    const saveResult = await saveRegisterOtpCode(normalizedEmail, otpCode);
     if (!saveResult.success) {
       return NextResponse.json(
         { 

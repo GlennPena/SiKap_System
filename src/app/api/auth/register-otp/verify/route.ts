@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const verificationResult = verifyRegisterOtpCode(email, code);
+    const verificationResult = await verifyRegisterOtpCode(email, code);
 
     if (!verificationResult.valid) {
       return NextResponse.json(

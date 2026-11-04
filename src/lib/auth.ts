@@ -140,6 +140,7 @@ export const authOptions: AuthOptions = {
           barangayId: user.barangayId || undefined,
           officialPosition,
           institutionName,
+          providerType: user.officialAcc?.providerType || (isGPSATUser ? "Public TESDA Institute" : "Private TVET Institute"),
           cptrNumber,
           representativeName,
           contactNumber: user.contactNumber || user.officialAcc?.contactNumber || undefined,
@@ -160,6 +161,7 @@ export const authOptions: AuthOptions = {
         token.email = user.email;
         token.rememberMe = Boolean((user as any).rememberMe);
         token.institutionName = (user as any).institutionName;
+        token.providerType = (user as any).providerType;
         token.cptrNumber = (user as any).cptrNumber;
         token.representativeName = (user as any).representativeName;
         token.contactNumber = (user as any).contactNumber;
@@ -185,6 +187,9 @@ export const authOptions: AuthOptions = {
             if (freshUser.officialAcc?.institutionName) {
               token.institutionName = freshUser.officialAcc.institutionName;
             }
+            if (freshUser.officialAcc?.providerType) {
+              token.providerType = freshUser.officialAcc.providerType;
+            }
             if (freshUser.officialAcc?.cptrNumber) {
               token.cptrNumber = freshUser.officialAcc.cptrNumber;
             }
@@ -209,6 +214,7 @@ export const authOptions: AuthOptions = {
         (session.user as any).barangayId = token.barangayId;
         (session.user as any).officialPosition = token.officialPosition;
         (session.user as any).institutionName = token.institutionName;
+        (session.user as any).providerType = token.providerType;
         (session.user as any).cptrNumber = token.cptrNumber;
         (session.user as any).representativeName = token.representativeName;
         (session.user as any).contactNumber = token.contactNumber;

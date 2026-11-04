@@ -160,7 +160,15 @@ export function buildReferralStatusEmail(params: {
   let message = "";
   let subject = "";
 
-  if (params.status === "Enrolled") {
+  if (params.status === "Archived" || params.status === "Completed") {
+    subject = `🎓 Training Completed & Certified: ${params.programTitle}`;
+    statusBadge = `<span style="background-color: #DCFCE7; color: #15803D; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">Completed & Certified</span>`;
+    message = `
+      <p>Congratulations, <strong>${params.youthName}</strong>! 🎓</p>
+      <p>You have successfully graduated from <strong>${params.programTitle}</strong>! Your competency certification record has been permanently archived in your SiKap Digital ID & Credentials Hub.</p>
+      <p>You can view and present your verified credential badge directly in your portal.</p>
+    `;
+  } else if (params.status === "Enrolled") {
     subject = `Application Approved: ${params.programTitle}`;
     statusBadge = `<span style="background-color: #DCFCE7; color: #15803D; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">Accepted / Enrolled</span>`;
     message = `
@@ -361,3 +369,176 @@ export function buildRegistrationOtpEmail(params: {
   };
 }
 
+
+
+/**
+ * Template for KK Youth Account Registration Approval / Rejection Notification
+ */
+export function buildYouthApprovalStatusEmail(params: {
+  youthName: string;
+  status: "Approved" | "Rejected";
+  barangayName?: string;
+  officialName?: string;
+  rejectionReason?: string;
+}): { subject: string; html: string; text: string } {
+  const appUrl = getAppUrl();
+  const isApproved = params.status === "Approved";
+  const brgy = params.barangayName ? `Barangay ${params.barangayName}` : "your Barangay";
+  
+  const subject = isApproved
+    ? `Mabuhay! Your KK Membership Registration Has Been Approved - SiKap System`
+    : `Important Update on Your KK Membership Registration - SiKap System`;
+
+  const bannerColor = isApproved ? "#F0FDF4" : "#FFF7ED";
+  const borderColor = isApproved ? "#BBF7D0" : "#FED7AA";
+  const statusTextColor = isApproved ? "#166534" : "#9A3412";
+  const iconEmoji = isApproved ? "✓" : "!";
+
+  const bodyContent = isApproved
+    ? `
+      <p>Mabuhay, <strong>${params.youthName}</strong>!</p>
+      <p>We are pleased to inform you that your <strong>Katipunan ng Kabataan (KK)</strong> membership registration for <strong>${brgy}</strong> has been officially verified and <strong>Approved</strong> by the Sangguniang Kabataan.</p>
+      
+      <div style="margin: 24px 0; padding: 20px; background-color: ${bannerColor}; border: 1px solid ${borderColor}; border-radius: 12px; text-align: left;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="display: inline-block; width: 22px; height: 22px; background-color: #0A6B43; color: white; border-radius: 50%; text-align: center; line-height: 22px; font-weight: bold; font-size: 13px;">${iconEmoji}</span>
+          <span style="font-size: 13px; font-weight: 800; color: ${statusTextColor}; text-transform: uppercase; letter-spacing: 1px;">Account Status: Verified & Approved</span>
+        </div>
+        <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.6;">
+          Your official youth dossier is now active in the Municipal Youth Information System. You have unlocked complete access to:
+        </p>
+        <ul style="margin: 10px 0 0 0; padding-left: 20px; font-size: 13px; color: #374151; line-height: 1.7;">
+          <li><strong>TESDA Training Programs</strong> – Browse and apply for full government-funded scholarship courses.</li>
+          <li><strong>AI Career Roadmaps</strong> – Generate personalized livelihood pathways tailored to your skillset.</li>
+          <li><strong>Digital Youth ID</strong> – Access your official verified QR credential card.</li>
+        </ul>
+      </div>
+
+      <p style="font-size: 13px; color: #4B5563; line-height: 1.6;">
+        You can now sign in to your dashboard to explore upcoming training schedules and municipal youth announcements.
+      </p>
+    `
+    : `
+      <p>Hello, <strong>${params.youthName}</strong>,</p>
+      <p>We are writing to provide an update regarding your Katipunan ng Kabataan registration for <strong>${brgy}</strong>. Following review by the Sangguniang Kabataan, your registration could not be approved at this time.</p>
+      
+      <div style="margin: 24px 0; padding: 20px; background-color: ${bannerColor}; border: 1px solid ${borderColor}; border-radius: 12px; text-align: left;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="display: inline-block; width: 22px; height: 22px; background-color: #EA580C; color: white; border-radius: 50%; text-align: center; line-height: 22px; font-weight: bold; font-size: 13px;">${iconEmoji}</span>
+          <span style="font-size: 13px; font-weight: 800; color: ${statusTextColor}; text-transform: uppercase; letter-spacing: 1px;">Verification Status: Action Required</span>
+        </div>
+        <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.6;">
+          ${params.rejectionReason || "Registration credentials or identification documents could not be verified according to Katipunan ng Kabataan municipal residency guidelines."}
+        </p>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #6B7280; line-height: 1.5;">
+          <strong>Next Steps:</strong> Please visit your Barangay Hall or connect with your SK Chairperson/Councilors with a physical valid ID (such as a PhilSys National ID, Student ID, or Barangay Certificate) to complete in-person verification.
+        </p>
+      </div>
+    `;
+
+  const html = wrapEmailTemplate(
+    isApproved ? "KK Membership Registration Approved" : "KK Registration Verification Notice",
+    bodyContent,
+    {
+      label: isApproved ? "Open KK Youth Dashboard" : "Visit SiKap Portal",
+      url: `${appUrl}/`
+    }
+  );
+
+  return {
+    subject,
+    html,
+    text: isApproved
+      ? `Mabuhay ${params.youthName}! Your Katipunan ng Kabataan membership registration for ${brgy} has been officially approved. Sign in at ${appUrl} to explore TESDA programs and career roadmaps.`
+      : `Hello ${params.youthName}. Your Katipunan ng Kabataan registration for ${brgy} requires verification. Please contact your Barangay SK Officials or visit your Barangay Hall with a valid ID.`
+  };
+}
+
+
+/**
+ * Template for Super Admin Notification when a new TVET Training Institution submits a CPTR application
+ */
+export function buildNewProviderApplicationAdminEmail(params: {
+  institutionName: string;
+  representativeName: string;
+  providerType: string;
+  cptrNumber: string;
+  email: string;
+  contactNumber?: string;
+}): { subject: string; html: string; text: string } {
+  const appUrl = getAppUrl();
+  const subject = `New Training Provider Application: ${params.institutionName} (CPTR ${params.cptrNumber})`;
+
+  const html = wrapEmailTemplate(
+    "New Training Provider Application Awaiting Review",
+    `
+      <p>A new technical-vocational training institution has submitted an official accreditation application to join the SiKap System in San Luis, Pampanga:</p>
+      
+      <div style="margin: 20px 0; padding: 18px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr><td style="color: #64748B; padding: 5px 0; width: 150px;">Institution:</td><td style="font-weight: bold; color: #0F172A;">${params.institutionName}</td></tr>
+          <tr><td style="color: #64748B; padding: 5px 0;">Provider Type:</td><td style="font-weight: 600; color: #0A6B43;">${params.providerType}</td></tr>
+          <tr><td style="color: #64748B; padding: 5px 0;">CPTR Number:</td><td style="font-family: monospace; font-weight: bold; color: #D97706;">${params.cptrNumber}</td></tr>
+          <tr><td style="color: #64748B; padding: 5px 0;">Liaison Official:</td><td style="font-weight: bold; color: #0F172A;">${params.representativeName}</td></tr>
+          <tr><td style="color: #64748B; padding: 5px 0;">Contact Email:</td><td style="color: #2563EB;">${params.email}</td></tr>
+          ${params.contactNumber ? `<tr><td style="color: #64748B; padding: 5px 0;">Phone:</td><td style="color: #334155;">${params.contactNumber}</td></tr>` : ""}
+        </table>
+      </div>
+
+      <p style="font-size: 13px; color: #475569; line-height: 1.6;">
+        Please review their Certificate of TVET Program Registration (CPTR) document and approve or decline the institution in your Super Admin Partner Verification desk.
+      </p>
+    `,
+    { label: "Review Provider Application", url: `${appUrl}/` }
+  );
+
+  return {
+    subject,
+    html,
+    text: `New Training Provider Application: ${params.institutionName} (${params.providerType}) with CPTR ${params.cptrNumber} submitted by ${params.representativeName} <${params.email}>. Review at ${appUrl}/`
+  };
+}
+
+/**
+ * Template for KK Youth Notification when a new TESDA training course is published
+ */
+export function buildNewProgramPublishedEmail(params: {
+  youthName?: string;
+  title: string;
+  provider: string;
+  location: string;
+  trainingHours: number;
+}): { subject: string; html: string; text: string } {
+  const appUrl = getAppUrl();
+  const subject = `New TESDA Program Available: ${params.title} (${params.provider})`;
+  const greeting = params.youthName ? `Hello <strong>${params.youthName}</strong>,` : "Mabuhay!";
+
+  const html = wrapEmailTemplate(
+    "New Free TESDA Scholarship Course Opened",
+    `
+      <p>${greeting}</p>
+      <p>A new accredited vocational training program has just been announced and opened for Katipunan ng Kabataan members in San Luis, Pampanga:</p>
+      
+      <div style="margin: 20px 0; padding: 18px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px;">
+        <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 800; color: #0A6B43;">${params.title}</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr><td style="color: #166534; padding: 4px 0; width: 140px; font-weight: 600;">Training Provider:</td><td style="color: #1F2937; font-weight: bold;">${params.provider}</td></tr>
+          <tr><td style="color: #166534; padding: 4px 0; font-weight: 600;">Training Hours:</td><td style="color: #1F2937;">${params.trainingHours} Hours</td></tr>
+          <tr><td style="color: #166534; padding: 4px 0; font-weight: 600;">Venue / Location:</td><td style="color: #1F2937;">${params.location}</td></tr>
+          <tr><td style="color: #166534; padding: 4px 0; font-weight: 600;">Tuition & Fees:</td><td style="color: #15803D; font-weight: 800;">100% Free (Government Funded)</td></tr>
+        </table>
+      </div>
+
+      <p style="font-size: 13px; color: #4B5563; line-height: 1.6;">
+        Scholarship slots are strictly limited on a first-come, first-served basis. Sign in to your dashboard to review required documents and apply directly.
+      </p>
+    `,
+    { label: "View & Apply for Program", url: `${appUrl}/` }
+  );
+
+  return {
+    subject,
+    html,
+    text: `New TESDA Program: ${params.title} offered by ${params.provider} (${params.trainingHours} hours) at ${params.location}. Free scholarship. Apply at ${appUrl}/`
+  };
+}

@@ -65,6 +65,7 @@ import { SikapLogo, NotificationBellButton, EmptyState } from "./ReusableCompone
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { motion, AnimatePresence } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
+import { validatePassword } from "@/lib/password-policy";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard, SettingsTabItem } from "./SettingsShared";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { CATEGORIES } from "../lib/cbf-taxonomy-data";
@@ -4748,7 +4749,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                   required
                                   value={newPassword}
                                   onChange={(e) => setNewPassword(e.target.value)}
-                                  placeholder="Enter new password (min. 6 characters)..."
+                                  placeholder="Enter new password (min. 8 characters)..."
                                   className="w-full h-[42px] px-3.5 pr-10 border border-gray-200 rounded-xl text-xs font-mono font-bold bg-white focus:border-[#0A6B43] focus:ring-1 focus:ring-[#0A6B43] outline-none transition-all"
                                 />
                                 <button
@@ -4801,7 +4802,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                             <div className="pt-2 flex justify-end">
                               <button
                                 type="submit"
-                                disabled={isChangingPassword}
+                                disabled={isChangingPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword || !currentPassword}
                                 className="px-5 py-2.5 bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
                               >
                                 {isChangingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
@@ -5741,11 +5742,12 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
                 {/* Card 2: Program Description */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
-                    ELIGIBILITY
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0 flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>PROGRAM DESCRIPTION</span>
                   </span>
                   <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
-                    {(selectedProgram.eligibility || "Open to all Katipunan ng Kabataan members.")
+                    {(selectedProgram.eligibility || "No program description provided.")
                       .split(";")
                       .map(item => item.trim())
                       .filter(Boolean)

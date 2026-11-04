@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 import { normalizeSkills, normalizePreferences, normalizeExperiences, normalizeGoal } from "@/lib/cbf-normalization";
 import { normalizeEducationalAttainment } from "@/types";
 import { calculateAge } from "@/lib/utils";
+import { notifyYouthApprovalStatusChanged } from "@/lib/notifications";
 
 function safeDecrypt(enc: string | null | undefined): string {
   if (!enc) return "";
@@ -35,6 +36,8 @@ function mapToClientProfile(y: any) {
     id: y.id,
     userId: y.userId,
     name: y.name,
+    firstName: y.firstName || (y.name ? y.name.split(" ")[0] : undefined),
+    lastName: y.lastName || (y.name ? y.name.split(" ").slice(1).join(" ") : undefined),
     email: y.user?.email || y.email || "",
     birthdate: birthdateFormatted,
     age: computedAge,
@@ -232,6 +235,11 @@ export async function PUT(request: Request) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
+    const existingProfile = await db.youthProfile.findUnique({
+      where: { id: body.id },
+      include: { user: true, barangay: true }
+    });
+
     const updateData: any = { ...body };
     delete updateData.id;
     delete updateData.barangay; // Ignore relation string update
@@ -391,7 +399,7 @@ export async function PUT(request: Request) {
     // Handle Data Retention & Restoration Lifecycle Actions (Restore, Archive, Suspend)
     if (body.action === "restore" || body.accountStatus === "Active") {
       updateData.approvalStatus = "Approved";
-      const targetUserId = body.userId || (await db.youthProfile.findUnique({ where: { id: body.id }, select: { userId: true } }))?.userId;
+      const targetUserId = body.userId || existingProfile?.userId;
       if (targetUserId) {
         await db.user.update({
           where: { id: targetUserId },
@@ -399,7 +407,7 @@ export async function PUT(request: Request) {
         }).catch(() => {});
       }
     } else if (body.action === "archive" || body.accountStatus === "Archived") {
-      const targetUserId = body.userId || (await db.youthProfile.findUnique({ where: { id: body.id }, select: { userId: true } }))?.userId;
+      const targetUserId = body.userId || existingProfile?.userId;
       if (targetUserId) {
         await db.user.update({
           where: { id: targetUserId },
@@ -407,11 +415,24 @@ export async function PUT(request: Request) {
         }).catch(() => {});
       }
     } else if (body.action === "deactivate" || body.accountStatus === "Suspended") {
-      const targetUserId = body.userId || (await db.youthProfile.findUnique({ where: { id: body.id }, select: { userId: true } }))?.userId;
+      const targetUserId = body.userId || existingProfile?.userId;
       if (targetUserId) {
         await db.user.update({
           where: { id: targetUserId },
           data: { status: "Suspended" }
+        }).catch(() => {});
+      }
+    }
+
+    // Handle Direct SK Approval / Rejection Action
+    const targetApprovalStatus = body.approvalStatus || updateData.approvalStatus;
+    if (targetApprovalStatus && (targetApprovalStatus === "Approved" || targetApprovalStatus === "Rejected")) {
+      updateData.approvalStatus = targetApprovalStatus;
+      const targetUserId = body.userId || existingProfile?.userId;
+      if (targetUserId) {
+        await db.user.update({
+          where: { id: targetUserId },
+          data: { status: targetApprovalStatus === "Approved" ? "Active" : "Suspended" }
         }).catch(() => {});
       }
     }
@@ -428,6 +449,21 @@ export async function PUT(request: Request) {
         where: { id: body.id },
         include: { barangay: true, user: true }
       });
+    }
+
+    // Trigger notification if youth registration approval status changed (Approved or Rejected by SK)
+    if (
+      targetApprovalStatus &&
+      (targetApprovalStatus === "Approved" || targetApprovalStatus === "Rejected") &&
+      existingProfile &&
+      existingProfile.approvalStatus !== targetApprovalStatus
+    ) {
+      notifyYouthApprovalStatusChanged({
+        youthProfileId: body.id,
+        status: targetApprovalStatus,
+        officialName: (session?.user as any)?.name,
+        rejectionReason: body.rejectionReason || undefined
+      }).catch((err) => console.error("[Notification] Error notifying youth approval status change:", err));
     }
 
     // Safely update CBF raw and normalized columns in PostgreSQL

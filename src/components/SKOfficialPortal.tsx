@@ -25,6 +25,7 @@ import {
 } from "./ReusableComponents";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
+import { validatePassword } from "@/lib/password-policy";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard } from "./SettingsShared";
 import { formatContactNumber, isValidContactNumber, formatTime12Hour, calculateAge, isProgramEnded, toTitleCase, parseVerificationIdImages } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
@@ -8119,7 +8120,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                                 required
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter new password (min. 6 characters)..."
+                                placeholder="Enter new password (min. 8 characters)..."
                                 className="w-full px-3 py-2 pr-10 h-10 border border-gray-200 rounded-lg text-sm font-medium text-gray-800 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                               />
                               <button
@@ -8165,7 +8166,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                           <div className="pt-2 flex justify-end">
                             <button
                               type="submit"
-                              disabled={isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword}
+                              disabled={isChangingPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword || !currentPassword}
                               className={`group/pwd px-5 py-2.5 h-10 text-white text-sm font-bold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 isChangingPassword || newPassword.length < 6 || newPassword !== confirmPassword || !currentPassword
                                   ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
@@ -10932,7 +10933,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: TESDA PROGRAM FULL DETAILS, ELIGIBILITY & REQUIREMENTS             */}
+      {/* MODAL: TESDA PROGRAM FULL DETAILS, PROGRAM DESCRIPTION & REQUIREMENTS    */}
       {/* ========================================================================= */}
       {selectedProgramForModal && (() => {
         const isModalProgEnded = isProgramEnded(selectedProgramForModal);
@@ -11061,11 +11062,12 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
 
                 {/* Card 2: Program Description */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
-                    ELIGIBILITY
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0 flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>PROGRAM DESCRIPTION</span>
                   </span>
                   <ul className="space-y-1.5 text-xs text-gray-700 font-medium">
-                    {(selectedProgramForModal.eligibility || "Open to all Katipunan ng Kabataan members.")
+                    {(selectedProgramForModal.eligibility || "No program description provided.")
                       .split(";")
                       .map(item => item.trim())
                       .filter(Boolean)

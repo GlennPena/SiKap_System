@@ -671,7 +671,7 @@ export function getCBFMatchCategory(score: number, hasEnoughData: boolean = true
       label: "Others",
       badgeBg: "bg-gray-100",
       badgeText: "text-gray-600",
-      badgeBorder: "border-gray-250",
+      badgeBorder: "border-gray-300",
       dotColor: "bg-gray-400",
       flameColor: "text-gray-400 fill-gray-400",
       hasScore: false,
