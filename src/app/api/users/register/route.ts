@@ -18,6 +18,8 @@ export async function POST(req: Request) {
       email, 
       password, 
       name, 
+      firstName, 
+      lastName, 
       barangay, 
       birthdate,
       dob,
@@ -44,7 +46,13 @@ export async function POST(req: Request) {
       verificationIdImage 
     } = body;
 
-    if (!email || !password || !name || !barangay) {
+    const trimmedFirstName = (firstName || "").trim();
+    const trimmedLastName = (lastName || "").trim();
+    const finalFullName = (trimmedFirstName && trimmedLastName)
+      ? `${trimmedFirstName} ${trimmedLastName}`
+      : (name || "").trim();
+
+    if (!email || !password || !finalFullName || !barangay) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
     }
 
@@ -124,7 +132,9 @@ export async function POST(req: Request) {
     // so slow network round-trips or CPU work do not consume transaction timeout budget
     const activePrograms = await db.tESDAProgram.findMany({ where: { activeStatus: "Active" } });
     const tempYouth = {
-      name,
+      name: finalFullName,
+      firstName: trimmedFirstName || undefined,
+      lastName: trimmedLastName || undefined,
       skills: finalSkillsRaw,
       interests: finalPreferencesRaw,
       sectorPreference: sectorPreference || (finalPreferencesRaw[0] || ""),
@@ -153,7 +163,7 @@ export async function POST(req: Request) {
     const result = await db.$transaction(async (prisma) => {
       const newUser = await prisma.user.create({
         data: {
-          name,
+          name: finalFullName,
           email,
           passwordHash,
           role: Role.KK_YOUTH,
@@ -167,7 +177,9 @@ export async function POST(req: Request) {
         newProfile = await prisma.youthProfile.create({
           data: {
             userId: newUser.id,
-            name,
+            name: finalFullName,
+            firstName: trimmedFirstName || null,
+            lastName: trimmedLastName || null,
             birthdate: parsedBirthdate as any,
             age: Number(computedAge),
             gender: userGender,
@@ -203,7 +215,9 @@ export async function POST(req: Request) {
         // Fallback for Prisma engine instances that might have cached older schema DMMF definitions
         const fallbackData: any = {
           userId: newUser.id,
-          name,
+          name: finalFullName,
+          firstName: trimmedFirstName || null,
+          lastName: trimmedLastName || null,
           age: Number(computedAge),
           purok,
           barangayId: brgy.id,
@@ -260,6 +274,8 @@ export async function POST(req: Request) {
       data: {
         id: result.newProfile.id,
         name: result.newProfile.name,
+        firstName: (result.newProfile as any).firstName || trimmedFirstName || undefined,
+        lastName: (result.newProfile as any).lastName || trimmedLastName || undefined,
         email: result.newUser.email,
         birthdate: result.newProfile.birthdate ? result.newProfile.birthdate.toISOString().split("T")[0] : undefined,
         age: result.newProfile.age,

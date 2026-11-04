@@ -9,7 +9,7 @@ import {
   Lock, EyeOff, Edit, Copy, Menu, Loader2,
   Sun, Moon, Building2, Zap, Archive, Calculator, ShieldCheck,
   LayoutGrid, Table, ArrowUpRight, RefreshCw, UserCheck, RotateCcw, Compass,
-  BarChart2
+  BarChart2, Download, Printer, FileSpreadsheet
 } from "lucide-react";
 import { SAN_LUIS_BARANGAYS, normalizeBarangayName } from "../lib/barangay-data";
 import { TESDAProgram, ReferralPipelineItem, TESDAPartnerScreen, YouthProfile } from "../types";
@@ -572,6 +572,13 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
   // Selected program for detail view modal
   const [viewingProgram, setViewingProgram] = useState<TESDAProgram | null>(null);
+
+  // Program Enrollee & Cohort Roster states
+  const [viewingProgramRoster, setViewingProgramRoster] = useState<TESDAProgram | null>(null);
+  const [programRosterTab, setProgramRosterTab] = useState<"all" | "enrolled" | "pending" | "approved" | "completed" | "declined">("all");
+  const [programRosterSearch, setProgramRosterSearch] = useState("");
+  const [programRosterBarangay, setProgramRosterBarangay] = useState("All");
+  const [programModalTab, setProgramModalTab] = useState<"details" | "roster">("details");
 
   // Program delete confirmation modal state
   const [programToDelete, setProgramToDelete] = useState<TESDAProgram | null>(null);
@@ -1470,6 +1477,131 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     return Array.from(map.values());
   }, [activeReferrals, normalizedArchivedReferrals]);
 
+  // Program-specific cohort statistics helper
+  const getProgramCohortStats = (prog?: TESDAProgram | null) => {
+    if (!prog) {
+      return {
+        total: 0,
+        enrolledCount: 0,
+        pendingCount: 0,
+        approvedCount: 0,
+        completedCount: 0,
+        declinedCount: 0,
+        archivedCount: 0,
+        cohort: [] as ReferralPipelineItem[]
+      };
+    }
+    const progId = (prog.id || "").toLowerCase().trim();
+    const progTitle = (prog.title || "").toLowerCase().trim();
+
+    const cohort = allConsolidatedReferrals.filter(r => {
+      const rId = (r.programId || "").toLowerCase().trim();
+      const rTitle = (r.programTitle || "").toLowerCase().trim();
+      return (progId && rId === progId) || (progTitle && rTitle === progTitle);
+    });
+
+    const enrolled = cohort.filter(r => r.status === "Enrolled");
+    const pending = cohort.filter(r => r.status === "Pending");
+    const approved = cohort.filter(r => r.status === "Approved");
+    const completed = cohort.filter(r => r.status === "Completed" || (r as any).isGraduate);
+    const declined = cohort.filter(r => r.status === "Declined");
+    const archived = cohort.filter(r => r.status === "Archived");
+
+    return {
+      total: cohort.length,
+      enrolledCount: enrolled.length,
+      pendingCount: pending.length,
+      approvedCount: approved.length,
+      completedCount: completed.length,
+      declinedCount: declined.length,
+      archivedCount: archived.length,
+      cohort
+    };
+  };
+
+  const handleExportProgramRosterCSV = (prog: TESDAProgram, items: ReferralPipelineItem[]) => {
+    const headers = [
+      "Trainee Name",
+      "Email",
+      "Contact Number",
+      "Barangay",
+      "Purok",
+      "Program Title",
+      "Delivery Mode",
+      "Status",
+      "Match Score",
+      "Application Date",
+      "Completion Date"
+    ];
+    const rows = items.map(item => {
+      const matchedProfile = youthProfiles.find(y =>
+        (item.youthId && y.id === item.youthId) ||
+        (item.youthName && y.name.toLowerCase().trim() === item.youthName.toLowerCase().trim())
+      );
+      const email = item.youthEmail || item.email || matchedProfile?.email || "—";
+      const contact = (item as any).contactNumber || matchedProfile?.contactNumber || "—";
+      return [
+        `"${(item.youthName || "").replace(/"/g, '""')}"`,
+        `"${email.replace(/"/g, '""')}"`,
+        `"${contact.replace(/"/g, '""')}"`,
+        `"${(item.barangay || "").replace(/"/g, '""')}"`,
+        `"${(item.purok || "").replace(/"/g, '""')}"`,
+        `"${(prog.title || item.programTitle || "").replace(/"/g, '""')}"`,
+        `"${(prog.deliveryMode || "Face-to-Face").replace(/"/g, '""')}"`,
+        `"${item.status || ""}"`,
+        `"${item.matchScore || 0}%"`,
+        `"${item.applicationDate || item.referralDate || ""}"`,
+        `"${item.completionDate || "—"}"`
+      ];
+    });
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${(prog.title || "Program").replace(/[^a-zA-Z0-9_-]/g, "_")}_Enrollees_Roster.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    addToast(`Exported ${items.length} enrollee records for "${prog.title}" to CSV.`, "success");
+  };
+
+  const filteredRosterReferrals = useMemo(() => {
+    if (!viewingProgramRoster) return [];
+    const stats = getProgramCohortStats(viewingProgramRoster);
+    let list = stats.cohort;
+
+    if (programRosterTab === "enrolled") {
+      list = list.filter(r => r.status === "Enrolled");
+    } else if (programRosterTab === "pending") {
+      list = list.filter(r => r.status === "Pending");
+    } else if (programRosterTab === "approved") {
+      list = list.filter(r => r.status === "Approved");
+    } else if (programRosterTab === "completed") {
+      list = list.filter(r => r.status === "Completed" || (r as any).isGraduate);
+    } else if (programRosterTab === "declined") {
+      list = list.filter(r => r.status === "Declined");
+    }
+
+    if (programRosterBarangay !== "All") {
+      list = list.filter(r => r.barangay && r.barangay.toLowerCase() === programRosterBarangay.toLowerCase());
+    }
+
+    if (programRosterSearch.trim()) {
+      const q = programRosterSearch.toLowerCase().trim();
+      list = list.filter(r =>
+        (r.youthName && r.youthName.toLowerCase().includes(q)) ||
+        (r.youthEmail && r.youthEmail.toLowerCase().includes(q)) ||
+        ((r as any).email && (r as any).email.toLowerCase().includes(q)) ||
+        (r.purok && r.purok.toLowerCase().includes(q)) ||
+        (r.barangay && r.barangay.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [viewingProgramRoster, allConsolidatedReferrals, programRosterTab, programRosterBarangay, programRosterSearch]);
+
   const totalApplicationsCount = allConsolidatedReferrals.length;
 
   // Unique youth count (prevents duplicate youth from being counted as separate individuals)
@@ -2325,6 +2457,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 ),
                 badge: undefined as number | undefined,
                 onClick: () => {
+                  setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
                 }
               },
@@ -2349,6 +2482,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 ),
                 badge: pendingReferralsCount > 0 ? pendingReferralsCount : undefined,
                 onClick: () => {
+                  setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
                   if (dashboardTab === "programs") setDashboardTab("all");
                 }
@@ -2370,6 +2504,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 ),
                 badge: undefined as number | undefined,
                 onClick: () => {
+                  setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
                 }
               },
@@ -2393,6 +2528,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 ),
                 badge: undefined as number | undefined,
                 onClick: () => {
+                  setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.SETTINGS);
                 }
               }
@@ -4911,10 +5047,413 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           )}
 
           {/* ============================================================ */}
-          {/* SCREEN 2: ALL PUBLISHED PROGRAMS (CATALOG) */}
+          {/* SCREEN 2: ALL PUBLISHED PROGRAMS (CATALOG) & COHORT ROSTER */}
           {/* ============================================================ */}
           {currentScreen === TESDAPartnerScreen.PROGRAMS && (
-            <div className="space-y-6">
+            viewingProgramRoster ? (
+              <div className="space-y-6">
+                {/* Top Banner with Botanical Growth and Gradient */}
+                <div
+                  className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
+                  style={{
+                    background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
+                  }}
+                >
+                  <GrowthPlantAnimation />
+
+                  <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl space-y-3">
+                    {/* Back to Catalog Breadcrumb Button */}
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setViewingProgramRoster(null)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer border border-white/20 backdrop-blur-xs shadow-xs"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Back to Programs Catalog</span>
+                      </button>
+                    </div>
+
+                    {/* Title and Badges */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-white border border-white/30 backdrop-blur-xs">
+                          {viewingProgramRoster.deliveryMode || "Face-to-Face"}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400/20 text-emerald-200 border border-emerald-400/30">
+                          {viewingProgramRoster.type || "NC II Certified"}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-400/20 text-blue-200 border border-blue-400/30">
+                          {getProgramCategory(viewingProgramRoster)}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                          viewingProgramRoster.activeStatus === "Closed"
+                            ? "bg-gray-500/30 text-gray-200 border-gray-400/40"
+                            : "bg-emerald-500/30 text-emerald-100 border-emerald-400/40"
+                        }`}>
+                          {viewingProgramRoster.activeStatus === "Closed" ? "Archived Batch" : "Active Cohort"}
+                        </span>
+                      </div>
+
+                      <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
+                        {viewingProgramRoster.title}
+                      </h2>
+                      <p className="text-xs sm:text-sm text-emerald-100/90 font-medium">
+                        Official Trainee Enrollee Roster & Cohort Records • {viewingProgramRoster.provider || "TESDA Partner"}
+                      </p>
+                    </div>
+
+                    {/* Top Actions: Export CSV, Print Masterlist, View Specs */}
+                    <div className="flex items-center gap-2 flex-wrap pt-2">
+                      <button
+                        type="button"
+                        onClick={() => handleExportProgramRosterCSV(viewingProgramRoster, filteredRosterReferrals)}
+                        className="px-3.5 py-2 bg-white text-[#0A6B43] hover:bg-emerald-50 active:scale-95 text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        title="Download clean CSV of all trainees for institutional reporting"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#0A6B43]" />
+                        <span>Export Roster (CSV)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="px-3.5 py-2 bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold rounded-xl transition-all border border-white/20 flex items-center gap-1.5 cursor-pointer"
+                        title="Print official trainee cohort masterlist"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print Masterlist</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewingProgram(viewingProgramRoster);
+                          setProgramModalTab("details");
+                          setIsEditingInModal(false);
+                        }}
+                        className="px-3.5 py-2 bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold rounded-xl transition-all border border-white/20 flex items-center gap-1.5 cursor-pointer"
+                        title="View complete curriculum, schedule and facility details"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Program Specifications</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-4 sm:p-6 space-y-4 sm:space-y-5">
+                  {/* 4-Item Logistics Overview */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-emerald-600" />
+                        <span>Training Term</span>
+                      </span>
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 mt-0.5 truncate">
+                        {formatProgramDateRange(viewingProgramRoster.startDate, viewingProgramRoster.endDate)}
+                      </p>
+                      <p className="text-[11px] text-gray-500 font-medium">
+                        {viewingProgramRoster.trainingHours ? `${viewingProgramRoster.trainingHours} Hours Total` : "Flexible Hours"}
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-emerald-600" />
+                        <span>Instructional Days</span>
+                      </span>
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 mt-0.5 truncate">
+                        {formatTrainingDays(viewingProgramRoster.trainingDays)}
+                      </p>
+                      <p className="text-[11px] text-gray-500 font-medium">
+                        {formatProgramTimeslot(viewingProgramRoster.startTime, viewingProgramRoster.endTime).formattedRange}
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-emerald-600" />
+                        <span>Premises & Room</span>
+                      </span>
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 mt-0.5 truncate">
+                        {viewingProgramRoster.room || "Main Workshop Area"}
+                      </p>
+                      <p className="text-[11px] text-gray-500 font-medium truncate" title={extractLocationDisplay(viewingProgramRoster.location)}>
+                        {extractLocationDisplay(viewingProgramRoster.location)}
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider flex items-center gap-1">
+                        <User className="w-3 h-3 text-emerald-600" />
+                        <span>Assigned Instructor</span>
+                      </span>
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 mt-0.5 truncate">
+                        {viewingProgramRoster.instructor || "Assigned TESDA Trainer"}
+                      </p>
+                      <p className="text-[11px] text-gray-500 font-medium">
+                        {viewingProgramRoster.cost || "Free (Subsidized)"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Slot Capacity Progress Bar */}
+                  {(() => {
+                    const stats = getProgramCohortStats(viewingProgramRoster);
+                    const totalCapacity = viewingProgramRoster.slotsTotal || 25;
+                    const filledCount = stats.enrolledCount;
+                    const pct = Math.min(100, Math.round((filledCount / totalCapacity) * 100));
+
+                    return (
+                      <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-extrabold text-[#0A6B43] uppercase tracking-wider flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Cohort Slot Utilization</span>
+                          </span>
+                          <span className="font-bold text-gray-700">
+                            <strong className="text-emerald-950 font-black">{filledCount}</strong> of {totalCapacity} Trainees Enrolled ({viewingProgramRoster.slotsRemaining} slots remaining)
+                          </span>
+                        </div>
+                        <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              filledCount >= totalCapacity ? "bg-amber-500" : "bg-[#0A6B43]"
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Status Metric Cards (Clickable tabs) */}
+                  {(() => {
+                    const stats = getProgramCohortStats(viewingProgramRoster);
+                    const cards = [
+                      { id: "all", label: "All Records", count: stats.total, color: "text-gray-900", bg: "bg-gray-50", border: "border-gray-200" },
+                      { id: "enrolled", label: "Enrolled Trainees", count: stats.enrolledCount, color: "text-[#0A6B43]", bg: "bg-emerald-50/80", border: "border-emerald-200" },
+                      { id: "pending", label: "Pending Review", count: stats.pendingCount, color: "text-amber-700", bg: "bg-amber-50/80", border: "border-amber-200" },
+                      { id: "approved", label: "Approved", count: stats.approvedCount, color: "text-blue-700", bg: "bg-blue-50/80", border: "border-blue-200" },
+                      { id: "completed", label: "Completed / Graduated", count: stats.completedCount, color: "text-purple-700", bg: "bg-purple-50/80", border: "border-purple-200" },
+                      { id: "declined", label: "Declined", count: stats.declinedCount, color: "text-red-700", bg: "bg-red-50/80", border: "border-red-200" },
+                    ];
+
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+                        {cards.map(c => {
+                          const isSelected = programRosterTab === c.id;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setProgramRosterTab(c.id as any)}
+                              className={`p-3 rounded-xl border text-left transition-all cursor-pointer active:scale-95 ${c.bg} ${
+                                isSelected ? "ring-2 ring-[#0A6B43] shadow-xs" : `${c.border} hover:opacity-90`
+                              }`}
+                            >
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 block truncate">
+                                {c.label}
+                              </span>
+                              <span className={`text-lg sm:text-xl font-black mt-0.5 block ${c.color}`}>
+                                {c.count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Filter and Search Bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search trainee name, email, or purok..."
+                        value={programRosterSearch}
+                        onChange={(e) => setProgramRosterSearch(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2 bg-gray-50/80 border border-gray-200 rounded-xl text-xs font-medium placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                      />
+                      {programRosterSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setProgramRosterSearch("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold shrink-0">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                        <span>Barangay:</span>
+                      </div>
+                      <select
+                        value={programRosterBarangay}
+                        onChange={(e) => setProgramRosterBarangay(e.target.value)}
+                        className="h-[36px] px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                      >
+                        <option value="All">All Barangays</option>
+                        {SAN_LUIS_BARANGAYS.map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+
+                      <div className="text-xs font-bold text-gray-500 pl-2">
+                        Showing <span className="text-gray-900 font-black">{filteredRosterReferrals.length}</span> Trainees
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trainee Roster Table */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                    {filteredRosterReferrals.length === 0 ? (
+                      <div className="text-center py-12 px-4 space-y-2">
+                        <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0A6B43] flex items-center justify-center mx-auto mb-2">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-extrabold text-gray-900 text-sm">No Trainees Found</h4>
+                        <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                          {programRosterSearch || programRosterBarangay !== "All"
+                            ? "No trainee records match your search and barangay filter. Try adjusting your search term."
+                            : programRosterTab === "enrolled"
+                              ? "No enrolled trainees in this class cohort yet. Accept approved applicants to populate the class roster."
+                              : `No records found in the "${programRosterTab}" category for this program.`}
+                        </p>
+                        {(programRosterSearch || programRosterBarangay !== "All" || programRosterTab !== "all") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProgramRosterSearch("");
+                              setProgramRosterBarangay("All");
+                              setProgramRosterTab("all");
+                            }}
+                            className="mt-2 px-3 py-1.5 bg-emerald-50 text-[#0A6B43] border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+                          >
+                            Clear Filters
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-[12px]">
+                          <thead>
+                            <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10.5px] font-bold whitespace-nowrap">
+                              <th className="py-3 px-4">Trainee Name</th>
+                              <th className="py-3 px-4">Barangay & Purok</th>
+                              <th className="py-3 px-4">Contact & Email</th>
+                              <th className="py-3 px-4 text-center">AI Match</th>
+                              <th className="py-3 px-4">Registration Date</th>
+                              <th className="py-3 px-4 text-center">Status</th>
+                              <th className="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {filteredRosterReferrals.map(item => {
+                              const matchedProfile = youthProfiles.find(y =>
+                                (item.youthId && y.id === item.youthId) ||
+                                (item.youthName && y.name.toLowerCase().trim() === item.youthName.toLowerCase().trim())
+                              );
+                              const email = item.youthEmail || item.email || matchedProfile?.email || "—";
+                              const contact = (item as any).contactNumber || matchedProfile?.contactNumber || "—";
+
+                              const statusBadgeStyle =
+                                item.status === "Enrolled"
+                                  ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 font-black"
+                                  : item.status === "Approved"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200 font-bold"
+                                    : item.status === "Pending"
+                                      ? "bg-amber-50 text-amber-800 border-amber-200 font-bold"
+                                      : item.status === "Completed"
+                                        ? "bg-purple-50 text-purple-700 border-purple-200 font-bold"
+                                        : "bg-red-50 text-red-700 border-red-200 font-bold";
+
+                              const initials = (item.youthName || "Y")
+                                .split(" ")
+                                .map(p => p[0])
+                                .slice(0, 2)
+                                .join("")
+                                .toUpperCase();
+
+                              return (
+                                <tr key={item.id} className="hover:bg-emerald-50/20 transition-colors group">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#0A6B43] flex items-center justify-center font-black text-xs shrink-0 border border-emerald-200">
+                                        {initials}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => openApplicantModal(item)}
+                                          className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-left line-clamp-1 cursor-pointer hover:underline"
+                                        >
+                                          {item.youthName}
+                                        </button>
+                                        <p className="text-[11px] text-gray-400">
+                                          {matchedProfile?.gender || "Youth"} • Age {matchedProfile?.age || 20}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <div className="font-semibold text-gray-800">{item.barangay}</div>
+                                    <div className="text-[11px] text-gray-400">{item.purok ? `Purok ${item.purok}` : "—"}</div>
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <div className="font-medium text-gray-700 flex items-center gap-1">
+                                      <Phone className="w-3 h-3 text-gray-400 shrink-0" />
+                                      <span>{contact}</span>
+                                    </div>
+                                    <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                                      <Mail className="w-3 h-3 text-gray-400 shrink-0" />
+                                      <span className="truncate max-w-[150px]">{email}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap text-center">
+                                    <span className="font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px]">
+                                      {item.matchScore || 85}% Match
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <span className="text-gray-600 font-medium text-xs">
+                                      {item.applicationDate || item.referralDate || "—"}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap text-center">
+                                    <span className={`text-[10px] uppercase px-2.5 py-0.5 rounded-full border tracking-wide ${statusBadgeStyle}`}>
+                                      {item.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap text-right">
+                                  <div className="flex items-center justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => openApplicantModal(item)}
+                                      className="px-3 py-1.5 border border-gray-200 hover:bg-emerald-50 hover:border-emerald-200 hover:text-[#0A6B43] text-gray-700 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                                      title="View Youth Member Full Profile"
+                                    >
+                                      View Profile
+                                    </button>
+                                  </div>
+                                </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
               {/* Full-Width Rectangular Banner with Circular Gradient Background & Botanical Plant Growth */}
               <div
                 className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
@@ -5252,18 +5791,53 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             
                           </div>
 
-                          {/* Card Footer: View Program Details on bottom right */}
-                          <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
+                          {/* Cohort & Enrollees Bar */}
+                          {(() => {
+                            const pStats = getProgramCohortStats(prog);
+                            return (
+                              <div className="pt-1.5 pb-2">
+                                <div className="flex items-center justify-between text-[11px] bg-gray-50/80 px-2.5 py-1 rounded-lg border border-gray-100">
+                                  <span className="font-bold text-gray-600 flex items-center gap-1">
+                                    <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Enrolled Cohort</span>
+                                  </span>
+                                  <span className="font-extrabold text-[#0A6B43]">
+                                    {pStats.enrolledCount} Trainees
+                                    {pStats.pendingCount > 0 && (
+                                      <span className="text-amber-600 font-bold ml-1">({pStats.pendingCount} pending)</span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Card Footer: View Roster & View Program Details */}
+                          <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewingProgramRoster(prog);
+                                setProgramRosterTab("all");
+                              }}
+                              className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 text-xs font-bold text-[#0A6B43] border border-emerald-200/80 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                              title={`View ${prog.title} Enrollee Roster & Records`}
+                            >
+                              <Users className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                              <span>Roster ({getProgramCohortStats(prog).enrolledCount})</span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => {
                                 setViewingProgram(prog);
+                                setProgramModalTab("details");
                                 setIsEditingInModal(false);
                               }}
-                              className="inline-flex items-center gap-1.5 py-1.5 px-3 sm:py-0 sm:px-0 rounded-lg sm:rounded-none bg-emerald-50/70 sm:bg-transparent text-xs sm:text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto active:scale-95"
+                              className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer shrink-0 ml-auto active:scale-95"
                             >
-                              <span>View Program Details</span>
-                              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                              <span>Details</span>
+                              <ArrowUpRight className="w-3.5 h-3.5 text-gray-500" />
                             </button>
                           </div>
                         </div>
@@ -5282,6 +5856,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                             <th className="py-3 px-4 text-left">Duration</th>
                             <th className="py-3 px-4 text-left">Training Term</th>
                             <th className="py-3 px-4 text-left">Available Slots</th>
+                            <th className="py-3 px-4 text-center">Enrollees</th>
                             <th className="py-3 px-4 text-left">Status</th>
                             <th className="py-3 px-4 text-right">Actions</th>
                           </tr>
@@ -5333,6 +5908,30 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                     </div>
                                   </div>
                                 </td>
+                                <td className="py-3 px-4 whitespace-nowrap text-center align-middle">
+                                  {(() => {
+                                    const pStats = getProgramCohortStats(prog);
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setViewingProgramRoster(prog);
+                                          setProgramRosterTab("all");
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-[#0A6B43] hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition-all cursor-pointer active:scale-95"
+                                        title="View Enrollees & Cohort Roster"
+                                      >
+                                        <Users className="w-3.5 h-3.5 text-[#0A6B43]" />
+                                        <span>{pStats.enrolledCount} Enrolled</span>
+                                        {pStats.pendingCount > 0 && (
+                                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
+                                            +{pStats.pendingCount}
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })()}
+                                </td>
                                 <td className="py-3 px-4 whitespace-nowrap">
                                   <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border tracking-wide ${prog.activeStatus === "Closed"
                                       ? "bg-gray-100 text-gray-700 border-gray-300"
@@ -5346,17 +5945,30 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                                   </span>
                                 </td>
                                 <td className="py-3 px-4 whitespace-nowrap text-right">
-                                  <div className="flex items-center justify-end">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setViewingProgramRoster(prog);
+                                        setProgramRosterTab("all");
+                                      }}
+                                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                                      title="View Cohort Roster"
+                                    >
+                                      <Users className="w-3 h-3" />
+                                      <span>Roster</span>
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setViewingProgram(prog);
+                                        setProgramModalTab("details");
                                         setIsEditingInModal(false);
                                       }}
-                                      className="inline-flex items-center gap-1 text-[12px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer group"
+                                      className="inline-flex items-center gap-1 text-[11.5px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer group"
                                       title="View Program Details"
                                     >
-                                      <span>View Program Details</span>
+                                      <span>Details</span>
                                       <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                     </button>
                                   </div>
@@ -5440,6 +6052,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 )}
               </div>
             </div>
+            )
           )}
 
           {/* ============================================================ */}
@@ -6512,7 +7125,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedApplicant(null);
           }}
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-[70] p-2 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
         >
@@ -6846,7 +7459,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               setPendingReviewDecision(null);
             }
           }}
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-[70] p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
         >
@@ -7250,6 +7863,41 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               </h3>
             </div>
 
+            {/* Modal Navigation Tabs: Program Specs vs Enrollees Roster */}
+            {!isEditingInModal && (
+              <div className="flex items-center gap-1 sm:gap-2 px-3.5 sm:px-6 pt-1 bg-gray-50/70 border-b border-gray-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setProgramModalTab("details")}
+                  className={`py-2 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                    programModalTab === "details"
+                      ? "border-[#0A6B43] text-[#0A6B43]"
+                      : "border-transparent text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Program Specifications</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProgramModalTab("roster")}
+                  className={`py-2 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                    programModalTab === "roster"
+                      ? "border-[#0A6B43] text-[#0A6B43]"
+                      : "border-transparent text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Enrollees & Applicants</span>
+                  <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                    programModalTab === "roster" ? "bg-emerald-100 text-[#0A6B43]" : "bg-gray-200 text-gray-600"
+                  }`}>
+                    {getProgramCohortStats(viewingProgram).total}
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* Archived Program Informational Banner (Mobile Responsive) */}
             {viewingProgram.activeStatus === "Closed" && !isEditingInModal && (
               <div className="bg-gradient-to-r from-amber-500/10 via-amber-50/80 to-emerald-50/50 border-b border-amber-200/80 p-3.5 sm:px-6 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-xs shrink-0">
@@ -7288,6 +7936,148 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
             {/* Modal Body: Scrollable Information Grid */}
             <div className="p-3.5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 text-xs">
+              {programModalTab === "roster" && !isEditingInModal ? (
+                /* Modal Enrollees Tab Content */
+                <div className="space-y-4">
+                  {/* Top CTA Banner to open full-screen view */}
+                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-[#0A6B43] text-white flex items-center justify-center shrink-0">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-[#0A6B43] text-xs">Program Cohort Masterlist</p>
+                        <p className="text-[11px] text-gray-600 font-medium">
+                          Viewing all registered applicants and enrolled trainees for this qualification.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetProg = viewingProgram;
+                        setViewingProgram(null);
+                        setViewingProgramRoster(targetProg);
+                        setProgramRosterTab("all");
+                      }}
+                      className="px-3.5 py-1.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-lg transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <span>Open Full Cohort Screen & Export</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Summary Metric Chips */}
+                  {(() => {
+                    const stats = getProgramCohortStats(viewingProgram);
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                        <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-2.5">
+                          <span className="text-[9px] font-extrabold uppercase text-emerald-800 tracking-wider block">Enrolled Trainees</span>
+                          <span className="text-base font-black text-emerald-950 mt-0.5 block">{stats.enrolledCount}</span>
+                        </div>
+                        <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-2.5">
+                          <span className="text-[9px] font-extrabold uppercase text-amber-800 tracking-wider block">Pending Review</span>
+                          <span className="text-base font-black text-amber-950 mt-0.5 block">{stats.pendingCount}</span>
+                        </div>
+                        <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-2.5">
+                          <span className="text-[9px] font-extrabold uppercase text-blue-800 tracking-wider block">Approved</span>
+                          <span className="text-base font-black text-blue-950 mt-0.5 block">{stats.approvedCount}</span>
+                        </div>
+                        <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-2.5">
+                          <span className="text-[9px] font-extrabold uppercase text-purple-800 tracking-wider block">Completed</span>
+                          <span className="text-base font-black text-purple-950 mt-0.5 block">{stats.completedCount}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Enrollee Table List */}
+                  {(() => {
+                    const stats = getProgramCohortStats(viewingProgram);
+                    if (stats.cohort.length === 0) {
+                      return (
+                        <div className="text-center py-8 px-4 bg-gray-50/60 border border-dashed border-gray-200 rounded-xl">
+                          <Users className="w-8 h-8 text-gray-400 mx-auto mb-2 opacity-60" />
+                          <p className="font-bold text-gray-700 text-xs">No Trainees or Applicants Yet</p>
+                          <p className="text-[11px] text-gray-500 mt-1 max-w-sm mx-auto">
+                            When Katipunan ng Kabataan youths apply or get referred to this program, their profile and enrollment record will appear here.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-[11.5px]">
+                            <thead>
+                              <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px] font-bold">
+                                <th className="py-2.5 px-3">Trainee</th>
+                                <th className="py-2.5 px-3">Barangay</th>
+                                <th className="py-2.5 px-3">Match</th>
+                                <th className="py-2.5 px-3 text-center">Status</th>
+                                <th className="py-2.5 px-3 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {stats.cohort.map(item => {
+                                const statusColor =
+                                  item.status === "Enrolled"
+                                    ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
+                                    : item.status === "Approved"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : item.status === "Pending"
+                                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                                        : item.status === "Completed"
+                                          ? "bg-purple-50 text-purple-700 border-purple-200"
+                                          : "bg-red-50 text-red-700 border-red-200";
+
+                                return (
+                                  <tr key={item.id} className="hover:bg-gray-50/80 transition-colors">
+                                    <td className="py-2.5 px-3">
+                                      <div className="font-bold text-gray-900">{item.youthName}</div>
+                                      <div className="text-[10px] text-gray-500">{item.youthEmail || item.email || "—"}</div>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="text-gray-700 font-medium">{item.barangay}</div>
+                                      <div className="text-[10px] text-gray-400">Purok {item.purok}</div>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <span className="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 text-[10px]">
+                                        {item.matchScore || 85}%
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center">
+                                      <span className={`text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded-full border tracking-wide ${statusColor}`}>
+                                        {item.status}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right">
+                                      <div className="flex items-center justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => openApplicantModal(item)}
+                                          className="px-2.5 py-1 border border-gray-200 hover:bg-emerald-50 hover:border-emerald-200 hover:text-[#0A6B43] text-gray-700 rounded-lg text-[10.5px] font-bold transition-colors cursor-pointer"
+                                          title="View Youth Member Profile"
+                                        >
+                                          View Profile
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                /* Program Specifications Tab Content */
+                <>
 
               {/* Key Overview Stat Cards (View Mode - 2 cols on mobile, 4 on desktop) */}
               {!isEditingInModal && (
@@ -7984,6 +8774,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
                 </div>
               </div>
 
+                </>
+              )}
             </div>
 
             {/* Modal Footer with Archive, Restore, Delete, Edit and Close (Mobile & Desktop Optimized) */}
@@ -8257,7 +9049,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
     return (
       <div
-        className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
+        className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-[70] p-3 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200"
         role="dialog"
         aria-modal="true"
         onClick={(e) => {

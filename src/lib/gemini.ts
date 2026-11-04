@@ -42,7 +42,7 @@ export async function generateYouthCareerPathway(
   topPrograms: TESDAProgram[]
 ): Promise<string> {
   const topProg = topPrograms && topPrograms.length > 0 ? topPrograms[0] : null;
-  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Youth Member").split(" ")[0];
   const brgyName = youth.barangay?.trim() || "San Luis";
 
   const generateDynamicPersonalizedRationale = () => {
@@ -108,7 +108,7 @@ REQUIREMENTS FOR YOUR RESPONSE:
  */
 export function fallbackTranslateAdviceToTagalog(englishAdvice: string, youth: YouthProfile): string {
   if (!englishAdvice) return "";
-  const firstName = (youth.name || "Miyembro ng KK").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Miyembro ng KK").split(" ")[0];
   const brgyName = youth.barangay?.trim() || "San Luis";
 
   let t = englishAdvice;
@@ -200,7 +200,7 @@ export async function generateYouthPersonalizedAdviceBullets(
   topPrograms: TESDAProgram[]
 ): Promise<string[]> {
   const topProg = topPrograms && topPrograms.length > 0 ? topPrograms[0] : null;
-  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Youth Member").split(" ")[0];
   const brgyName = youth.barangay?.trim() || "San Luis";
   const skillsStr = youth.skills && youth.skills.length > 0 ? youth.skills.join(" and ") : youth.sectorPreference || "your background skills";
   const goalStr = youth.livelihoodGoal || "your career goal";
@@ -268,7 +268,7 @@ export function getFallbackPersonalizedRationale(
   program?: TESDAProgram | null,
   lang: "en" | "tl" = "en"
 ): string {
-  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Youth Member").split(" ")[0];
   const brgyName = youth.barangay?.trim() || "San Luis";
   const userSkills = youth.skills && youth.skills.length > 0
     ? youth.skills.slice(0, 3).join(", ")
@@ -295,7 +295,7 @@ export function getFallbackPersonalized3StepPathway(
   program?: TESDAProgram | null,
   lang: "en" | "tl" = "en"
 ): string[] {
-  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Youth Member").split(" ")[0];
   const brgyName = youth.barangay?.trim() || "San Luis";
   const skillsStr = youth.skills && youth.skills.length > 0
     ? youth.skills.slice(0, 2).join(" and ")
@@ -503,7 +503,7 @@ export async function generateYouthLongTermCareerPlan(
   youth: YouthProfile,
   program?: TESDAProgram | null
 ): Promise<GeminiLongTermCareerPlan> {
-  const firstName = (youth.name || "Youth Member").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Youth Member").split(" ")[0];
   const progTitle = program?.title || "TESDA NC II Certified Program";
   const provider = program?.provider || "TESDA Pampanga";
   const goalStr = youth.livelihoodGoal || "Certified Skilled Professional";
@@ -633,7 +633,7 @@ export function getFallbackTagalogCareerPlan(
   plan: GeminiLongTermCareerPlan,
   youth: YouthProfile
 ): GeminiLongTermCareerPlan {
-  const firstName = (youth.name || "Miyembro ng KK").split(" ")[0];
+  const firstName = youth.firstName || (youth.name || "Miyembro ng KK").split(" ")[0];
   const brgyStr = youth.barangay || "San Luis";
   const progTitle = plan.programTitle || "TESDA Kurso";
   const goalStr = youth.livelihoodGoal || plan.targetGoal || "Matatag na Hanapbuhay";
