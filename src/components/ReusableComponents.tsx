@@ -865,6 +865,12 @@ export const OpportunityCard: React.FC<{
             }`}>
             {program.type}
           </span>
+          {program.deliveryMode && (
+            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <GraduationCap className="w-3 h-3 text-blue-600 shrink-0" />
+              <span>{program.deliveryMode}</span>
+            </span>
+          )}
           <span className="text-[11px] text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full flex items-center gap-1">
             <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
             <span>{program.location?.includes("PTC") ? "TESDA GPSAT Campus" : (extractLocationDisplay(program.location) || "San Luis Satellite")}</span>

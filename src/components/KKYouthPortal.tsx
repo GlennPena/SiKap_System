@@ -5,8 +5,10 @@ import {
   Home, Target, Award, User, Bell, Sparkles, Plus, CheckCircle,
   AlertTriangle, Phone, Mail, MapPin, Briefcase, Trash2, X, Globe, MessageSquare, LogOut,
   Calendar, Clock, XCircle, Megaphone, Lock, Eye, EyeOff, Copy, RefreshCw, Edit, ShieldCheck, ShieldAlert, Send,
+
   BookmarkCheck, ChevronLeft, ChevronRight, Check, FileCheck, ArrowRight, ExternalLink, Bookmark, GraduationCap, Heart, Shield,
   Tag, Compass, FileText, Layers, Activity, Menu, Loader2, BookOpen, Maximize2,
+
   ClipboardList, Timer, Building2, UserCheck, Coins, Users,
   TrendingUp, Handshake, Store, Gift, Wrench, AlertCircle, School, Zap, Star, Camera, Upload, Flame,
   Search, Filter, Settings
@@ -3928,6 +3930,8 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                 </ul>
                               </div>
                             </div>
+
+
                           </div>
                         </div>
                       );
@@ -4703,6 +4707,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                   </div>
                                 </div>
 
+
                                 {/* Venue */}
                                 <div className="min-w-0 flex items-start gap-1.5 col-span-2 pt-1 border-t border-gray-100/80">
                                   <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
@@ -4721,6 +4726,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                       >
                                         View Map
                                       </button>
+
                                     </div>
                                     <button
                                       type="button"
@@ -5343,10 +5349,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         <User className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
                                         <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Trainer / Instructor:</strong> <span className="text-gray-900 font-semibold break-words">{instructor}</span></span>
                                       </p>
-                                      <p className="text-gray-600 flex items-start gap-2">
-                                        <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                                        <span className="min-w-0 flex-1 leading-snug"><strong className="text-gray-700">Registrar Contact:</strong> <span className="text-gray-900 font-semibold break-words">{contactPerson} ({contactNumber})</span></span>
-          </p>
+                                      
         </div>
     </div>
 
@@ -5366,7 +5369,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                                         >
                                           {extractLocationDisplay(location)}
                                         </button>
-                                      )</strong> or coordinate with <strong>{contactPerson} ({contactNumber})</strong>:
+                                      )</strong>:
                                     </p>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-4 list-disc text-amber-950 font-semibold">
                                       {requiredDocs.map((doc: string, dIdx: number) => (
@@ -8547,23 +8550,9 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
             </div>
           </div>
 
-          {/* Contact Registrar */}
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-gray-150 flex items-start gap-2.5 shadow-2xs">
-            <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-emerald-50 border border-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <Phone className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Contact Registrar</span>
-              <p className="font-bold text-gray-800 leading-snug break-words text-[11px] sm:text-xs">
-                {viewingProgramModal.program.contactPerson || "TESDA Registrar"}
-                {viewingProgramModal.program.contactNumber && (
-                  <span className="text-emerald-700 font-semibold block sm:inline sm:ml-1">
-                    ({viewingProgramModal.program.contactNumber})
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
+          
+
+
 
           {/* Delivery Mode */}
           {viewingProgramModal.program.deliveryMode && (
@@ -8636,6 +8625,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
                 <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
                 <span>{item}</span>
               </li>
+
             ));
           })()}
         </ul>
@@ -8675,6 +8665,7 @@ export const KKYouthPortal: React.FC<KKYouthPortalProps> = ({
               </span>
             ))}
           </div>
+
         </div>
       )}
     </div>

@@ -582,18 +582,7 @@ export const TrainingVenueMapModal: React.FC<TrainingVenueMapModalProps> = ({
                   </div>
                 )}
 
-                {/* Coordinator Contact */}
-                {contactPerson && (
-                  <div className="p-2.5 rounded-xl bg-gray-50/80 border border-gray-200/80 space-y-0.5">
-                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                      Registrar / Coordinator Contact
-                    </span>
-                    <p className="font-bold text-gray-900 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                      <span>{contactPerson} {contactNumber ? `(${contactNumber})` : ""}</span>
-                    </p>
-                  </div>
-                )}
+                
               </div>
 
               {/* Commute Tip */}

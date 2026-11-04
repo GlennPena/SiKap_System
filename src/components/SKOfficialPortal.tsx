@@ -7118,32 +7118,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                               </div>
                             </div>
 
-                            {/* Competencies / Skills Acquired - Absorbs variable vertical space */}
-                            <div className="flex-1 flex flex-col justify-start min-h-[42px] sm:min-h-[46px] pt-2 pb-3">
-                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
-                                Target Competencies
-                              </span>
-                              <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
-                                {prog.requiredSkills && prog.requiredSkills.length > 0 ? (
-                                  <>
-                                    {prog.requiredSkills.slice(0, 3).map((skill, sIdx) => (
-                                      <span key={sIdx} className="text-[10px] sm:text-[11px] bg-slate-100 text-slate-700 font-semibold px-1.5 sm:px-2 py-0.5 rounded-md max-w-full truncate">
-                                        {toTitleCase(skill)}
-                                      </span>
-                                    ))}
-                                    {prog.requiredSkills.length > 3 && (
-                                      <span className="text-[9.5px] sm:text-[10px] text-gray-400 font-bold self-center shrink-0">
-                                        +{prog.requiredSkills.length - 3} more
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-gray-400 italic py-0.5">
-                                    General Technical Skills
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                            
 
                             {/* Main Content: Number of Youth Match & Youth Applied (Pinned to bottom of upper flex) */}
                             <div className="border-t border-gray-100 mt-auto">
@@ -10976,9 +10951,14 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   <h3 className="font-extrabold text-gray-900 text-base sm:text-lg leading-snug tracking-tight" title={selectedProgramForModal.title}>
                     {selectedProgramForModal.title}
                   </h3>
-                  <p className="text-xs text-gray-500 font-medium truncate">
-                    {getProgramCategory(selectedProgramForModal)}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs text-gray-500 font-medium truncate">
+                      {getProgramCategory(selectedProgramForModal)}
+                    </p>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md">
+                      {selectedProgramForModal.deliveryMode || "Face-to-Face"}
+                    </span>
+                  </div>
                 </div>
 
                 <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border shrink-0 tracking-wide ${
@@ -11063,23 +11043,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                       </span>
                     </div>
 
-                    {/* Row 4, Col 1: Contact Person */}
-                    <div
-                      className="flex items-center gap-2 text-gray-700 min-w-0"
-                      title={`Contact Person: ${selectedProgramForModal.contactPerson || "TESDA Coordinator"}`}
-                    >
-                      <User className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="truncate">{selectedProgramForModal.contactPerson || "TESDA Coordinator"}</span>
-                    </div>
-
-                    {/* Row 4, Col 2: Contact Info / Number */}
-                    <div
-                      className="flex items-center gap-2 text-gray-700 min-w-0"
-                      title={`Contact Hotline: ${selectedProgramForModal.contactNumber || "N/A"}`}
-                    >
-                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="truncate">{selectedProgramForModal.contactNumber || "N/A"}</span>
-                    </div>
+                    
 
                     {/* Row 5 (Both Columns): Location / Venue */}
                     <div
@@ -11095,7 +11059,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   </div>
                 </div>
 
-                {/* Card 2: Eligibility */}
+                {/* Card 2: Program Description */}
                 <div className="border border-gray-200/80 rounded-2xl p-4 bg-gray-50/50 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">
                     ELIGIBILITY
@@ -11168,25 +11132,7 @@ export const SKOfficialPortal: React.FC<SKOfficialPortalProps> = ({
                   </div>
                 </div>
 
-                {/* Target Competencies */}
-                <div className="space-y-1.5 pt-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                    Target Competencies
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    {selectedProgramForModal.requiredSkills && selectedProgramForModal.requiredSkills.length > 0 ? (
-                      selectedProgramForModal.requiredSkills.map((skill, sIdx) => (
-                        <span key={sIdx} className="text-xs bg-slate-100 text-slate-700 font-semibold px-2.5 py-1 rounded-lg">
-                          {toTitleCase(skill)}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">
-                        General Technical Skills
-                      </span>
-                    )}
-                  </div>
-                </div>
+                
 
                 {/* Local Barangay Matched Youth & Applied Stats */}
                 {(() => {
