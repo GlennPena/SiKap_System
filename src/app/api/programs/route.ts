@@ -16,6 +16,33 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const archived = searchParams.get("archived") === "true";
 
+    // Auto-archive any concluded active programs whose endDate has elapsed
+    const now = new Date();
+    const concludedPrograms = await db.tESDAProgram.findMany({
+      where: {
+        activeStatus: { not: "Closed" },
+        endDate: { not: null, lt: now }
+      },
+      select: { id: true, title: true }
+    });
+
+    if (concludedPrograms.length > 0) {
+      const concludedIds = concludedPrograms.map(p => p.id);
+      await db.tESDAProgram.updateMany({
+        where: { id: { in: concludedIds } },
+        data: { activeStatus: "Closed" }
+      });
+
+      // Also update enrollees/applicants: mark as Archived
+      await db.referral.updateMany({
+        where: {
+          programId: { in: concludedIds },
+          status: { in: ["Enrolled", "Pending"] }
+        },
+        data: { status: "Archived" }
+      });
+    }
+
     const programs = await db.tESDAProgram.findMany({
       where: archived
         ? { activeStatus: "Closed" }
