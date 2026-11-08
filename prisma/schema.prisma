@@ -41,6 +41,7 @@ enum ProgramStatus {
 
 enum ReferralStatus {
   Pending
+  Approved
   Enrolled
   Declined
   Archived

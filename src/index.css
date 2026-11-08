@@ -566,6 +566,22 @@ button:focus:not(:focus-visible) {
   animation: pathway-ping-gentle 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
+/* Pumping pill heartbeat animation */
+@keyframes pill-pump {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.9;
+  }
+}
+
+.animate-pill-pump {
+  animation: pill-pump 1.8s ease-in-out infinite;
+}
+
 /* SK Dashboard Professional Animation System */
 @keyframes markerFadeIn {
   from {

@@ -26,18 +26,7 @@ function mapToPipelineItem(r: any) {
     rawDate: rawDate,
     status: r.status,
     program: r.program ? {
-      id: r.program.id,
-      title: r.program.title,
-      provider: r.program.provider,
-      location: r.program.location,
-      trainingHours: r.program.trainingHours,
-      cost: r.program.cost,
-      slotsTotal: r.program.slotsTotal,
-      slotsRemaining: r.program.slotsRemaining,
-      eligibility: r.program.eligibility,
-      activeStatus: r.program.activeStatus,
-      certificationType: r.program.certificationType,
-      type: r.program.type,
+      ...r.program,
       startDate: r.program.startDate,
       endDate: r.program.endDate
     } : undefined
@@ -48,6 +37,7 @@ function getStatusPriority(status: string): number {
   if (status === "Completed") return 5;
   if (status === "Archived") return 4;
   if (status === "Enrolled") return 3;
+  if (status === "Approved") return 2.5;
   if (status === "Pending") return 2;
   if (status === "Declined") return 1;
   return 0;
@@ -148,7 +138,7 @@ export async function GET(request: Request) {
       const slotRestoresByProgram = new Map<string, { count: number; slotsTotal: number; slotsRemaining: number }>();
 
       for (const dup of duplicateRowsToDelete) {
-        if ((dup.status === "Pending" || dup.status === "Enrolled") && dup.program && dup.programId) {
+        if ((dup.status === "Pending" || dup.status === "Approved" || dup.status === "Enrolled") && dup.program && dup.programId) {
           const prev = slotRestoresByProgram.get(dup.programId) || {
             count: 0,
             slotsTotal: dup.program.slotsTotal,
@@ -365,19 +355,19 @@ export async function PATCH(request: Request) {
 
     let duplicateSlotsHeld = 0;
     if (duplicateRefs.length > 0) {
-      duplicateSlotsHeld = duplicateRefs.filter(d => d.status === "Pending" || d.status === "Enrolled").length;
+      duplicateSlotsHeld = duplicateRefs.filter(d => d.status === "Pending" || d.status === "Approved" || d.status === "Enrolled").length;
       await db.referral.deleteMany({
         where: { id: { in: duplicateRefs.map(d => d.id) } }
       });
     }
 
     const requestedStatus = body.status;
-    const dbStatus = requestedStatus === "Approved" ? "Enrolled" : requestedStatus;
+    const dbStatus = requestedStatus;
 
     // Manage slotsRemaining based on status transition + any cleaned duplicate slots
     if (currentRef.program) {
-      const wasHoldingSlot = currentRef.status === "Pending" || currentRef.status === "Enrolled";
-      const willHoldSlot = dbStatus === "Pending" || dbStatus === "Enrolled";
+      const wasHoldingSlot = currentRef.status === "Pending" || currentRef.status === "Approved" || currentRef.status === "Enrolled";
+      const willHoldSlot = dbStatus === "Pending" || dbStatus === "Approved" || dbStatus === "Enrolled";
 
       let slotDelta = duplicateSlotsHeld;
       if (!wasHoldingSlot && willHoldSlot) {
@@ -419,9 +409,6 @@ export async function PATCH(request: Request) {
     }).catch((err) => console.error("[Referral Notification Error]:", err));
 
     const mapped = mapToPipelineItem(updated);
-    if (requestedStatus === "Approved") {
-      mapped.status = "Approved";
-    }
     return NextResponse.json({ success: true, data: mapped });
   } catch (error: any) {
     console.error("Referrals PATCH Error:", error);
