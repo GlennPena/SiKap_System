@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import {
-  Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft,
+  Users, Target, Check, X, FileText, Plus, LogOut, Award, Calendar, Phone, Mail, ArrowLeft, ArrowRight,
   Search, ChevronDown, ChevronUp, BookOpen, Eye, MapPin, GraduationCap, Info, User,
   Trash2, Pencil, Bell, CheckCircle, Clock, AlertTriangle, Sparkles, ChevronRight, ChevronLeft, CheckCircle2,
   Lock, EyeOff, Edit, Copy, Menu, Loader2,
@@ -17,7 +17,7 @@ import { TrainingVenueMapModal } from "./TrainingVenueMapModal";
 import { EnrolledProgramMiniMap } from "./KKYouthPortal";
 import { formatLocationWithCoords, extractLocationDisplay, extractLocationCoords, resolveProgramCoordinates, PRESET_TRAINING_VENUES } from "../lib/training-venues";
 import { SikapLogo, ConfirmationModal, SiKapDatePicker, SiKapTimePicker, NotificationBellButton } from "./ReusableComponents";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, animate, useInView } from "motion/react";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
 import { CustomSelect } from "./CustomSelect";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
@@ -79,7 +79,310 @@ interface TESDAPartnerPortalProps {
   onLogout: () => void;
   addToast: (msg: string, type: "success" | "error" | "info") => void;
   currentUser?: any;
+  isDataReady?: boolean;
 }
+
+// Animated Number Counter Component with Viewport Trigger & Slower Smooth Progression
+const CountUpNumber: React.FC<{
+  value: number;
+  duration?: number;
+  delay?: number;
+  prefix?: string;
+  suffix?: string;
+  className?: string;
+  isInView?: boolean;
+}> = ({ value, duration = 1.6, delay = 0.15, prefix = "", suffix = "", className = "", isInView = true }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const [isDone, setIsDone] = useState(false);
+  const prevValueRef = useRef(0);
+
+  useEffect(() => {
+    if (!isInView) {
+      setDisplayValue(0);
+      setIsDone(false);
+      return;
+    }
+
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplayValue(value);
+      setIsDone(true);
+      prevValueRef.current = value;
+      return;
+    }
+
+    setIsDone(false);
+    const fromVal = prevValueRef.current;
+    const controls = animate(fromVal, value, {
+      duration,
+      delay,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate(v) {
+        setDisplayValue(Math.round(v));
+      },
+      onComplete() {
+        setDisplayValue(value);
+        setIsDone(true);
+        prevValueRef.current = value;
+      }
+    });
+
+    return () => controls.stop();
+  }, [value, delay, duration, isInView]);
+
+  return (
+    <motion.span
+      initial={{ opacity: 0, y: 4 }}
+      animate={isInView ? {
+        opacity: 1,
+        y: 0,
+        scale: isDone ? [1, 1.04, 1] : 1,
+      } : { opacity: 0, y: 4 }}
+      transition={{
+        duration: isDone ? 0.35 : 0.6,
+        delay: isDone ? 0 : delay,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className={`inline-block tabular-nums select-none ${className}`}
+    >
+      {prefix}{displayValue.toLocaleString()}{suffix}
+    </motion.span>
+  );
+};
+
+// Reusable Consistent Dashboard Chart Tooltip
+interface ChartTooltipItem {
+  category: string;
+  value: string | number;
+  color?: string;
+}
+
+interface ChartTooltipData {
+  title: string;
+  subtitle?: string;
+  items: ChartTooltipItem[];
+}
+
+interface DashboardTooltipState {
+  chartId: string;
+  data: ChartTooltipData;
+  x: number;
+  y: number;
+  containerW: number;
+  containerH: number;
+}
+
+const ChartTooltip: React.FC<{
+  tooltip: DashboardTooltipState | null;
+  chartId: string;
+}> = ({ tooltip, chartId }) => {
+  if (!tooltip || tooltip.chartId !== chartId) return null;
+
+  const { data, x, y, containerW, containerH } = tooltip;
+  const offsetX = 14;
+  const offsetY = 14;
+  const isRightHalf = x > containerW * 0.6;
+  const isTopArea = y < 75;
+
+  const left = isRightHalf
+    ? Math.max(8, x - offsetX)
+    : Math.min(containerW - 8, x + offsetX);
+
+  const top = isTopArea
+    ? Math.max(8, y + offsetY)
+    : Math.min(containerH - 8, y - offsetY);
+
+  const transform = `${isRightHalf ? "translateX(-100%)" : "translateX(0)"} ${
+    isTopArea ? "translateY(0)" : "translateY(-100%)"
+  }`;
+
+  return (
+    <div
+      style={{
+        left: `${left}px`,
+        top: `${top}px`,
+        transform,
+      }}
+      className="absolute pointer-events-none z-50 bg-white border border-gray-200/90 rounded-xl shadow-[0_6px_20px_rgba(0,0,0,0.08)] px-3 py-2 text-left min-w-[130px] max-w-[240px] transition-transform duration-75 ease-out select-none"
+    >
+      <div className="font-extrabold text-gray-900 text-xs tracking-tight truncate leading-snug">
+        {data.title}
+      </div>
+      {data.subtitle && (
+        <div className="text-[10px] font-semibold text-gray-400 -mt-0.5 mb-1 truncate">
+          {data.subtitle}
+        </div>
+      )}
+      <div className="mt-1 space-y-1 border-t border-gray-100 pt-1">
+        {data.items.map((item, idx) => (
+          <div key={idx} className="flex items-center justify-between gap-3 text-[11px] leading-tight">
+            <span className="text-gray-500 font-medium flex items-center gap-1.5 shrink-0">
+              {item.color && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+              )}
+              <span>{item.category}</span>
+            </span>
+            <span className="font-bold text-gray-900 tabular-nums text-right ml-auto">
+              {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Viewport-Triggered Animated Card Wrapper (Only animates when visible on screen)
+const AnimatedCard: React.FC<{
+  children: (isInView: boolean) => React.ReactNode;
+  className?: string;
+  delay?: number;
+  yOffset?: number;
+}> = ({ children, className = "", delay = 0, yOffset = 28 }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount: 0.12, margin: "0px 0px -40px 0px" });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: yOffset }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: yOffset }}
+      transition={{ duration: 0.95, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children(isInView)}
+    </motion.div>
+  );
+};
+
+// Top Metric Cards Row with Viewport-Triggered Slower Animations
+const TESDAMetricCardsRow: React.FC<{
+  totalApplicationsCount: number;
+  uniqueApplicantYouthCount: number;
+  pendingReferralsCount: number;
+  enrolledReferralsCount: number;
+  uniqueEnrolledYouthCount: number;
+  activeProgramsCount: number;
+  totalSlotsRemaining: number;
+  totalSlotsAllocated: number;
+  onNavigateApplicants: (tab: "all" | "pending" | "enrolled", status: string) => void;
+  onNavigatePrograms: () => void;
+}> = ({
+  totalApplicationsCount,
+  uniqueApplicantYouthCount,
+  pendingReferralsCount,
+  enrolledReferralsCount,
+  uniqueEnrolledYouthCount,
+  activeProgramsCount,
+  totalSlotsRemaining,
+  totalSlotsAllocated,
+  onNavigateApplicants,
+  onNavigatePrograms,
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount: 0.12, margin: "0px 0px -30px 0px" });
+
+  return (
+    <div ref={ref} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Card 1: Total Applications */}
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 22 }}
+        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+        transition={{ duration: 0.85, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        onClick={() => onNavigateApplicants("all", "All")}
+        className="text-left rounded-2xl p-4 sm:p-5 shadow-[0_10px_28px_-6px_rgba(4,26,19,0.28)] hover:shadow-[0_14px_34px_-6px_rgba(4,26,19,0.38)] transition-all flex flex-col justify-between cursor-pointer group"
+        style={{
+          background: "linear-gradient(to right, #041A13 0%, #082D21 45%, #106348 100%)",
+        }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs sm:text-sm font-semibold text-white/95 leading-snug">
+            Total Applications
+          </span>
+        </div>
+        <div className="text-3xl sm:text-4xl font-black text-white tracking-tight my-1.5 tabular-nums">
+          <CountUpNumber value={totalApplicationsCount} delay={0.15} duration={1.6} isInView={isInView} />
+        </div>
+        <p className="text-[11px] text-emerald-100/85 font-medium truncate">
+          {uniqueApplicantYouthCount} unique youth applicant{uniqueApplicantYouthCount !== 1 ? "s" : ""}
+        </p>
+      </motion.button>
+
+      {/* Card 2: Pending Review */}
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 22 }}
+        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+        transition={{ duration: 0.85, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        onClick={() => onNavigateApplicants("pending", "Pending")}
+        className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:shadow-[0_12px_35px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between cursor-pointer group"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+            Pending Review
+          </span>
+        </div>
+        <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+          <CountUpNumber value={pendingReferralsCount} delay={0.24} duration={1.6} isInView={isInView} />
+        </div>
+        <p className="text-[11px] text-gray-500 font-medium truncate">
+          {pendingReferralsCount > 0 ? "Awaiting TESDA decision →" : "All applications reviewed"}
+        </p>
+      </motion.button>
+
+      {/* Card 3: Enrolled Trainees */}
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 22 }}
+        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+        transition={{ duration: 0.85, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        onClick={() => onNavigateApplicants("enrolled", "Enrolled")}
+        className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:shadow-[0_12px_35px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between cursor-pointer group"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+            Enrolled Trainees
+          </span>
+        </div>
+        <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+          <CountUpNumber value={enrolledReferralsCount} delay={0.32} duration={1.6} isInView={isInView} />
+        </div>
+        <p className="text-[11px] text-gray-500 font-medium truncate">
+          {uniqueEnrolledYouthCount} unique active trainee{uniqueEnrolledYouthCount !== 1 ? "s" : ""}
+        </p>
+      </motion.button>
+
+      {/* Card 4: Active Programs */}
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, y: 22 }}
+        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+        transition={{ duration: 0.85, delay: 0.32, ease: [0.22, 1, 0.36, 1] }}
+        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+        onClick={onNavigatePrograms}
+        className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:shadow-[0_12px_35px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between cursor-pointer group"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+            Active Programs
+          </span>
+        </div>
+        <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+          <CountUpNumber value={activeProgramsCount} delay={0.4} duration={1.6} isInView={isInView} />
+        </div>
+        <p className="text-[11px] text-gray-500 font-medium truncate">
+          {totalSlotsRemaining} of {totalSlotsAllocated} slots available
+        </p>
+      </motion.button>
+    </div>
+  );
+};
 
 export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   programs,
@@ -89,7 +392,8 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   youthProfiles,
   onLogout,
   addToast,
-  currentUser
+  currentUser,
+  isDataReady
 }) => {
   const { data: sessionData, update: updateSession } = useSession();
   const [currentScreen, setCurrentScreen] = useState<TESDAPartnerScreen>(TESDAPartnerScreen.DASHBOARD);
@@ -620,6 +924,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [archivedProgramsList, setArchivedProgramsList] = useState<TESDAProgram[]>([]);
   const [archivedReferralsList, setArchivedReferralsList] = useState<ReferralPipelineItem[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
+  const [isArchivedFetched, setIsArchivedFetched] = useState(false);
   const [viewingArchivedPrograms, setViewingArchivedPrograms] = useState(false);
 
   // Modal inline editing states for "View Program Details"
@@ -663,6 +968,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       console.error("Error loading archived data:", err);
     } finally {
       setLoadingArchived(false);
+      setIsArchivedFetched(true);
     }
   };
 
@@ -1472,10 +1778,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       });
   }, [referrals, activePrograms, approvedStageIds]);
 
-  // Normalized archived referrals list (deduplicated)
+  // Normalized archived referrals list (deduplicated across all available sources immediately)
   const normalizedArchivedReferrals = useMemo(() => {
     const seen = new Set<string>();
-    return archivedReferralsList
+    const allSources = [
+      ...archivedReferralsList,
+      ...referrals.filter(r => r.status === "Archived" || !activePrograms.some(p => p.title === r.programTitle || p.id === r.programId))
+    ];
+    return allSources
       .filter(item => {
         const youthKey = (item.youthId || item.youthEmail || item.youthName || item.id).toLowerCase().trim();
         const progKey = (item.programId || item.programTitle || item.id).toLowerCase().trim();
@@ -1488,7 +1798,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         ...item,
         status: (item.status === "Archived" ? "Archived" : item.status) as ReferralPipelineItem["status"]
       }));
-  }, [archivedReferralsList]);
+  }, [archivedReferralsList, referrals, activePrograms]);
+
+  // Track when all referral and archived data is completely fetched and ready
+  const isGraphDataReady = Boolean((isDataReady === undefined || isDataReady) && isArchivedFetched);
 
   // Computed Metrics based on active catalog
   const totalSlotsRemaining = useMemo(() => activePrograms.reduce((acc, curr) => acc + curr.slotsRemaining, 0), [activePrograms]);
@@ -1499,15 +1812,58 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const declinedReferralsCount = useMemo(() => activeReferrals.filter(r => r.status === "Declined").length, [activeReferrals]);
 
   // Dashboard Analytics & Activity UI states
-  const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null);
+    // Dashboard Chart Tooltip state & mouse tracking
+  const [dashboardTooltip, setDashboardTooltip] = useState<DashboardTooltipState | null>(null);
+
+  const handleChartTooltipMove = useCallback(
+    (chartId: string, e: React.MouseEvent, data: ChartTooltipData) => {
+      const target = e.currentTarget as Element | null;
+      let container: HTMLElement | null = null;
+      if (target && typeof target.closest === "function") {
+        container = target.closest(`[data-chart-container="${chartId}"]`) as HTMLElement | null;
+      }
+      if (!container && target) {
+        let curr: Element | null = target;
+        while (curr) {
+          if (curr.getAttribute?.("data-chart-container") === chartId) {
+            container = curr as HTMLElement;
+            break;
+          }
+          curr = curr.parentElement;
+        }
+      }
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setDashboardTooltip({
+        chartId,
+        data,
+        x,
+        y,
+        containerW: rect.width,
+        containerH: rect.height,
+      });
+    },
+    []
+  );
+
+  const handleChartTooltipLeave = useCallback(() => {
+    setDashboardTooltip(null);
+  }, []);
+
+const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null);
   const [programDemandSort, setProgramDemandSort] = useState<"demand" | "slots" | "title">("demand");
+  const [programDemandPage, setProgramDemandPage] = useState<number>(1);
   const [trendTimeframe, setTrendTimeframe] = useState<"weekly" | "6m" | "12m">("6m");
   const [hoveredTrendIdx, setHoveredTrendIdx] = useState<number | null>(null);
   const [barangayChartMode, setBarangayChartMode] = useState<"all" | "active">("all");
   const [barangayCountMetric, setBarangayCountMetric] = useState<"applications" | "uniqueYouth">("applications");
+  const [barangayChartPage, setBarangayChartPage] = useState<number>(1);
   const [hoveredBarangayIdx, setHoveredBarangayIdx] = useState<number | null>(null);
   const [sectorSupplyMetric, setSectorSupplyMetric] = useState<"programs" | "slots">("slots");
   const [hoveredSectorIdx, setHoveredSectorIdx] = useState<number | null>(null);
+  const [sectorPage, setSectorPage] = useState<number>(1);
   const recentActivityLimit = 5;
 
   // All consolidated applications (active + archived, deduplicated)
@@ -1822,11 +2178,14 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     if (trendTimeframe === "weekly") {
       const buckets: Array<{ key: string; label: string; fullLabel: string; count: number; uniqueYouth: number }> = [];
       const dayMs = 24 * 60 * 60 * 1000;
-      const endOfCurrentWeek = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate(), 23, 59, 59, 999).getTime();
+      const currentDay = anchorDate.getDay();
+      const daysSinceMonday = (currentDay + 6) % 7;
+      const currentMonday = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate() - daysSinceMonday);
+      currentMonday.setHours(0, 0, 0, 0);
 
       for (let i = 7; i >= 0; i--) {
-        const bucketEnd = endOfCurrentWeek - i * 7 * dayMs;
-        const bucketStart = bucketEnd - 7 * dayMs + 1;
+        const bucketStart = currentMonday.getTime() - i * 7 * dayMs;
+        const bucketEnd = bucketStart + 7 * dayMs - 1;
         const startD = new Date(bucketStart);
         const endD = new Date(bucketEnd);
         const shortLabel = startD.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -1950,29 +2309,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
 
     // Exclude barangays with zero applications when positive values are available;
     // if fewer than 6 barangays have applications, display only those with actual applications.
-    const positiveItems = scopedItems.filter(i => getVal(i) > 0);
-
-    const sortedTop6 = [...positiveItems]
-      .sort((a, b) => {
-        const valA = getVal(a);
-        const valB = getVal(b);
-        if (valB !== valA) return valB - valA;
-        return a.barangay.localeCompare(b.barangay);
-      })
-      .slice(0, 6);
+    const sortedAll = [...allItems].sort((a, b) => {
+      const valA = a.applications;
+      const valB = b.applications;
+      if (valB !== valA) return valB - valA;
+      return a.barangay.localeCompare(b.barangay);
+    });
 
     const maxVal = Math.max(
       1,
-      ...sortedTop6.map(i => getVal(i))
+      ...sortedAll.map(i => i.applications)
     );
-    const activeBarangayCount = allItems.filter(i => getVal(i) > 0).length;
-    const scopeTotalCount = barangayChartMode === "active" ? activeBarangayCount : SAN_LUIS_BARANGAYS.length;
+    const activeBarangayCount = allItems.filter(i => i.applications > 0).length;
 
     return {
-      items: sortedTop6,
+      items: sortedAll,
       maxVal,
       activeBarangayCount,
-      scopeTotalCount,
+      scopeTotalCount: SAN_LUIS_BARANGAYS.length,
       totalBarangays: SAN_LUIS_BARANGAYS.length
     };
   }, [allConsolidatedReferrals, barangayChartMode, barangayCountMetric]);
@@ -2075,20 +2429,21 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       };
     });
 
-    const activeItems = items
-      .filter(i => i.youthInterested > 0 || i.programCount > 0)
-      .sort((a, b) => (b.youthInterested + b.programCount * 3) - (a.youthInterested + a.programCount * 3));
+    const sortedItems = [...items].sort((a, b) => {
+      const aVal = a.youthInterested * 10 + (sectorSupplyMetric === "programs" ? a.programCount : a.availableSlots);
+      const bVal = b.youthInterested * 10 + (sectorSupplyMetric === "programs" ? b.programCount : b.availableSlots);
+      if (bVal !== aVal) return bVal - aVal;
+      return a.shortLabel.localeCompare(b.shortLabel);
+    });
 
-    const finalItems = activeItems.length > 0 ? activeItems.slice(0, 7) : items.slice(0, 6);
-
-    const maxYouth = Math.max(5, ...finalItems.map(i => i.youthInterested));
+    const maxYouth = Math.max(5, ...sortedItems.map(i => i.youthInterested));
     const maxSupply = Math.max(
       5,
-      ...finalItems.map(i => (sectorSupplyMetric === "programs" ? i.programCount : i.availableSlots))
+      ...sortedItems.map(i => (sectorSupplyMetric === "programs" ? i.programCount : i.availableSlots))
     );
     const maxCombined = Math.max(maxYouth, maxSupply, 5);
 
-    return { items: finalItems, maxYouth, maxSupply, maxCombined };
+    return { items: sortedItems, maxYouth, maxSupply, maxCombined };
   }, [youthProfiles, activePrograms, sectorSupplyMetric]);
 
   // SECTION 4: Recent Applicant Activity (Compact Timeline with Relative & Exact Timestamps)
@@ -2980,11 +3335,12 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           {/* ============================================================ */}
           {currentScreen === TESDAPartnerScreen.DASHBOARD && (
             <div className="space-y-6">
-              {/* PAGE HEADER: Greeting Card Banner matching KK Youth & SK Official Dashboards */}
+              {/* PAGE HEADER: Greeting Card Banner (Slow Viewport Entrance) */}
               <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
                 className="w-full text-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(4,26,19,0.28)] relative overflow-hidden"
                 style={{
                   background: "radial-gradient(circle at 75% 50%, #106348 0%, #082D21 55%, #041A13 100%)",
@@ -3003,1331 +3359,1438 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
               </motion.div>
 
               {/* ============================================================ */}
-              {/* 1. DASHBOARD STATISTICS CARDS (4 COMPACT CARDS)               */}
+              {/* 1. DASHBOARD STATISTICS CARDS (Viewport-Triggered Slow Count Up) */}
               {/* ============================================================ */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* Card 1: Total Applications */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                    setDashboardTab("all");
-                    setPipelineStatusFilter("All");
-                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="text-left rounded-2xl p-4 sm:p-5 shadow-[0_10px_28px_-6px_rgba(4,26,19,0.28)] hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
-                  style={{
-                    background: "linear-gradient(to right, #041A13 0%, #082D21 45%, #106348 100%)",
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-semibold text-white/95 leading-snug">
-                      Total Applications
-                    </span>
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-black text-white tracking-tight my-1.5 tabular-nums">
-                    {totalApplicationsCount}
-                  </div>
-                  <p className="text-[11px] text-emerald-100/85 font-medium truncate">
-                    {uniqueApplicantYouthCount} unique youth applicant{uniqueApplicantYouthCount !== 1 ? "s" : ""}
-                  </p>
-                </button>
-
-                {/* Card 2: Pending Review */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                    setDashboardTab("pending");
-                    setPipelineStatusFilter("Pending");
-                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
-                      Pending Review
-                    </span>
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
-                    {pendingReferralsCount}
-                  </div>
-                  <p className="text-[11px] text-gray-500 font-medium truncate">
-                    {pendingReferralsCount > 0 ? "Awaiting TESDA decision →" : "All applications reviewed"}
-                  </p>
-                </button>
-
-                {/* Card 3: Enrolled Trainees */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                    setDashboardTab("enrolled");
-                    setPipelineStatusFilter("Enrolled");
-                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
-                      Enrolled Trainees
-                    </span>
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
-                    {enrolledReferralsCount}
-                  </div>
-                  <p className="text-[11px] text-gray-500 font-medium truncate">
-                    {uniqueEnrolledYouthCount} unique active trainee{uniqueEnrolledYouthCount !== 1 ? "s" : ""}
-                  </p>
-                </button>
-
-                {/* Card 4: Active Training Programs */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
-                    setViewingArchivedPrograms(false);
-                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:-translate-y-0.5 transition-all flex flex-col justify-between cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
-                      Active Programs
-                    </span>
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
-                    {activePrograms.length}
-                  </div>
-                  <p className="text-[11px] text-gray-500 font-medium truncate">
-                    {totalSlotsRemaining} of {totalSlotsAllocated} slots available
-                  </p>
-                </button>
-              </div>
+              <TESDAMetricCardsRow
+                totalApplicationsCount={totalApplicationsCount}
+                uniqueApplicantYouthCount={uniqueApplicantYouthCount}
+                pendingReferralsCount={pendingReferralsCount}
+                enrolledReferralsCount={enrolledReferralsCount}
+                uniqueEnrolledYouthCount={uniqueEnrolledYouthCount}
+                activeProgramsCount={activePrograms.length}
+                totalSlotsRemaining={totalSlotsRemaining}
+                totalSlotsAllocated={totalSlotsAllocated}
+                onNavigateApplicants={(tab, status) => {
+                  setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                  setDashboardTab(tab);
+                  setPipelineStatusFilter(status);
+                  document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onNavigatePrograms={() => {
+                  setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                  setViewingArchivedPrograms(false);
+                  document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              />
 
               {/* ============================================================ */}
-              {/* 2. QUICK ACTIONS SECTION                                      */}
-              {/* ============================================================ */}
-              <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 space-y-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm sm:text-base font-extrabold text-gray-900 tracking-tight">
-                      Quick Actions
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">
-                      Direct shortcuts to common TESDA applicant and training program management tasks
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
-                  {/* Action 1: Manage Applicants */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                      setDashboardTab("all");
-                      setPipelineStatusFilter("All");
-                      document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
-                          Manage Applicants
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </div>
-                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
-                        View and filter all applications
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Action 2: Manage Programs */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
-                      setViewingArchivedPrograms(false);
-                      document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
-                          Manage Programs
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </div>
-                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
-                        Update courses and schedules
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Action 3: Review Pending Applications */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                      setDashboardTab("pending");
-                      setPipelineStatusFilter("Pending");
-                      document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 group-hover:bg-[#0A6B43] group-hover:border-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
-                          Review Pending
-                        </span>
-                        {pendingReferralsCount > 0 ? (
-                          <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black shrink-0">
-                            {pendingReferralsCount}
-                          </span>
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] shrink-0" />
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
-                        Process awaiting decisions
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Action 4: Add Training Program */}
-                  <button
-                    type="button"
-                    onClick={handleNewProgramClick}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
-                      <Plus className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
-                          Add Training Program
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </div>
-                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
-                        Publish a new TVET course
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* Action 5: View Analytics */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      document.getElementById("tesda-dashboard-analytics")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                    className="p-3.5 rounded-xl border border-gray-200/80 bg-gray-50/50 hover:bg-emerald-50/50 hover:border-emerald-300 text-left transition-all flex items-start gap-3 group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0A6B43]/20"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0A6B43] group-hover:bg-[#0A6B43] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
-                      <BarChart2 className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
-                          View Analytics
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all shrink-0" />
-                      </div>
-                      <p className="text-[11px] text-gray-500 font-medium mt-0.5 line-clamp-1">
-                        Explore demand & sector insights
-                      </p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* ============================================================ */}
-              {/* 3. DASHBOARD ANALYTICS (5 DECISION-SUPPORT CHARTS)            */}
+              {/* 2. DASHBOARD ANALYTICS & QUICK ACTIONS                       */}
               {/* ============================================================ */}
               <div id="tesda-dashboard-analytics" className="space-y-5 sm:space-y-6 scroll-mt-20">
-                {/* Analytics Row 1: Application Status Distribution (Donut) + Application Trends (Line Chart) */}
+                {/* Row 1: Application Trends (50%) + Applications by Barangay (50%) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-                  {/* CHART 1 (5 cols): Application Status Distribution Donut Chart */}
-                  <div className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
-                    <div className="flex flex-col flex-1">
-                      <div className="pb-3 border-b border-gray-100 flex items-center justify-between gap-2">
-                        <div>
-                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                            Application Status Distribution
-                          </h3>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Breakdown of Pending, Approved, Enrolled, Declined, and Archived records
-                          </p>
-                        </div>
-                      </div>
-
-                      {statusDistributionData.total === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
-                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                            <Users className="w-6 h-6" />
-                          </div>
-                          <h5 className="text-sm font-bold text-gray-800">No Application Records Yet</h5>
-                          <p className="text-xs text-gray-400 max-w-xs font-medium">
-                            Status distribution will appear once youth applications are submitted.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-6 py-5 flex-1">
-                          {/* Donut SVG */}
-                          <div className="relative w-36 h-36 sm:w-40 sm:h-40 shrink-0 flex items-center justify-center">
-                            {(() => {
-                              const R = 44;
-                              const C = 2 * Math.PI * R;
-                              const total = statusDistributionData.total || 1;
-                              let accumulated = 0;
-
-                              return (
-                                <svg className="w-36 h-36 sm:w-40 sm:h-40 -rotate-90 transform" viewBox="0 0 120 120">
-                                  <circle cx="60" cy="60" r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
-                                  {statusDistributionData.slices.map((s, idx) => {
-                                    if (s.count <= 0) return null;
-                                    const sliceLen = (s.count / total) * C;
-                                    const strokeDash = `${sliceLen} ${C - sliceLen}`;
-                                    const offset = -accumulated;
-                                    accumulated += sliceLen;
-                                    const isHovered = hoveredStatusSlice === idx;
-
-                                    return (
-                                      <circle
-                                        key={s.label}
-                                        cx="60"
-                                        cy="60"
-                                        r={R}
-                                        fill="none"
-                                        stroke={s.color}
-                                        strokeWidth={isHovered ? 20 : 16}
-                                        strokeDasharray={strokeDash}
-                                        strokeDashoffset={offset}
-                                        style={{
-                                          transition: "stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1), stroke-width 0.2s ease"
-                                        }}
-                                        className="cursor-pointer"
-                                        onMouseEnter={() => setHoveredStatusSlice(idx)}
-                                        onMouseLeave={() => setHoveredStatusSlice(null)}
-                                        onClick={() => {
-                                          setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                                          setDashboardTab(s.tab);
-                                          setPipelineStatusFilter(s.filter === "Archived" ? "All" : s.filter);
-                                          if (s.tab === "archived") fetchArchivedData();
-                                          document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                                        }}
-                                      />
-                                    );
-                                  })}
-                                </svg>
-                              );
-                            })()}
-
-                            {/* Center Text */}
-                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
-                              {hoveredStatusSlice !== null && statusDistributionData.slices[hoveredStatusSlice] ? (
-                                <div className="animate-in fade-in duration-150">
-                                  <span
-                                    className="text-lg font-black leading-none block tabular-nums"
-                                    style={{ color: statusDistributionData.slices[hoveredStatusSlice].color }}
-                                  >
-                                    {statusDistributionData.slices[hoveredStatusSlice].pct}%
-                                  </span>
-                                  <span className="text-[11px] font-bold text-gray-800 mt-1 block">
-                                    {statusDistributionData.slices[hoveredStatusSlice].count} {statusDistributionData.slices[hoveredStatusSlice].label}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div>
-                                  <span className="text-2xl font-black text-gray-900 leading-none block tabular-nums">
-                                    {statusDistributionData.total}
-                                  </span>
-                                  <span className="text-[10px] text-gray-500 font-semibold mt-1 block uppercase tracking-wider">
-                                    Applications
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Interactive Legend */}
-                          <div className="space-y-1.5 w-full sm:w-auto min-w-[175px]">
-                            {statusDistributionData.slices.map((s, idx) => {
-                              const isHovered = hoveredStatusSlice === idx;
-                              return (
-                                <button
-                                  key={s.label}
-                                  type="button"
-                                  onMouseEnter={() => setHoveredStatusSlice(idx)}
-                                  onMouseLeave={() => setHoveredStatusSlice(null)}
-                                  onClick={() => {
-                                    setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                                    setDashboardTab(s.tab);
-                                    setPipelineStatusFilter(s.filter === "Archived" ? "All" : s.filter);
-                                    if (s.tab === "archived") fetchArchivedData();
-                                    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                                  }}
-                                  className={`w-full flex items-center justify-between gap-3 py-1.5 px-2.5 rounded-xl transition-all cursor-pointer text-left ${isHovered ? "bg-gray-100 scale-[1.01]" : "hover:bg-gray-50"
-                                    }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                                      style={{ backgroundColor: s.color }}
-                                    />
-                                    <span className={`text-xs ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
-                                      {s.label}
-                                    </span>
-                                  </div>
-                                  <span className="text-xs font-bold text-gray-900 tabular-nums">
-                                    {s.count} <span className="text-gray-400 font-normal">({s.pct}%)</span>
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-                      <span>Click any status segment to filter applicants</span>
-                      <span className="font-semibold text-gray-700">{uniqueApplicantYouthCount} unique youth</span>
-                    </div>
-                  </div>
-
-                  {/* CHART 3 (7 cols): Application Trends Over Time (Line Chart with Weekly / Monthly Filters) */}
-                  <div className="lg:col-span-7 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
-                    <div className="space-y-4 flex-1 flex flex-col justify-between">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div>
+                  {/* CHART 3 (6 cols / 50%): Application Trends Over Time (Slower Draw In Animation) */}
+                  <AnimatedCard
+                    delay={0.15}
+                    className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col h-full"
+                  >
+                    {(isInView) => {
+                      const isTrendsReady = isInView && isGraphDataReady;
+                      return (
+                      <>
+                        {/* Header with Title and Subtitle */}
+                        <div className="pb-3 border-b border-gray-100 min-h-[58px] flex flex-col justify-center">
                           <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
                             Application Trends
                           </h3>
                           <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Application submission volume over time from official timestamps
+                            Track application volume over time with weekly or monthly aggregation.
                           </p>
                         </div>
 
-                        {/* Weekly / 6M / 12M Time Range Filter */}
-                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTrendTimeframe("weekly");
-                              setHoveredTrendIdx(null);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${trendTimeframe === "weekly" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            Weekly
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTrendTimeframe("6m");
-                              setHoveredTrendIdx(null);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${trendTimeframe === "6m" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            6 Months
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTrendTimeframe("12m");
-                              setHoveredTrendIdx(null);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${trendTimeframe === "12m" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            12 Months
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* SVG Line Chart */}
-                      <div className="pt-2 flex-1 flex flex-col justify-end">
-                        {(() => {
-                          const buckets = applicationTrendsData.buckets;
-                          const maxVal = applicationTrendsData.maxCount;
-                          const n = buckets.length;
-                          const W = 560;
-                          const H = 165;
-                          const padX = 24;
-                          const padTop = 22;
-                          const padBottom = 18;
-                          const usableW = W - padX * 2;
-                          const usableH = H - padTop - padBottom;
-
-                          const coords = buckets.map((b, idx) => {
-                            const x = n > 1 ? padX + (idx / (n - 1)) * usableW : W / 2;
-                            const y = padTop + usableH - (b.count / Math.max(1, maxVal)) * usableH;
-                            return { x, y, ...b, idx };
-                          });
-
-                          const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(" ");
-                          const areaPath = coords.length > 0
-                            ? `M ${coords[0].x},${padTop + usableH} ` +
-                            coords.map(c => `L ${c.x},${c.y}`).join(" ") +
-                            ` L ${coords[coords.length - 1].x},${padTop + usableH} Z`
-                            : "";
-
-                          return (
-                            <div className="relative w-full">
-                              {/* Hover Tooltip */}
-                              {hoveredTrendIdx !== null && coords[hoveredTrendIdx] && (
-                                <div className="absolute -top-2 right-2 z-20 bg-gray-900 text-white px-3 py-1.5 rounded-xl shadow-lg text-[11px] font-bold flex items-center gap-2 pointer-events-none animate-in fade-in duration-150">
-                                  <span className="text-emerald-300">{coords[hoveredTrendIdx].fullLabel}:</span>
-                                  <span>{coords[hoveredTrendIdx].count} application{coords[hoveredTrendIdx].count !== 1 ? "s" : ""}</span>
-                                  <span className="text-gray-400 font-medium">({coords[hoveredTrendIdx].uniqueYouth} unique youth)</span>
-                                </div>
-                              )}
-
-                              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-44 sm:h-48 overflow-visible">
-                                <defs>
-                                  <linearGradient id="tesdaTrendAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#0A6B43" stopOpacity="0.22" />
-                                    <stop offset="100%" stopColor="#0A6B43" stopOpacity="0.0" />
-                                  </linearGradient>
-                                </defs>
-
-                                {/* Horizontal Grid Lines */}
-                                {[0, 0.25, 0.5, 0.75, 1].map((ratio, gIdx) => {
-                                  const y = padTop + ratio * usableH;
-                                  const val = Math.round(maxVal * (1 - ratio));
-                                  return (
-                                    <g key={gIdx}>
-                                      <line
-                                        x1={padX}
-                                        y1={y}
-                                        x2={W - padX}
-                                        y2={y}
-                                        stroke={ratio === 1 ? "#CBD5E1" : "#F1F5F9"}
-                                        strokeWidth="1"
-                                      />
-                                      <text
-                                        x={padX - 6}
-                                        y={y + 3}
-                                        textAnchor="end"
-                                        className="text-[9px] fill-gray-400 font-semibold"
-                                      >
-                                        {val}
-                                      </text>
-                                    </g>
-                                  );
-                                })}
-
-                                {/* Shaded Area */}
-                                {areaPath && <path d={areaPath} fill="url(#tesdaTrendAreaGrad)" />}
-
-                                {/* Trend Line */}
-                                {coords.length > 1 && (
-                                  <polyline
-                                    fill="none"
-                                    stroke="#0A6B43"
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    points={polylinePoints}
-                                  />
-                                )}
-
-                                {/* Interactive Data Points */}
-                                {coords.map((c) => {
-                                  const isHovered = hoveredTrendIdx === c.idx;
-                                  return (
-                                    <g
-                                      key={c.key}
-                                      className="cursor-pointer"
-                                      onMouseEnter={() => setHoveredTrendIdx(c.idx)}
-                                      onMouseLeave={() => setHoveredTrendIdx(null)}
-                                    >
-                                      <circle cx={c.x} cy={c.y} r={14} fill="transparent" />
-                                      <circle
-                                        cx={c.x}
-                                        cy={c.y}
-                                        r={isHovered ? 5.5 : 4}
-                                        fill={isHovered ? "#0A6B43" : "#FFFFFF"}
-                                        stroke="#0A6B43"
-                                        strokeWidth={isHovered ? 3 : 2.2}
-                                      />
-                                      {c.count > 0 && (
-                                        <text
-                                          x={c.x}
-                                          y={c.y - 9}
-                                          textAnchor="middle"
-                                          className={`text-[10px] font-bold ${isHovered ? "fill-[#0A6B43] font-black" : "fill-gray-600"}`}
-                                        >
-                                          {c.count}
-                                        </text>
-                                      )}
-                                    </g>
-                                  );
-                                })}
-                              </svg>
-
-                              {/* X-Axis Labels */}
-                              <div className="flex items-center justify-between px-4 pt-1 border-t border-gray-100">
-                                {buckets.map((b, idx) => (
-                                  <span
-                                    key={b.key}
-                                    onMouseEnter={() => setHoveredTrendIdx(idx)}
-                                    onMouseLeave={() => setHoveredTrendIdx(null)}
-                                    className={`text-[10px] font-bold truncate cursor-pointer transition-colors ${hoveredTrendIdx === idx ? "text-[#0A6B43] font-black" : "text-gray-500"
-                                      }`}
-                                  >
-                                    {b.label}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 mt-3">
-                      <span>
-                        Total in selected range: <strong className="text-gray-900">{applicationTrendsData.totalInPeriod} application{applicationTrendsData.totalInPeriod !== 1 ? "s" : ""}</strong>
-                      </span>
-                      <span className="text-gray-400">
-                        {trendTimeframe === "weekly" ? "Last 8 weeks" : trendTimeframe === "12m" ? "Last 12 months" : "Last 6 months"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Analytics Row 2: Program Demand vs. Available Slots + Youth Interests vs. Training Supply */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-                  {/* CHART 2 (6 cols): Program Demand vs. Available Slots (Horizontal Bar Chart) */}
-                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
-                    <div className="space-y-4 flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div>
-                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                            Program Demand vs. Available Slots
-                          </h3>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Comparing active applicant demand against remaining slot capacity per program
-                          </p>
-                        </div>
-
-                        {/* Sort Selector */}
-                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() => setProgramDemandSort("demand")}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${programDemandSort === "demand" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            By Demand
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProgramDemandSort("slots")}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${programDemandSort === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            Low Slots
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Legend */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
-                          <span>Applicant Demand (Pending/Approved/Enrolled)</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
-                          <span>Available Slots</span>
-                        </div>
-                      </div>
-
-                      {programDemandData.items.length === 0 ? (
-                        <div className="py-10 text-center space-y-2">
-                          <BookOpen className="w-8 h-8 text-gray-300 mx-auto" />
-                          <p className="text-sm font-bold text-gray-800">No Active Training Programs</p>
-                          <p className="text-xs text-gray-400">Add a training program to compare applicant demand and capacity.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
-                          {programDemandData.items.map(prog => {
-                            const demandPct = Math.min(100, Math.round((prog.demand / programDemandData.maxScale) * 100));
-                            const slotsPct = Math.min(100, Math.round((prog.slotsRemaining / programDemandData.maxScale) * 100));
-
+                        {/* Timeframe Pills Bar */}
+                        <div className="pt-3 pb-1 flex items-center justify-start gap-1.5">
+                          {(["weekly", "6m", "12m"] as const).map((mode) => {
+                            const label = mode === "weekly" ? "Weekly" : mode === "6m" ? "6 Months" : "12 Months";
+                            const active = trendTimeframe === mode;
                             return (
-                              <div
-                                key={prog.id}
+                              <button
+                                key={mode}
+                                type="button"
                                 onClick={() => {
-                                  setPipelineProgramFilter(prog.title);
-                                  setDashboardTab("all");
-                                  setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                                  document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                  setTrendTimeframe(mode);
+                                  setHoveredTrendIdx(null);
                                 }}
-                                className="p-3 rounded-xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all cursor-pointer space-y-2 group"
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                  active
+                                    ? "bg-[#0A6B43] text-white shadow-xs"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200/80 hover:text-gray-900"
+                                }`}
                               >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-bold text-gray-900 group-hover:text-[#0A6B43] truncate" title={prog.title}>
-                                    {prog.title}
-                                  </span>
-                                  <span className="text-[11px] font-semibold text-gray-500 shrink-0 tabular-nums">
-                                    {prog.demand} applicant{prog.demand !== 1 ? "s" : ""} · {prog.slotsRemaining}/{prog.slotsTotal} open
-                                  </span>
-                                </div>
-
-                                {/* Horizontal Bar 1: Applicant Demand */}
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 text-[10px] font-bold text-gray-500 shrink-0">Demand</span>
-                                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-[#0A6B43] rounded-full transition-all duration-500"
-                                      style={{ width: `${prog.demand > 0 ? Math.max(4, demandPct) : 0}%` }}
-                                    />
-                                  </div>
-                                  <span className="w-7 text-right text-[11px] font-extrabold text-[#0A6B43] tabular-nums">
-                                    {prog.demand}
-                                  </span>
-                                </div>
-
-                                {/* Horizontal Bar 2: Available Slots */}
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 text-[10px] font-bold text-gray-500 shrink-0">Open Slots</span>
-                                  <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full transition-all duration-500 ${prog.slotsRemaining === 0 ? "bg-red-500" : "bg-[#3B82F6]"
-                                        }`}
-                                      style={{ width: `${prog.slotsRemaining > 0 ? Math.max(4, slotsPct) : 0}%` }}
-                                    />
-                                  </div>
-                                  <span className="w-7 text-right text-[11px] font-extrabold text-blue-700 tabular-nums">
-                                    {prog.slotsRemaining}
-                                  </span>
-                                </div>
-                              </div>
+                                {label}
+                              </button>
                             );
                           })}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 mt-3">
-                      <span>Click a program to view its applicants</span>
-                      <span className="font-semibold text-gray-700">{activePrograms.length} active programs</span>
-                    </div>
-                  </div>
+                        {/* Line Chart SVG with Viewport-Triggered Slower Draw In */}
+                        <div className="flex-1 flex flex-col justify-end pt-1">
+                          {(() => {
+                            const buckets = applicationTrendsData.buckets;
+                            const maxVal = applicationTrendsData.maxCount;
+                            const n = buckets.length;
+                            const W = 600;
+                            const H = 240;
+                            const padTop = 22;
+                            const chartH = 170;
+                            const baselineY = padTop + chartH;
+                            const labelY = baselineY + 22;
 
-                  {/* CHART 5 (6 cols): Youth Interests vs. Training Supply (Grouped Bar Chart) */}
-                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
-                    <div className="space-y-4 flex-1 flex flex-col justify-between">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div>
-                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                            Youth Interests vs. Training Supply
-                          </h3>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Comparing unique youth interest by sector against available TESDA training supply
-                          </p>
-                        </div>
+                            const yAxisX = 36;
+                            const gridLeft = 46;
+                            const gridRight = 578;
+                            const pointStartX = 64;
+                            const pointEndX = 560;
+                            const usableW = pointEndX - pointStartX;
 
-                        {/* Supply Metric Toggle */}
-                        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() => setSectorSupplyMetric("slots")}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${sectorSupplyMetric === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            Open Slots
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSectorSupplyMetric("programs")}
-                            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${sectorSupplyMetric === "programs" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                              }`}
-                          >
-                            Programs
-                          </button>
-                        </div>
-                      </div>
+                            const coords = buckets.map((b, idx) => {
+                              const x = n > 1 ? pointStartX + (idx / (n - 1)) * usableW : (pointStartX + pointEndX) / 2;
+                              const y = padTop + chartH - (b.count / Math.max(1, maxVal)) * chartH;
+                              return { x, y, ...b, idx };
+                            });
 
-                      {/* Legend */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-gray-600">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
-                            <span>Unique Interested Youth</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
-                            <span>{sectorSupplyMetric === "programs" ? "Active TESDA Programs" : "Available Training Slots"}</span>
-                          </div>
-                        </div>
-                      </div>
+                            const getSmoothPath = (pts: Array<{ x: number; y: number }>) => {
+                              if (pts.length === 0) return { linePath: "", areaPath: "" };
+                              if (pts.length === 1) {
+                                return {
+                                  linePath: `M ${pts[0].x},${pts[0].y}`,
+                                  areaPath: `M ${pts[0].x},${baselineY} L ${pts[0].x},${pts[0].y} L ${pts[0].x},${baselineY} Z`
+                                };
+                              }
 
-                      {/* Grouped Vertical Bar Chart */}
-                      <div className="pt-4 pb-1 flex-1 flex flex-col justify-end relative">
-                        {hoveredSectorIdx !== null && sectorInterestVsSupplyData.items[hoveredSectorIdx] && (() => {
-                          const sec = sectorInterestVsSupplyData.items[hoveredSectorIdx];
-                          return (
-                            <div className="absolute -top-1 right-1 z-20 bg-gray-900 text-white px-3 py-2 rounded-xl shadow-lg text-[11px] pointer-events-none animate-in fade-in duration-150">
-                              <p className="font-extrabold text-emerald-300">{sec.fullName}</p>
-                              <div className="flex items-center gap-3 mt-1 font-semibold">
-                                <span>Interested Youth: <strong>{sec.youthInterested}</strong></span>
-                                <span>·</span>
-                                <span>Programs: <strong>{sec.programCount}</strong> ({sec.availableSlots} open slots)</span>
-                              </div>
-                            </div>
-                          );
-                        })()}
+                              const smoothing = 0.16;
+                              let linePath = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
 
-                        <div className="h-48 w-full flex items-end justify-between gap-2 sm:gap-3 px-2 pb-2 border-b border-gray-200 relative">
-                          {/* Subtle horizontal guide lines */}
-                          <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none pb-2">
-                            <div className="border-b border-gray-100 w-full" />
-                            <div className="border-b border-gray-100 w-full" />
-                            <div className="border-b border-gray-100 w-full" />
-                            <div className="border-b border-gray-100 w-full" />
-                          </div>
+                              for (let i = 0; i < pts.length - 1; i++) {
+                                const p0 = pts[i === 0 ? i : i - 1];
+                                const p1 = pts[i];
+                                const p2 = pts[i + 1];
+                                const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
 
-                          {sectorInterestVsSupplyData.items.map((sec, idx) => {
-                            const supplyVal = sectorSupplyMetric === "programs" ? sec.programCount : sec.availableSlots;
-                            const youthPct = sec.youthInterested > 0
-                              ? Math.max(8, Math.round((sec.youthInterested / sectorInterestVsSupplyData.maxCombined) * 100))
-                              : 3;
-                            const supplyPct = supplyVal > 0
-                              ? Math.max(8, Math.round((supplyVal / sectorInterestVsSupplyData.maxCombined) * 100))
-                              : 3;
-                            const isHovered = hoveredSectorIdx === idx;
+                                const cp1x = p1.x + (p2.x - p0.x) * smoothing;
+                                const cp1y = Math.min(baselineY, Math.max(padTop - 2, p1.y + (p2.y - p0.y) * smoothing));
+
+                                const cp2x = p2.x - (p3.x - p1.x) * smoothing;
+                                const cp2y = Math.min(baselineY, Math.max(padTop - 2, p2.y - (p3.y - p1.y) * smoothing));
+
+                                linePath += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+                              }
+
+                              const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)},${baselineY} L ${pts[0].x.toFixed(1)},${baselineY} Z`;
+                              return { linePath, areaPath };
+                            };
+
+                            const { linePath, areaPath } = getSmoothPath(coords);
+                            const colW = n > 1 ? usableW / (n - 1) : usableW;
 
                             return (
                               <div
-                                key={sec.id}
-                                onMouseEnter={() => setHoveredSectorIdx(idx)}
-                                onMouseLeave={() => setHoveredSectorIdx(null)}
-                                className="flex-1 min-w-0 h-full flex flex-col items-center justify-end cursor-pointer relative z-10 group"
+                                className="relative w-full"
+                                data-chart-container="trends"
+                                onMouseLeave={() => {
+                                  setHoveredTrendIdx(null);
+                                  handleChartTooltipLeave();
+                                }}
                               >
-                                <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full">
-                                  {/* Bar 1: Interested Youth */}
-                                  <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[18px]">
-                                    <span className="text-[9px] font-bold text-gray-600 mb-0.5 tabular-nums">
-                                      {sec.youthInterested}
-                                    </span>
-                                    <div
-                                      style={{ height: `${youthPct}%` }}
-                                      className={`w-full rounded-t-md transition-all duration-500 ${sec.youthInterested > 0 ? "bg-[#0A6B43]" : "bg-gray-200"
-                                        } ${isHovered ? "ring-2 ring-emerald-500/30" : ""}`}
-                                    />
-                                  </div>
+                                <ChartTooltip tooltip={dashboardTooltip} chartId="trends" />
 
-                                  {/* Bar 2: Training Supply */}
-                                  <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[18px]">
-                                    <span className="text-[9px] font-bold text-amber-700 mb-0.5 tabular-nums">
-                                      {supplyVal}
-                                    </span>
-                                    <div
-                                      style={{ height: `${supplyPct}%` }}
-                                      className={`w-full rounded-t-md transition-all duration-500 ${supplyVal > 0 ? "bg-[#F59E0B]" : "bg-gray-200"
-                                        } ${isHovered ? "ring-2 ring-amber-400/40" : ""}`}
+                                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-64 sm:h-72 lg:h-[310px] overflow-visible select-none">
+                                  <defs>
+                                    <linearGradient id="tesdaTrendAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor="#0A6B43" stopOpacity="0.22" />
+                                      <stop offset="100%" stopColor="#0A6B43" stopOpacity="0.0" />
+                                    </linearGradient>
+                                  </defs>
+
+                                  {/* Hit-test hover columns */}
+                                  {coords.map((c, idx) => {
+                                    const colLeft = idx === 0 ? gridLeft : c.x - colW / 2;
+                                    const colRight = idx === n - 1 ? gridRight : c.x + colW / 2;
+                                    const tooltipData: ChartTooltipData = {
+                                      title: c.fullLabel,
+                                      subtitle: "Application Trend",
+                                      items: [
+                                        {
+                                          category: "Applications",
+                                          value: `${c.count} ${c.count === 1 ? "application" : "applications"}`,
+                                          color: "#0A6B43",
+                                        },
+                                        {
+                                          category: "Unique Youth",
+                                          value: `${c.uniqueYouth} youth`,
+                                          color: "#10B981",
+                                        },
+                                      ],
+                                    };
+                                    return (
+                                      <rect
+                                        key={`hover-col-${c.key}`}
+                                        x={colLeft}
+                                        y={padTop}
+                                        width={colRight - colLeft}
+                                        height={baselineY - padTop}
+                                        fill="transparent"
+                                        className="cursor-pointer"
+                                        onMouseEnter={(e) => {
+                                          setHoveredTrendIdx(c.idx);
+                                          handleChartTooltipMove("trends", e, tooltipData);
+                                        }}
+                                        onMouseMove={(e) => {
+                                          handleChartTooltipMove("trends", e, tooltipData);
+                                        }}
+                                        onMouseLeave={() => {
+                                          setHoveredTrendIdx(null);
+                                          handleChartTooltipLeave();
+                                        }}
+                                      />
+                                    );
+                                  })}
+
+                                  {/* Subtle Horizontal Grid lines & Y-Axis values */}
+                                  {[0, 0.25, 0.5, 0.75, 1].map((ratio, gIdx) => {
+                                    const y = padTop + ratio * chartH;
+                                    const val = Math.round(maxVal * (1 - ratio));
+                                    return (
+                                      <g key={gIdx}>
+                                        <line
+                                          x1={gridLeft}
+                                          y1={y}
+                                          x2={gridRight}
+                                          y2={y}
+                                          stroke={ratio === 1 ? "#CBD5E1" : "#F1F5F9"}
+                                          strokeWidth={ratio === 1 ? "1.5" : "1"}
+                                        />
+                                        <text
+                                          x={yAxisX}
+                                          y={y + 3.5}
+                                          textAnchor="end"
+                                          className="text-[10px] fill-gray-400 font-semibold"
+                                        >
+                                          {val}
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  {/* DRAW IN ANIMATED AREA PATH (Only when in view) */}
+                                  {coords.length > 0 && (
+                                    <motion.path
+                                      key={`trend-area-${trendTimeframe}-${applicationTrendsData.totalInPeriod}-${applicationTrendsData.maxCount}`}
+                                      d={areaPath}
+                                      fill="url(#tesdaTrendAreaGrad)"
+                                      initial={{ opacity: 0 }}
+                                      animate={isTrendsReady ? { opacity: 1 } : { opacity: 0 }}
+                                      transition={{ duration: 1.3, delay: 0.5, ease: "easeOut" }}
                                     />
-                                  </div>
-                                </div>
+                                  )}
+
+                                  {/* DRAW IN ANIMATED LINE PATH (Slower, only when in view) */}
+                                  {coords.length > 0 && (
+                                    <motion.path
+                                      key={`trend-line-${trendTimeframe}-${applicationTrendsData.totalInPeriod}-${applicationTrendsData.maxCount}`}
+                                      d={linePath}
+                                      fill="none"
+                                      stroke="#0A6B43"
+                                      strokeWidth="2.75"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      initial={{ pathLength: 0, opacity: 0 }}
+                                      animate={isTrendsReady ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                                      transition={{ duration: 1.85, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                                    />
+                                  )}
+
+                                  {/* Interactive Data Points (Draw In / Pop In only when in view) */}
+                                  {coords.map((c, idx) => {
+                                    const isHovered = hoveredTrendIdx === c.idx;
+                                    return (
+                                      <g key={`pt-g-${c.key}`}>
+                                        <motion.circle
+                                          key={`trend-pt-${c.key}-${trendTimeframe}-${c.count}-${c.y}`}
+                                          cx={c.x}
+                                          cy={c.y}
+                                          r={isHovered ? 6.5 : 4.5}
+                                          fill="#ffffff"
+                                          stroke="#0A6B43"
+                                          strokeWidth={isHovered ? 3.5 : 2.5}
+                                          initial={{ scale: 0, opacity: 0 }}
+                                          animate={isTrendsReady ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
+                                          transition={{ duration: 0.5, delay: 0.65 + idx * 0.08, ease: [0.34, 1.56, 0.64, 1] }}
+                                          onMouseEnter={(e) => {
+                                            setHoveredTrendIdx(c.idx);
+                                            handleChartTooltipMove("trends", e, {
+                                              title: c.fullLabel,
+                                              subtitle: "Application Trend",
+                                              items: [
+                                                { category: "Applications", value: `${c.count} ${c.count === 1 ? "application" : "applications"}`, color: "#0A6B43" },
+                                                { category: "Unique Youth", value: `${c.uniqueYouth} youth`, color: "#10B981" },
+                                              ],
+                                            });
+                                          }}
+                                          onMouseMove={(e) => {
+                                            handleChartTooltipMove("trends", e, {
+                                              title: c.fullLabel,
+                                              subtitle: "Application Trend",
+                                              items: [
+                                                { category: "Applications", value: `${c.count} ${c.count === 1 ? "application" : "applications"}`, color: "#0A6B43" },
+                                                { category: "Unique Youth", value: `${c.uniqueYouth} youth`, color: "#10B981" },
+                                              ],
+                                            });
+                                          }}
+                                          onMouseLeave={() => {
+                                            setHoveredTrendIdx(null);
+                                            handleChartTooltipLeave();
+                                          }}
+                                          className="cursor-pointer transition-all duration-200"
+                                        />
+
+                                        {c.count > 0 && (
+                                          <motion.text
+                                            key={`trend-val-${c.key}-${trendTimeframe}-${c.count}-${c.y}`}
+                                            x={c.x}
+                                            y={c.y - 9}
+                                            textAnchor="middle"
+                                            initial={{ opacity: 0, y: 3 }}
+                                            animate={isTrendsReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 3 }}
+                                            transition={{ duration: 0.45, delay: 0.8 + idx * 0.08 }}
+                                            className={`text-[10px] select-none pointer-events-none tabular-nums ${
+                                              isHovered ? "fill-[#0A6B43] font-black" : "fill-gray-700 font-bold"
+                                            }`}
+                                          >
+                                            {c.count}
+                                          </motion.text>
+                                        )}
+                                      </g>
+                                    );
+                                  })}
+
+                                  {/* X-Axis Labels */}
+                                  {coords.map((c) => {
+                                    const isHovered = hoveredTrendIdx === c.idx;
+                                    return (
+                                      <text
+                                        key={`x-lbl-${c.key}`}
+                                        x={c.x}
+                                        y={labelY}
+                                        textAnchor="middle"
+                                        onMouseEnter={() => setHoveredTrendIdx(c.idx)}
+                                        onMouseLeave={() => setHoveredTrendIdx(null)}
+                                        className={`text-[10px] cursor-pointer transition-colors select-none ${
+                                          isHovered ? "fill-[#0A6B43] font-black" : "fill-gray-400 font-semibold"
+                                        }`}
+                                      >
+                                        {c.label}
+                                      </text>
+                                    );
+                                  })}
+                                </svg>
                               </div>
                             );
-                          })}
+                          })()}
                         </div>
 
-                        {/* X-Axis Sector Labels */}
-                        <div className="flex items-center justify-between gap-1.5 px-2 pt-2">
-                          {sectorInterestVsSupplyData.items.map((sec, idx) => (
-                            <span
-                              key={sec.id}
-                              onMouseEnter={() => setHoveredSectorIdx(idx)}
-                              onMouseLeave={() => setHoveredSectorIdx(null)}
-                              className={`flex-1 min-w-0 text-center text-[10px] font-bold truncate cursor-pointer transition-colors ${hoveredSectorIdx === idx ? "text-[#0A6B43] font-black" : "text-gray-500"
-                                }`}
-                              title={sec.fullName}
-                            >
-                              {sec.shortLabel}
-                            </span>
-                          ))}
+                        {/* Card Footer */}
+                        <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 min-h-[44px]">
+                          <span>
+                            Total in selected range: <strong className="text-gray-900">{applicationTrendsData.totalInPeriod} application{applicationTrendsData.totalInPeriod !== 1 ? "s" : ""}</strong>
+                          </span>
+                          <span className="text-gray-400 font-medium">
+                            {trendTimeframe === "weekly" ? "Last 8 weeks" : trendTimeframe === "12m" ? "Last 12 months" : "Last 6 months"}
+                          </span>
                         </div>
-                      </div>
-                    </div>
+                      </>
+                    );
+                    }}
+                  </AnimatedCard>
 
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 mt-3">
-                      <span>Deduplicated unique youth per vocational sector</span>
-                      <span className="font-semibold text-gray-700">{youthProfiles.length} registered youth profiles</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom 50/50 Row: Applications by Barangay (Top 6) + Recent Applicant Activity */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
-                  {/* LEFT COLUMN (6 cols / 50%): Applications by Barangay (Top 6 Vertical Bar Chart) */}
-                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
-                    <div className="space-y-4 flex-1 flex flex-col justify-between">
-                      {/* Card Header & Toggles */}
-                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                              Applications by Barangay
-                            </h3>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-[#0A6B43] border border-emerald-200/80">
-                              Top {Math.min(6, Math.max(1, barangayApplicationsData.items.length))}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Top 6 barangays by application volume ({barangayChartMode === "active"
-                              ? `from ${barangayApplicationsData.activeBarangayCount} active barangay${barangayApplicationsData.activeBarangayCount !== 1 ? "s" : ""}`
-                              : `across all ${barangayApplicationsData.totalBarangays} barangays`})
-                          </p>
-                        </div>
-
-                        {/* Controls: Metric (Applications vs Unique Youth) + Scope (All 17 vs Active) */}
-                        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                          <div className="flex items-center gap-0.5 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBarangayCountMetric("applications");
-                                setHoveredBarangayIdx(null);
-                              }}
-                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayCountMetric === "applications" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                                }`}
-                            >
-                              Applications
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBarangayCountMetric("uniqueYouth");
-                                setHoveredBarangayIdx(null);
-                              }}
-                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayCountMetric === "uniqueYouth" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                                }`}
-                            >
-                              Unique Youth
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-0.5 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBarangayChartMode("all");
-                                setHoveredBarangayIdx(null);
-                              }}
-                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayChartMode === "all" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                                }`}
-                              title="Rank top 6 across all 17 barangays of San Luis"
-                            >
-                              All 17 Barangays
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBarangayChartMode("active");
-                                setHoveredBarangayIdx(null);
-                              }}
-                              className={`px-2 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${barangayChartMode === "active" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
-                                }`}
-                              title="Rank top 6 among barangays with active applications"
-                            >
-                              Active Only
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Vertical Column Chart Body */}
-                      {barangayApplicationsData.items.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[240px]">
-                          <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
-                            <MapPin className="w-5 h-5" />
-                          </div>
-                          <h4 className="text-sm font-extrabold text-gray-900">No Barangay Applications Yet</h4>
-                          <p className="text-xs text-gray-500 max-w-xs font-medium">
-                            Top barangays will appear here once youth applications are submitted.
-                          </p>
-                        </div>
-                      ) : (
-                        (() => {
-                          const rawMax = barangayApplicationsData.maxVal;
-                          const yMax = rawMax <= 4 ? 4 : Math.ceil(rawMax / 4) * 4;
-                          const yTicks = [yMax, Math.round(yMax * 0.75), Math.round(yMax * 0.5), Math.round(yMax * 0.25), 0];
-                          const totalPool = barangayCountMetric === "uniqueYouth"
-                            ? Math.max(1, uniqueApplicantYouthCount)
-                            : Math.max(1, totalApplicationsCount);
-
-                          const formatShortBarangay = (name: string) =>
-                            name
-                              .replace(/^Santa Cruz Pambilog$/i, "Sta. Cruz Pam.")
-                              .replace(/^Santa Cruz Poblacion$/i, "Sta. Cruz Pob.")
-                              .replace(/^Santa\s+/i, "Sta. ")
-                              .replace(/^Santo\s+/i, "Sto. ");
-
-                          return (
-                            <div className="pt-2 pb-1 flex-1 flex flex-col justify-end relative">
-                              {/* Floating Tooltip on Hover */}
-                              {hoveredBarangayIdx !== null && barangayApplicationsData.items[hoveredBarangayIdx] && (() => {
-                                const hoveredItem = barangayApplicationsData.items[hoveredBarangayIdx];
-                                const hoveredVal = barangayCountMetric === "uniqueYouth"
-                                  ? hoveredItem.uniqueYouth
-                                  : hoveredItem.applications;
-                                const hoveredPct = hoveredVal > 0 ? Math.round((hoveredVal / totalPool) * 100) : 0;
-                                const totalAppsPct = hoveredItem.applications > 0
-                                  ? Math.round((hoveredItem.applications / Math.max(1, totalApplicationsCount)) * 100)
-                                  : 0;
-
-                                return (
-                                  <div className="absolute -top-1 right-1 z-20 bg-gray-900 text-white px-3 py-1.5 rounded-xl shadow-lg text-[11px] pointer-events-none flex flex-wrap items-center gap-x-2 gap-y-0.5 animate-in fade-in duration-150">
-                                    <span className="font-extrabold text-emerald-300">
-                                      Brgy. {hoveredItem.barangay}
-                                    </span>
-                                    <span className="text-gray-400">·</span>
-                                    <span className="font-bold">
-                                      {barangayCountMetric === "uniqueYouth"
-                                        ? `${hoveredItem.uniqueYouth} unique youth (${hoveredItem.applications} app${hoveredItem.applications !== 1 ? "s" : ""})`
-                                        : `${hoveredItem.applications} application${hoveredItem.applications !== 1 ? "s" : ""}`}
-                                    </span>
-                                    <span className="text-gray-400">·</span>
-                                    <span className="text-emerald-200 font-semibold">
-                                      {barangayCountMetric === "uniqueYouth"
-                                        ? `${hoveredPct}% of youth`
-                                        : `${totalAppsPct}% of total`}
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-
-                              {/* Main Plot Area: Y-Axis + Up to 6 Vertical Columns */}
-                              <div className="flex items-stretch pt-5">
-                                {/* Y-Axis Labels */}
-                                <div className="w-7 pr-2 h-52 flex flex-col justify-between text-right select-none shrink-0">
-                                  {yTicks.map((tick, tIdx) => (
-                                    <span
-                                      key={tIdx}
-                                      className="text-[10px] font-bold text-gray-400 leading-none tabular-nums -translate-y-1"
-                                    >
-                                      {tick}
-                                    </span>
-                                  ))}
-                                </div>
-
-                                {/* Columns & Horizontal Grid Lines */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="relative h-52 border-l border-b border-gray-200 flex items-end justify-around gap-2 sm:gap-3 px-2 sm:px-4">
-                                    {/* Horizontal Grid Lines */}
-                                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                                      {yTicks.map((_, gIdx) => (
-                                        <div
-                                          key={gIdx}
-                                          className={`w-full ${gIdx === yTicks.length - 1 ? "" : "border-t border-dashed border-gray-100"
-                                            }`}
-                                        />
-                                      ))}
-                                    </div>
-
-                                    {/* Top 6 Vertical Barangay Bars */}
-                                    {barangayApplicationsData.items.map((item, idx) => {
-                                      const val = barangayCountMetric === "uniqueYouth" ? item.uniqueYouth : item.applications;
-                                      const pctOfTotal = val > 0 ? Math.round((val / totalPool) * 100) : 0;
-                                      const barHeightPct = val > 0
-                                        ? Math.max(10, Math.round((val / yMax) * 100))
-                                        : 4;
-                                      const isHovered = hoveredBarangayIdx === idx;
-                                      const tooltipText = `Brgy. ${item.barangay}: ${val} ${barangayCountMetric === "uniqueYouth" ? "unique youth" : (val === 1 ? "application" : "applications")
-                                        } (${pctOfTotal}% of total)`;
-
-                                      return (
-                                        <button
-                                          key={item.barangay}
-                                          type="button"
-                                          title={tooltipText}
-                                          onMouseEnter={() => setHoveredBarangayIdx(idx)}
-                                          onMouseLeave={() => setHoveredBarangayIdx(null)}
-                                          onFocus={() => setHoveredBarangayIdx(idx)}
-                                          onBlur={() => setHoveredBarangayIdx(null)}
-                                          onClick={() => {
-                                            setPipelineBarangayFilter(item.barangay);
-                                            setDashboardTab("all");
-                                            setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                                            document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                                          }}
-                                          className="flex-1 max-w-[68px] h-full flex flex-col items-center justify-end group relative z-10 cursor-pointer focus:outline-none"
-                                        >
-                                          {/* Application Count Above Bar */}
-                                          <span
-                                            className={`text-xs font-extrabold mb-1.5 tabular-nums transition-transform ${isHovered
-                                              ? "text-[#0A6B43] scale-110"
-                                              : "text-gray-800"
-                                              }`}
-                                          >
-                                            {val}
-                                          </span>
-
-                                          {/* Vertical Green Bar */}
-                                          <div
-                                            style={{ height: `${barHeightPct}%` }}
-                                            className={`w-full max-w-[42px] rounded-t-xl transition-all duration-500 ${isHovered
-                                              ? "bg-emerald-600 ring-4 ring-emerald-500/20 shadow-xs"
-                                              : "bg-[#0A6B43] group-hover:bg-emerald-600"
-                                              }`}
-                                          />
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-
-                                  {/* X-Axis Barangay Labels */}
-                                  <div className="flex items-start justify-around gap-2 sm:gap-3 px-2 sm:px-4 pt-2.5">
-                                    {barangayApplicationsData.items.map((item, idx) => {
-                                      const val = barangayCountMetric === "uniqueYouth" ? item.uniqueYouth : item.applications;
-                                      const pctOfTotal = val > 0 ? Math.round((val / totalPool) * 100) : 0;
-                                      const isHovered = hoveredBarangayIdx === idx;
-                                      const shortName = formatShortBarangay(item.barangay);
-
-                                      return (
-                                        <button
-                                          key={item.barangay}
-                                          type="button"
-                                          onMouseEnter={() => setHoveredBarangayIdx(idx)}
-                                          onMouseLeave={() => setHoveredBarangayIdx(null)}
-                                          onClick={() => {
-                                            setPipelineBarangayFilter(item.barangay);
-                                            setDashboardTab("all");
-                                            setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                                            document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                                          }}
-                                          title={`Brgy. ${item.barangay}: ${val} ${barangayCountMetric === "uniqueYouth" ? "unique youth" : (val === 1 ? "application" : "applications")
-                                            } (${pctOfTotal}% of total)`}
-                                          className="flex-1 max-w-[68px] text-center cursor-pointer focus:outline-none"
-                                        >
-                                          <span
-                                            className={`block text-[10px] sm:text-[11px] leading-tight truncate transition-colors ${isHovered
-                                              ? "font-black text-[#0A6B43]"
-                                              : "font-bold text-gray-700 hover:text-[#0A6B43]"
-                                              }`}
-                                          >
-                                            {shortName}
-                                          </span>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()
-                      )}
-                    </div>
-
-                    {/* Card Footer */}
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-[11px] text-gray-500 mt-3">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-gray-600">
-                        <span className="w-2.5 h-2.5 rounded-xs bg-[#0A6B43] shrink-0" />
-                        <span>
-                          Showing top {barangayApplicationsData.items.length} of{" "}
-                          {barangayChartMode === "active"
-                            ? `${barangayApplicationsData.activeBarangayCount} active barangays`
-                            : `${barangayApplicationsData.totalBarangays} barangays`}
-                        </span>
-                      </span>
-                      <span className="text-gray-400 truncate">Click a bar to filter applicants</span>
-                    </div>
-                  </div>
-
-                  {/* RIGHT COLUMN (6 cols / 50%): Recent Applicant Activity (Compact Timeline Feed) */}
-                  <div className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full">
-                    <div className="space-y-4 flex-1 flex flex-col">
-                      {/* Card Header */}
-                      <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                        <div>
+                  {/* Applications by Barangay (6 cols / 50%): Slower Grow In Bar Chart */}
+                  <AnimatedCard
+                    delay={0.25}
+                    className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col h-full"
+                  >
+                    {(isInView) => {
+                      const isBarangayReady = isInView && isGraphDataReady;
+                      return (
+                      <>
+                        <div className="pb-3 border-b border-gray-100 min-h-[58px] flex flex-col justify-center">
                           <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
-                            Recent Applicant Activity
+                            Applications by Barangay
                           </h3>
                           <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Latest application events and status updates across training programs
+                            View the number of applications from each barangay.
                           </p>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                            setDashboardTab("all");
-                            setPipelineStatusFilter("All");
-                            document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
-                          className="px-3 py-1.5 bg-emerald-50 hover:bg-[#0A6B43] text-[#0A6B43] hover:text-white border border-emerald-200/80 hover:border-[#0A6B43] text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1 shrink-0 cursor-pointer"
-                        >
-                          <span>View All Applicants</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                        <div className="flex-1 flex flex-col justify-end pt-2">
+                          {barangayApplicationsData.items.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[260px]">
+                              <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
+                                <MapPin className="w-5 h-5" />
+                              </div>
+                              <h4 className="text-sm font-extrabold text-gray-900">No Barangay Applications Yet</h4>
+                              <p className="text-xs text-gray-500 max-w-xs font-medium">
+                                Barangays will appear here once applications are submitted.
+                              </p>
+                            </div>
+                          ) : (
+                            (() => {
+                              const BARANGAYS_PER_PAGE = 5;
+                              const totalItems = barangayApplicationsData.items.length;
+                              const totalPages = Math.max(1, Math.ceil(totalItems / BARANGAYS_PER_PAGE));
+                              const currentPage = Math.min(barangayChartPage, totalPages);
+                              const startIdx = (currentPage - 1) * BARANGAYS_PER_PAGE;
+                              const pageItems = barangayApplicationsData.items.slice(startIdx, startIdx + BARANGAYS_PER_PAGE);
 
-                      {/* Compact Vertical Activity Timeline (Latest 5) */}
-                      {recentApplicantActivities.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[240px]">
-                          <div className="w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
-                            <Clock className="w-5 h-5" />
-                          </div>
-                          <h4 className="text-sm font-extrabold text-gray-900">No Recent Applicant Activity</h4>
-                          <p className="text-xs text-gray-500 max-w-xs font-medium">
-                            Application events for your TESDA training programs will appear here automatically.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="relative flex-1 flex flex-col justify-between py-1">
-                          {/* Subtle Vertical Timeline Connecting Line */}
-                          {recentApplicantActivities.length > 1 && (
-                            <div
-                              className="absolute left-[25px] top-5 bottom-5 w-px bg-gray-200/90 pointer-events-none"
-                              aria-hidden="true"
-                            />
-                          )}
+                              const rawMax = barangayApplicationsData.maxVal;
+                              const yMax = rawMax <= 4 ? 4 : Math.ceil(rawMax / 4) * 4;
 
-                          <div className="space-y-2.5">
-                            {recentApplicantActivities.slice(0, 5).map((item) => {
-                              const isEnrolled = item.status === "Enrolled";
-                              const isApproved = item.status === "Approved";
-                              const isPending = item.status === "Pending";
-                              const isArchived = item.status === "Archived";
+                              const W = 600;
+                              const H = 275;
+                              const padTop = 22;
+                              const chartH = 205;
+                              const baselineY = padTop + chartH;
+                              const labelY = baselineY + 22;
+
+                              const yAxisX = 36;
+                              const gridLeft = 46;
+                              const gridRight = 578;
+                              const usableW = gridRight - gridLeft;
+                              const slotW = usableW / 5;
+                              const barW = 50;
+
+                              const formatShortBarangay = (name: string) =>
+                                name.replace(/^Barangays+/i, "").replace(/^Santas+/i, "Sta. ").replace(/^Santos+/i, "Sto. ");
 
                               return (
                                 <div
-                                  key={item.id}
-                                  onClick={() => openApplicantModal(item)}
-                                  className="relative flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-50/40 border border-transparent hover:border-emerald-200/70 transition-all cursor-pointer group"
+                                  className="relative w-full"
+                                  data-chart-container="barangay"
+                                  onMouseLeave={() => {
+                                    setHoveredBarangayIdx(null);
+                                    handleChartTooltipLeave();
+                                  }}
                                 >
-                                  {/* Contextual Timeline Node Icon */}
-                                  <div
-                                    className={`relative z-10 w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${isEnrolled
-                                      ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                                      : isApproved
-                                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                                        : isPending
-                                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                                          : isArchived
-                                            ? "bg-slate-100 text-slate-700 border-slate-200"
-                                            : "bg-red-50 text-red-600 border-red-200"
-                                      }`}
+                                  <ChartTooltip tooltip={dashboardTooltip} chartId="barangay" />
+
+                                  <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-64 sm:h-72 lg:h-[310px] overflow-visible select-none">
+                                    {/* Hit-test columns */}
+                                    {pageItems.map((bItem, idx) => {
+                                      const colX = gridLeft + idx * slotW;
+                                      const bVal = bItem.applications;
+                                      const bTooltipData: ChartTooltipData = {
+                                        title: `Barangay ${formatShortBarangay(bItem.barangay)}`,
+                                        subtitle: "San Luis, Pampanga",
+                                        items: [
+                                          {
+                                            category: barangayCountMetric === "applications" ? "Applications" : "Unique Youth",
+                                            value: `${bVal} ${bVal === 1 ? "applicant" : "applicants"}`,
+                                            color: "#0A6B43",
+                                          },
+                                          {
+                                            category: "Unique Youth",
+                                            value: `${bItem.uniqueYouth} youth`,
+                                            color: "#10B981",
+                                          },
+                                        ],
+                                      };
+                                      return (
+                                        <rect
+                                          key={`brgy-hit-${idx}`}
+                                          x={colX}
+                                          y={padTop}
+                                          width={slotW}
+                                          height={baselineY - padTop}
+                                          fill="transparent"
+                                          className="cursor-pointer"
+                                          onMouseEnter={(e) => {
+                                            setHoveredBarangayIdx(idx);
+                                            handleChartTooltipMove("barangay", e, bTooltipData);
+                                          }}
+                                          onMouseMove={(e) => {
+                                            handleChartTooltipMove("barangay", e, bTooltipData);
+                                          }}
+                                          onMouseLeave={() => {
+                                            setHoveredBarangayIdx(null);
+                                            handleChartTooltipLeave();
+                                          }}
+                                        />
+                                      );
+                                    })}
+
+                                    {/* Horizontal Grid lines & Y-Axis values */}
+                                    {[0, 0.25, 0.5, 0.75, 1].map((ratio, gIdx) => {
+                                      const y = padTop + ratio * chartH;
+                                      const val = Math.round(yMax * (1 - ratio));
+                                      return (
+                                        <g key={gIdx}>
+                                          <line
+                                            x1={gridLeft}
+                                            y1={y}
+                                            x2={gridRight}
+                                            y2={y}
+                                            stroke={ratio === 1 ? "#CBD5E1" : "#F1F5F9"}
+                                            strokeWidth={ratio === 1 ? "1.5" : "1"}
+                                          />
+                                          <text
+                                            x={yAxisX}
+                                            y={y + 3.5}
+                                            textAnchor="end"
+                                            className="text-[10px] fill-gray-400 font-semibold"
+                                          >
+                                            {val}
+                                          </text>
+                                        </g>
+                                      );
+                                    })}
+
+                                    {/* GROW IN ANIMATED BARS (Triggered only when in view) */}
+                                    {pageItems.map((item, idx) => {
+                                      const val = item.applications;
+                                      const barH = val > 0 ? Math.max(14, (val / yMax) * chartH) : 8;
+                                      const barY = baselineY - barH;
+                                      const slotCenterX = gridLeft + (idx + 0.5) * slotW;
+                                      const isHovered = hoveredBarangayIdx === idx;
+                                      const shortName = formatShortBarangay(item.barangay);
+
+                                      const bTooltipData: ChartTooltipData = {
+                                        title: `Barangay ${shortName}`,
+                                        subtitle: "San Luis, Pampanga",
+                                        items: [
+                                          {
+                                            category: barangayCountMetric === "applications" ? "Applications" : "Unique Youth",
+                                            value: `${val} ${val === 1 ? "applicant" : "applicants"}`,
+                                            color: "#0A6B43",
+                                          },
+                                          {
+                                            category: "Unique Youth",
+                                            value: `${item.uniqueYouth} youth`,
+                                            color: "#10B981",
+                                          },
+                                        ],
+                                      };
+
+                                      return (
+                                        <g
+                                          key={item.barangay}
+                                          className="cursor-pointer"
+                                          onMouseEnter={(e) => {
+                                            setHoveredBarangayIdx(idx);
+                                            handleChartTooltipMove("barangay", e, bTooltipData);
+                                          }}
+                                          onMouseMove={(e) => {
+                                            handleChartTooltipMove("barangay", e, bTooltipData);
+                                          }}
+                                          onMouseLeave={() => {
+                                            setHoveredBarangayIdx(null);
+                                            handleChartTooltipLeave();
+                                          }}
+                                        >
+                                          {/* Bar top value label */}
+                                          <motion.text
+                                            key={`brgy-val-${shortName}-${currentPage}-${val}-${yMax}`}
+                                            x={slotCenterX}
+                                            y={barY - 8}
+                                            textAnchor="middle"
+                                            initial={{ opacity: 0, y: 3 }}
+                                            animate={isBarangayReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 3 }}
+                                            transition={{ duration: 0.45, delay: 0.4 + idx * 0.1 }}
+                                            className={`text-[11px] select-none tabular-nums transition-colors ${
+                                              isHovered ? "fill-[#0A6B43] font-black" : val > 0 ? "fill-gray-700 font-bold" : "fill-gray-300 font-semibold"
+                                            }`}
+                                          >
+                                            {val}
+                                          </motion.text>
+
+                                          {/* Animated Grow In Bar */}
+                                          <motion.rect
+                                            key={`brgy-bar-${shortName}-${currentPage}-${val}-${yMax}`}
+                                            x={slotCenterX - barW / 2}
+                                            width={barW}
+                                            rx={8}
+                                            ry={8}
+                                            fill={val === 0 ? "#E2E8F0" : isHovered ? "#059669" : "#0A6B43"}
+                                            initial={{ height: 0, y: baselineY }}
+                                            animate={isBarangayReady ? { height: barH, y: barY } : { height: 0, y: baselineY }}
+                                            transition={{ duration: 1.05, delay: 0.2 + idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                                            className="transition-colors duration-200"
+                                          />
+
+                                          <text
+                                            x={slotCenterX}
+                                            y={labelY}
+                                            textAnchor="middle"
+                                            className={`text-[10px] select-none transition-colors ${
+                                              isHovered ? "fill-[#0A6B43] font-black" : "fill-gray-500 font-semibold"
+                                            }`}
+                                          >
+                                            {shortName}
+                                          </text>
+                                        </g>
+                                      );
+                                    })}
+                                  </svg>
+                                </div>
+                              );
+                            })()
+                          )}
+                        </div>
+
+                        {/* Card Footer with Simple Pagination */}
+                        <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 min-h-[44px]">
+                          <span className="font-medium text-gray-500">
+                            {barangayApplicationsData.items.length > 0 ? (
+                              <>
+                                Showing {(Math.min(barangayChartPage, Math.max(1, Math.ceil(barangayApplicationsData.items.length / 5))) - 1) * 5 + 1}–{Math.min(barangayChartPage * 5, barangayApplicationsData.items.length)} of {barangayApplicationsData.items.length} barangays
+                              </>
+                            ) : (
+                              "0 barangays"
+                            )}
+                          </span>
+
+                          {barangayApplicationsData.items.length > 5 && (() => {
+                            const totalPages = Math.ceil(barangayApplicationsData.items.length / 5);
+                            const curPage = Math.min(barangayChartPage, totalPages);
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={curPage <= 1}
+                                  onClick={() => {
+                                    setBarangayChartPage(p => Math.max(1, p - 1));
+                                    setHoveredBarangayIdx(null);
+                                  }}
+                                  className={`px-2 py-0.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-0.5 ${
+                                    curPage <= 1
+                                      ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50/50"
+                                      : "border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer shadow-2xs"
+                                  }`}
+                                >
+                                  <ChevronLeft className="w-3 h-3" />
+                                  <span>Prev</span>
+                                </button>
+                                <span className="text-[11px] font-extrabold text-gray-700 px-1.5 py-0.5 rounded-md bg-gray-100">
+                                  {curPage} / {totalPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={curPage >= totalPages}
+                                  onClick={() => {
+                                    setBarangayChartPage(p => Math.min(totalPages, p + 1));
+                                    setHoveredBarangayIdx(null);
+                                  }}
+                                  className={`px-2 py-0.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-0.5 ${
+                                    curPage >= totalPages
+                                      ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50/50"
+                                      : "border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer shadow-2xs"
+                                  }`}
+                                >
+                                  <span>Next</span>
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </>
+                    );
+                    }}
+                  </AnimatedCard>
+                </div>
+
+                {/* Analytics Row 2: Youth Interests vs. Training Supply (55%) + Program Demand vs. Available Slots (45%) */}
+                <div className="grid grid-cols-1 lg:grid-cols-[11fr_9fr] gap-5 sm:gap-6 items-stretch">
+                  {/* CHART 5 (55%): Youth Interests vs. Training Supply (Slower Grow In) */}
+                  <AnimatedCard
+                    delay={0.15}
+                    className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                  >
+                    {(isInView) => (
+                      (() => {
+                        const SECTORS_PER_PAGE = 5;
+                        const totalSectors = sectorInterestVsSupplyData.items.length;
+                        const totalSectorPages = Math.max(1, Math.ceil(totalSectors / SECTORS_PER_PAGE));
+                        const curSectorPage = Math.min(sectorPage, totalSectorPages);
+                        const sectorStartIdx = (curSectorPage - 1) * SECTORS_PER_PAGE;
+                        const pageSectorItems = sectorInterestVsSupplyData.items.slice(sectorStartIdx, sectorStartIdx + SECTORS_PER_PAGE);
+
+                        return (
+                          <>
+                            <div className="space-y-4 flex-1 flex flex-col">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100 min-h-[58px]">
+                                <div>
+                                  <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                    Youth Interests vs. Training Supply
+                                  </h3>
+                                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                    Comparing unique youth interest by sector against available TESDA training supply
+                                  </p>
+                                </div>
+
+                                {/* Supply Metric Toggle */}
+                                <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSectorSupplyMetric("slots");
+                                      setSectorPage(1);
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                      sectorSupplyMetric === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                    }`}
                                   >
-                                    {isEnrolled ? (
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    ) : isApproved ? (
-                                      <UserCheck className="w-4 h-4" />
-                                    ) : isPending ? (
-                                      <FileText className="w-4 h-4" />
-                                    ) : isArchived ? (
-                                      <Archive className="w-4 h-4" />
-                                    ) : (
-                                      <X className="w-4 h-4" />
-                                    )}
+                                    Slots
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSectorSupplyMetric("programs");
+                                      setSectorPage(1);
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                      sectorSupplyMetric === "programs" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                    }`}
+                                  >
+                                    Programs
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Legend */}
+                              <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                                  <span>Youth Interested (Database)</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                                  <span>{sectorSupplyMetric === "programs" ? "Active Training Programs" : "Available Training Slots"}</span>
+                                </div>
+                              </div>
+
+                              {/* Grouped Bar Plot with Viewport-Triggered Slower Grow In */}
+                              <div
+                                className="pt-2 flex-1 flex flex-col justify-end relative"
+                                data-chart-container="sectors"
+                                onMouseLeave={() => {
+                                  setHoveredSectorIdx(null);
+                                  handleChartTooltipLeave();
+                                }}
+                              >
+                                <ChartTooltip tooltip={dashboardTooltip} chartId="sectors" />
+
+                                <div className="h-60 sm:h-64 lg:h-[300px] w-full flex items-end justify-between gap-3 sm:gap-4 px-2 pb-2 border-b border-gray-200 relative">
+                                  <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none pb-2">
+                                    <div className="border-b border-gray-100 w-full" />
+                                    <div className="border-b border-gray-100 w-full" />
+                                    <div className="border-b border-gray-100 w-full" />
+                                    <div className="border-b border-gray-100 w-full" />
+                                    <div className="border-b border-gray-100 w-full" />
                                   </div>
 
-                                  {/* Compact Content Hierarchy */}
-                                  <div className="min-w-0 flex-1">
-                                    {/* Top Row: Prominent Activity Type + Subtle Status Badge + Relative Timestamp */}
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <span className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors truncate">
-                                          {item.activityType}
+                                  {pageSectorItems.map((sec, idx) => {
+                                    const supplyVal = sectorSupplyMetric === "programs" ? sec.programCount : sec.availableSlots;
+                                    const youthPct = sec.youthInterested > 0
+                                      ? Math.max(8, Math.round((sec.youthInterested / sectorInterestVsSupplyData.maxCombined) * 100))
+                                      : 3;
+                                    const supplyPct = supplyVal > 0
+                                      ? Math.max(8, Math.round((supplyVal / sectorInterestVsSupplyData.maxCombined) * 100))
+                                      : 3;
+                                    const isHovered = hoveredSectorIdx === idx;
+
+                                    const secTooltipData: ChartTooltipData = {
+                                      title: sec.fullName,
+                                      subtitle: "Vocational Sector",
+                                      items: [
+                                        {
+                                          category: "Youth Demand",
+                                          value: `${sec.youthInterested} youth`,
+                                          color: "#0A6B43",
+                                        },
+                                        {
+                                          category: sectorSupplyMetric === "programs" ? "Training Programs" : "Available Slots",
+                                          value: `${supplyVal} ${sectorSupplyMetric === "programs" ? "programs" : "slots"}`,
+                                          color: "#F59E0B",
+                                        },
+                                      ],
+                                    };
+
+                                    return (
+                                      <div
+                                        key={sec.id}
+                                        onMouseEnter={(e) => {
+                                          setHoveredSectorIdx(idx);
+                                          handleChartTooltipMove("sectors", e, secTooltipData);
+                                        }}
+                                        onMouseMove={(e) => {
+                                          handleChartTooltipMove("sectors", e, secTooltipData);
+                                        }}
+                                        onMouseLeave={() => {
+                                          setHoveredSectorIdx(null);
+                                          handleChartTooltipLeave();
+                                        }}
+                                        className="flex-1 min-w-0 h-full flex flex-col items-center justify-end cursor-pointer relative z-10 group"
+                                      >
+                                        <div className="w-full flex items-end justify-center gap-1.5 sm:gap-2 h-full">
+                                          {/* Youth Bar (Grow In only when in view) */}
+                                          <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[26px]">
+                                            <motion.span
+                                              key={`youth-num-${sec.id}-${curSectorPage}`}
+                                              initial={{ opacity: 0, y: 3 }}
+                                              animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 3 }}
+                                              transition={{ duration: 0.45, delay: 0.35 + idx * 0.1 }}
+                                              className="text-[10px] font-extrabold text-gray-700 mb-1 tabular-nums"
+                                            >
+                                              {sec.youthInterested}
+                                            </motion.span>
+                                            <motion.div
+                                              key={`youth-bar-${sec.id}-${curSectorPage}-${sectorSupplyMetric}`}
+                                              initial={{ height: 0 }}
+                                              animate={isInView ? { height: `${youthPct}%` } : { height: 0 }}
+                                              transition={{ duration: 1.05, delay: 0.18 + idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                                              className={`w-full rounded-t-md transition-shadow ${
+                                                sec.youthInterested > 0 ? "bg-[#0A6B43]" : "bg-gray-200"
+                                              } ${isHovered ? "ring-2 ring-emerald-500/40" : ""}`}
+                                            />
+                                          </div>
+
+                                          {/* Supply Bar (Grow In only when in view) */}
+                                          <div className="flex flex-col items-center justify-end h-full flex-1 max-w-[26px]">
+                                            <motion.span
+                                              key={`supply-num-${sec.id}-${curSectorPage}-${sectorSupplyMetric}`}
+                                              initial={{ opacity: 0, y: 3 }}
+                                              animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 3 }}
+                                              transition={{ duration: 0.45, delay: 0.42 + idx * 0.1 }}
+                                              className="text-[10px] font-extrabold text-amber-800 mb-1 tabular-nums"
+                                            >
+                                              {supplyVal}
+                                            </motion.span>
+                                            <motion.div
+                                              key={`supply-bar-${sec.id}-${curSectorPage}-${sectorSupplyMetric}`}
+                                              initial={{ height: 0 }}
+                                              animate={isInView ? { height: `${supplyPct}%` } : { height: 0 }}
+                                              transition={{ duration: 1.05, delay: 0.26 + idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                                              className={`w-full rounded-t-md transition-shadow ${
+                                                supplyVal > 0 ? "bg-[#F59E0B]" : "bg-gray-200"
+                                              } ${isHovered ? "ring-2 ring-amber-400/40" : ""}`}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 px-2 pt-2.5">
+                                  {pageSectorItems.map((sec, idx) => (
+                                    <span
+                                      key={sec.id}
+                                      onMouseEnter={() => setHoveredSectorIdx(idx)}
+                                      onMouseLeave={() => setHoveredSectorIdx(null)}
+                                      className={`flex-1 min-w-0 text-center text-[11px] font-bold truncate cursor-pointer transition-colors ${
+                                        hoveredSectorIdx === idx ? "text-[#0A6B43] font-black" : "text-gray-600"
+                                      }`}
+                                      title={sec.fullName}
+                                    >
+                                      {sec.shortLabel}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 min-h-[44px]">
+                              <span className="font-medium text-gray-500">
+                                {totalSectors > 0 ? (
+                                  <>
+                                    Showing {sectorStartIdx + 1}–{Math.min(curSectorPage * SECTORS_PER_PAGE, totalSectors)} of {totalSectors} vocational sectors
+                                  </>
+                                ) : (
+                                  "0 sectors"
+                                )}
+                              </span>
+
+                              {totalSectors > SECTORS_PER_PAGE && (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={curSectorPage <= 1}
+                                    onClick={() => {
+                                      setSectorPage(p => Math.max(1, p - 1));
+                                      setHoveredSectorIdx(null);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-0.5 ${
+                                      curSectorPage <= 1
+                                        ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50/50"
+                                        : "border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer shadow-2xs"
+                                    }`}
+                                  >
+                                    <ChevronLeft className="w-3 h-3" />
+                                    <span>Prev</span>
+                                  </button>
+                                  <span className="text-[11px] font-extrabold text-gray-700 px-1.5 py-0.5 rounded-md bg-gray-100">
+                                    {curSectorPage} / {totalSectorPages}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={curSectorPage >= totalSectorPages}
+                                    onClick={() => {
+                                      setSectorPage(p => Math.min(totalSectorPages, p + 1));
+                                      setHoveredSectorIdx(null);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-0.5 ${
+                                      curSectorPage >= totalSectorPages
+                                        ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50/50"
+                                        : "border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer shadow-2xs"
+                                    }`}
+                                  >
+                                    <span>Next</span>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()
+                    )}
+                  </AnimatedCard>
+
+                  {/* CHART 2 (45%): Program Demand vs. Available Slots (Slower Progress Fill) */}
+                  <AnimatedCard
+                    delay={0.25}
+                    className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                  >
+                    {(isInView) => (
+                      <div className="space-y-4 flex-1 flex flex-col">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100 min-h-[58px]">
+                          <div>
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                              Program Demand vs. Available Slots
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">
+                              Compare applicant demand with available program slots.
+                            </p>
+                          </div>
+
+                          {/* Sort Selector */}
+                          <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProgramDemandSort("demand");
+                                setProgramDemandPage(1);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                programDemandSort === "demand" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                            >
+                              By Demand
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProgramDemandSort("slots");
+                                setProgramDemandPage(1);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                programDemandSort === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                              }`}
+                            >
+                              Low Slots
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                            <span>Applicant Demand (Pending/Approved/Enrolled)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
+                            <span>Available Slots</span>
+                          </div>
+                        </div>
+
+                        {programDemandData.items.length === 0 ? (
+                          <div className="py-10 text-center space-y-2 flex-1 flex flex-col items-center justify-center">
+                            <BookOpen className="w-8 h-8 text-gray-300 mx-auto" />
+                            <p className="text-sm font-bold text-gray-800">No Active Training Programs</p>
+                            <p className="text-xs text-gray-400">Add a training program to compare applicant demand and capacity.</p>
+                          </div>
+                        ) : (
+                          (() => {
+                            const PROGRAMS_PER_PAGE = 3;
+                            const totalPrograms = programDemandData.items.length;
+                            const totalProgramPages = Math.max(1, Math.ceil(totalPrograms / PROGRAMS_PER_PAGE));
+                            const curProgramPage = Math.min(programDemandPage, totalProgramPages);
+                            const programStartIdx = (curProgramPage - 1) * PROGRAMS_PER_PAGE;
+                            const pageProgramItems = programDemandData.items.slice(programStartIdx, programStartIdx + PROGRAMS_PER_PAGE);
+
+                            return (
+                              <div
+                                className="space-y-3 flex-1 flex flex-col justify-start pt-1 relative"
+                                data-chart-container="demand"
+                                onMouseLeave={handleChartTooltipLeave}
+                              >
+                                <ChartTooltip tooltip={dashboardTooltip} chartId="demand" />
+                                {pageProgramItems.map((prog, pIdx) => {
+                                  const demandPct = Math.min(100, Math.round((prog.demand / programDemandData.maxScale) * 100));
+                                  const slotsPct = Math.min(100, Math.round((prog.slotsRemaining / programDemandData.maxScale) * 100));
+
+                                  const progTooltipData: ChartTooltipData = {
+                                    title: prog.title,
+                                    subtitle: "Program Capacity & Demand",
+                                    items: [
+                                      {
+                                        category: "Applicant Demand",
+                                        value: `${prog.demand} applicant${prog.demand !== 1 ? "s" : ""}`,
+                                        color: "#0A6B43",
+                                      },
+                                      {
+                                        category: "Available Slots",
+                                        value: `${prog.slotsRemaining} / ${prog.slotsTotal} open`,
+                                        color: prog.slotsRemaining === 0 ? "#EF4444" : "#3B82F6",
+                                      },
+                                    ],
+                                  };
+
+                                  return (
+                                    <div
+                                      key={prog.id}
+                                      onClick={() => {
+                                        setPipelineProgramFilter(prog.title);
+                                        setDashboardTab("all");
+                                        setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                                        document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        handleChartTooltipMove("demand", e, progTooltipData);
+                                      }}
+                                      onMouseMove={(e) => {
+                                        handleChartTooltipMove("demand", e, progTooltipData);
+                                      }}
+                                      onMouseLeave={handleChartTooltipLeave}
+                                      className="p-3 rounded-xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all cursor-pointer space-y-2 group shadow-2xs"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-bold text-gray-900 group-hover:text-[#0A6B43] truncate" title={prog.title}>
+                                          {prog.title}
                                         </span>
-                                        <span
-                                          className={`px-1.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider border shrink-0 ${isEnrolled
-                                            ? "bg-emerald-50/90 text-[#0A6B43] border-emerald-200"
-                                            : isApproved
-                                              ? "bg-blue-50/90 text-blue-700 border-blue-200"
-                                              : isPending
-                                                ? "bg-amber-50/90 text-amber-800 border-amber-200"
-                                                : isArchived
-                                                  ? "bg-slate-100 text-slate-700 border-slate-200"
-                                                  : "bg-red-50/90 text-red-700 border-red-200"
-                                            }`}
-                                        >
-                                          {item.status}
+                                        <span className="text-[11px] font-semibold text-gray-500 shrink-0 tabular-nums">
+                                          {prog.demand} applicant{prog.demand !== 1 ? "s" : ""} · {prog.slotsRemaining}/{prog.slotsTotal} open
                                         </span>
                                       </div>
 
-                                      {/* Relative Timestamp with Exact Date/Time Tooltip */}
-                                      <span
-                                        title={`Exact date & time: ${item.exactDateTime}`}
-                                        className="text-[11px] font-semibold text-gray-400 group-hover:text-gray-600 whitespace-nowrap shrink-0 tabular-nums"
-                                      >
-                                        {item.relativeTime}
-                                      </span>
-                                    </div>
+                                      {/* Demand Progress Bar (Slow Progress Fill only when in view) */}
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-16 text-[10px] font-bold text-gray-500 shrink-0">Demand</span>
+                                        <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                          <motion.div
+                                            key={`prog-demand-${prog.id}-${curProgramPage}`}
+                                            initial={{ width: 0 }}
+                                            animate={isInView ? { width: `${prog.demand > 0 ? Math.max(4, demandPct) : 0}%` } : { width: 0 }}
+                                            transition={{ duration: 1.35, delay: 0.2 + pIdx * 0.14, ease: [0.22, 1, 0.36, 1] }}
+                                            className="h-full bg-[#0A6B43] rounded-full"
+                                          />
+                                        </div>
+                                        <motion.span
+                                          key={`prog-demand-val-${prog.id}-${curProgramPage}`}
+                                          initial={{ opacity: 0 }}
+                                          animate={isInView ? { opacity: 1 } : { opacity: 0 }}
+                                          transition={{ duration: 0.45, delay: 0.4 + pIdx * 0.14 }}
+                                          className="w-7 text-right text-[11px] font-extrabold text-[#0A6B43] tabular-nums"
+                                        >
+                                          {prog.demand}
+                                        </motion.span>
+                                      </div>
 
-                                    {/* Bottom Row: Applicant Name · Training Program · Exact Date Secondary Label */}
-                                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                                      <p className="text-xs text-gray-600 truncate">
-                                        <span className="font-bold text-gray-800 group-hover:text-[#0A6B43] group-hover:underline">
-                                          {item.youthName}
-                                        </span>
-                                        <span className="text-gray-300 mx-1.5">·</span>
-                                        <span className="font-medium text-gray-600">
-                                          {item.programTitle}
-                                        </span>
-                                      </p>
-
-                                      <span
-                                        title={item.exactDateTime}
-                                        className="hidden sm:inline-block text-[10px] text-gray-400 font-medium whitespace-nowrap shrink-0"
-                                      >
-                                        {item.shortExactDate}
-                                      </span>
+                                      {/* Slots Progress Bar (Slow Progress Fill only when in view) */}
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-16 text-[10px] font-bold text-gray-500 shrink-0">Open Slots</span>
+                                        <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                          <motion.div
+                                            key={`prog-slots-${prog.id}-${curProgramPage}`}
+                                            initial={{ width: 0 }}
+                                            animate={isInView ? { width: `${prog.slotsRemaining > 0 ? Math.max(4, slotsPct) : 0}%` } : { width: 0 }}
+                                            transition={{ duration: 1.35, delay: 0.3 + pIdx * 0.14, ease: [0.22, 1, 0.36, 1] }}
+                                            className={`h-full rounded-full ${
+                                              prog.slotsRemaining === 0 ? "bg-red-500" : "bg-[#3B82F6]"
+                                            }`}
+                                          />
+                                        </div>
+                                        <motion.span
+                                          key={`prog-slots-val-${prog.id}-${curProgramPage}`}
+                                          initial={{ opacity: 0 }}
+                                          animate={isInView ? { opacity: 1 } : { opacity: 0 }}
+                                          transition={{ duration: 0.45, delay: 0.5 + pIdx * 0.14 }}
+                                          className={`w-7 text-right text-[11px] font-extrabold tabular-nums ${
+                                            prog.slotsRemaining === 0 ? "text-red-600" : "text-blue-700"
+                                          }`}
+                                        >
+                                          {prog.slotsRemaining}
+                                        </motion.span>
+                                      </div>
                                     </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()
+                        )}
+
+                        {/* Card Footer with Simple Pagination */}
+                        <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500 min-h-[44px]">
+                          <span className="font-medium text-gray-500">
+                            {programDemandData.items.length > 0 ? (
+                              (() => {
+                                const PROGRAMS_PER_PAGE = 3;
+                                const totalPrograms = programDemandData.items.length;
+                                const totalProgramPages = Math.max(1, Math.ceil(totalPrograms / PROGRAMS_PER_PAGE));
+                                const curProgramPage = Math.min(programDemandPage, totalProgramPages);
+                                const programStartIdx = (curProgramPage - 1) * PROGRAMS_PER_PAGE;
+                                return (
+                                  <>
+                                    Showing {programStartIdx + 1}–{Math.min(curProgramPage * PROGRAMS_PER_PAGE, totalPrograms)} of {totalPrograms} programs
+                                  </>
+                                );
+                              })()
+                            ) : (
+                              "0 programs"
+                            )}
+                          </span>
+
+                          {programDemandData.items.length > 3 && (() => {
+                            const totalProgramPages = Math.ceil(programDemandData.items.length / 3);
+                            const curProgramPage = Math.min(programDemandPage, totalProgramPages);
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={curProgramPage <= 1}
+                                  onClick={() => setProgramDemandPage(p => Math.max(1, p - 1))}
+                                  className={`px-2 py-0.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-0.5 ${
+                                    curProgramPage <= 1
+                                      ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50/50"
+                                      : "border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer shadow-2xs"
+                                  }`}
+                                >
+                                  <ChevronLeft className="w-3 h-3" />
+                                  <span>Prev</span>
+                                </button>
+                                <span className="text-[11px] font-extrabold text-gray-700 px-1.5 py-0.5 rounded-md bg-gray-100">
+                                  {curProgramPage} / {totalProgramPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={curProgramPage >= totalProgramPages}
+                                  onClick={() => setProgramDemandPage(p => Math.min(totalProgramPages, p + 1))}
+                                  className={`px-2 py-0.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-0.5 ${
+                                    curProgramPage >= totalProgramPages
+                                      ? "border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50/50"
+                                      : "border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer shadow-2xs"
+                                  }`}
+                                >
+                                  <span>Next</span>
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                  </AnimatedCard>
+                </div>
 
-                    {/* Card Footer */}
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 text-[11px] text-gray-500 mt-3">
-                      <span>
-                        Showing latest <strong className="text-gray-800">{Math.min(5, recentApplicantActivities.length)}</strong> of{" "}
-                        <strong className="text-gray-800">{totalApplicationsCount}</strong> applications
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
-                          setDashboardTab("all");
-                          setPipelineStatusFilter("All");
-                          document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                        className="font-bold text-[#0A6B43] hover:underline inline-flex items-center gap-0.5 cursor-pointer"
-                      >
-                        <span>Open Applicants</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
+                {/* Row 3: Recent Applicant Activity (60%) + Quick Actions (40%) */}
+                <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 sm:gap-6 items-stretch">
+                  {/* LEFT COLUMN (6 cols / 60%): Recent Applicant Activity (Slower Fade In + Slide Up) */}
+                  <AnimatedCard
+                    delay={0.15}
+                    className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                  >
+                    {(isInView) => (
+                      <div className="space-y-4 flex-1 flex flex-col">
+                        {/* Card Header */}
+                        <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100 min-h-[58px]">
+                          <div>
+                            <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                              Recent Applicant Activity
+                            </h3>
+                            <p className="text-xs text-gray-500 font-medium mt-0.5">
+                              Latest application events and status updates across training programs
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                              setDashboardTab("all");
+                              setPipelineStatusFilter("All");
+                              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="px-3 py-1.5 bg-emerald-50 hover:bg-[#0A6B43] text-[#0A6B43] hover:text-white border border-emerald-200/80 hover:border-[#0A6B43] text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                          >
+                            <span>View All Applicants</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Compact Vertical Activity Timeline (Latest 4 records, only when in view) */}
+                        {recentApplicantActivities.length === 0 ? (
+                          <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[240px]">
+                            <div className="w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
+                              <Clock className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm font-extrabold text-gray-900">No Recent Applicant Activity</h4>
+                            <p className="text-xs text-gray-500 max-w-xs font-medium">
+                              Application events for your TESDA training programs will appear here automatically.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="relative flex-1 flex flex-col justify-between py-1">
+                            {recentApplicantActivities.slice(0, 4).length > 1 && (
+                              <div
+                                className="absolute left-[25px] top-5 bottom-5 w-px bg-gray-200/90 pointer-events-none"
+                                aria-hidden="true"
+                              />
+                            )}
+
+                            <div className="space-y-2.5">
+                              {recentApplicantActivities.slice(0, 4).map((item, aIdx) => {
+                                const isEnrolled = item.status === "Enrolled";
+                                const isApproved = item.status === "Approved";
+                                const isPending = item.status === "Pending";
+                                const isArchived = item.status === "Archived";
+
+                                return (
+                                  <motion.div
+                                    key={item.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                                    transition={{ duration: 0.65, delay: 0.2 + aIdx * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                                    onClick={() => openApplicantModal(item)}
+                                    className="relative flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-50/40 border border-transparent hover:border-emerald-200/70 transition-all cursor-pointer group"
+                                  >
+                                    <div
+                                      className={`relative z-10 w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                                        isEnrolled
+                                          ? "bg-emerald-100/80 border-emerald-300 text-emerald-800"
+                                          : isApproved
+                                          ? "bg-blue-100/80 border-blue-300 text-blue-800"
+                                          : isPending
+                                          ? "bg-amber-100/80 border-amber-300 text-amber-800"
+                                          : "bg-gray-100 border-gray-300 text-gray-700"
+                                      }`}
+                                    >
+                                      {isEnrolled ? (
+                                        <GraduationCap className="w-4 h-4 text-emerald-700" />
+                                      ) : isApproved ? (
+                                        <CheckCircle2 className="w-4 h-4 text-blue-700" />
+                                      ) : isPending ? (
+                                        <Clock className="w-4 h-4 text-amber-700" />
+                                      ) : (
+                                        <Archive className="w-4 h-4 text-gray-600" />
+                                      )}
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <p className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] truncate">
+                                            {item.youthName}
+                                          </p>
+                                          <span className="text-[10px] text-gray-400 font-medium shrink-0">
+                                            ({item.barangay})
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span
+                                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                              isEnrolled
+                                                ? "bg-emerald-100 text-[#0A6B43]"
+                                                : isApproved
+                                                ? "bg-blue-100 text-blue-800"
+                                                : isPending
+                                                ? "bg-amber-100 text-amber-800"
+                                                : "bg-gray-100 text-gray-600"
+                                            }`}
+                                          >
+                                            {item.status}
+                                          </span>
+                                          <span
+                                            title={item.exactDateTime}
+                                            className="text-[10px] text-gray-400 font-medium tabular-nums whitespace-nowrap"
+                                          >
+                                            {item.relativeTime}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                                        <p className="text-[11px] text-gray-600 truncate">
+                                          <span className="text-gray-500">Program: </span>
+                                          <span className="font-medium text-gray-600">
+                                            {item.programTitle}
+                                          </span>
+                                        </p>
+
+                                        <span
+                                          title={item.exactDateTime}
+                                          className="hidden sm:inline-block text-[10px] text-gray-400 font-medium whitespace-nowrap shrink-0"
+                                        >
+                                          {item.shortExactDate}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </AnimatedCard>
+
+                  {/* RIGHT COLUMN (4 cols / 40%): Quick Actions (Slower Fade In + Slide Up) */}
+                  <AnimatedCard
+                    delay={0.25}
+                    className="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full"
+                  >
+                    {(isInView) => (
+                      <div className="space-y-4">
+                        <div className="pb-3 border-b border-gray-100 min-h-[58px] flex flex-col justify-center">
+                          <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Quick Actions</h4>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">Fast shortcuts to common TESDA management tasks</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2.5">
+                          <motion.button
+                            type="button"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                            transition={{ duration: 0.65, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                            whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => {
+                              setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                              setDashboardTab("all");
+                              setPipelineStatusFilter("All");
+                              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                          >
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Manage Applications
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                            transition={{ duration: 0.65, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                            whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => {
+                              setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
+                              setDashboardTab("pending");
+                              setPipelineStatusFilter("Pending");
+                              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                                Review Pending
+                              </span>
+                              {pendingReferralsCount > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black">
+                                  {pendingReferralsCount}
+                                </span>
+                              )}
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                            transition={{ duration: 0.65, delay: 0.36, ease: [0.22, 1, 0.36, 1] }}
+                            whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => {
+                              setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
+                              setViewingArchivedPrograms(false);
+                              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                          >
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Manage Programs
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                            transition={{ duration: 0.65, delay: 0.44, ease: [0.22, 1, 0.36, 1] }}
+                            whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => {
+                              setEditingProgramId(null);
+                              setCurrentScreen(TESDAPartnerScreen.ADD_PROGRAM);
+                              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                          >
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Add Training Program
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+                            transition={{ duration: 0.65, delay: 0.52, ease: [0.22, 1, 0.36, 1] }}
+                            whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                            whileTap={{ scale: 0.99 }}
+                            onClick={() => {
+                              setCurrentScreen(TESDAPartnerScreen.SETTINGS);
+                              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                          >
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Partner Profile & Settings
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                          </motion.button>
+                        </div>
+                      </div>
+                    )}
+                  </AnimatedCard>
                 </div>
               </div>
             </div>

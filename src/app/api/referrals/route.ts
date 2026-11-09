@@ -85,9 +85,6 @@ export async function GET(request: Request) {
           { status: "Archived" },
           { program: { activeStatus: "Closed" } }
         ];
-      } else if (roleStr === "TESDA_PARTNER") {
-        whereClause.program = { activeStatus: { not: "Closed" } };
-        whereClause.status = { not: "Archived" };
       }
     }
 

@@ -226,6 +226,9 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [referrals, setReferrals] = useState<any[]>([]);
 
+  // Initial data sync completion tracker
+  const [isInitialSyncDone, setIsInitialSyncDone] = useState(false);
+
   // Real-time synchronization lock to prevent overlapping fetch requests
   const isSyncingRef = useRef(false);
 
@@ -286,6 +289,7 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
       // Silent background sync error handling - never expose sync errors to browser console
     } finally {
       isSyncingRef.current = false;
+      setIsInitialSyncDone(true);
     }
   }, [status, session]);
 
@@ -1109,6 +1113,7 @@ export default function App({ logoutRedirectTo }: { logoutRedirectTo?: string } 
               youthProfiles={youthProfiles}
               onLogout={handleLogout}
               addToast={addToast}
+              isDataReady={isInitialSyncDone}
             />
           )}
 
