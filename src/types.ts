@@ -352,7 +352,7 @@ export interface TESDAProgram {
   type: "Training" | "Employment" | "Entrepreneurship";
   location: string;
   trainingHours: number;
-  cost: "Free" | "Subsidized" | "With Fee";
+  cost: "Free" | "Scholarship-Funded" | "Self-Funded" | "Subsidized" | "With Fee" | string;
   slotsTotal: number;
   slotsRemaining: number;
   youthMatched: number;
@@ -428,6 +428,8 @@ export interface ProgramApplication {
   certificationType?: string;
   isGraduate?: boolean;
   program?: Partial<TESDAProgram>;
+  batch?: string;
+  batchId?: string;
 }
 
 // Backwards compatibility alias

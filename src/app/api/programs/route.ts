@@ -6,6 +6,33 @@ import { notifyNewProgramPublished } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
+// Normalize display cost model to/from database enum & fundingType
+function normalizeCostForDb(rawCost?: string): { cost: "Free" | "Subsidized" | "With_Fee"; fundingType: string } {
+  if (!rawCost || rawCost === "Free") {
+    return { cost: "Free", fundingType: "Free" };
+  }
+  if (rawCost === "Scholarship-Funded") {
+    return { cost: "Free", fundingType: "Scholarship-Funded" };
+  }
+  if (rawCost === "Subsidized") {
+    return { cost: "Subsidized", fundingType: "Subsidized" };
+  }
+  if (rawCost === "Self-Funded" || rawCost === "With Fee") {
+    return { cost: "With_Fee", fundingType: "Self-Funded" };
+  }
+  return { cost: "Free", fundingType: rawCost || "Free" };
+}
+
+function mapProgramCostForClient<T extends { cost?: any; fundingType?: any }>(prog: T): T {
+  const fType = prog.fundingType;
+  let clientCost = prog.cost;
+  if (fType === "Scholarship-Funded") clientCost = "Scholarship-Funded";
+  else if (fType === "Self-Funded" || prog.cost === "With_Fee") clientCost = "Self-Funded";
+  else if (fType === "Subsidized" || prog.cost === "Subsidized") clientCost = "Subsidized";
+  else if (fType === "Free" || prog.cost === "Free") clientCost = "Free";
+  return { ...prog, cost: clientCost } as T;
+}
+
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -61,7 +88,7 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" }
     });
 
-    return NextResponse.json({ success: true, data: programs });
+    return NextResponse.json({ success: true, data: programs.map(mapProgramCostForClient) });
   } catch (error: any) {
     console.error("Programs GET Error:", error);
     return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 500 });
@@ -86,8 +113,27 @@ export async function POST(request: Request) {
     const endDateTime = body.endTime ? new Date(`1970-01-01T${body.endTime}:00Z`) : null;
     
     if (startDateTime && endDateTime && startDateTime >= endDateTime) return NextResponse.json({ success: false, message: "Start time must be before end time" }, { status: 400 });
-    if (body.startDate && body.endDate && new Date(body.startDate) > new Date(body.endDate)) return NextResponse.json({ success: false, message: "Start date must be before or equal to end date" }, { status: 400 });
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+    if (body.startDate) {
+      const s = new Date(body.startDate);
+      if (s < todayMidnight) return NextResponse.json({ success: false, message: "Start date cannot be in the past" }, { status: 400 });
+    }
+    if (body.endDate) {
+      const e = new Date(body.endDate);
+      if (e < todayMidnight) return NextResponse.json({ success: false, message: "End date cannot be in the past" }, { status: 400 });
+    }
+    if (body.startDate && body.endDate) {
+      const s = new Date(body.startDate);
+      const e = new Date(body.endDate);
+      if (e < s) return NextResponse.json({ success: false, message: "End date cannot be before start date" }, { status: 400 });
+      if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth() && s.getDate() === e.getDate()) {
+        return NextResponse.json({ success: false, message: "Start date and End date cannot be on the same day" }, { status: 400 });
+      }
+    }
+
+    const costInfo = normalizeCostForDb(body.cost);
     const newProgram = await db.tESDAProgram.create({
       data: {
         title: body.title,
@@ -95,7 +141,8 @@ export async function POST(request: Request) {
         type: body.type || "Training",
         location: body.location || "San Luis Training Center",
         trainingHours: Number(body.trainingHours),
-        cost: body.cost || "Free",
+        cost: costInfo.cost,
+        fundingType: costInfo.fundingType || body.fundingType || "Free",
         slotsTotal: Number(body.slotsTotal) || 25,
         slotsRemaining: Number(body.slotsTotal) || 25,
         youthMatched: 0,
@@ -113,7 +160,6 @@ export async function POST(request: Request) {
         room: body.room,
         instructor: body.instructor,
         deliveryMode: body.deliveryMode || "Face-to-Face",
-        fundingType: body.fundingType || "Free",
         perks: body.perks || [],
         cptrCourseCode: body.cptrCourseCode || undefined,
         certificationType: body.certificationType || "National Certificate",
@@ -134,7 +180,7 @@ export async function POST(request: Request) {
       trainingHours: newProgram.trainingHours
     }).catch(err => console.error("[Notification Error - Program Published]:", err));
 
-    return NextResponse.json({ success: true, data: newProgram }, { status: 201 });
+    return NextResponse.json({ success: true, data: mapProgramCostForClient(newProgram) }, { status: 201 });
   } catch (error: any) {
     console.error("Programs POST Error:", error);
     return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });
@@ -160,14 +206,61 @@ export async function PUT(request: Request) {
     if (body.trainingDays !== undefined && (!body.trainingDays || body.trainingDays.length === 0)) return NextResponse.json({ success: false, message: "At least one training day must be selected" }, { status: 400 });
     
     const updateData: any = { ...body };
+    if (body.cost !== undefined) {
+      const costInfo = normalizeCostForDb(body.cost);
+      updateData.cost = costInfo.cost;
+      updateData.fundingType = costInfo.fundingType;
+    }
     delete updateData.id;
     delete updateData.category;
     delete updateData.partner;
     delete updateData.referrals;
     delete updateData._count;
 
-    // Slot integrity recalculation
-    if (body.slotsTotal !== undefined) {
+    // Date Validations for PUT (no past dates, no end before start, no start equal to end, no overlap with previous session)
+    const nowPut = new Date();
+    const todayMidnightPut = new Date(nowPut.getFullYear(), nowPut.getMonth(), nowPut.getDate());
+
+    if (body.startDate) {
+      const s = new Date(body.startDate);
+      if (s < todayMidnightPut) return NextResponse.json({ success: false, message: "Start date cannot be in the past" }, { status: 400 });
+    }
+    if (body.endDate) {
+      const e = new Date(body.endDate);
+      if (e < todayMidnightPut) return NextResponse.json({ success: false, message: "End date cannot be in the past" }, { status: 400 });
+    }
+    if (body.startDate && body.endDate) {
+      const s = new Date(body.startDate);
+      const e = new Date(body.endDate);
+      if (e < s) return NextResponse.json({ success: false, message: "End date cannot be before start date" }, { status: 400 });
+      if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth() && s.getDate() === e.getDate()) {
+        return NextResponse.json({ success: false, message: "Start date and End date cannot be on the same day" }, { status: 400 });
+      }
+    }
+
+    // Overlap validation when restoring a closed session
+    const isRestoring = body.activeStatus === "Active" && (existingProg.activeStatus === "Closed" || (existingProg.endDate && new Date(existingProg.endDate) < nowPut));
+    if (isRestoring && existingProg.endDate && body.startDate) {
+      const prevEnd = new Date(existingProg.endDate);
+      const newStart = new Date(body.startDate);
+      if (newStart <= prevEnd) {
+        return NextResponse.json({
+          success: false,
+          message: `Start date cannot overlap with the previous session (ended ${prevEnd.toLocaleDateString()}). New session must start after the previous session.`
+        }, { status: 400 });
+      }
+    }
+
+    // Handle program restoration: when re-activating a closed/concluded program
+    if (isRestoring) {
+      updateData.activeStatus = "Active";
+      const totalSlots = body.slotsTotal ? Math.max(1, Number(body.slotsTotal)) : (existingProg.slotsTotal || 25);
+      updateData.slotsTotal = totalSlots;
+      updateData.slotsRemaining = totalSlots;
+
+      if (body.startDate) updateData.startDate = new Date(body.startDate);
+      if (body.endDate) updateData.endDate = new Date(body.endDate);
+    } else if (body.slotsTotal !== undefined) {
       const newSlotsTotal = Math.max(1, Number(body.slotsTotal));
       const currentOccupied = Math.max(0, existingProg.slotsTotal - existingProg.slotsRemaining);
       const newSlotsRemaining = Math.max(0, newSlotsTotal - currentOccupied);
@@ -197,8 +290,13 @@ export async function PUT(request: Request) {
     if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
     if (updateData.endDate) updateData.endDate = new Date(updateData.endDate);
     
-    if (updateData.startDate && updateData.endDate && updateData.startDate > updateData.endDate) {
-      return NextResponse.json({ success: false, message: "Start date must be before or equal to end date" }, { status: 400 });
+    if (updateData.startDate && updateData.endDate) {
+      if (updateData.startDate > updateData.endDate) {
+        return NextResponse.json({ success: false, message: "End date cannot be before start date" }, { status: 400 });
+      }
+      if (updateData.startDate.getTime() === updateData.endDate.getTime()) {
+        return NextResponse.json({ success: false, message: "Start date and End date cannot be on the same day" }, { status: 400 });
+      }
     }
 
     const updated = await db.tESDAProgram.update({
@@ -209,7 +307,7 @@ export async function PUT(request: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({ success: true, data: mapProgramCostForClient(updated) });
   } catch (error: any) {
     console.error("Programs PUT Error:", error);
     return NextResponse.json({ success: false, error: sanitizeApiError(error) }, { status: 400 });

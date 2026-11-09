@@ -886,6 +886,33 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [programRosterDateFilter, setProgramRosterDateFilter] = useState("All");
   const [programRosterSortCol, setProgramRosterSortCol] = useState<"name" | "email" | "barangay" | "purok" | "gender" | "appliedDate" | "status">("appliedDate");
   const [programRosterSortDir, setProgramRosterSortDir] = useState<"asc" | "desc">("desc");
+  const [selectedRosterSession, setSelectedRosterSession] = useState<string>("batch-1");
+  const [batchCardsPage, setBatchCardsPage] = useState<number>(1);
+
+  // Track programs that have had a new session created or been restored
+  const [restoredProgramIds, setRestoredProgramIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("sikap_restored_programs");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const markProgramAsRestoredSession = (progId: string) => {
+    setRestoredProgramIds(prev => {
+      if (prev.includes(progId)) return prev;
+      const next = [...prev, progId];
+      try {
+        localStorage.setItem("sikap_restored_programs", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const [programForNewSession, setProgramForNewSession] = useState<TESDAProgram | null>(null);
+  const [isStartingNewSession, setIsStartingNewSession] = useState(false);
 
   const handleProgramRosterSort = (col: "name" | "email" | "barangay" | "purok" | "gender" | "appliedDate" | "status") => {
     if (programRosterSortCol === col) {
@@ -904,8 +931,10 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [programToArchive, setProgramToArchive] = useState<TESDAProgram | null>(null);
   const [graduationEvaluations, setGraduationEvaluations] = useState<Record<string, "Graduated" | "Incomplete">>({});
 
-  // Program restore confirmation modal state
+  // Program restore edit modal states
   const [programToRestore, setProgramToRestore] = useState<TESDAProgram | null>(null);
+  const [isRestoringProgramMode, setIsRestoringProgramMode] = useState<boolean>(false);
+  const [programToRestoreOriginal, setProgramToRestoreOriginal] = useState<TESDAProgram | null>(null);
 
   // Action loading states for restore, archive, delete
   const [isRestoringProgram, setIsRestoringProgram] = useState(false);
@@ -1078,7 +1107,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
   const [progLevel, setProgLevel] = useState("NC II");
   const [progTrainingHours, setProgTrainingHours] = useState<number | "">("");
   const [progLocation, setProgLocation] = useState("");
-  const [progCost, setProgCost] = useState<"Free" | "Subsidized" | "With Fee">("Free");
+  const [progCost, setProgCost] = useState<"Free" | "Scholarship-Funded" | "Self-Funded" | "Subsidized" | string>("Free");
   const [progSlots, setProgSlots] = useState<number | "">("");
   const [progEligibility, setProgEligibility] = useState("");
   const [progRequiredDocuments, setProgRequiredDocuments] = useState("");
@@ -1207,8 +1236,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       return;
     }
 
-    if (progStartDate && progEndDate && new Date(progStartDate) > new Date(progEndDate)) {
-      addToast("Start date must be before or equal to end date", "error");
+    const todayMidnightAdd = new Date();
+    todayMidnightAdd.setHours(0, 0, 0, 0);
+    const todayStrAdd = new Date(todayMidnightAdd.getTime() - (todayMidnightAdd.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
+    if (progStartDate && progStartDate < todayStrAdd) {
+      addToast("Start date cannot be in the past. Please select today or a future date.", "error");
+      return;
+    }
+    if (progEndDate && progEndDate < todayStrAdd) {
+      addToast("End date cannot be in the past. Please select a future date.", "error");
+      return;
+    }
+    if (progStartDate && progEndDate && progEndDate < progStartDate) {
+      addToast("End date cannot be before the start date.", "error");
+      return;
+    }
+    if (progStartDate && progEndDate && progStartDate === progEndDate) {
+      addToast("Start date and End date cannot be on the same day. Programs must run for at least 1 day.", "error");
       return;
     }
 
@@ -1473,14 +1518,65 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
+  const handleStartNewSession = async (prog: TESDAProgram) => {
+    setIsStartingNewSession(true);
+    try {
+      const currentEnrollees = referrals.filter(
+        r => (r.programId === prog.id || r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim()) && r.status === "Enrolled"
+      );
+
+      if (currentEnrollees.length > 0) {
+        await Promise.all(
+          currentEnrollees.map(r =>
+            fetch("/api/referrals", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: r.id, status: "Archived" })
+            }).catch(() => null)
+          )
+        );
+
+        setReferrals(prev =>
+          prev.map(r => {
+            if ((r.programId === prog.id || r.programTitle.toLowerCase().trim() === prog.title.toLowerCase().trim()) && r.status === "Enrolled") {
+              return { ...r, status: "Archived" };
+            }
+            return r;
+          })
+        );
+      }
+
+      markProgramAsRestoredSession(prog.id);
+      setSelectedRosterSession("batch-2");
+      addToast(`New training session (Batch 02) opened for "${prog.title}"! Previous cohort graduated to Batch 01.`, "success");
+      broadcastDataChange("programs", "new_session");
+      broadcastDataChange("referrals", "batch_updated");
+    } catch (err: any) {
+      console.error("Error starting new session:", err);
+      addToast(err.message || "Failed to start new session", "error");
+    } finally {
+      setIsStartingNewSession(false);
+      setProgramForNewSession(null);
+    }
+  };
+
   const handleUnarchiveProgram = async (progId: string, title: string) => {
     setIsRestoringProgram(true);
     setRestoringProgramId(progId);
     try {
+      const now = new Date();
+      const newStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const newEnd = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+
       const res = await fetch("/api/programs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: progId, activeStatus: "Active" })
+        body: JSON.stringify({
+          id: progId,
+          activeStatus: "Active",
+          startDate: newStart.toISOString(),
+          endDate: newEnd.toISOString()
+        })
       });
       const data = await res.json();
       if (data.success && data.data) {
@@ -1491,6 +1587,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
           }
           return [data.data, ...prev];
         });
+        markProgramAsRestoredSession(progId);
         addToast(`Program "${title}" has been restored to Active Programs!`, "success");
         broadcastDataChange("programs", "restored");
         if (viewingProgram && viewingProgram.id === progId) {
@@ -1508,9 +1605,24 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     }
   };
 
+  // Helper to start restoration with edit mode dialog
+  const handleOpenRestoreModal = (prog: TESDAProgram) => {
+    setViewingProgram(prog);
+    startEditingInModal(prog, true);
+    setTimeout(() => {
+      const target = document.getElementById("restore-modal-start-date-field");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 250);
+  };
+
   // Helper to start inline editing within the View Program Details dialog
-  const startEditingInModal = (prog: TESDAProgram) => {
-    const match = prog.title.match(/(.*)\s+(NC\s+I|NC\s+II|NC\s+III)$/i);
+  const startEditingInModal = (prog: TESDAProgram, isRestoring: boolean = false) => {
+    setIsRestoringProgramMode(isRestoring);
+    setProgramToRestoreOriginal(isRestoring ? prog : null);
+
+    const match = prog.title.match(/(.*)\s+(NC\s+I|NC\s+II|NC\s+III|NC\s+IV)$/i);
     if (match) {
       setModalEditTitle(match[1].trim());
       setModalEditLevel(match[2].toUpperCase());
@@ -1545,8 +1657,29 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
     setModalEditEndTime(parseTimeForInput(prog.endTime));
     setModalEditRoom(prog.room || "");
     setModalEditInstructor(prog.instructor || "");
-    setModalEditStartDate(prog.startDate ? new Date(prog.startDate).toISOString().split('T')[0] : "");
-    setModalEditEndDate(prog.endDate ? new Date(prog.endDate).toISOString().split('T')[0] : "");
+
+    const now = new Date();
+    const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    let initStart = prog.startDate ? new Date(prog.startDate).toISOString().split('T')[0] : "";
+    let initEnd = prog.endDate ? new Date(prog.endDate).toISOString().split('T')[0] : "";
+
+    if (isRestoring) {
+      // Suggest future session dates strictly after previous session end date and after today
+      let nextStart = new Date(todayMid.getTime() + 86400000); // tomorrow
+      if (prog.endDate) {
+        const prevEnd = new Date(prog.endDate);
+        if (!isNaN(prevEnd.getTime()) && prevEnd >= nextStart) {
+          nextStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1);
+        }
+      }
+      const nextEnd = new Date(nextStart.getFullYear(), nextStart.getMonth() + 3, nextStart.getDate());
+      initStart = nextStart.toISOString().split('T')[0];
+      initEnd = nextEnd.toISOString().split('T')[0];
+    }
+
+    setModalEditStartDate(initStart);
+    setModalEditEndDate(initEnd);
     setIsEditingInModal(true);
   };
 
@@ -1603,9 +1736,43 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       return;
     }
 
-    if (modalEditStartDate && modalEditEndDate && new Date(modalEditStartDate) > new Date(modalEditEndDate)) {
-      addToast("Start date must be before or equal to end date", "error");
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const todayStr = new Date(todayMidnight.getTime() - (todayMidnight.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
+    // Rule 1: Do not accept past dates
+    if (modalEditStartDate && modalEditStartDate < todayStr) {
+      addToast("Start date cannot be in the past. Please select today or a future date.", "error");
       return;
+    }
+    if (modalEditEndDate && modalEditEndDate < todayStr) {
+      addToast("End date cannot be in the past. Please select a future date.", "error");
+      return;
+    }
+
+    // Rule 2: End date before start date
+    if (modalEditStartDate && modalEditEndDate && modalEditEndDate < modalEditStartDate) {
+      addToast("End date cannot be before the start date.", "error");
+      return;
+    }
+
+    // Rule 3: Start date equal to end date
+    if (modalEditStartDate && modalEditEndDate && modalEditStartDate === modalEditEndDate) {
+      addToast("Start date and End date cannot be on the same day. Programs must run for at least 1 day.", "error");
+      return;
+    }
+
+    // Rule 4: Overlap date to the last session
+    if (isRestoringProgramMode && programToRestoreOriginal?.endDate && modalEditStartDate) {
+      const prevEnd = new Date(programToRestoreOriginal.endDate);
+      if (!isNaN(prevEnd.getTime())) {
+        const prevEndMid = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate());
+        const prevEndStr = new Date(prevEndMid.getTime() - (prevEndMid.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        if (modalEditStartDate <= prevEndStr) {
+          addToast(`Start date cannot overlap with the previous session (ended ${prevEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}). It must start after the previous session.`, "error");
+          return;
+        }
+      }
     }
 
     setIsSavingModal(true);
@@ -1627,7 +1794,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       : resolveProgramCoordinates(modalEditLocation).lng;
     const locationWithCoords = formatLocationWithCoords(modalEditLocation || "GPSAT San Luis Campus", finalLat, finalLng);
 
-    const payload = {
+    const payload: any = {
       id: viewingProgram.id,
       title: fullTitle,
       certificationType: modalEditLevel === "None" ? "None" : (modalEditLevel || "NC II"),
@@ -1637,7 +1804,7 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       cost: modalEditCost,
       deliveryMode: modalEditDeliveryMode || "Face-to-Face",
       slotsTotal: newTotal,
-      slotsRemaining: newRemaining,
+      slotsRemaining: isRestoringProgramMode ? newTotal : newRemaining,
       eligibility: modalEditEligibility,
       requiredDocuments: modalEditRequiredDocuments ? modalEditRequiredDocuments.split(',').map(s => s.trim()).filter(Boolean) : [],
       trainingDays: modalEditTrainingDays,
@@ -1648,6 +1815,11 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
       startDate: modalEditStartDate || undefined,
       endDate: modalEditEndDate || undefined,
     };
+
+    if (isRestoringProgramMode) {
+      payload.activeStatus = "Active";
+      payload.isRestored = true;
+    }
 
     try {
       const res = await fetch("/api/programs", {
@@ -1661,12 +1833,27 @@ export const TESDAPartnerPortal: React.FC<TESDAPartnerPortalProps> = ({
         throw new Error(data.message || data.error || "Failed to update program");
       }
 
-      setPrograms(prev => prev.map(p => p.id === viewingProgram.id ? data.data : p));
-      setArchivedProgramsList(prev => prev.map(p => p.id === viewingProgram.id ? data.data : p));
+      setPrograms(prev => {
+        if (prev.some(p => p.id === viewingProgram.id)) {
+          return prev.map(p => p.id === viewingProgram.id ? data.data : p);
+        }
+        return [data.data, ...prev];
+      });
+      setArchivedProgramsList(prev => prev.filter(p => p.id !== viewingProgram.id));
       setViewingProgram(data.data);
       setIsEditingInModal(false);
-      addToast("Program details updated successfully!", "success");
-      broadcastDataChange("programs", "updated");
+
+      if (isRestoringProgramMode) {
+        markProgramAsRestoredSession(viewingProgram.id);
+        setSelectedRosterSession("batch-2");
+        addToast(`Program "${fullTitle}" has been restored to Active Programs with new session details!`, "success");
+        broadcastDataChange("programs", "restored");
+        setIsRestoringProgramMode(false);
+        setProgramToRestoreOriginal(null);
+      } else {
+        addToast("Program details updated successfully!", "success");
+        broadcastDataChange("programs", "updated");
+      }
     } catch (err: any) {
       addToast(err.message || "An error occurred", "error");
     } finally {
@@ -1880,6 +2067,113 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
     return Array.from(map.values());
   }, [activeReferrals, normalizedArchivedReferrals]);
 
+  // Program-specific Cohort Batches helper (Batch 01 Completed, Batch 02 Accepting Applicants)
+  // ONLY returns multiple batches if the program was restored for another session or has historical archived graduates!
+  const getProgramCohortBatches = (
+    prog?: TESDAProgram | null,
+    referralsList: ReferralPipelineItem[] = allConsolidatedReferrals,
+    restoredIds: string[] = restoredProgramIds
+  ) => {
+    if (!prog) return [];
+    const progId = (prog.id || "").toLowerCase().trim();
+    const progTitle = (prog.title || "").toLowerCase().trim();
+
+    const cohort = referralsList.filter(r => {
+      const rId = (r.programId || "").toLowerCase().trim();
+      const rTitle = (r.programTitle || "").toLowerCase().trim();
+      return (progId && rId === progId) || (progTitle && rTitle === progTitle);
+    });
+
+    const realArchived = cohort.filter(
+      r => r.status === "Archived" || r.status === "Completed" || (r as any).isGraduate || (r as any).batch === "Batch 01" || (r as any).batchId === "batch-1"
+    );
+    const realActive = cohort.filter(
+      r => r.status !== "Archived" && r.status !== "Completed" && !(r as any).isGraduate && (r as any).batch !== "Batch 01" && (r as any).batchId !== "batch-1"
+    );
+
+    const hasExplicitBatches = cohort.some(r => (r as any).batch || (r as any).batchId);
+    const isRestored = restoredIds.includes(prog.id) || (prog as any).isRestored === true;
+    const hasMultipleSessions = isRestored || hasExplicitBatches || (realArchived.length > 0 && prog.activeStatus === "Active");
+
+    const totalCapacity = prog.slotsTotal || 25;
+
+    // If the program only has its initial/current session, return Batch 01 for the current session
+    if (!hasMultipleSessions) {
+      const currentEnrolled = cohort.filter(r => r.status === "Enrolled").length;
+      const currentRemaining = Math.max(0, totalCapacity - currentEnrolled);
+      const isClosed = prog.activeStatus === "Closed";
+      const currentStatus = isClosed
+        ? "Completed" as const
+        : (currentRemaining === 0 ? "Full" as const : "Ongoing" as const);
+
+      const dateText = prog.startDate
+        ? formatProgramDateRange(prog.startDate, prog.endDate || prog.startDate)
+        : "November 2, 2026 – February 17, 2027";
+
+      const currentBatch = {
+        id: "batch-1",
+        batchNumber: 1,
+        title: "Batch 01",
+        status: currentStatus,
+        statusType: isClosed ? "completed" as const : "active" as const,
+        dateRangeText: dateText,
+        enrolledCount: currentEnrolled,
+        totalCapacity: totalCapacity,
+        slotsRemaining: currentRemaining,
+        summaryText: `${currentEnrolled} / ${totalCapacity} Enrolled`,
+        referrals: cohort
+      };
+
+      return [currentBatch];
+    }
+
+    // Batch 01 (Completed Session) - ONLY REAL REFERRALS
+    const b1Enrolled = realArchived.length;
+    const b1Dates = prog.startDate
+      ? formatProgramDateRange(prog.startDate, prog.endDate || prog.startDate)
+      : "November 2, 2026 – February 17, 2027";
+
+    const batch1 = {
+      id: "batch-1",
+      batchNumber: 1,
+      title: "Batch 01",
+      status: "Completed" as const,
+      statusType: "completed" as const,
+      dateRangeText: b1Dates,
+      enrolledCount: b1Enrolled,
+      totalCapacity: totalCapacity,
+      slotsRemaining: 0,
+      summaryText: `${b1Enrolled} / ${totalCapacity} Enrolled`,
+      referrals: realArchived
+    };
+
+    // Batch 02 (New / Restored Session) - ONLY REAL REFERRALS
+    const b2Enrolled = realActive.filter(r => r.status === "Enrolled").length;
+    const b2Remaining = Math.max(0, totalCapacity - b2Enrolled);
+    const isClosed = prog.activeStatus === "Closed";
+    const b2Status = isClosed
+      ? "Completed" as const
+      : (b2Remaining === 0 ? "Full" as const : "Ongoing" as const);
+
+    const b2Dates = "March 1, 2027 – June 15, 2027";
+
+    const batch2 = {
+      id: "batch-2",
+      batchNumber: 2,
+      title: "Batch 02",
+      status: b2Status,
+      statusType: isClosed ? "completed" as const : "active" as const,
+      dateRangeText: b2Dates,
+      enrolledCount: b2Enrolled,
+      totalCapacity: totalCapacity,
+      slotsRemaining: b2Remaining,
+      summaryText: `${b2Enrolled} / ${totalCapacity} Enrolled`,
+      referrals: realActive
+    };
+
+    return [batch1, batch2];
+  };
+
   // Program-specific cohort statistics helper
   const getProgramCohortStats = (prog?: TESDAProgram | null) => {
     if (!prog) {
@@ -1978,10 +2272,46 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
     return isNaN(t) ? 0 : t;
   }
 
+  // When entering restoration mode, direct the user straight to the start date and time fields
+  useEffect(() => {
+    if (isRestoringProgramMode && viewingProgram) {
+      const timer = setTimeout(() => {
+        const target = document.getElementById("restore-modal-start-date-field");
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [isRestoringProgramMode, viewingProgram?.id]);
+
+  // Sync selected session when viewing a program
+  useEffect(() => {
+    if (viewingProgramRoster) {
+      setBatchCardsPage(1);
+      const batches = getProgramCohortBatches(viewingProgramRoster, allConsolidatedReferrals, restoredProgramIds);
+      if (batches.length === 1) {
+        setSelectedRosterSession("batch-1");
+      } else if (batches.length > 1) {
+        setSelectedRosterSession("batch-2");
+      }
+    }
+  }, [viewingProgramRoster?.id, restoredProgramIds.length, allConsolidatedReferrals.length]);
+
   const filteredRosterReferrals = useMemo(() => {
     if (!viewingProgramRoster) return [];
-    const stats = getProgramCohortStats(viewingProgramRoster);
-    let list = [...stats.cohort];
+    const batches = getProgramCohortBatches(viewingProgramRoster, allConsolidatedReferrals, restoredProgramIds);
+    let list: ReferralPipelineItem[] = [];
+
+    const matchedBatch = batches.find(b => b.id === selectedRosterSession);
+    if (matchedBatch) {
+      list = [...matchedBatch.referrals];
+    } else if (batches.length > 0) {
+      list = [...batches[batches.length - 1].referrals];
+    } else {
+      const stats = getProgramCohortStats(viewingProgramRoster);
+      list = [...stats.cohort];
+    }
 
     if (programRosterTab === "enrolled") {
       list = list.filter(r => r.status === "Enrolled");
@@ -2063,7 +2393,7 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
     });
 
     return list;
-  }, [viewingProgramRoster, allConsolidatedReferrals, programRosterTab, programRosterBarangay, programRosterDateFilter, programRosterSearch, programRosterSortCol, programRosterSortDir, youthProfiles]);
+  }, [viewingProgramRoster, allConsolidatedReferrals, programRosterTab, programRosterBarangay, programRosterDateFilter, programRosterSearch, programRosterSortCol, programRosterSortDir, youthProfiles, selectedRosterSession, restoredProgramIds]);
 
   const totalApplicationsCount = allConsolidatedReferrals.length;
 
@@ -2791,10 +3121,12 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
       let matchesCost = true;
       if (programCostFilter === "Free") {
         matchesCost = !prog.cost || prog.cost.toLowerCase().includes("free");
+      } else if (programCostFilter === "Scholarship-Funded") {
+        matchesCost = Boolean(prog.cost && (prog.cost.toLowerCase().includes("scholarship") || prog.cost.toLowerCase().includes("free")));
+      } else if (programCostFilter === "Self-Funded") {
+        matchesCost = Boolean(prog.cost && (prog.cost.toLowerCase().includes("self") || prog.cost.toLowerCase().includes("fee") || prog.cost.toLowerCase().includes("paid")));
       } else if (programCostFilter === "Subsidized") {
         matchesCost = Boolean(prog.cost && prog.cost.toLowerCase().includes("subsidized"));
-      } else if (programCostFilter === "With Fee") {
-        matchesCost = Boolean(prog.cost && (prog.cost.toLowerCase().includes("fee") || prog.cost.toLowerCase().includes("paid")));
       }
 
       return matchesSearch && matchesLevel && matchesCategory && matchesStatus && matchesCost;
@@ -5602,21 +5934,157 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                         <BookOpen className="w-3.5 h-3.5 text-gray-600 shrink-0" />
                         <span>Program Details</span>
                       </button>
+
+                      {/* Start New Session Button (if program is active and hasn't started a second session yet) */}
+                      {viewingProgramRoster.activeStatus === "Active" && !restoredProgramIds.includes(viewingProgramRoster.id) && (
+                        <button
+                          type="button"
+                          onClick={() => setProgramForNewSession(viewingProgramRoster)}
+                          className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-[#0A6B43] text-xs font-bold rounded-xl transition-all border border-emerald-200 flex items-center gap-1.5 cursor-pointer"
+                          title="Open a new training session/batch for incoming applicants"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                          <span>New Session</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Slot Availability Progress Bar (Photo 3: Gray Background, Exact Same Font and Size, No Icon) */}
+                  {/* Training Cohorts & Sessions Container (Photo 1 & Photo 2 design) */}
                   {(() => {
+                    const batches = getProgramCohortBatches(viewingProgramRoster, allConsolidatedReferrals, restoredProgramIds);
+                    if (batches.length === 0) return null;
+
+                    const BATCH_CARDS_PER_PAGE = 4;
+                    const totalBatchPages = Math.ceil(batches.length / BATCH_CARDS_PER_PAGE);
+                    const currentBatchPage = Math.min(Math.max(1, batchCardsPage), Math.max(1, totalBatchPages));
+                    const pagedBatches = batches.slice((currentBatchPage - 1) * BATCH_CARDS_PER_PAGE, currentBatchPage * BATCH_CARDS_PER_PAGE);
+
+                    return (
+                      <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 sm:p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-[13px] font-bold text-gray-700">
+                              Training Sessions
+                            </span>
+                            <span className="text-[11px] font-semibold text-gray-400">
+                              ({batches.length} {batches.length === 1 ? "Session" : "Sessions"})
+                            </span>
+                          </div>
+
+                          {totalBatchPages > 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-medium text-gray-500 mr-1">
+                                Page {currentBatchPage} of {totalBatchPages}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={currentBatchPage <= 1}
+                                onClick={() => setBatchCardsPage(prev => Math.max(1, prev - 1))}
+                                className="p-1 rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                                title="Previous sessions"
+                                aria-label="Previous sessions"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={currentBatchPage >= totalBatchPages}
+                                onClick={() => setBatchCardsPage(prev => Math.min(totalBatchPages, prev + 1))}
+                                className="p-1 rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                                title="Next sessions"
+                                aria-label="Next sessions"
+                              >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
+                          {pagedBatches.map((batch) => {
+                            const isSelected = selectedRosterSession === batch.id || (batches.length === 1);
+                            return (
+                              <div
+                                key={batch.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setSelectedRosterSession(batch.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    setSelectedRosterSession(batch.id);
+                                  }
+                                }}
+                                className={`text-left rounded-2xl p-3 sm:p-3.5 transition-all duration-200 cursor-pointer flex flex-col justify-start gap-1 select-none relative group ${
+                                  isSelected
+                                    ? "bg-[#0A6B43] text-white shadow-md border-2 border-[#0A6B43] ring-2 ring-[#0A6B43]/20 hover:brightness-105"
+                                    : "bg-white text-gray-900 border border-gray-200/90 hover:border-gray-300 hover:bg-gray-50/80 shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+                                }`}
+                              >
+                                {/* Top: Batch Name on Left, Pill on Right */}
+                                <div className="flex items-center justify-between gap-2 w-full">
+                                  <h3 className={`text-sm sm:text-base font-extrabold tracking-tight transition-colors truncate ${
+                                    isSelected ? "text-white" : "text-gray-900 group-hover:text-[#0A6B43]"
+                                  }`}>
+                                    {batch.title}
+                                  </h3>
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-2xs shrink-0 ${
+                                    isSelected
+                                      ? "bg-white text-[#0A6B43] shadow-xs"
+                                      : batch.statusType === "completed"
+                                        ? "bg-emerald-600 text-white"
+                                        : "bg-amber-400 text-amber-950 font-extrabold"
+                                  }`}>
+                                    {batch.statusType === "completed" ? (
+                                      <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#0A6B43]" : "text-white"}`} />
+                                    ) : (
+                                      <Clock className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#0A6B43]" : "text-amber-950"}`} />
+                                    )}
+                                    <span>{batch.status}</span>
+                                  </span>
+                                </div>
+
+                                {/* Bottom info: Date range & Enrolled count (less space from batch name) */}
+                                <div className="space-y-0.5 text-left w-full mt-0.5">
+                                  <p className={`text-xs font-semibold truncate ${
+                                    isSelected ? "text-emerald-100/90" : "text-gray-500"
+                                  }`} title={batch.dateRangeText}>
+                                    {batch.dateRangeText}
+                                  </p>
+                                  <p className={`text-xs font-semibold ${
+                                    isSelected ? "text-emerald-100/90" : "text-gray-500"
+                                  }`}>
+                                    {batch.summaryText}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Slot Availability Progress Bar */}
+                  {(() => {
+                    const batches = getProgramCohortBatches(viewingProgramRoster, allConsolidatedReferrals, restoredProgramIds);
+                    const hasMulti = batches.length > 1;
+                    const currentBatch = batches.find(b => b.id === selectedRosterSession) || (batches.length > 0 ? batches[batches.length - 1] : null);
+
                     const stats = getProgramCohortStats(viewingProgramRoster);
-                    const totalCapacity = viewingProgramRoster.slotsTotal || 25;
-                    const filledCount = stats.enrolledCount;
+                    const totalCapacity = currentBatch ? currentBatch.totalCapacity : (viewingProgramRoster.slotsTotal || 25);
+                    const filledCount = currentBatch ? currentBatch.enrolledCount : stats.enrolledCount;
                     const pct = Math.min(100, Math.round((filledCount / totalCapacity) * 100));
+                    const batchSuffix = hasMulti
+                      ? (currentBatch ? `(${currentBatch.title})` : "(All Batches)")
+                      : (batches[0] ? `(${batches[0].title})` : "");
 
                     return (
                       <div className="bg-gray-50/80 border border-gray-200/80 rounded-xl p-3 sm:p-3.5 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs sm:text-[13px] font-bold text-gray-700">
-                            Slot Availability
+                            Slot Availability {batchSuffix}
                           </span>
                           <span className="text-xs sm:text-[13px] font-bold text-gray-700">
                             {filledCount} / {totalCapacity} Enrolled
@@ -5736,14 +6204,29 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
 
                   {/* Status Metric Pills (Below Search Bar & Filters) */}
                   {(() => {
+                    const batches = getProgramCohortBatches(viewingProgramRoster, allConsolidatedReferrals, restoredProgramIds);
+                    const hasMulti = batches.length > 1;
+                    const currentBatch = batches.find(b => b.id === selectedRosterSession) || (batches.length > 0 ? batches[batches.length - 1] : null);
                     const stats = getProgramCohortStats(viewingProgramRoster);
+
+                    const sessionReferrals = hasMulti
+                      ? (currentBatch ? currentBatch.referrals : batches.flatMap(b => b.referrals))
+                      : stats.cohort;
+
+                    const totalCount = sessionReferrals.length;
+                    const enrolledCount = sessionReferrals.filter(r => r.status === "Enrolled").length;
+                    const pendingCount = sessionReferrals.filter(r => r.status === "Pending").length;
+                    const approvedCount = sessionReferrals.filter(r => r.status === "Approved").length;
+                    const completedCount = sessionReferrals.filter(r => r.status === "Completed" || (r as any).isGraduate || r.status === "Archived").length;
+                    const declinedCount = sessionReferrals.filter(r => r.status === "Declined").length;
+
                     const pillTabs = [
-                      { id: "all", label: "All", count: stats.total },
-                      { id: "enrolled", label: "Enrolled", count: stats.enrolledCount },
-                      { id: "pending", label: "Pending", count: stats.pendingCount },
-                      { id: "approved", label: "Approved", count: stats.approvedCount },
-                      { id: "completed", label: "Completed", count: stats.completedCount },
-                      { id: "declined", label: "Decline", count: stats.declinedCount },
+                      { id: "all", label: "All", count: totalCount },
+                      { id: "enrolled", label: "Enrolled", count: enrolledCount },
+                      { id: "pending", label: "Pending", count: pendingCount },
+                      { id: "approved", label: "Approved", count: approvedCount },
+                      { id: "completed", label: "Completed", count: completedCount },
+                      { id: "declined", label: "Decline", count: declinedCount },
                     ];
 
                     return (
@@ -5974,6 +6457,7 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                                 ? (item.purok.toLowerCase().includes("purok") ? item.purok : `Purok ${item.purok}`)
                                 : "—";
 
+                              const isCompletedOrGrad = item.status === "Completed" || item.status === "Archived" || (item as any).isGraduate;
                               const statusBadgeStyle =
                                 item.status === "Enrolled"
                                   ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 font-bold"
@@ -5981,8 +6465,8 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                                     ? "bg-blue-50 text-blue-700 border-blue-200 font-bold"
                                     : item.status === "Pending"
                                       ? "bg-amber-50 text-amber-800 border-amber-200 font-bold"
-                                      : item.status === "Completed"
-                                        ? "bg-purple-50 text-purple-700 border-purple-200 font-bold"
+                                      : isCompletedOrGrad
+                                        ? "bg-emerald-50 text-[#0A6B43] border-emerald-200 font-bold"
                                         : "bg-red-50 text-red-700 border-red-200 font-bold";
 
                               const initials = (item.youthName || "Y")
@@ -6221,9 +6705,10 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                           onChange={(val) => setProgramCostFilter(val)}
                           options={[
                             { value: "All", label: "All Costs" },
-                            { value: "Free", label: "Free / TWSP" },
-                            { value: "Subsidized", label: "Subsidized" },
-                            { value: "With Fee", label: "With Fee" }
+                            { value: "Free", label: "Free" },
+                            { value: "Scholarship-Funded", label: "Scholarship-Funded" },
+                            { value: "Self-Funded", label: "Self-Funded" },
+                            { value: "Subsidized", label: "Subsidized" }
                           ]}
                           size="sm"
                           buttonClassName="h-[38px] !text-[12px] !rounded-xl font-medium bg-gray-50/70 w-full min-w-0 sm:min-w-[110px]"
@@ -6438,6 +6923,22 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                             </div>
                             {/* Card Footer: View Program Details & Applicants (Right aligned, sized to text, solid green) */}
                             <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex items-center justify-end gap-2">
+                              {(viewingArchivedPrograms || prog.activeStatus === "Closed") && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRestoreModal(prog)}
+                                  className="group/res inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-yellow-400 hover:bg-yellow-500 text-gray-950 transition-all cursor-pointer active:scale-95 shadow-xs border-0 disabled:opacity-50"
+                                  title="Restore program to active catalog"
+                                >
+                                  {isRestoringProgram && restoringProgramId === prog.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-gray-950" />
+                                  ) : (
+                                    <RotateCcw className="w-3.5 h-3.5 text-gray-950 group-hover/res:-rotate-45 transition-transform duration-200 shrink-0" />
+                                  )}
+                                  <span>Restore</span>
+                                </button>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => {
@@ -6609,6 +7110,22 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                                   </td>
                                   <td className="py-3.5 px-4 whitespace-nowrap text-right align-middle">
                                     <div className="flex items-center justify-end gap-2">
+                                      {(viewingArchivedPrograms || prog.activeStatus === "Closed") && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenRestoreModal(prog)}
+                                          className="group/res inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-yellow-400 hover:bg-yellow-500 text-gray-950 transition-all cursor-pointer active:scale-95 shadow-xs border-0 disabled:opacity-50"
+                                          title="Restore program to active catalog"
+                                        >
+                                          {isRestoringProgram && restoringProgramId === prog.id ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-gray-950" />
+                                          ) : (
+                                            <RotateCcw className="w-3.5 h-3.5 text-gray-950 group-hover/res:-rotate-45 transition-transform duration-200 shrink-0" />
+                                          )}
+                                          <span>Restore</span>
+                                        </button>
+                                      )}
+
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -6794,7 +7311,8 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                               { value: "None", label: "None" },
                               { value: "NC I", label: "NC I" },
                               { value: "NC II", label: "NC II" },
-                              { value: "NC III", label: "NC III" }
+                              { value: "NC III", label: "NC III" },
+                              { value: "NC IV", label: "NC IV" }
                             ]}
                             size="sm"
                             buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
@@ -6862,8 +7380,9 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                             onChange={(val) => setProgCost(val as any)}
                             options={[
                               { value: "Free", label: "Free" },
-                              { value: "Subsidized", label: "Subsidized / Co-pay" },
-                              { value: "With Fee", label: "Fee-based" }
+                              { value: "Scholarship-Funded", label: "Scholarship-Funded" },
+                              { value: "Self-Funded", label: "Self-Funded" },
+                              { value: "Subsidized", label: "Subsidized" }
                             ]}
                             size="sm"
                             buttonClassName="h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
@@ -6895,74 +7414,61 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                         <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-bold text-xs">
                           2
                         </div>
-                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Schedule, Facility & Trainer</h4>
+                        <h4 className="text-xs font-extrabold text-gray-900 uppercase tracking-wider">Schedule, Venue & Trainer</h4>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1">
-                            <label className="text-[10px] sm:text-[11px] font-extrabold text-gray-500 uppercase tracking-wider truncate">Training Venue / Location</label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setVenueMapTarget("create");
-                                setVenueMapModalMode("picker");
-                                setIsVenueMapModalOpen(true);
-                              }}
-                              className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                            >
-                              <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                              <span>Locate / Pin on Map</span>
-                            </button>
-                          </div>
-                          <div className="relative min-w-0 w-full">
-                            <input
-                              type="text"
-                              placeholder="e.g. GPSAT San Luis / Guagua, Sindalan, Mexico..."
-                              value={extractLocationDisplay(progLocation)}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setProgLocation(val);
-                                const q = val.toLowerCase().trim();
-                                const matched = PRESET_TRAINING_VENUES.find(v =>
-                                  q.includes(v.shortName.toLowerCase()) ||
-                                  v.shortName.toLowerCase().includes(q) ||
-                                  q.includes(v.name.toLowerCase()) ||
-                                  (q.includes("mexico-san luis") && v.id === "gpsat-san-luis")
-                                );
-                                if (matched) {
-                                  setProgLat(matched.latitude);
-                                  setProgLng(matched.longitude);
-                                }
-                              }}
-                              className="w-full min-w-0 h-[38px] pl-3.5 pr-20 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
-                              title={extractLocationDisplay(progLocation)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setVenueMapTarget("create");
-                                setVenueMapModalMode("picker");
-                                setIsVenueMapModalOpen(true);
-                              }}
-                              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-[10px] font-extrabold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0 z-10"
-                              title="Search or Pin on Map"
-                            >
-                              <Compass className="w-3 h-3 shrink-0" />
-                              <span>Map</span>
-                            </button>
-                          </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1">
+                          <label className="text-[10px] sm:text-[11px] font-extrabold text-gray-500 uppercase tracking-wider truncate">Training Venue / Location</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVenueMapTarget("create");
+                              setVenueMapModalMode("picker");
+                              setIsVenueMapModalOpen(true);
+                            }}
+                            className="text-[10px] sm:text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
+                            <span>Locate / Pin on Map</span>
+                          </button>
                         </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">Assigned Room / Facility</label>
+                        <div className="relative min-w-0 w-full">
                           <input
                             type="text"
-                            placeholder="e.g. Workshop Room B-102, Computer Lab 1"
-                            value={progRoom}
-                            onChange={(e) => setProgRoom(e.target.value)}
-                            className="w-full h-[38px] px-3.5 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
+                            placeholder="e.g. GPSAT San Luis / Guagua, Sindalan, Mexico..."
+                            value={extractLocationDisplay(progLocation)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setProgLocation(val);
+                              const q = val.toLowerCase().trim();
+                              const matched = PRESET_TRAINING_VENUES.find(v =>
+                                q.includes(v.shortName.toLowerCase()) ||
+                                v.shortName.toLowerCase().includes(q) ||
+                                q.includes(v.name.toLowerCase()) ||
+                                (q.includes("mexico-san luis") && v.id === "gpsat-san-luis")
+                              );
+                              if (matched) {
+                                setProgLat(matched.latitude);
+                                setProgLng(matched.longitude);
+                              }
+                            }}
+                            className="w-full min-w-0 h-[38px] pl-3.5 pr-20 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors truncate"
+                            title={extractLocationDisplay(progLocation)}
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVenueMapTarget("create");
+                              setVenueMapModalMode("picker");
+                              setIsVenueMapModalOpen(true);
+                            }}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#0A6B43] border border-emerald-200 text-[10px] font-extrabold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0 z-10"
+                            title="Search or Pin on Map"
+                          >
+                            <Compass className="w-3 h-3 shrink-0" />
+                            <span>Map</span>
+                          </button>
                         </div>
                       </div>
 
@@ -8454,10 +8960,17 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                       {viewingProgram.title}
                     </h3>
                     {isEditingInModal && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border tracking-wide bg-amber-50 text-amber-800 border-amber-300">
-                        <Pencil className="w-2.5 h-2.5 text-amber-600" />
-                        <span>Edit Mode</span>
-                      </span>
+                      isRestoringProgramMode ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full tracking-wide bg-yellow-400 text-gray-950 shadow-2xs">
+                          <RotateCcw className="w-2.5 h-2.5 text-gray-950" />
+                          <span>Restoration Mode</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border tracking-wide bg-amber-50 text-amber-800 border-amber-300">
+                          <Pencil className="w-2.5 h-2.5 text-amber-600" />
+                          <span>Edit Mode</span>
+                        </span>
+                      )
                     )}
                   </div>
                   <p className="text-xs sm:text-sm text-gray-500 font-semibold mt-0.5 truncate">
@@ -8527,7 +9040,8 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                             { value: "None", label: "None" },
                             { value: "NC I", label: "NC I" },
                             { value: "NC II", label: "NC II" },
-                            { value: "NC III", label: "NC III" }
+                            { value: "NC III", label: "NC III" },
+                            { value: "NC IV", label: "NC IV" }
                           ]}
                           size="sm"
                           buttonClassName="h-[36px] sm:h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
@@ -8603,8 +9117,9 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                           onChange={(val) => setModalEditCost(val as any)}
                           options={[
                             { value: "Free", label: "Free" },
-                            { value: "Subsidized", label: "Subsidized / Co-pay" },
-                            { value: "With Fee", label: "Fee-based" }
+                            { value: "Scholarship-Funded", label: "Scholarship-Funded" },
+                            { value: "Self-Funded", label: "Self-Funded" },
+                            { value: "Subsidized", label: "Subsidized" }
                           ]}
                           size="sm"
                           buttonClassName="h-[36px] sm:h-[38px] !text-xs !rounded-xl font-medium bg-gray-50/70"
@@ -8634,14 +9149,27 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                   </div>
 
                   {/* Edit Section 2: Facility, Schedule & Trainer */}
-                  <div className="bg-gray-50/60 border border-gray-200/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4">
+                  <div className={`rounded-xl sm:rounded-2xl p-3.5 sm:p-5 space-y-3 sm:space-y-4 transition-all ${
+                    isRestoringProgramMode
+                      ? "bg-red-50/40 border-2 border-red-300"
+                      : "bg-gray-50/60 border border-gray-200/80"
+                  }`}>
                     <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100/80 text-[#0A6B43] flex items-center justify-center shrink-0 border border-emerald-200">
+                      <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                        isRestoringProgramMode
+                          ? "bg-red-100 text-red-600 border-red-200"
+                          : "bg-emerald-100/80 text-[#0A6B43] border border-emerald-200"
+                      }`}>
                         <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-xs sm:text-[14px] font-extrabold text-gray-900 tracking-tight">
-                          Schedule, Facility & Trainer
+                        <h4 className="text-xs sm:text-[14px] font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                          <span>Schedule, Facility & Trainer</span>
+                          {isRestoringProgramMode && (
+                            <span className="text-[10px] font-black uppercase tracking-wider text-red-600 bg-red-100 px-2 py-0.5 rounded-full border border-red-300 animate-pulse">
+                              Dates & Times Required
+                            </span>
+                          )}
                         </h4>
                         <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium">
                           Training premises, instructional calendar, and assigned instructors.
@@ -8692,19 +9220,7 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                         />
                       </div>
 
-                      {/* Facility / Room */}
-                      <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                        <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                          Assigned Room / Facility
-                        </span>
-                        <input
-                          type="text"
-                          placeholder="e.g. Main Workshop Area"
-                          value={modalEditRoom}
-                          onChange={(e) => setModalEditRoom(e.target.value)}
-                          className="w-full h-[36px] sm:h-[38px] px-3 bg-gray-50/70 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
-                        />
-                      </div>
+
 
                       {/* Trainer */}
                       <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
@@ -8746,34 +9262,86 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                       </div>
 
                       {/* Term Start Date */}
-                      <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                        <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                          Program Start Date
-                        </span>
+                      <div
+                        id="restore-modal-start-date-field"
+                        className={`space-y-0.5 sm:space-y-1 bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs transition-all ${
+                          isRestoringProgramMode
+                            ? "border-2 border-red-500 ring-2 ring-red-500/20 shadow-xs"
+                            : "border border-gray-200/70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider block ${
+                            isRestoringProgramMode ? "text-red-600" : "text-gray-400"
+                          }`}>
+                            Program Start Date
+                          </span>
+                          {isRestoringProgramMode && (
+                            <span className="text-[10px] font-extrabold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1">
+                              *Set start date
+                            </span>
+                          )}
+                        </div>
                         <SiKapDatePicker
                           value={modalEditStartDate}
+                          min={new Date().toISOString().split('T')[0]}
                           onChange={(val) => setModalEditStartDate(val)}
+                          hasError={isRestoringProgramMode}
+                          buttonClassName={isRestoringProgramMode ? "!border-red-400 !bg-red-50/20" : ""}
                           placeholder="Select start date"
                         />
                       </div>
 
                       {/* Term End Date */}
-                      <div className="space-y-0.5 sm:space-y-1 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs">
-                        <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                          Program End Date
-                        </span>
+                      <div
+                        className={`space-y-0.5 sm:space-y-1 bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs transition-all ${
+                          isRestoringProgramMode
+                            ? "border-2 border-red-500 ring-2 ring-red-500/20 shadow-xs"
+                            : "border border-gray-200/70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider block ${
+                            isRestoringProgramMode ? "text-red-600" : "text-gray-400"
+                          }`}>
+                            Program End Date
+                          </span>
+                          {isRestoringProgramMode && (
+                            <span className="text-[10px] font-extrabold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1">
+                              *Set end date
+                            </span>
+                          )}
+                        </div>
                         <SiKapDatePicker
                           value={modalEditEndDate}
+                          min={modalEditStartDate || new Date().toISOString().split('T')[0]}
                           onChange={(val) => setModalEditEndDate(val)}
+                          hasError={isRestoringProgramMode}
+                          buttonClassName={isRestoringProgramMode ? "!border-red-400 !bg-red-50/20" : ""}
                           placeholder="Select end date"
                         />
                       </div>
 
                       {/* Timeslot Presets & Pickers */}
-                      <div className="space-y-2 bg-white border border-gray-200/70 rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs sm:col-span-2">
-                        <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
-                          Training Timeslot & Session
-                        </span>
+                      <div
+                        className={`space-y-2 bg-white rounded-lg sm:rounded-xl p-2.5 sm:p-3 shadow-2xs sm:col-span-2 transition-all ${
+                          isRestoringProgramMode
+                            ? "border-2 border-red-500 ring-2 ring-red-500/20 shadow-xs"
+                            : "border border-gray-200/70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider block ${
+                            isRestoringProgramMode ? "text-red-600" : "text-gray-400"
+                          }`}>
+                            Training Timeslot & Session
+                          </span>
+                          {isRestoringProgramMode && (
+                            <span className="text-[10px] font-extrabold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1">
+                              *Confirm start & end time
+                            </span>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                           <button
                             type="button"
@@ -8821,20 +9389,26 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                           </button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          <SiKapTimePicker
-                            label="Start Time"
-                            badgeText="Training Start"
-                            value={modalEditStartTime}
-                            onChange={(val) => setModalEditStartTime(val)}
-                            placeholder="Select start time"
-                          />
-                          <SiKapTimePicker
-                            label="End Time"
-                            badgeText="Training End"
-                            value={modalEditEndTime}
-                            onChange={(val) => setModalEditEndTime(val)}
-                            placeholder="Select end time"
-                          />
+                          <div className={isRestoringProgramMode ? "border-2 border-red-500 rounded-xl" : ""}>
+                            <SiKapTimePicker
+                              label="Start Time"
+                              badgeText="Training Start"
+                              value={modalEditStartTime}
+                              hasError={isRestoringProgramMode}
+                              onChange={(val) => setModalEditStartTime(val)}
+                              placeholder="Select start time"
+                            />
+                          </div>
+                          <div className={isRestoringProgramMode ? "border-2 border-red-500 rounded-xl" : ""}>
+                            <SiKapTimePicker
+                              label="End Time"
+                              badgeText="Training End"
+                              value={modalEditEndTime}
+                              hasError={isRestoringProgramMode}
+                              onChange={(val) => setModalEditEndTime(val)}
+                              placeholder="Select end time"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -9074,18 +9648,7 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                         </div>
                       </div>
 
-                      {/* Facility / Room */}
-                      <div className="bg-white p-3 rounded-xl border border-gray-200 flex items-start gap-2.5 shadow-2xs">
-                        <div className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-500 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                          <Building2 className="w-3.5 h-3.5 text-gray-500" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-normal block">Facility / Room</span>
-                          <p className="text-[13px] font-bold text-gray-800 leading-snug break-words">
-                            {viewingProgram.room || "Main Training Facility"}
-                          </p>
-                        </div>
-                      </div>
+
                     </div>
                   </div>
 
@@ -9125,14 +9688,22 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                 /* Edit Mode Actions */
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                    <span className="text-xs font-bold text-gray-600">Editing Program Details</span>
+                    <span className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${isRestoringProgramMode ? "bg-yellow-500" : "bg-amber-500"}`} />
+                    <span className="text-xs font-bold text-gray-600">
+                      {isRestoringProgramMode ? "Restoring Program (New Session)" : "Editing Program Details"}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setIsEditingInModal(false)}
+                      onClick={() => {
+                        setIsEditingInModal(false);
+                        if (isRestoringProgramMode) {
+                          setIsRestoringProgramMode(false);
+                          setProgramToRestoreOriginal(null);
+                        }
+                      }}
                       disabled={isSavingModal}
                       className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
                     >
@@ -9142,17 +9713,30 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                       type="button"
                       onClick={handleSaveModalEdits}
                       disabled={isSavingModal}
-                      className="px-5 py-2 bg-[#0A6B43] hover:bg-[#075332] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className={`px-5 py-2 active:scale-95 text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                        isRestoringProgramMode
+                          ? "bg-yellow-400 hover:bg-yellow-500 text-gray-950 font-black shadow-sm"
+                          : "bg-[#0A6B43] hover:bg-[#075332] text-white"
+                      }`}
                     >
                       {isSavingModal ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                          <span>Saving...</span>
+                          <span>{isRestoringProgramMode ? "Restoring Program..." : "Saving..."}</span>
                         </>
                       ) : (
                         <>
-                          <Check className="w-3.5 h-3.5 shrink-0" />
-                          <span>Save Changes</span>
+                          {isRestoringProgramMode ? (
+                            <>
+                              <RotateCcw className="w-3.5 h-3.5 shrink-0 text-gray-950" />
+                              <span>Restore & Activate Program</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 shrink-0" />
+                              <span>Save Changes</span>
+                            </>
+                          )}
                         </>
                       )}
                     </button>
@@ -9176,9 +9760,8 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                     {viewingProgram.activeStatus === "Closed" ? (
                       <button
                         type="button"
-                        onClick={() => setProgramToRestore(viewingProgram)}
-                        disabled={isRestoringProgram || restoringProgramId === viewingProgram.id}
-                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50 border-0"
+                        onClick={() => handleOpenRestoreModal(viewingProgram)}
+                        className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-950 text-xs font-bold rounded-full transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 border-0 shadow-xs"
                         title="Restore program to active catalog"
                       >
                         {restoringProgramId === viewingProgram.id ? (
