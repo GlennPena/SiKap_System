@@ -18,6 +18,9 @@ import {
   Search,
   Filter,
   CheckCircle,
+  CheckCircle2,
+  XCircle,
+  Archive,
   Clock,
   BookOpen,
   Shield,
@@ -1552,7 +1555,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               },
               {
                 id: BarangayCaptainScreen.YOUTH_DIRECTORY,
-                label: "KK Youth Directory",
+                label: "Youth Directory",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <circle cx="9" cy="6.5" r="3.5" />
@@ -1573,7 +1576,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               },
               {
                 id: BarangayCaptainScreen.SK_COUNCIL,
-                label: "SK Council Oversight",
+                label: "SK Management",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <circle cx="8" cy="6.5" r="3.5" />
@@ -1612,7 +1615,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               },
               {
                 id: BarangayCaptainScreen.TESDA_PROGRAMS,
-                label: "TESDA Listings",
+                label: "Training Programs",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
                     <path fillRule="evenodd" clipRule="evenodd" d="M9 3a2 2 0 0 0-2 2v1H4a2 2 0 0 0-2 2v3h20V8a2 2 0 0 0-2-2h-3V5a2 2 0 0 0-2-2H9zm2 3V5h2v1h-2z" />
@@ -1629,15 +1632,20 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
               },
               {
                 id: BarangayCaptainScreen.PROFILE,
-                label: "Executive Profile",
+                label: "Settings",
                 activeIcon: (
                   <svg className="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-                    <path d="M12 2 3.5 5.5V11C3.5 16.5 7.14 21.6 12 23c4.86-1.4 8.5-6.5 8.5-12V5.5L12 2z" />
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+                    />
                   </svg>
                 ),
                 inactiveIcon: (
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
                   </svg>
                 )
               }
@@ -1775,26 +1783,16 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
             <div className="min-w-0 flex-1">
               <h1 className="text-[24px] xl:text-3xl font-black text-[#0A6B43] tracking-tight leading-tight truncate">
                 {currentScreen === BarangayCaptainScreen.DASHBOARD && "Executive Dashboard"}
-                {currentScreen === BarangayCaptainScreen.YOUTH_DIRECTORY && "KK Youth Directory"}
-                {currentScreen === BarangayCaptainScreen.SK_COUNCIL && "SK Council Oversight"}
+                {currentScreen === BarangayCaptainScreen.YOUTH_DIRECTORY && "Youth Directory"}
+                {currentScreen === BarangayCaptainScreen.SK_COUNCIL && "SK Management"}
                 {currentScreen === BarangayCaptainScreen.APPLICATIONS && "Program Applications"}
-                {currentScreen === BarangayCaptainScreen.TESDA_PROGRAMS && "TESDA Listings"}
-                {currentScreen === BarangayCaptainScreen.PROFILE && "Executive Profile"}
+                {currentScreen === BarangayCaptainScreen.TESDA_PROGRAMS && "Training Programs"}
+                {currentScreen === BarangayCaptainScreen.PROFILE && "Settings"}
               </h1>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 relative shrink-0" id="notification-bell-container">
-            {/* Print Census / Summary Report Action */}
-            <button
-              onClick={() => setIsPrintReportModalOpen(true)}
-              className="h-10 px-3.5 sm:px-4 bg-white hover:bg-emerald-50/50 text-gray-700 hover:text-[#0A6B43] text-xs font-bold rounded-xl border border-gray-200 hover:border-emerald-300 shadow-2xs transition-all flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
-              title="Print Executive Census Summary Report"
-            >
-              <Printer className="w-4 h-4 text-[#0A6B43]" />
-              <span className="hidden sm:inline">Print Census Report</span>
-            </button>
-
             {/* Notification Bell Dropdown */}
             <div className="relative">
               <NotificationBellButton
@@ -2577,7 +2575,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    KK Youth Directory
+                    Youth Directory
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     Official census roster and demographic intelligence of all registered youth residents in {formattedBrgyName}.
@@ -2834,14 +2832,14 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                 <div />
                               )}
 
-                              {/* View Profile with up-right arrow */}
+                              {/* View Profile solid green pill button */}
                               <button
                                 type="button"
                                 onClick={() => setSelectedYouth(y)}
-                                className="inline-flex items-center gap-1 text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all cursor-pointer active:scale-95 border-0 shrink-0 ml-auto"
                               >
                                 <span>View Profile</span>
-                                <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                <ArrowUpRight className="w-3.5 h-3.5 text-white" />
                               </button>
                             </div>
                           </div>
@@ -2966,10 +2964,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setSelectedYouth(y)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 ml-auto"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all cursor-pointer active:scale-95 border-0 shrink-0 ml-auto"
                                 >
                                   <span>View Profile</span>
-                                  <ArrowUpRight className="w-3.5 h-3.5" />
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-white" />
                                 </button>
                               </div>
                             </div>
@@ -3229,9 +3227,10 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                       type="button"
                                       onClick={() => setSelectedYouth(y)}
                                       title="View Profile"
-                                      className="w-8.5 h-8.5 rounded-full bg-white border border-gray-200/90 text-[#0A6B43] shadow-xs hover:bg-[#0A6B43] hover:text-white hover:border-[#0A6B43] hover:shadow-sm inline-flex items-center justify-center transition-all cursor-pointer active:scale-95 group mx-auto outline-none focus:outline-none focus:ring-0 focus-visible:outline-none"
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#0A6B43] hover:bg-[#075332] text-white shadow-xs transition-all cursor-pointer active:scale-95 border-0 whitespace-nowrap mx-auto"
                                     >
-                                      <ArrowUpRight className="w-4.5 h-4.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                      <span>View Profile</span>
+                                      <ArrowUpRight className="w-3.5 h-3.5 text-white" />
                                     </button>
                                   </td>
                                 </tr>
@@ -3330,7 +3329,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    SK Council Oversight
+                    SK Management
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     Governance oversight of SK officials, appointed officers, and committee leadership for {formattedBrgyName}.
@@ -3697,10 +3696,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                         <span>Export Accomplishment Report</span>
                       </button>
                     )}
-                    <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200/80 px-3 py-1.5 rounded-xl shrink-0 self-start sm:self-auto">
-                      <span className="text-xs font-bold text-gray-600">Total Pipeline:</span>
-                      <strong className="text-[#0A6B43] text-xs sm:text-sm font-extrabold">{localReferrals.length} Youth</strong>
-                    </div>
+
                   </div>
                 </div>
 
@@ -3735,7 +3731,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       onChange={(val) => setAppStatusFilter(val)}
                       options={[
                         { value: "All", label: "All Application Statuses" },
-                        { value: "Completed", label: "Completed & Certified ✓" },
+                        { value: "Completed", label: "Completed" },
                         { value: "Pending", label: "Pending Endorsement" },
                         { value: "Enrolled", label: "Enrolled / Training" },
                         { value: "Declined", label: "Declined" },
@@ -3945,21 +3941,29 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                                   </td>
                                   <td className="py-3.5 px-4 text-center">
                                     {isCompletedReferral(ref) ? (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border bg-emerald-50 text-[#0A6B43] border-emerald-300 shadow-2xs">
-                                        <Award className="w-3 h-3 text-emerald-600" />
-                                        Completed & Certified ✓
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-emerald-50 text-[#0A6B43] border-emerald-300 shadow-2xs">
+                                        <CheckCircle2 className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                        <span>Completed</span>
+                                      </span>
+                                    ) : ref.status === "Enrolled" ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-emerald-50 text-[#0A6B43] border-emerald-200 shadow-2xs">
+                                        <GraduationCap className="w-3 h-3 text-[#0A6B43] shrink-0" />
+                                        <span>Enrolled</span>
+                                      </span>
+                                    ) : ref.status === "Pending" ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-amber-50 text-amber-800 border-amber-200 shadow-2xs">
+                                        <Clock className="w-3 h-3 text-amber-700 shrink-0" />
+                                        <span>Pending</span>
+                                      </span>
+                                    ) : ref.status === "Declined" ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-rose-50 text-rose-700 border-rose-200 shadow-2xs">
+                                        <XCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                                        <span>Declined</span>
                                       </span>
                                     ) : (
-                                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                                        ref.status === "Enrolled"
-                                          ? "bg-emerald-50 text-[#0A6B43] border-emerald-200"
-                                          : ref.status === "Pending"
-                                          ? "bg-amber-50 text-amber-800 border-amber-200"
-                                          : ref.status === "Declined"
-                                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                                          : "bg-gray-100 text-gray-700 border-gray-200"
-                                      }`}>
-                                        {ref.status}
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-gray-100 text-gray-700 border-gray-200 shadow-2xs">
+                                        <Archive className="w-3 h-3 text-gray-600 shrink-0" />
+                                        <span>{ref.status}</span>
                                       </span>
                                     )}
                                   </td>
@@ -4065,7 +4069,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center max-w-xl sm:max-w-3xl lg:max-w-4xl">
                   <h2 className="font-black text-2xl sm:text-3xl lg:text-4xl text-white tracking-tight leading-tight drop-shadow-sm">
-                    TESDA Programs Catalog
+                    Training Programs
                   </h2>
                   <p className="text-xs sm:text-sm lg:text-base text-emerald-100/90 mt-2 font-normal sm:font-medium leading-relaxed">
                     {programs.length > 0
@@ -4080,7 +4084,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 {/* Top Row: Title and Counter Badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">TESDA Programs Catalog</h3>
+                    <h3 className="text-[26px] font-extrabold text-gray-900 tracking-tight">Training Programs</h3>
                     <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-[#0A6B43] border border-emerald-200 leading-none">
                       {programs.length}
                     </span>
@@ -4186,9 +4190,21 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 ) : (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-                    {paginatedProgramsForSK.map((prog) => {
+                    {paginatedProgramsForSK.map((prog, idx) => {
                       const isFull = (prog.slotsRemaining || 0) <= 0;
                       const isEnded = isProgramEnded(prog);
+
+                      // Row alignment calculation matching TESDA Portal cards
+                      const currentCols = typeof window !== "undefined"
+                        ? (window.innerWidth >= 1024 ? 3 : window.innerWidth >= 768 ? 2 : 1)
+                        : 3;
+                      const rowIdx = Math.floor(idx / currentCols);
+                      const rowStart = rowIdx * currentCols;
+                      const isTitleLikelyMultiLine = (t?: string) => (t || "").length > 36;
+                      const isRowMulti = paginatedProgramsForSK.slice(rowStart, rowStart + currentCols).some(p => isTitleLikelyMultiLine(p.title));
+                      const headerMinHClass = isRowMulti ? "min-h-[76px] sm:min-h-[82px]" : "min-h-[50px] sm:min-h-[54px]";
+                      const titleMinHClass = isRowMulti ? "min-h-[66px] sm:min-h-[72px]" : "min-h-[40px] sm:min-h-[44px]";
+
                       // Count how many verified KK members in this local barangay match this program
                       const matchedYouthInBrgy = localYouthProfiles.filter(y => calculateContentBasedMatchScore(y, prog) >= 60);
 
@@ -4208,30 +4224,30 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                           className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-6 pb-3 sm:pb-3.5 transition-all duration-200 hover:-translate-y-1.5 hover:shadow-md flex flex-col h-full group"
                         >
                           <div className="flex-1 flex flex-col">
-                            {/* Header: Title as header and category as subheader + Active/Inactive badge on same row */}
-                            <div className="flex items-start justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-2">
-                              <div className="min-w-0 space-y-0.5">
-                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-[15px] sm:text-base leading-snug tracking-tight line-clamp-2" title={prog.title}>
+                            {/* Header: Title as header and category as subheader + Active/Inactive solid badge on same row */}
+                            <div className={`flex items-start justify-between gap-2.5 sm:gap-3 border-b border-gray-100 pb-2.5 ${headerMinHClass}`}>
+                              <div className={`min-w-0 flex-1 space-y-0.5 flex flex-col justify-start ${titleMinHClass}`}>
+                                <h3 className="font-extrabold text-gray-900 group-hover:text-[#0A6B43] transition-colors text-[17px] sm:text-[18px] leading-snug tracking-tight line-clamp-2" title={prog.title}>
                                   {prog.title}
                                 </h3>
-                                <p className="text-xs text-gray-500 font-medium truncate">
+                                <p className="text-[14px] text-gray-500 font-medium truncate">
                                   {getProgramCategory(prog)}
                                 </p>
                               </div>
 
-                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 tracking-wide ${
+                              <span className={`text-[9.5px] sm:text-[10px] font-extrabold uppercase px-2.5 sm:px-3 py-1 rounded-full shrink-0 tracking-wide shadow-2xs border-0 ${
                                 isEnded
-                                  ? "bg-gray-100 text-gray-600 border-gray-300"
+                                  ? "bg-gray-500 text-white"
                                   : isFull
-                                    ? "bg-amber-50 text-amber-800 border-amber-250"
-                                    : "bg-emerald-50 text-[#0A6B43] border-emerald-250"
+                                    ? "bg-amber-600 text-white"
+                                    : "bg-[#0A6B43] text-white"
                               }`}>
-                                {isEnded ? "Inactive" : "Active"}
+                                {isEnded ? "Inactive" : isFull ? "Slots Full" : "Active"}
                               </span>
                             </div>
 
                             {/* Available Slots Progress Bar */}
-                            <div className="space-y-1.5 pt-2.5 pb-2.5">
+                            <div className="space-y-1.5 pt-3 pb-2.5">
                               <div className="flex justify-between items-center gap-2">
                                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block shrink-0">Available Slots</span>
                                 <span className={`text-[10px] font-extrabold uppercase tracking-wider truncate text-right ${isEnded ? "text-gray-400" : isFull ? "text-red-600" : "text-gray-500"}`}>
@@ -4246,10 +4262,8 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                               </div>
                             </div>
 
-                            
-
-                            {/* Main Content: Number of Youth Match & Youth Applied (Pinned to bottom of upper flex) */}
-                            <div className="border-t border-gray-100 mt-auto">
+                            {/* Main Content: Number of Youth Match & Youth Applied */}
+                            <div className="border-t border-gray-100 pt-1">
                               {/* Row 1: Number of Youth Match */}
                               <div className="py-2.5 flex justify-between items-center gap-2">
                                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 leading-normal">
@@ -4275,15 +4289,15 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                             </div>
                           </div>
 
-                          {/* Card Footer: View Program Details with up-right arrow */}
+                          {/* Card Footer: View Program Details solid pill button */}
                           <div className="pt-2.5 sm:pt-3 border-t border-gray-100 mt-auto flex justify-end items-center">
                             <button
                               type="button"
                               onClick={() => setSelectedProgram(prog)}
-                              className="inline-flex items-center gap-1.5 py-1.5 px-3 sm:py-0 sm:px-0 rounded-lg sm:rounded-none bg-emerald-50/70 sm:bg-transparent text-xs sm:text-[13px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 group ml-auto active:scale-95"
+                              className="inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-full bg-[#0A6B43] hover:bg-[#075332] text-white text-xs font-bold transition-all cursor-pointer shrink-0 active:scale-95 border-0 shadow-xs"
                             >
                               <span>View Program Details</span>
-                              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                              <ArrowUpRight className="w-3.5 h-3.5 text-white" />
                             </button>
                           </div>
                         </div>
@@ -4937,7 +4951,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
           }}
           className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-hidden animate-in fade-in duration-200"
         >
-          <div className="bg-slate-50 border border-gray-200 rounded-2xl sm:rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl relative flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200 ease-out">
+          <div className="bg-slate-50 border border-gray-200 rounded-2xl sm:rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl relative flex flex-col h-[88vh] max-h-[88vh] min-h-[580px] animate-in fade-in zoom-in-95 duration-200 ease-out">
             
             {/* Modal Header Banner */}
             <div className="bg-gradient-to-r from-[#064e3b] via-[#0A6B43] to-[#042f2e] text-white p-4 sm:p-5 flex items-center justify-between shrink-0 shadow-xs">
