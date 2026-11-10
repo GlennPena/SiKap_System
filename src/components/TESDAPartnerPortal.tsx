@@ -3310,7 +3310,6 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                     <rect width="7" height="7" x="3" y="14" rx="2" />
                   </svg>
                 ),
-                badge: undefined as number | undefined,
                 onClick: () => {
                   setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.DASHBOARD);
@@ -3331,7 +3330,6 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
                   </svg>
                 ),
-                badge: undefined as number | undefined,
                 onClick: () => {
                   setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.PROGRAMS);
@@ -3356,7 +3354,6 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
                 ),
-                badge: pendingReferralsCount > 0 ? pendingReferralsCount : undefined,
                 onClick: () => {
                   setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.APPLICANTS);
@@ -3381,7 +3378,6 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 ),
-                badge: undefined as number | undefined,
                 onClick: () => {
                   setViewingProgramRoster(null);
                   setCurrentScreen(TESDAPartnerScreen.SETTINGS);
@@ -3421,25 +3417,18 @@ const [hoveredStatusSlice, setHoveredStatusSlice] = useState<number | null>(null
                       tab.onClick();
                       setIsMobileNavOpen(false);
                     }}
-                    className={`relative z-10 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${isActive
+                    className={`relative z-10 w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-base font-medium transition-colors duration-200 text-left group tracking-tight outline-none focus:outline-none ${isActive
                       ? "text-emerald-300 cursor-pointer"
                       : "text-gray-300/80 hover:bg-white/5 hover:text-white cursor-pointer"
                       }`}
                   >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      <span className={`transition-colors duration-200 shrink-0 ${isActive
-                        ? "text-emerald-300"
-                        : "text-gray-400 group-hover:text-gray-200"
-                        }`}>
-                        {isActive ? tab.activeIcon : tab.inactiveIcon}
-                      </span>
-                      <span className="truncate">{tab.label}</span>
-                    </div>
-                    {tab.badge !== undefined && tab.badge > 0 && (
-                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
-                        {tab.badge}
-                      </span>
-                    )}
+                    <span className={`transition-colors duration-200 shrink-0 ${isActive
+                      ? "text-emerald-300"
+                      : "text-gray-400 group-hover:text-gray-200"
+                      }`}>
+                      {isActive ? tab.activeIcon : tab.inactiveIcon}
+                    </span>
+                    <span className="truncate">{tab.label}</span>
                   </button>
                 </div>
               );

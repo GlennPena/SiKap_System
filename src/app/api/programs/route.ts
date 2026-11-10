@@ -70,23 +70,36 @@ export async function GET(request: Request) {
       });
     }
 
-    const programs = await db.tESDAProgram.findMany({
-      where: archived
-        ? { activeStatus: "Closed" }
-        : { activeStatus: { not: "Closed" } },
-      include: {
-        category: true,
-        partner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            officialAcc: true
+    let programs: any[];
+    try {
+      programs = await (db.tESDAProgram as any).findMany({
+        where: archived
+          ? { activeStatus: "Closed" }
+          : { activeStatus: { not: "Closed" } },
+        include: {
+          category: true,
+          partner: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              officialAcc: true
+            }
           }
-        }
-      },
-      orderBy: { createdAt: "desc" }
-    });
+        },
+        orderBy: { createdAt: "desc" }
+      });
+    } catch {
+      programs = await db.tESDAProgram.findMany({
+        where: archived
+          ? { activeStatus: "Closed" }
+          : { activeStatus: { not: "Closed" } },
+        include: {
+          category: true
+        },
+        orderBy: { createdAt: "desc" }
+      });
+    }
 
     return NextResponse.json({ success: true, data: programs.map(mapProgramCostForClient) });
   } catch (error: any) {

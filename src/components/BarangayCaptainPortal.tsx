@@ -1,8 +1,6 @@
 "use client";
 
-import { extractLocationDisplay } from '../lib/training-venues';
-
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import {
   Award,
@@ -59,6 +57,8 @@ import {
   Menu,
   Target,
   ArrowUpRight,
+  ArrowRight,
+  RotateCcw,
   ChevronUp,
   Flame,
   SearchX,
@@ -66,7 +66,8 @@ import {
 } from "lucide-react";
 import { SikapLogo, NotificationBellButton, EmptyState } from "./ReusableComponents";
 import { GrowthPlantAnimation } from "./GrowthPlantAnimation";
-import { motion, AnimatePresence } from "motion/react";
+import { SanLuisBarangayMap } from "./SanLuisBarangayMap";
+import { motion, AnimatePresence, useInView } from "motion/react";
 import { CustomSelect } from "./CustomSelect";
 import { validatePassword } from "@/lib/password-policy";
 import { SettingsHeaderBanner, SettingsSidebarNav, SettingsSecurityGuideCard, SettingsNotificationChannelsCard, SettingsTabItem } from "./SettingsShared";
@@ -75,6 +76,7 @@ import { CATEGORIES } from "../lib/cbf-taxonomy-data";
 import { isProgramEnded, toTitleCase } from "../lib/utils";
 import { calculateContentBasedMatchScore, formatTrainingDays, formatProgramTimeslot, formatProgramDateRange } from "../lib/cbf-matcher";
 import { getBarangayZoneOptions, getBarangayZoneTypeLabel } from "../lib/barangay-data";
+import { extractLocationDisplay } from "../lib/training-venues";
 
 const getProgramCategory = (prog?: any): string => {
   if (!prog) return "Information and Communication Technology";
@@ -211,6 +213,115 @@ interface BarangayCaptainPortalProps {
   currentUser?: any;
   addToast?: (message: string, type: "success" | "error" | "info") => void;
 }
+
+
+// Reusable Consistent Dashboard Chart Tooltip for Captain Portal
+interface ChartTooltipItem {
+  category: string;
+  value: string | number;
+  color?: string;
+}
+
+interface ChartTooltipData {
+  title: string;
+  subtitle?: string;
+  items: ChartTooltipItem[];
+}
+
+interface DashboardTooltipState {
+  chartId: string;
+  data: ChartTooltipData;
+  x: number;
+  y: number;
+  containerW: number;
+  containerH: number;
+}
+
+const ChartTooltip: React.FC<{
+  tooltip: DashboardTooltipState | null;
+  chartId: string;
+}> = ({ tooltip, chartId }) => {
+  if (!tooltip || tooltip.chartId !== chartId) return null;
+
+  const { data, x, y, containerW, containerH } = tooltip;
+  const offsetX = 12;
+  const offsetY = 12;
+  const isRightHalf = x > containerW * 0.55;
+  const isBottomHalf = y > containerH * 0.60;
+
+  const left = isRightHalf
+    ? Math.max(8, x - offsetX)
+    : Math.min(containerW - 8, x + offsetX);
+
+  const top = isBottomHalf
+    ? Math.max(8, y - offsetY)
+    : Math.min(containerH - 8, y + offsetY);
+
+  const transform = `${isRightHalf ? "translateX(-100%)" : "translateX(0)"} ${
+    isBottomHalf ? "translateY(-100%)" : "translateY(0)"
+  }`;
+
+  return (
+    <div
+      style={{
+        left: `${left}px`,
+        top: `${top}px`,
+        transform,
+      }}
+      className="absolute pointer-events-none z-50 bg-white border border-gray-200/95 rounded-lg shadow-md px-2.5 py-1.5 text-left min-w-[115px] max-w-[220px] transition-transform duration-75 ease-out select-none"
+    >
+      <div className="font-bold text-gray-900 text-xs tracking-tight truncate leading-tight">
+        {data.title}
+      </div>
+      {data.subtitle && (
+        <div className="text-[10px] font-medium text-gray-400 truncate leading-tight mt-0.5">
+          {data.subtitle}
+        </div>
+      )}
+      <div className="mt-1 space-y-0.5 border-t border-gray-100 pt-1">
+        {data.items.map((item, idx) => (
+          <div key={idx} className="flex items-center justify-between gap-2.5 text-[11px] leading-snug">
+            <span className="text-gray-500 font-medium flex items-center gap-1.5 shrink-0">
+              {item.color && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+              )}
+              <span>{item.category}</span>
+            </span>
+            <span className="font-bold text-gray-900 tabular-nums text-right ml-auto">
+              {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Viewport-Triggered Animated Card Wrapper (Consistent with Other Portals)
+const AnimatedCard: React.FC<{
+  children: (isInView: boolean) => React.ReactNode;
+  className?: string;
+  delay?: number;
+  yOffset?: number;
+}> = ({ children, className = "", delay = 0, yOffset = 22 }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, amount: 0.1, margin: "0px 0px -30px 0px" });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: yOffset }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: yOffset }}
+      transition={{ duration: 0.75, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children(isInView)}
+    </motion.div>
+  );
+};
 
 export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
   onLogout,
@@ -523,11 +634,11 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
 
   // Clean formatted Barangay name
   const cleanBrgy = useMemo(() => {
-    return designatedBarangay.replace(/^Barangay\s+/i, "").trim().toLowerCase();
+    return (designatedBarangay || "San Sebastian").replace(/^Barangay\s+/i, "").trim().toLowerCase();
   }, [designatedBarangay]);
 
   const formattedBrgyName = useMemo(() => {
-    const raw = designatedBarangay.replace(/^Barangay\s+/i, "").trim();
+    const raw = (designatedBarangay || "San Sebastian").replace(/^Barangay\s+/i, "").trim();
     return `Barangay ${raw}`;
   }, [designatedBarangay]);
 
@@ -1453,6 +1564,381 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
     if (addToast) addToast(`Downloaded ${formattedBrgyName} Census Spreadsheet (.xls)`, "success");
   };
 
+
+  // Dashboard Analytics States
+  const [dashboardTooltip, setDashboardTooltip] = useState<DashboardTooltipState | null>(null);
+  const handleChartTooltipMove = (
+    chartId: string,
+    e: React.MouseEvent<HTMLElement | SVGElement>,
+    data: ChartTooltipData
+  ) => {
+    const container = (e.currentTarget as Element).closest(`[data-chart-container="${chartId}"]`) as HTMLElement | null;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setDashboardTooltip({
+      chartId,
+      data,
+      x,
+      y,
+      containerW: rect.width,
+      containerH: rect.height,
+    });
+  };
+  const handleChartTooltipLeave = () => setDashboardTooltip(null);
+
+  const [trendTimeframe, setTrendTimeframe] = useState<"weekly" | "6m" | "12m">("6m");
+  const [hoveredTrendIdx, setHoveredTrendIdx] = useState<number | null>(null);
+  const [hoveredGenderSlice, setHoveredGenderSlice] = useState<number | null>(null);
+  const [sectorSupplyMetric, setSectorSupplyMetric] = useState<"slots" | "programs">("slots");
+  const [sectorPage, setSectorPage] = useState(1);
+  const [hoveredSectorIdx, setHoveredSectorIdx] = useState<number | null>(null);
+  const [programDemandSort, setProgramDemandSort] = useState<"demand" | "slots">("demand");
+  const [programDemandPage, setProgramDemandPage] = useState(1);
+
+  // 1. Gender Distribution Donut Chart Data
+  const genderDistributionData = useMemo(() => {
+    let male = 0;
+    let female = 0;
+    localYouthProfiles.forEach(y => {
+      const g = (y.gender || "").toLowerCase().trim();
+      if (g === "male" || g === "m") male++;
+      else if (g === "female" || g === "f") female++;
+    });
+    const knownTotal = male + female;
+    const total = localYouthProfiles.length;
+    const pctMale = knownTotal > 0 ? Math.round((male / knownTotal) * 100) : 0;
+    const pctFemale = knownTotal > 0 ? 100 - pctMale : 0;
+    return {
+      total,
+      male,
+      female,
+      pctMale,
+      pctFemale,
+      slices: [
+        { label: "Male", count: male, pct: pctMale, color: "#176b4d" },
+        { label: "Female", count: female, pct: pctFemale, color: "#79bd98" }
+      ]
+    };
+  }, [localYouthProfiles]);
+
+  // 2. Educational Attainment Segmented Breakdown Data
+  const educationalDistributionData = useMemo(() => {
+    const counts: Record<string, number> = {
+      "Elementary": 0,
+      "Junior High": 0,
+      "Senior High": 0,
+      "College": 0,
+      "Tech-Voc": 0,
+      "Others": 0,
+    };
+    localYouthProfiles.forEach(y => {
+      const raw = (y.educationalAttainment || "").trim().toLowerCase();
+      if (
+        raw.includes("tech-voc") || raw.includes("tech voc") || raw.includes("vocational") ||
+        raw.includes("tesda") || raw.includes("certificate")
+      ) {
+        counts["Tech-Voc"]++;
+      } else if (
+        raw.includes("college") || raw.includes("bachelor") || raw.includes("tertiary") ||
+        raw.includes("undergraduate") || raw.includes("undergrad") || raw.includes("university") || raw.includes("higher ed")
+      ) {
+        counts["College"]++;
+      } else if (
+        raw.includes("senior high") || raw.includes("senior") || raw.includes("shs") ||
+        raw.includes("grade 11") || raw.includes("grade 12") || raw.includes("k-12")
+      ) {
+        counts["Senior High"]++;
+      } else if (
+        raw.includes("junior high") || raw.includes("junior") || raw.includes("jhs") ||
+        raw.includes("grade 7") || raw.includes("grade 8") || raw.includes("grade 9") ||
+        raw.includes("grade 10") || raw.includes("high school")
+      ) {
+        counts["Junior High"]++;
+      } else if (
+        raw.includes("elementary") || raw.includes("primary") || raw.includes("grade 1") ||
+        raw.includes("grade 2") || raw.includes("grade 3") || raw.includes("grade 4") ||
+        raw.includes("grade 5") || raw.includes("grade 6")
+      ) {
+        counts["Elementary"]++;
+      } else {
+        counts["Others"]++;
+      }
+    });
+    const total = localYouthProfiles.length || 1;
+    const tiers = [
+      { name: "Elementary", count: counts["Elementary"], color: "#F59E0B", short: "Elementary" },
+      { name: "Junior High", count: counts["Junior High"], color: "#10B981", short: "Junior High" },
+      { name: "Senior High", count: counts["Senior High"], color: "#0A6B43", short: "Senior High" },
+      { name: "College", count: counts["College"], color: "#3B82F6", short: "College" },
+      { name: "Tech-Voc", count: counts["Tech-Voc"], color: "#8B5CF6", short: "Tech-Voc" },
+      { name: "Others", count: counts["Others"], color: "#94A3B8", short: "Others" },
+    ];
+    let highest = tiers[0];
+    tiers.forEach(t => {
+      if (t.count > highest.count) highest = t;
+    });
+    return {
+      total: localYouthProfiles.length,
+      tiers: tiers.map(t => ({
+        ...t,
+        pct: localYouthProfiles.length > 0 ? Math.round((t.count / total) * 100) : 0
+      })),
+      mostCommon: {
+        ...highest,
+        pct: localYouthProfiles.length > 0 ? Math.round((highest.count / total) * 100) : 0
+      }
+    };
+  }, [localYouthProfiles]);
+
+  // 3. Youth Registration Trends Over Time (Weekly / 6M / 12M Line Chart)
+  const youthRegistrationTrendsData = useMemo(() => {
+    const getTs = (y: any): number => {
+      const raw = y.registeredDate || y.createdAt || y.updatedAt;
+      if (!raw) return 0;
+      const t = new Date(raw).getTime();
+      return isNaN(t) ? 0 : t;
+    };
+    const validTimestamps = localYouthProfiles.map(getTs).filter(t => t > 0);
+    const latestDataTime = validTimestamps.length > 0 ? Math.max(...validTimestamps) : Date.now();
+    const anchorDate = new Date(Math.max(Date.now(), latestDataTime));
+
+    if (trendTimeframe === "weekly") {
+      const buckets: Array<{ key: string; label: string; fullLabel: string; count: number; cumulative: number }> = [];
+      const dayMs = 24 * 60 * 60 * 1000;
+      const currentDay = anchorDate.getDay();
+      const daysSinceMonday = (currentDay + 6) % 7;
+      const currentMonday = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate() - daysSinceMonday);
+      currentMonday.setHours(0, 0, 0, 0);
+
+      let running = 0;
+      for (let i = 7; i >= 0; i--) {
+        const bucketStart = currentMonday.getTime() - i * 7 * dayMs;
+        const bucketEnd = bucketStart + 7 * dayMs - 1;
+        const startD = new Date(bucketStart);
+        const endD = new Date(bucketEnd);
+        const shortLabel = startD.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const fullLabel = `${startD.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endD.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+
+        const matching = localYouthProfiles.filter(y => {
+          const ts = getTs(y);
+          return ts >= bucketStart && ts <= bucketEnd;
+        });
+        running += matching.length;
+        buckets.push({
+          key: `wk-${i}`,
+          label: shortLabel,
+          fullLabel,
+          count: matching.length,
+          cumulative: running
+        });
+      }
+      const maxCount = Math.max(3, ...buckets.map(b => b.count));
+      const totalInPeriod = buckets.reduce((sum, b) => sum + b.count, 0);
+      return { buckets, maxCount, totalInPeriod };
+    } else {
+      const monthCount = trendTimeframe === "12m" ? 12 : 6;
+      const buckets: Array<{ key: string; label: string; fullLabel: string; count: number; cumulative: number }> = [];
+      let running = 0;
+
+      for (let i = monthCount - 1; i >= 0; i--) {
+        const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        const shortLabel = d.toLocaleDateString("en-US", { month: "short" });
+        const fullLabel = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+        const matching = localYouthProfiles.filter(y => {
+          const ts = getTs(y);
+          if (!ts) return false;
+          const rd = new Date(ts);
+          return rd.getFullYear() === year && rd.getMonth() === month;
+        });
+        running += matching.length;
+        buckets.push({
+          key: `${year}-${String(month + 1).padStart(2, "0")}`,
+          label: shortLabel,
+          fullLabel,
+          count: matching.length,
+          cumulative: running
+        });
+      }
+      const totalMatching = buckets.reduce((sum, b) => sum + b.count, 0);
+      if (totalMatching === 0 && localYouthProfiles.length > 0) {
+        const lastIdx = buckets.length - 1;
+        buckets[lastIdx].count = localYouthProfiles.length;
+        buckets[lastIdx].cumulative = localYouthProfiles.length;
+      }
+      const maxCount = Math.max(3, ...buckets.map(b => b.count));
+      const totalInPeriod = buckets.reduce((sum, b) => sum + b.count, 0);
+      return { buckets, maxCount, totalInPeriod };
+    }
+  }, [localYouthProfiles, trendTimeframe]);
+
+  // 4. Sector Interests vs Training Supply Grouped Bar Data
+  const sectorInterestVsSupplyData = useMemo(() => {
+    const sectorDefinitions = [
+      { id: "ict", shortLabel: "ICT & Digital", fullName: "Information & Communication Technology", keywords: ["ict", "computer", "information", "programming", "web", "digital", "software", "hardware", "networking", "tech", "data", "encoding"] },
+      { id: "construction", shortLabel: "Construction & Welding", fullName: "Construction & Metal Trades", keywords: ["construction", "welding", "smaw", "carpentry", "masonry", "plumbing", "tile", "metal", "pipe", "scaffold"] },
+      { id: "food", shortLabel: "Food & Culinary", fullName: "Process Food & Beverages", keywords: ["food", "cook", "cooking", "culinary", "baking", "pastry", "bread", "beverage", "kitchen", "catering"] },
+      { id: "electrical", shortLabel: "Electrical & Electronics", fullName: "Electrical & Electronics", keywords: ["electrical", "electric", "wiring", "electronics", "solar", "eim", "appliance", "mechatronics"] },
+      { id: "automotive", shortLabel: "Automotive", fullName: "Automotive & Land Transport", keywords: ["automotive", "mechanic", "driving", "motorcycle", "vehicle", "engine", "transport", "chassis"] },
+      { id: "agriculture", shortLabel: "Agriculture", fullName: "Agriculture & Agri-Fishery", keywords: ["agriculture", "agri", "farm", "farming", "crop", "organic", "livestock", "poultry", "aquaculture", "horticulture"] },
+      { id: "tourism", shortLabel: "Tourism & Hospitality", fullName: "Tourism & Hospitality", keywords: ["tourism", "hotel", "hospitality", "housekeeping", "bartending", "barista", "front office", "events", "travel"] },
+      { id: "healthcare", shortLabel: "Health Care", fullName: "Human Health / Health Care", keywords: ["health", "caregiving", "caregiver", "nursing", "medical", "wellness", "massage", "hilots", "first aid"] },
+      { id: "entrepreneurship", shortLabel: "Entrepreneurship", fullName: "Entrepreneurship & Business", keywords: ["entrepreneurship", "business", "bookkeeping", "accounting", "retail", "selling", "commerce", "livelihood"] }
+    ];
+
+    const items = sectorDefinitions.map(sec => {
+      const interestedYouthSet = new Set<string>();
+      localYouthProfiles.forEach(y => {
+        const textPool = [
+          y.sectorPreference || "",
+          y.livelihoodGoal || "",
+          ...(y.interests || []),
+          ...(y.skills || [])
+        ].join(" ").toLowerCase();
+        if (sec.keywords.some(kw => textPool.includes(kw))) {
+          const key = (y.id || y.name || "").toLowerCase().trim();
+          if (key) interestedYouthSet.add(key);
+        }
+      });
+
+      const matchingPrograms = programs.filter(p => {
+        const cat = getProgramCategory(p).toLowerCase();
+        const title = (p.title || "").toLowerCase();
+        return sec.keywords.some(kw => cat.includes(kw) || title.includes(kw));
+      });
+
+      const availableSlots = matchingPrograms.reduce((sum, p) => sum + Math.max(0, p.slotsRemaining || 0), 0);
+      const totalSlots = matchingPrograms.reduce((sum, p) => sum + Math.max(0, p.slotsTotal || 0), 0);
+
+      return {
+        id: sec.id,
+        shortLabel: sec.shortLabel,
+        fullName: sec.fullName,
+        youthInterested: interestedYouthSet.size,
+        programCount: matchingPrograms.length,
+        availableSlots,
+        totalSlots
+      };
+    });
+
+    const sortedItems = [...items].sort((a, b) => {
+      const aVal = a.youthInterested * 10 + (sectorSupplyMetric === "programs" ? a.programCount : a.availableSlots);
+      const bVal = b.youthInterested * 10 + (sectorSupplyMetric === "programs" ? b.programCount : b.availableSlots);
+      if (bVal !== aVal) return bVal - aVal;
+      return a.shortLabel.localeCompare(b.shortLabel);
+    });
+
+    const maxYouth = Math.max(4, ...sortedItems.map(i => i.youthInterested));
+    const maxSupply = Math.max(4, ...sortedItems.map(i => (sectorSupplyMetric === "programs" ? i.programCount : i.availableSlots)));
+    const maxCombined = Math.max(maxYouth, maxSupply, 4);
+
+    return { items: sortedItems, maxYouth, maxSupply, maxCombined };
+  }, [localYouthProfiles, programs, sectorSupplyMetric]);
+
+  // 5. Program Demand vs Available Slots Data
+  const programDemandData = useMemo(() => {
+    const items = programs.map(prog => {
+      const progApps = localReferrals.filter(
+        r => r.programId === prog.id || (r.programTitle || "").toLowerCase().trim() === (prog.title || "").toLowerCase().trim()
+      );
+      const demand = progApps.length;
+      const slotsRemaining = Math.max(0, prog.slotsRemaining || 0);
+      const slotsTotal = Math.max(1, prog.slotsTotal || 25);
+      return {
+        id: prog.id,
+        title: prog.title,
+        category: getProgramCategory(prog),
+        demand,
+        slotsRemaining,
+        slotsTotal
+      };
+    });
+
+    const sorted = [...items].sort((a, b) => {
+      if (programDemandSort === "demand") {
+        if (b.demand !== a.demand) return b.demand - a.demand;
+        return a.slotsRemaining - b.slotsRemaining;
+      }
+      if (programDemandSort === "slots") {
+        if (a.slotsRemaining !== b.slotsRemaining) return a.slotsRemaining - b.slotsRemaining;
+        return b.demand - a.demand;
+      }
+      return a.title.localeCompare(b.title);
+    });
+
+    const maxScale = Math.max(5, ...sorted.map(i => Math.max(i.demand, i.slotsRemaining, i.slotsTotal)));
+    return { items: sorted, maxScale };
+  }, [programs, localReferrals, programDemandSort]);
+
+  // 6. Recent Youth Activity Timeline Data
+  const recentYouthActivities = useMemo(() => {
+    const list: Array<{
+      id: string;
+      type: "registration" | "application" | "enrolled" | "completed";
+      youthName: string;
+      purokOrBrgy: string;
+      title: string;
+      subtitle: string;
+      status: string;
+      statusClass: string;
+      timestamp: number;
+      dateStr: string;
+      rawYouth?: YouthProfile;
+    }> = [];
+
+    localReferrals.forEach(r => {
+      const ts = r.applicationDate ? new Date(r.applicationDate).getTime() : (r.referralDate ? new Date(r.referralDate).getTime() : 0);
+      const isEnrolled = r.status === "Enrolled";
+      const isCompleted = r.status === "Completed" || r.status === "Archived";
+      const isApproved = r.status === "Approved";
+
+      list.push({
+        id: `ref-${r.id}`,
+        type: isCompleted ? "completed" : isEnrolled ? "enrolled" : "application",
+        youthName: r.youthName,
+        purokOrBrgy: r.barangay || formattedBrgyName,
+        title: isCompleted ? `Certified in ${r.programTitle}` : isEnrolled ? `Enrolled in ${r.programTitle}` : isApproved ? `Approved for ${r.programTitle}` : `Applied for ${r.programTitle}`,
+        subtitle: r.programTitle,
+        status: r.status,
+        statusClass: isCompleted
+          ? "bg-purple-100 text-purple-800 border-purple-200"
+          : isEnrolled
+          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+          : isApproved
+          ? "bg-blue-100 text-blue-800 border-blue-200"
+          : "bg-amber-100 text-amber-800 border-amber-200",
+        timestamp: ts || Date.now() - 3600000 * 4,
+        dateStr: ts ? new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent"
+      });
+    });
+
+    localYouthProfiles.forEach(y => {
+      const ts = y.registeredDate ? new Date(y.registeredDate).getTime() : ((y as any).createdAt ? new Date((y as any).createdAt).getTime() : 0);
+      list.push({
+        id: `reg-${y.id}`,
+        type: "registration",
+        youthName: y.name,
+        purokOrBrgy: y.purok ? `${y.purok}, ${formattedBrgyName}` : formattedBrgyName,
+        title: "Census Registration Logged",
+        subtitle: `${y.age} y/o · ${y.currentStatus || "Katipunan ng Kabataan"}`,
+        status: y.approvalStatus || "Verified",
+        statusClass: y.approvalStatus === "Pending"
+          ? "bg-amber-100 text-amber-800 border-amber-200"
+          : "bg-emerald-100 text-emerald-800 border-emerald-200",
+        timestamp: ts || Date.now() - 3600000 * 12,
+        dateStr: ts ? new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
+        rawYouth: y
+      });
+    });
+
+    list.sort((a, b) => b.timestamp - a.timestamp);
+    return list;
+  }, [localReferrals, localYouthProfiles, formattedBrgyName]);
+
   // Memoized Captain Notifications
   const captainNotifications = useMemo(() => {
     return [
@@ -1571,8 +2057,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
-                ),
-                badge: localYouthProfiles.length > 0 ? localYouthProfiles.length : undefined
+                )
               },
               {
                 id: BarangayCaptainScreen.SK_COUNCIL,
@@ -1591,8 +2076,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <circle cx="8" cy="9" r="4" />
                     <path d="M22 19a6 6 0 0 0-6-6 4 4 0 1 0 0-8" />
                   </svg>
-                ),
-                badge: localCouncilors.length + (localSKChair ? 1 : 0) > 0 ? localCouncilors.length + (localSKChair ? 1 : 0) : undefined
+                )
               },
               {
                 id: BarangayCaptainScreen.APPLICATIONS,
@@ -1610,8 +2094,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <path d="M16 13H8" />
                     <path d="M16 17H8" />
                   </svg>
-                ),
-                badge: localReferrals.length > 0 ? localReferrals.length : undefined
+                )
               },
               {
                 id: BarangayCaptainScreen.TESDA_PROGRAMS,
@@ -1627,8 +2110,7 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                     <rect width="20" height="14" x="2" y="7" rx="2" />
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                   </svg>
-                ),
-                badge: programs.length > 0 ? programs.length : undefined
+                )
               },
               {
                 id: BarangayCaptainScreen.PROFILE,
@@ -1696,12 +2178,6 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                       </span>
                       <span className="truncate">{tab.label}</span>
                     </div>
-
-                    {tab.badge !== undefined && tab.badge > 0 && (
-                      <span className="bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md ml-2 shrink-0">
-                        {tab.badge}
-                      </span>
-                    )}
                   </button>
                 </div>
               );
@@ -1955,604 +2431,1291 @@ export const BarangayCaptainPortal: React.FC<BarangayCaptainPortalProps> = ({
                 </div>
               </div>
 
-              {/* Jurisdiction Action Toolbar */}
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[#0A6B43] text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider w-fit shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#0A6B43] shrink-0" />
-                    <span>Official Executive Jurisdiction</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-800">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>{formattedBrgyName}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2 sm:gap-2.5 w-full md:w-auto pt-2.5 md:pt-0 border-t border-gray-100 md:border-t-0">
-                  <button
-                    onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
-                    className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-center gap-2.5 px-4 py-2.5 bg-[#0A6B43] hover:bg-[#075332] active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer group"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Users className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-                      <span>Inspect KK Directory</span>
+              {/* ========================================================================= */}
+              {/* 1. METRIC / SUMMARY CARDS (4 Cards: Registered Youth, Certified Graduates, SK Council, Programs) */}
+              {/* ========================================================================= */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {/* Card 1: Registered Youth */}
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                  onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
+                  className="text-left rounded-2xl p-4 sm:p-5 shadow-[0_10px_28px_-6px_rgba(4,26,19,0.28)] hover:shadow-[0_14px_34px_-6px_rgba(4,26,19,0.38)] transition-all flex flex-col justify-between cursor-pointer group"
+                  style={{
+                    background: "linear-gradient(to right, #041A13 0%, #082D21 45%, #106348 100%)",
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-white/95 leading-snug">
+                      Registered Youth
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-white/20 text-white font-black text-[11px] tabular-nums">
-                      {localYouthProfiles.length}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)}
-                    className="w-full sm:w-auto inline-flex items-center justify-between sm:justify-center gap-2 px-4 py-2.5 bg-white hover:bg-emerald-50/60 active:scale-[0.98] text-gray-700 hover:text-[#0A6B43] border border-gray-200 hover:border-emerald-300 text-xs font-bold rounded-xl transition-all shadow-2xs cursor-pointer group"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Users2 className="w-4 h-4 text-[#0A6B43] shrink-0 transition-transform group-hover:scale-110" />
-                      <span>SK Council Team</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-0.5 transition-all" />
-                  </button>
-                </div>
-              </div>
+                    <Users className="w-4 h-4 text-emerald-300 opacity-80 shrink-0" />
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-white tracking-tight my-1.5 tabular-nums">
+                    {localYouthProfiles.length}
+                  </div>
+                  <p className="text-[11px] text-emerald-100/85 font-medium truncate">
+                    {kkMembersSummary.outOfSchool} OSY · {Math.max(0, localYouthProfiles.length - kkMembersSummary.outOfSchool)} In-School
+                  </p>
+                </motion.button>
 
-              {/* 5 Executive KPI Stat Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-                
-                {/* Stat 1: Total KK Youth */}
-                <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">Registered KK Youth</span>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0">
-                      <Users className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900">{localYouthProfiles.length}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                        Census Logged
-                      </span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      Ages 15–30 in {formattedBrgyName}
-                    </p>
-                  </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-[#0A6B43] h-full rounded-full" style={{ width: "100%" }} />
-                  </div>
-                </div>
-
-                {/* Stat 2: OSY Youth */}
-                <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">Out-of-School (OSY)</span>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-100 shrink-0">
-                      <AlertCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-amber-600">{kkMembersSummary.outOfSchool}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                        {localYouthProfiles.length > 0 ? Math.round((kkMembersSummary.outOfSchool / localYouthProfiles.length) * 100) : 0}% of Total
-                      </span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      Priority for TESDA livelihood
-                    </p>
-                  </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-amber-500 h-full rounded-full transition-all"
-                      style={{
-                        width: `${localYouthProfiles.length > 0 ? Math.min((kkMembersSummary.outOfSchool / localYouthProfiles.length) * 100, 100) : 0}%`
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Stat 3: Certified Program Graduates (Outcome Evidence) */}
-                <div
+                {/* Card 2: Certified Graduates */}
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
                   onClick={() => {
                     setAppStatusFilter("Completed");
                     setCurrentScreen(BarangayCaptainScreen.APPLICATIONS);
                   }}
-                  className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3 cursor-pointer group border-b-2 border-emerald-600/70"
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:shadow-[0_12px_35px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between cursor-pointer group"
                 >
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1 group-hover:text-[#0A6B43] transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
                       Certified Graduates
                     </span>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-[#0A6B43] flex items-center justify-center border border-emerald-100 shrink-0 group-hover:scale-105 transition-transform">
-                      <Award className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                    </div>
+                    <Award className="w-4 h-4 text-amber-500 shrink-0" />
                   </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900 group-hover:text-[#0A6B43] transition-colors">
-                        {localCompletedGraduates.length}
-                      </span>
-                      <span className="text-[10px] sm:text-xs font-bold text-[#0A6B43] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                        {captainCompletionRate}% Certified
-                      </span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      Proof of system outcomes →
-                    </p>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {localCompletedGraduates.length}
                   </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-[#0A6B43] h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(captainCompletionRate, 100)}%` }}
-                    />
-                  </div>
-                </div>
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    {captainCompletionRate}% certification rate →
+                  </p>
+                </motion.button>
 
-                {/* Stat 4: SK Council Appointees */}
-                <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">SK Council Officers</span>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-50 text-teal-800 flex items-center justify-center border border-teal-100 shrink-0">
-                      <Users2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                    </div>
+                {/* Card 3: SK Council Officers */}
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                  onClick={() => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)}
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:shadow-[0_12px_35px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+                      SK Council Officers
+                    </span>
+                    <Users2 className="w-4 h-4 text-teal-600 shrink-0" />
                   </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900">
-                        {localCouncilors.length + (localSKChair ? 1 : 0)}
-                      </span>
-                      <span className="text-[10px] sm:text-xs font-bold text-gray-400">/ 12 Total</span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length}/11 Appointees
-                    </p>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {localCouncilors.length + (localSKChair ? 1 : 0)}
                   </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-teal-600 h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(((localCouncilors.length + (localSKChair ? 1 : 0)) / 12) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    {localSKChair ? "Chairperson ✓" : "No Chair"} • {localCouncilors.length}/11 Appointees
+                  </p>
+                </motion.button>
 
-                {/* Stat 5: Municipal TESDA Programs */}
-                <div className="bg-white border border-gray-200/90 rounded-2xl p-4 sm:p-5 shadow-xs hover:-translate-y-1.5 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3">
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider line-clamp-1">TESDA Programs</span>
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 shrink-0">
-                      <Briefcase className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-                    </div>
+                {/* Card 4: Training Programs */}
+                <motion.button
+                  type="button"
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                  onClick={() => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)}
+                  className="text-left bg-white rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100 hover:border-emerald-200 hover:shadow-[0_12px_35px_rgb(0,0,0,0.08)] transition-all flex flex-col justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-[#0A6B43] transition-colors leading-snug">
+                      Training Programs
+                    </span>
+                    <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
                   </div>
-                  <div>
-                    <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
-                      <span className="text-xl sm:text-2xl font-black text-gray-900">{programs.length}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                        San Luis
-                      </span>
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium mt-1 line-clamp-2">
-                      {localReferrals.length} applications
-                    </p>
+                  <div className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight my-1.5 tabular-nums">
+                    {programs.length}
                   </div>
-                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-blue-600 h-full rounded-full" style={{ width: "100%" }} />
-                  </div>
-                </div>
-
+                  <p className="text-[11px] text-gray-500 font-medium truncate">
+                    {localReferrals.length} barangay applications
+                  </p>
+                </motion.button>
               </div>
 
-              {/* DEMOGRAPHICS BREAKDOWN & SKILLS GAPS GRID */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Col 1 & 2: KATIPUNAN NG KABATAAN CENSUS & ACTIVITY STATUS */}
-                <div className="bg-white border border-gray-150 p-4 sm:p-6 rounded-2xl shadow-xs lg:col-span-2 space-y-5 sm:space-y-6">
-                  <div className="border-b border-gray-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-[#0A6B43] flex items-center justify-center shrink-0">
-                        <Users className="w-4 h-4 shrink-0" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-black text-gray-900 text-xs sm:text-sm uppercase tracking-wider leading-snug">
-                          Katipunan ng Kabataan Demographics & Activity
+              {/* ========================================================================= */}
+              {/* 2. YOUTH DISTRIBUTION BY PUROK (MAP) [60%] + GENDER DISTRIBUTION [40%]     */}
+              {/* ========================================================================= */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
+                {/* Left (60% / 7 cols): San Luis Barangay Map */}
+                <div className="lg:col-span-7">
+                  <SanLuisBarangayMap
+                    youthProfiles={youthProfiles}
+                    designatedBarangay={designatedBarangay}
+                  />
+                </div>
+
+                {/* Right (40% / 5 cols): Youth Distribution by Gender Donut Chart */}
+                <AnimatedCard
+                  delay={0.15}
+                  className="lg:col-span-5 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => (
+                    <div className="flex flex-col flex-1">
+                      <div className="pb-3 border-b border-gray-100 shrink-0">
+                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                          Distribution by Gender
                         </h3>
-                        <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
-                          Census distribution of youth residing in {formattedBrgyName}
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          Registered youth gender demographics in {formattedBrgyName}
                         </p>
                       </div>
-                    </div>
-                    <div className="flex items-center self-start sm:self-center shrink-0">
-                      <span className="text-[9px] font-black uppercase text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md whitespace-nowrap">
-                        Live Census Ledger
-                      </span>
-                    </div>
-                  </div>
 
-                  {localYouthProfiles.length > 0 ? (
-                    <div className="space-y-6">
-                      
-                      {/* Primary OSY & TVET Livelihood Governance Cards */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-amber-50 border-2 border-amber-400 p-3.5 rounded-xl text-center shadow-xs">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-900 flex items-center justify-center gap-1">
-                            <Target className="w-3 h-3 text-amber-700 shrink-0" />
-                            OSY Youth Target
-                          </span>
-                          <h5 className="text-2xl font-black text-amber-950 mt-1">{kkMembersSummary.outOfSchool}</h5>
-                          <p className="text-[9px] text-amber-700 mt-0.5 font-bold">
-                            {Math.round((kkMembersSummary.outOfSchool / (localYouthProfiles.length || 1)) * 100)}% Priority Cohort
+                      {genderDistributionData.total === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                            <Users className="w-6 h-6" />
+                          </div>
+                          <h5 className="text-sm font-bold text-gray-800">No Demographic Records</h5>
+                          <p className="text-xs text-gray-400 max-w-sm font-medium">
+                            No registered youth found for {formattedBrgyName} yet.
                           </p>
                         </div>
-                        <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">TVET Matching Target</span>
-                          <h5 className="text-2xl font-black text-emerald-950 mt-1">{kkMembersSummary.outOfSchool}</h5>
-                          <p className="text-[9px] text-emerald-700 mt-0.5 font-bold">
-                            Free TESDA Training
+                      ) : (
+                        <div
+                          className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-6 py-5 flex-1 relative"
+                          data-chart-container="captain-gender"
+                          onMouseLeave={() => {
+                            setHoveredGenderSlice(null);
+                            handleChartTooltipLeave();
+                          }}
+                        >
+                          <ChartTooltip tooltip={dashboardTooltip} chartId="captain-gender" />
+                          {/* Donut SVG */}
+                          <div className="relative w-36 h-36 sm:w-40 sm:h-40 shrink-0 flex items-center justify-center">
+                            {(() => {
+                              const R = 44;
+                              const C = 2 * Math.PI * R;
+                              const total = genderDistributionData.total || 1;
+                              let accumulated = 0;
+
+                              return (
+                                <svg className="w-36 h-36 sm:w-40 sm:h-40 -rotate-90 transform" viewBox="0 0 120 120">
+                                  <circle cx="60" cy="60" r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+                                  {genderDistributionData.slices.map((s, idx) => {
+                                    if (s.count <= 0) return null;
+                                    const sliceLen = (s.count / total) * C;
+                                    const strokeDash = isInView ? `${sliceLen} ${C - sliceLen}` : `0 ${C}`;
+                                    const offset = -accumulated;
+                                    accumulated += sliceLen;
+                                    const isHovered = hoveredGenderSlice === idx;
+
+                                    return (
+                                      <circle
+                                        key={idx}
+                                        cx="60"
+                                        cy="60"
+                                        r={R}
+                                        fill="none"
+                                        stroke={s.color}
+                                        strokeWidth={isHovered ? 20 : 16}
+                                        strokeDasharray={strokeDash}
+                                        strokeDashoffset={offset}
+                                        strokeLinecap="round"
+                                        style={{
+                                          transition: `stroke-dasharray 0.75s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 120}ms, stroke-width 0.2s ease`
+                                        }}
+                                        className="cursor-pointer"
+                                        onMouseEnter={(e) => {
+                                          setHoveredGenderSlice(idx);
+                                          handleChartTooltipMove("captain-gender", e, {
+                                            title: s.label,
+                                            subtitle: "Gender Demographics",
+                                            items: [
+                                              { category: "Registered Youth", value: `${s.count} youth`, color: s.color },
+                                              { category: "Demographic Share", value: `${s.pct}%` }
+                                            ]
+                                          });
+                                        }}
+                                        onMouseMove={(e) => {
+                                          handleChartTooltipMove("captain-gender", e, {
+                                            title: s.label,
+                                            subtitle: "Gender Demographics",
+                                            items: [
+                                              { category: "Registered Youth", value: `${s.count} youth`, color: s.color },
+                                              { category: "Demographic Share", value: `${s.pct}%` }
+                                            ]
+                                          });
+                                        }}
+                                        onMouseLeave={() => {
+                                          setHoveredGenderSlice(null);
+                                          handleChartTooltipLeave();
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </svg>
+                              );
+                            })()}
+
+                            {/* Center Text */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                              {hoveredGenderSlice !== null && genderDistributionData.slices[hoveredGenderSlice] ? (
+                                <div className="animate-in fade-in duration-150">
+                                  <span
+                                    className="text-lg font-black leading-none block"
+                                    style={{ color: genderDistributionData.slices[hoveredGenderSlice].color }}
+                                  >
+                                    {genderDistributionData.slices[hoveredGenderSlice].pct}%
+                                  </span>
+                                  <span className="text-[11px] font-bold text-gray-700 mt-1 block">
+                                    {genderDistributionData.slices[hoveredGenderSlice].count} youth
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className={`transition-opacity duration-500 delay-200 ${
+                                  isInView ? "opacity-100" : "opacity-0"
+                                }`}>
+                                  <span className="text-2xl font-black text-gray-900 leading-none block">
+                                    {genderDistributionData.total}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500 font-medium mt-1 block">
+                                    Total Youth
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Legend */}
+                          <div className={`space-y-2 w-full sm:w-auto min-w-[150px] transition-opacity duration-500 delay-300 ${
+                            isInView ? "opacity-100" : "opacity-0"
+                          }`}>
+                            {genderDistributionData.slices.map((s, idx) => {
+                              const isHovered = hoveredGenderSlice === idx;
+                              return (
+                                <div
+                                  key={idx}
+                                  onMouseEnter={(e) => {
+                                    setHoveredGenderSlice(idx);
+                                    handleChartTooltipMove("captain-gender", e, {
+                                      title: s.label,
+                                      subtitle: "Gender Demographics",
+                                      items: [
+                                        { category: "Registered Youth", value: `${s.count} youth`, color: s.color },
+                                        { category: "Demographic Share", value: `${s.pct}%` }
+                                      ]
+                                    });
+                                  }}
+                                  onMouseMove={(e) => {
+                                    handleChartTooltipMove("captain-gender", e, {
+                                      title: s.label,
+                                      subtitle: "Gender Demographics",
+                                      items: [
+                                        { category: "Registered Youth", value: `${s.count} youth`, color: s.color },
+                                        { category: "Demographic Share", value: `${s.pct}%` }
+                                      ]
+                                    });
+                                  }}
+                                  onMouseLeave={() => {
+                                    setHoveredGenderSlice(null);
+                                    handleChartTooltipLeave();
+                                  }}
+                                  className={`flex items-center justify-between gap-3 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+                                    isHovered ? "bg-gray-100 scale-[1.02]" : "hover:bg-gray-50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                                      style={{ backgroundColor: s.color }}
+                                    />
+                                    <span className={`text-xs ${isHovered ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
+                                      {s.label}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-900">
+                                    {s.count} <span className="text-gray-400 font-normal">({s.pct}%)</span>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </AnimatedCard>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* 3. YOUTH REGISTRATION TREND [50%] + EDUCATIONAL ATTAINMENT [50%]          */}
+              {/* ========================================================================= */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-stretch">
+                {/* Left (50%): Youth Registration Trend (Line Graph) */}
+                <AnimatedCard
+                  delay={0.15}
+                  className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => (
+                    <div className="space-y-4 flex-1 flex flex-col">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Youth Registration Trend
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Census registration momentum over time in {formattedBrgyName}
                           </p>
                         </div>
-                        <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-blue-800 block">Skill Deficiencies</span>
-                          <h5 className="text-2xl font-black text-blue-950 mt-1">{localSkillsGaps.length} Areas</h5>
-                          <p className="text-[9px] text-blue-700 mt-0.5 font-bold">
-                            Priority Training Needs
-                          </p>
-                        </div>
-                        <div className="bg-purple-50/70 border border-purple-200 p-3.5 rounded-xl text-center">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-purple-800 block">Active Sub-Zones</span>
-                          <h5 className="text-2xl font-black text-purple-950 mt-1">{Object.keys(kkMembersSummary.purokBreakdown).length} Puroks</h5>
-                          <p className="text-[9px] text-purple-700 mt-0.5 font-bold">
-                            Demographic Scope
-                          </p>
+
+                        {/* Timeframe Pills Bar */}
+                        <div className="flex items-center gap-1.5 self-start sm:self-center">
+                          {(["weekly", "6m", "12m"] as const).map((mode) => {
+                            const label = mode === "weekly" ? "Weekly" : mode === "6m" ? "6 Months" : "12 Months";
+                            const active = trendTimeframe === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => {
+                                  setTrendTimeframe(mode);
+                                  setHoveredTrendIdx(null);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                  active
+                                    ? "bg-[#0A6B43] text-white shadow-xs"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200/80 hover:text-gray-900"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      {/* Sub-grid: Purok breakdown & Education */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
-                        
-                        {/* Purok Distribution */}
-                        <div className="space-y-3 bg-gray-50/70 p-4 rounded-xl border border-gray-150">
-                          <h4 className="text-[10px] font-black uppercase text-gray-600 tracking-wider flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Purok-Wise Distribution
-                          </h4>
-                          <div className="space-y-2.5 max-h-[160px] overflow-y-auto pr-1 text-xs">
-                            {Object.entries(kkMembersSummary.purokBreakdown).map(([purok, count]) => {
-                              const countNum = count as number;
-                              return (
-                                <div key={purok} className="flex justify-between items-center font-semibold">
-                                  <span className="text-gray-700 font-bold">{purok}</span>
-                                  <div className="flex items-center gap-2 flex-1 mx-3">
-                                    <div className="h-1.5 bg-gray-200 rounded-full flex-1 overflow-hidden">
-                                      <div 
-                                        className="h-full bg-emerald-600 rounded-full" 
-                                        style={{ width: `${(countNum / localYouthProfiles.length) * 100}%` }}
+                      {/* Line Chart SVG */}
+                      <div className="flex-1 flex flex-col justify-end pt-1">
+                        {(() => {
+                          const buckets = youthRegistrationTrendsData.buckets;
+                          const maxVal = youthRegistrationTrendsData.maxCount;
+                          const n = buckets.length;
+                          const W = 600;
+                          const H = 240;
+                          const padTop = 22;
+                          const chartH = 170;
+                          const baselineY = padTop + chartH;
+
+                          const gridLeft = 46;
+                          const gridRight = 578;
+                          const pointStartX = 64;
+                          const pointEndX = 560;
+                          const usableW = pointEndX - pointStartX;
+
+                          const coords = buckets.map((b, idx) => {
+                            const x = n > 1 ? pointStartX + (idx / (n - 1)) * usableW : (pointStartX + pointEndX) / 2;
+                            const y = padTop + chartH - (b.count / Math.max(1, maxVal)) * chartH;
+                            return { x, y, ...b, idx };
+                          });
+
+                          const smoothing = 0.16;
+                          let linePath = coords.length > 0 ? `M ${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}` : "";
+                          for (let i = 0; i < coords.length - 1; i++) {
+                            const p0 = coords[i === 0 ? i : i - 1];
+                            const p1 = coords[i];
+                            const p2 = coords[i + 1];
+                            const p3 = coords[i + 2 < coords.length ? i + 2 : i + 1];
+                            const cp1x = p1.x + (p2.x - p0.x) * smoothing;
+                            const cp1y = Math.min(baselineY, Math.max(padTop - 2, p1.y + (p2.y - p0.y) * smoothing));
+                            const cp2x = p2.x - (p3.x - p1.x) * smoothing;
+                            const cp2y = Math.min(baselineY, Math.max(padTop - 2, p2.y - (p3.y - p1.y) * smoothing));
+                            linePath += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+                          }
+                          const areaPath = coords.length > 0 ? `${linePath} L ${coords[coords.length - 1].x.toFixed(1)},${baselineY} L ${coords[0].x.toFixed(1)},${baselineY} Z` : "";
+                          const colW = n > 1 ? usableW / (n - 1) : usableW;
+
+                          return (
+                            <div
+                              className="relative w-full"
+                              data-chart-container="registration-trends"
+                              onMouseLeave={() => {
+                                setHoveredTrendIdx(null);
+                                handleChartTooltipLeave();
+                              }}
+                            >
+                              <ChartTooltip tooltip={dashboardTooltip} chartId="registration-trends" />
+
+                              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-56 sm:h-64 lg:h-[260px] overflow-hidden select-none">
+                                <defs>
+                                  <linearGradient id="captTrendAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#0A6B43" stopOpacity="0.22" />
+                                    <stop offset="100%" stopColor="#0A6B43" stopOpacity="0.0" />
+                                  </linearGradient>
+                                </defs>
+
+                                {/* Gridlines */}
+                                {(() => {
+                                  const ticks = maxVal <= 4
+                                    ? Array.from({ length: maxVal + 1 }, (_, i) => ({
+                                        val: maxVal - i,
+                                        pct: (maxVal - i) / maxVal
+                                      }))
+                                    : [1, 0.75, 0.5, 0.25, 0].map(pct => ({
+                                        val: Math.round(maxVal * pct),
+                                        pct
+                                      }));
+                                  return ticks.map(({ val, pct }) => {
+                                    const y = padTop + chartH * (1 - pct);
+                                    return (
+                                      <g key={pct}>
+                                        <line x1={gridLeft} y1={y} x2={gridRight} y2={y} stroke="#F1F5F9" strokeWidth="1" strokeDasharray="3 3" />
+                                        <text x={gridLeft - 8} y={y + 3} textAnchor="end" fontSize="10" fontWeight="600" fill="#94A3B8">
+                                          {val}
+                                        </text>
+                                      </g>
+                                    );
+                                  });
+                                })()}
+
+                                {/* Animated Area Fill */}
+                                {coords.length > 0 && areaPath && (
+                                  <motion.path
+                                    key={`trend-area-${trendTimeframe}-${youthRegistrationTrendsData.totalInPeriod}-${maxVal}`}
+                                    d={areaPath}
+                                    fill="url(#captTrendAreaGrad)"
+                                    initial={{ opacity: 0 }}
+                                    animate={isInView ? { opacity: 1 } : { opacity: 0 }}
+                                    transition={{ duration: 1.3, delay: 0.4, ease: "easeOut" }}
+                                  />
+                                )}
+
+                                {/* Animated Line */}
+                                {coords.length > 0 && linePath && (
+                                  <motion.path
+                                    key={`trend-line-${trendTimeframe}-${youthRegistrationTrendsData.totalInPeriod}-${maxVal}`}
+                                    d={linePath}
+                                    fill="none"
+                                    stroke="#0A6B43"
+                                    strokeWidth="2.75"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    initial={{ pathLength: 0, opacity: 0 }}
+                                    animate={isInView ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                                    transition={{ duration: 1.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                  />
+                                )}
+
+                                {/* Data points */}
+                                {coords.map((c, idx) => {
+                                  const isHovered = hoveredTrendIdx === idx;
+                                  return (
+                                    <g key={c.key}>
+                                      <motion.circle
+                                        cx={c.x}
+                                        cy={c.y}
+                                        r={isHovered ? 6 : 4}
+                                        fill="#FFFFFF"
+                                        stroke="#0A6B43"
+                                        strokeWidth={isHovered ? 3 : 2}
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={isInView ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
+                                        transition={{ duration: 0.35, delay: 0.6 + idx * 0.06, ease: "backOut" }}
+                                        className="transition-all duration-200 pointer-events-none"
                                       />
-                                    </div>
+                                      <text
+                                        x={c.x}
+                                        y={baselineY + 16}
+                                        textAnchor="middle"
+                                        fontSize="10"
+                                        fontWeight="600"
+                                        fill={isHovered ? "#0A6B43" : "#64748B"}
+                                      >
+                                        {c.label}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+
+                                {/* Hit-test hover columns */}
+                                {coords.map((c, idx) => {
+                                  const colLeft = idx === 0 ? gridLeft : c.x - colW / 2;
+                                  const colRight = idx === n - 1 ? gridRight : c.x + colW / 2;
+                                  const tooltipData: ChartTooltipData = {
+                                    title: c.fullLabel,
+                                    subtitle: "KK Census Registrations",
+                                    items: [
+                                      {
+                                        category: "New Registrations",
+                                        value: `${c.count} youth`,
+                                        color: "#0A6B43",
+                                      },
+                                      {
+                                        category: "Cumulative Logged",
+                                        value: `${c.cumulative} youth`,
+                                        color: "#10B981",
+                                      },
+                                    ],
+                                  };
+                                  return (
+                                    <rect
+                                      key={`hover-col-${c.key}`}
+                                      x={colLeft}
+                                      y={padTop}
+                                      width={Math.max(10, colRight - colLeft)}
+                                      height={chartH + 20}
+                                      fill="transparent"
+                                      className="cursor-pointer"
+                                      onMouseEnter={(e) => {
+                                        setHoveredTrendIdx(idx);
+                                        handleChartTooltipMove("registration-trends", e, tooltipData);
+                                      }}
+                                      onMouseMove={(e) => {
+                                        handleChartTooltipMove("registration-trends", e, tooltipData);
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </svg>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </AnimatedCard>
+
+                {/* Right (50%): Educational Attainment */}
+                <AnimatedCard
+                  delay={0.25}
+                  className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => (
+                    <div className="flex flex-col flex-1">
+                      <div className="pb-3 border-b border-gray-100 shrink-0">
+                        <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                          Educational Attainment
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          Highest educational level completed by registered youth
+                        </p>
+                      </div>
+
+                      {educationalDistributionData.total === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mb-1">
+                            <GraduationCap className="w-6 h-6" />
+                          </div>
+                          <h5 className="text-sm font-bold text-gray-800">No Educational Records</h5>
+                          <p className="text-xs text-gray-400 max-w-sm font-medium">
+                            No educational records registered for {formattedBrgyName}.
+                          </p>
+                        </div>
+                      ) : (
+                        <div
+                          className="space-y-4 pt-4 flex-1 flex flex-col justify-between relative"
+                          data-chart-container="captain-education"
+                          onMouseLeave={handleChartTooltipLeave}
+                        >
+                          <ChartTooltip tooltip={dashboardTooltip} chartId="captain-education" />
+                          {/* Segmented Distribution Bar */}
+                          <div className="space-y-1.5">
+                            <div className="w-full h-3.5 bg-gray-100 rounded-full overflow-hidden flex shadow-2xs">
+                              {educationalDistributionData.tiers.map((t, idx) => {
+                                if (t.count <= 0) return null;
+                                return (
+                                  <div
+                                    key={idx}
+                                    title={`${t.name}: ${t.count} youth (${t.pct}%)`}
+                                    style={{
+                                      width: isInView ? `${t.pct}%` : '0%',
+                                      backgroundColor: t.color,
+                                      transition: `width 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 70}ms`
+                                    }}
+                                    className="h-full transition-all hover:opacity-85 cursor-pointer"
+                                    onMouseEnter={(e) => {
+                                      handleChartTooltipMove("captain-education", e, {
+                                        title: t.name,
+                                        subtitle: "Educational Attainment",
+                                        items: [
+                                          { category: "Registered Youth", value: `${t.count} youth`, color: t.color },
+                                          { category: "Proportion", value: `${t.pct}%` }
+                                        ]
+                                      });
+                                    }}
+                                    onMouseMove={(e) => {
+                                      handleChartTooltipMove("captain-education", e, {
+                                        title: t.name,
+                                        subtitle: "Educational Attainment",
+                                        items: [
+                                          { category: "Registered Youth", value: `${t.count} youth`, color: t.color },
+                                          { category: "Proportion", value: `${t.pct}%` }
+                                        ]
+                                      });
+                                    }}
+                                    onMouseLeave={handleChartTooltipLeave}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <p className="text-[10px] text-gray-400 italic">
+                              Segment length reflects proportion of registered youth.
+                            </p>
+                          </div>
+
+                          {/* Category Breakdown Grid: 6 tiers */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                            {educationalDistributionData.tiers.map((t, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-gray-50/70 p-2.5 rounded-xl border border-gray-200/80 flex flex-col justify-between hover:border-emerald-200 hover:bg-emerald-50/20 transition-all cursor-pointer"
+                                onMouseEnter={(e) => {
+                                  handleChartTooltipMove("captain-education", e, {
+                                    title: t.name,
+                                    subtitle: "Educational Attainment",
+                                    items: [
+                                      { category: "Registered Youth", value: `${t.count} youth`, color: t.color },
+                                      { category: "Proportion", value: `${t.pct}%` }
+                                    ]
+                                  });
+                                }}
+                                onMouseMove={(e) => {
+                                  handleChartTooltipMove("captain-education", e, {
+                                    title: t.name,
+                                    subtitle: "Educational Attainment",
+                                    items: [
+                                      { category: "Registered Youth", value: `${t.count} youth`, color: t.color },
+                                      { category: "Proportion", value: `${t.pct}%` }
+                                    ]
+                                  });
+                                }}
+                                onMouseLeave={handleChartTooltipLeave}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                                  <span className="text-xs font-bold text-gray-800 truncate" title={t.name}>
+                                    {t.short}
+                                  </span>
+                                </div>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                  <span className="text-base font-black text-gray-900">{t.count}</span>
+                                  <span className="text-[10px] text-gray-500 font-semibold">{t.pct}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Footer with Top Tier */}
+                          <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+                            <span>
+                              Top:{" "}
+                              <strong className="text-gray-900 font-bold">
+                                {educationalDistributionData.mostCommon.name}
+                              </strong>{" "}
+                              ({educationalDistributionData.mostCommon.count} youth • {educationalDistributionData.mostCommon.pct}%)
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </AnimatedCard>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* 4. YOUTH INTERESTS VS TRAINING SUPPLY [55%] + PROGRAM DEMAND VS SLOTS [45%] */}
+              {/* ========================================================================= */}
+              <div className="grid grid-cols-1 lg:grid-cols-[11fr_9fr] gap-5 sm:gap-6 items-stretch">
+                {/* Left (55%): Youth Interests vs. Training Supply */}
+                <AnimatedCard
+                  delay={0.15}
+                  className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => {
+                    const SECTORS_PER_PAGE = 5;
+                    const totalSectors = sectorInterestVsSupplyData.items.length;
+                    const totalSectorPages = Math.max(1, Math.ceil(totalSectors / SECTORS_PER_PAGE));
+                    const curSectorPage = Math.min(sectorPage, totalSectorPages);
+                    const sectorStartIdx = (curSectorPage - 1) * SECTORS_PER_PAGE;
+                    const pageSectorItems = sectorInterestVsSupplyData.items.slice(sectorStartIdx, sectorStartIdx + SECTORS_PER_PAGE);
+
+                    return (
+                      <div className="space-y-4 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                            <div>
+                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                Youth Interests vs. Training Supply
+                              </h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                Sector interest in {formattedBrgyName} vs available TESDA programs
+                              </p>
+                            </div>
+
+                            {/* Supply Metric Toggle */}
+                            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSectorSupplyMetric("slots");
+                                  setSectorPage(1);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                  sectorSupplyMetric === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                              >
+                                Slots
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSectorSupplyMetric("programs");
+                                  setSectorPage(1);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                  sectorSupplyMetric === "programs" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                              >
+                                Programs
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Legend */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600 pt-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                              <span>Youth Interested (Census)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                              <span>{sectorSupplyMetric === "programs" ? "Active Programs" : "Available Slots"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grouped Bar Plot */}
+                        <div
+                          className="pt-2 flex-1 flex flex-col justify-end relative"
+                          data-chart-container="captain-sectors"
+                          onMouseLeave={() => {
+                            setHoveredSectorIdx(null);
+                            handleChartTooltipLeave();
+                          }}
+                        >
+                          <ChartTooltip tooltip={dashboardTooltip} chartId="captain-sectors" />
+
+                          <div className="h-56 sm:h-60 w-full flex items-end justify-between gap-3 sm:gap-4 px-2 pb-2 border-b border-gray-200 relative">
+                            <div className="absolute inset-x-2 inset-y-0 flex flex-col justify-between pointer-events-none pb-2">
+                              <div className="border-b border-gray-100 w-full" />
+                              <div className="border-b border-gray-100 w-full" />
+                              <div className="border-b border-gray-100 w-full" />
+                              <div className="border-b border-gray-100 w-full" />
+                            </div>
+
+                            {pageSectorItems.map((sec, idx) => {
+                              const supplyVal = sectorSupplyMetric === "programs" ? sec.programCount : sec.availableSlots;
+                              const youthPct = sec.youthInterested > 0
+                                ? Math.max(8, Math.round((sec.youthInterested / sectorInterestVsSupplyData.maxCombined) * 100))
+                                : 3;
+                              const supplyPct = supplyVal > 0
+                                ? Math.max(8, Math.round((supplyVal / sectorInterestVsSupplyData.maxCombined) * 100))
+                                : 3;
+                              const isHovered = hoveredSectorIdx === idx;
+
+                              const secTooltipData: ChartTooltipData = {
+                                title: sec.fullName,
+                                subtitle: "Sector Comparison",
+                                items: [
+                                  {
+                                    category: "Youth Interested",
+                                    value: `${sec.youthInterested} youth`,
+                                    color: "#0A6B43",
+                                  },
+                                  {
+                                    category: sectorSupplyMetric === "programs" ? "Active Programs" : "Available Slots",
+                                    value: sectorSupplyMetric === "programs" ? `${sec.programCount} programs` : `${sec.availableSlots} slots`,
+                                    color: "#F59E0B",
+                                  },
+                                ],
+                              };
+
+                              return (
+                                <div
+                                  key={sec.id}
+                                  className="flex-1 flex flex-col items-center h-full justify-end group/bar cursor-pointer relative z-10"
+                                  onMouseEnter={(e) => {
+                                    setHoveredSectorIdx(idx);
+                                    handleChartTooltipMove("captain-sectors", e, secTooltipData);
+                                  }}
+                                  onMouseMove={(e) => {
+                                    handleChartTooltipMove("captain-sectors", e, secTooltipData);
+                                  }}
+                                >
+                                  <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full pb-1">
+                                    {/* Youth Bar */}
+                                    <div
+                                      style={{
+                                        height: isInView ? `${youthPct}%` : '4%',
+                                        transition: `height 0.8s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 60}ms`
+                                      }}
+                                      className={`w-4 sm:w-5 bg-[#0A6B43] rounded-t-md transition-all ${
+                                        isHovered ? "brightness-110 shadow-xs" : ""
+                                      }`}
+                                    />
+                                    {/* Supply Bar */}
+                                    <div
+                                      style={{
+                                        height: isInView ? `${supplyPct}%` : '4%',
+                                        transition: `height 0.8s cubic-bezier(0.22, 1, 0.36, 1) ${idx * 60 + 30}ms`
+                                      }}
+                                      className={`w-4 sm:w-5 bg-[#F59E0B] rounded-t-md transition-all ${
+                                        isHovered ? "brightness-110 shadow-xs" : ""
+                                      }`}
+                                    />
                                   </div>
-                                  <span className="text-gray-900 font-black">{countNum} youth</span>
+                                  <span className="text-[10px] font-bold text-gray-600 truncate max-w-[85px] sm:max-w-[100px] text-center mt-1.5 group-hover/bar:text-[#0A6B43]">
+                                    {sec.shortLabel}
+                                  </span>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
 
-                        {/* Educational Attainment & Vulnerable Sectors */}
-                        <div className="space-y-3">
-                          <div className="space-y-3 bg-gray-50/70 p-4 rounded-xl border border-gray-150">
-                            <h4 className="text-[10px] font-black uppercase text-gray-600 tracking-wider flex items-center gap-1.5">
-                              <GraduationCap className="w-3.5 h-3.5 text-amber-600" /> Education Profiles
-                            </h4>
-                            <div className="space-y-2 max-h-[90px] overflow-y-auto pr-1 text-xs">
-                              {Object.entries(kkMembersSummary.eduBreakdown).map(([edu, count]) => {
-                                const countNum = count as number;
-                                return (
-                                  <div key={edu} className="flex justify-between items-center font-semibold">
-                                    <span className="text-gray-700 truncate max-w-[130px]" title={edu}>{edu}</span>
-                                    <span className="text-gray-900 font-black">{countNum}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Vulnerable demographic indicators */}
-                          <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-bold">
-                            <div className="bg-rose-50 border border-rose-100 rounded-lg p-2 text-rose-800">
-                              <span className="block font-black text-rose-950 text-sm">{kkMembersSummary.soloParent}</span>
-                              Solo Parents
-                            </div>
-                            <div className="bg-sky-50 border border-sky-100 rounded-lg p-2 text-sky-800">
-                              <span className="block font-black text-sky-950 text-sm">{kkMembersSummary.pwd}</span>
-                              PWD Youth
-                            </div>
-                            <div className="bg-violet-50 border border-violet-100 rounded-lg p-2 text-violet-800">
-                              <span className="block font-black text-violet-950 text-sm">{kkMembersSummary.indigenous}</span>
-                              Indigenous
-                            </div>
-                          </div>
-                        </div>
-
-                      </div>
-
-                    </div>
-                  ) : (
-                    <div className="p-10 text-center text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-2xl">
-                      No Katipunan ng Kabataan members registered in {formattedBrgyName} yet.
-                    </div>
-                  )}
-                </div>
-
-                {/* Col 3: TOP SKILLS GAPS & SK COUNCIL CARD */}
-                <div className="space-y-6">
-                  
-                  {/* Skills Gaps Card */}
-                  <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-xs space-y-4">
-                    <div className="border-b border-gray-100 pb-3">
-                      <h3 className="font-black text-gray-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-amber-500" />
-                        Barangay Skills Gaps
-                      </h3>
-                      <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
-                        Deficiency metrics ranked by need
-                      </p>
-                    </div>
-
-                    <div className="space-y-3 text-xs">
-                      {localSkillsGaps.map((gap) => {
-                        const maxCount = Math.max(...localSkillsGaps.map(g => g.count), 1);
-                        const crit = getSkillGapCriticality(gap.percentage, gap.count);
-                        return (
-                          <div key={gap.skill} className="space-y-1.5">
-                            <div className="flex justify-between items-center font-bold gap-2">
-                              <span className="text-gray-700 truncate max-w-[170px]" title={gap.skill}>{gap.skill}</span>
-                              <span className={`font-black border px-1.5 py-0.5 rounded text-[10px] shrink-0 ${crit.badgeClass}`}>
-                                {gap.count} youth ({gap.percentage}%)
-                              </span>
-                            </div>
-                            <div className={`w-full h-1.5 rounded-full overflow-hidden ${crit.trackClass}`}>
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${crit.barClass}`}
-                                style={{ width: `${(gap.count / maxCount) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Local SK Leadership Snapshot */}
-                  <div className="bg-gradient-to-br from-[#082D21] to-[#041A13] text-white p-5 rounded-2xl shadow-xs border border-emerald-800/40 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase text-emerald-300 tracking-wider">
-                        Presiding SK Officer
-                      </span>
-                      <Award className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-black text-white truncate">
-                        {localSKChair ? localSKChair.name : "Seat Vacant / Unassigned"}
-                      </h4>
-                      <p className="text-[11px] text-amber-400 font-bold uppercase tracking-wider mt-0.5">
-                        SK Chairperson · Ex-Officio SB Member
-                      </p>
-                      <p className="text-[10px] text-emerald-200/80 font-mono mt-1 truncate">
-                        {localSKChair?.email || "chairperson.sk@sanluispampanga.gov.ph"}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)}
-                      className="w-full py-2 bg-emerald-600/30 hover:bg-emerald-600/50 active:scale-98 text-emerald-100 text-xs font-bold rounded-xl border border-emerald-400/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Users2 className="w-3.5 h-3.5" />
-                      <span>Manage SK Council Team ({localCouncilors.length})</span>
-                    </button>
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* RECENT YOUTH REGISTRATIONS TABLE */}
-              <div className="bg-white border border-gray-200/90 p-5 sm:p-6 rounded-2xl shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                  <div>
-                    <h3 className="font-black text-gray-900 text-xs sm:text-sm uppercase tracking-wider">
-                      Recent Youth Registrations
-                    </h3>
-                    <p className="text-[10px] sm:text-[11px] text-gray-500 font-semibold mt-0.5">
-                      Latest Katipunan ng Kabataan registrants in {formattedBrgyName}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
-                    className="text-xs font-bold text-[#0A6B43] hover:text-[#075332] flex items-center gap-1 hover:underline uppercase tracking-wider cursor-pointer self-start sm:self-auto"
-                  >
-                    Full Directory ({localYouthProfiles.length}) <ChevronRight className="w-4 h-4 shrink-0" />
-                  </button>
-                </div>
-
-                {/* MOBILE VIEW: Responsive Youth Registration Cards (under md screens) */}
-                <div className="md:hidden space-y-3">
-                  {paginatedRecentYouth.length > 0 ? (
-                    paginatedRecentYouth.map((y) => (
-                      <div
-                        key={y.id}
-                        className="p-3.5 bg-gray-50/80 hover:bg-emerald-50/30 rounded-xl border border-gray-200/90 transition-all space-y-2.5"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black text-xs shrink-0">
-                              {y.name.charAt(0)}
-                            </div>
-                            <div className="min-w-0">
-                              <span className="block font-bold text-gray-950 text-xs truncate" title={y.name}>
-                                {y.name}
-                              </span>
-                              <span className="text-[10px] text-gray-500">
-                                {y.age} y/o · <strong className="text-gray-800">{y.purok}</strong>
-                              </span>
-                            </div>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border shrink-0 ${
-                            y.currentStatus.toLowerCase().includes("out-of-school")
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          }`}>
-                            {y.currentStatus}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60">
-                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                            <span className="bg-white text-gray-700 border border-gray-200 px-2 py-0.5 rounded-md text-[9px] font-bold truncate max-w-[130px]">
-                              {y.educationalAttainment}
-                            </span>
-                            <span className={`font-black text-[10px] px-2 py-0.5 rounded-md border shrink-0 ${
-                              y.matchScore >= 80 
-                                ? "text-emerald-700 bg-emerald-50 border-emerald-200" 
-                                : "text-amber-700 bg-amber-50 border-amber-200"
-                            }`}>
-                              {y.matchScore}% Match
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => setSelectedYouth(y)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0"
-                          >
-                            <span>Details</span>
-                            <ArrowUpRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-8 text-center text-gray-400 font-semibold text-xs bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                      No youth registrants recorded yet.
-                    </div>
-                  )}
-                </div>
-
-                {/* DESKTOP VIEW: Full Scrollable Table (md screens and up) */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[650px]">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-gray-500 font-bold text-[11px] bg-gray-50/70 uppercase tracking-wider">
-                        <th className="py-3.5 px-4 pl-5">Full Name</th>
-                        <th className="py-3.5 px-4">Age / Purok</th>
-                        <th className="py-3.5 px-4">Activity Status</th>
-                        <th className="py-3.5 px-4">Education Attainment</th>
-                        <th className="py-3.5 px-4 text-center">CBF Match Score</th>
-                        <th className="py-3.5 px-4 text-right pr-5">Dossier</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-                      {paginatedRecentYouth.length > 0 ? (
-                        paginatedRecentYouth.map((y) => (
-                          <tr key={y.id} className="hover:bg-emerald-50/30 transition-colors group">
-                            <td className="py-3.5 px-4 pl-5 font-bold text-gray-950 text-xs">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0A6B43] border border-emerald-200 flex items-center justify-center font-black text-xs shrink-0">
-                                  {y.name.charAt(0)}
-                                </div>
-                                <span className="truncate max-w-[160px] group-hover:text-[#0A6B43] transition-colors">{y.name}</span>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4 text-gray-500">
-                              {y.age} y/o · <strong className="text-gray-800">{y.purok}</strong>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
-                                y.currentStatus.toLowerCase().includes("out-of-school")
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              }`}>
-                                {y.currentStatus}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span className="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                {y.educationalAttainment}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`font-black text-xs px-2.5 py-1 rounded-lg border ${
-                                y.matchScore >= 80 
-                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200" 
-                                  : "text-amber-700 bg-amber-50 border-amber-200"
-                              }`}>
-                                {y.matchScore}% CBF Match
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right pr-5">
+                        {/* Pagination Footer */}
+                        {totalSectorPages > 1 && (
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
+                            <span>Page {curSectorPage} of {totalSectorPages}</span>
+                            <div className="flex items-center gap-1.5">
                               <button
-                                onClick={() => setSelectedYouth(y)}
-                                className="inline-flex items-center gap-1 text-[12px] font-bold text-[#0A6B43] hover:text-[#075332] transition-colors cursor-pointer shrink-0 ml-auto"
+                                type="button"
+                                disabled={curSectorPage <= 1}
+                                onClick={() => setSectorPage(p => Math.max(1, p - 1))}
+                                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
                               >
-                                <span>View Details</span>
-                                <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                Prev
                               </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="py-8 text-center text-gray-400 font-semibold">
-                            No youth registrants recorded yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                              <button
+                                type="button"
+                                disabled={curSectorPage >= totalSectorPages}
+                                onClick={() => setSectorPage(p => Math.min(totalSectorPages, p + 1))}
+                                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }}
+                </AnimatedCard>
 
-                {/* Pagination Controls for Recent Youth Registrations (max 5 per page) */}
-                {totalRecentRegPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs">
-                    <span className="text-[11px] text-gray-500 font-medium">
-                      Showing <strong>{(currentRecentRegPage - 1) * RECENT_REG_PER_PAGE + 1}</strong>–<strong>{Math.min(currentRecentRegPage * RECENT_REG_PER_PAGE, localYouthProfiles.length)}</strong> of <strong>{localYouthProfiles.length}</strong> registrants
-                    </span>
-                    <div className="flex items-center gap-1.5 self-center sm:self-auto">
-                      <button
-                        type="button"
-                        onClick={() => setRecentRegPage(p => Math.max(1, p - 1))}
-                        disabled={currentRecentRegPage <= 1}
-                        className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                        aria-label="Previous page of recent registrations"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                        <span>Prev</span>
-                      </button>
+                {/* Right (45%): Program Demand vs. Available Slots */}
+                <AnimatedCard
+                  delay={0.25}
+                  className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => {
+                    const PROGRAMS_PER_PAGE = 3;
+                    const totalPrograms = programDemandData.items.length;
+                    const totalProgramPages = Math.max(1, Math.ceil(totalPrograms / PROGRAMS_PER_PAGE));
+                    const curProgramPage = Math.min(programDemandPage, totalProgramPages);
+                    const programStartIdx = (curProgramPage - 1) * PROGRAMS_PER_PAGE;
+                    const pageProgramItems = programDemandData.items.slice(programStartIdx, programStartIdx + PROGRAMS_PER_PAGE);
 
-                      <div className="flex items-center gap-1 px-1">
-                        {Array.from({ length: totalRecentRegPages }, (_, i) => i + 1).map((pageNum) => (
-                          <button
-                            key={pageNum}
-                            type="button"
-                            onClick={() => setRecentRegPage(pageNum)}
-                            className={`min-w-[32px] h-8 px-2 rounded-lg border text-xs shadow-2xs flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
-                              pageNum === currentRecentRegPage
-                                ? "bg-[#0A6B43] text-white border-[#0A6B43] font-semibold shadow-xs"
-                                : "bg-white text-gray-600 border-gray-200 font-medium hover:bg-emerald-50/50 hover:text-[#0A6B43] hover:border-emerald-300"
-                            }`}
-                            aria-label={`Go to page ${pageNum}`}
+                    return (
+                      <div className="space-y-4 flex-1 flex flex-col justify-between">
+                        <div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                            <div>
+                              <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                                Program Demand vs. Available Slots
+                              </h3>
+                              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                Applicant demand from {formattedBrgyName} vs slots
+                              </p>
+                            </div>
+
+                            {/* Sort Selector */}
+                            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200 text-xs shrink-0 self-start sm:self-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProgramDemandSort("demand");
+                                  setProgramDemandPage(1);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                  programDemandSort === "demand" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                              >
+                                By Demand
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProgramDemandSort("slots");
+                                  setProgramDemandPage(1);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-[11px] ${
+                                  programDemandSort === "slots" ? "bg-white text-[#0A6B43] shadow-xs" : "text-gray-500 hover:text-gray-800"
+                                }`}
+                              >
+                                Low Slots
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Legend */}
+                          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-600 pt-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#0A6B43] shrink-0" />
+                              <span>Applicant Demand</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
+                              <span>Available Slots</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {programDemandData.items.length === 0 ? (
+                          <div className="py-10 text-center space-y-2 flex-1 flex flex-col items-center justify-center">
+                            <BookOpen className="w-8 h-8 text-gray-300 mx-auto" />
+                            <p className="text-sm font-bold text-gray-800">No Active Training Programs</p>
+                            <p className="text-xs text-gray-400">Programs will appear here as soon as they are published.</p>
+                          </div>
+                        ) : (
+                          <div
+                            className="space-y-3 flex-1 flex flex-col justify-start pt-1 relative"
+                            data-chart-container="captain-demand"
+                            onMouseLeave={handleChartTooltipLeave}
                           >
-                            {pageNum}
-                          </button>
-                        ))}
+                            <ChartTooltip tooltip={dashboardTooltip} chartId="captain-demand" />
+                            {pageProgramItems.map((prog) => {
+                              const demandPct = Math.min(100, Math.round((prog.demand / programDemandData.maxScale) * 100));
+                              const slotsPct = Math.min(100, Math.round((prog.slotsRemaining / programDemandData.maxScale) * 100));
+
+                              const progTooltipData: ChartTooltipData = {
+                                title: prog.title,
+                                subtitle: prog.category,
+                                items: [
+                                  {
+                                    category: "Barangay Demand",
+                                    value: `${prog.demand} applicant${prog.demand !== 1 ? "s" : ""}`,
+                                    color: "#0A6B43",
+                                  },
+                                  {
+                                    category: "Available Slots",
+                                    value: `${prog.slotsRemaining} of ${prog.slotsTotal} open`,
+                                    color: prog.slotsRemaining === 0 ? "#EF4444" : "#3B82F6",
+                                  },
+                                ],
+                              };
+
+                              return (
+                                <div
+                                  key={prog.id}
+                                  onClick={() => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)}
+                                  onMouseEnter={(e) => handleChartTooltipMove("captain-demand", e, progTooltipData)}
+                                  onMouseMove={(e) => handleChartTooltipMove("captain-demand", e, progTooltipData)}
+                                  className="p-3 bg-gray-50/70 hover:bg-emerald-50/30 rounded-xl border border-gray-200/80 transition-all cursor-pointer group space-y-2"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <h4 className="text-xs font-bold text-gray-900 group-hover:text-[#0A6B43] truncate" title={prog.title}>
+                                      {prog.title}
+                                    </h4>
+                                    <span className="text-[10px] font-bold text-gray-500 shrink-0">
+                                      {prog.category}
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    {/* Demand Bar */}
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-semibold text-gray-500 w-14 shrink-0">Demand:</span>
+                                      <div className="flex-1 bg-gray-200/80 h-2 rounded-full overflow-hidden">
+                                        <div
+                                          style={{
+                                            width: isInView ? `${demandPct}%` : '0%',
+                                            transition: 'width 0.8s cubic-bezier(0.22, 1, 0.36, 1)'
+                                          }}
+                                          className="bg-[#0A6B43] h-full rounded-full"
+                                        />
+                                      </div>
+                                      <span className="text-[10px] font-bold text-gray-800 w-8 text-right shrink-0">{prog.demand}</span>
+                                    </div>
+
+                                    {/* Slots Bar */}
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-semibold text-gray-500 w-14 shrink-0">Slots:</span>
+                                      <div className="flex-1 bg-gray-200/80 h-2 rounded-full overflow-hidden">
+                                        <div
+                                          style={{
+                                            width: isInView ? `${slotsPct}%` : '0%',
+                                            transition: 'width 0.8s cubic-bezier(0.22, 1, 0.36, 1)'
+                                          }}
+                                          className="bg-[#3B82F6] h-full rounded-full"
+                                        />
+                                      </div>
+                                      <span className="text-[10px] font-bold text-blue-700 w-8 text-right shrink-0">{prog.slotsRemaining}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Pagination Footer */}
+                        {totalProgramPages > 1 && (
+                          <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
+                            <span>Page {curProgramPage} of {totalProgramPages}</span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={curProgramPage <= 1}
+                                onClick={() => setProgramDemandPage(p => Math.max(1, p - 1))}
+                                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                              >
+                                Prev
+                              </button>
+                              <button
+                                type="button"
+                                disabled={curProgramPage >= totalProgramPages}
+                                onClick={() => setProgramDemandPage(p => Math.min(totalProgramPages, p + 1))}
+                                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }}
+                </AnimatedCard>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* 5. RECENT YOUTH ACTIVITY [60%] + QUICK ACTIONS [40%]                      */}
+              {/* ========================================================================= */}
+              <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 sm:gap-6 items-stretch">
+                {/* Left (60% / 6 cols): Recent Youth Activity */}
+                <AnimatedCard
+                  delay={0.15}
+                  className="lg:col-span-6 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.05)] border border-gray-100/90 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => (
+                    <div className="space-y-4 flex-1 flex flex-col">
+                      <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                        <div>
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg tracking-tight">
+                            Recent Youth Activity
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5">
+                            Latest registrations, program applications, and milestones in {formattedBrgyName}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-[#0A6B43] text-[#0A6B43] hover:text-white border border-emerald-200/80 hover:border-[#0A6B43] text-xs font-bold rounded-xl transition-all inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          <span>View Directory</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setRecentRegPage(p => Math.min(totalRecentRegPages, p + 1))}
-                        disabled={currentRecentRegPage >= totalRecentRegPages}
-                        className="h-8 px-2.5 sm:px-3 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-2xs hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                        aria-label="Next page of recent registrations"
-                      >
-                        <span>Next</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                      {recentYouthActivities.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center py-10 space-y-2 min-h-[220px]">
+                          <div className="w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-center text-[#0A6B43]">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <h4 className="text-sm font-extrabold text-gray-900">No Recent Activity</h4>
+                          <p className="text-xs text-gray-500 max-w-xs font-medium">
+                            Youth registration and training milestones will be cataloged here automatically.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="relative flex-1 flex flex-col justify-between py-1">
+                          {recentYouthActivities.slice(0, 4).length > 1 && (
+                            <div
+                              className="absolute left-[25px] top-5 bottom-5 w-px bg-gray-200/90 pointer-events-none"
+                              aria-hidden="true"
+                            />
+                          )}
+
+                          <div className="space-y-2.5">
+                            {recentYouthActivities.slice(0, 4).map((item) => {
+                              const isCompleted = item.type === "completed";
+                              const isEnrolled = item.type === "enrolled";
+                              const isReg = item.type === "registration";
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => {
+                                    if (item.rawYouth) setSelectedYouth(item.rawYouth);
+                                    else setCurrentScreen(BarangayCaptainScreen.APPLICATIONS);
+                                  }}
+                                  className="relative flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-50/40 border border-transparent hover:border-emerald-200/70 transition-all cursor-pointer group"
+                                >
+                                  <div
+                                    className={`relative z-10 w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                                      isCompleted
+                                        ? "bg-purple-100/80 border-purple-300 text-purple-800"
+                                        : isEnrolled
+                                        ? "bg-emerald-100/80 border-emerald-300 text-emerald-800"
+                                        : isReg
+                                        ? "bg-teal-100/80 border-teal-300 text-teal-800"
+                                        : "bg-amber-100/80 border-amber-300 text-amber-800"
+                                    }`}
+                                  >
+                                    {isCompleted ? (
+                                      <Award className="w-4 h-4 text-purple-700" />
+                                    ) : isEnrolled ? (
+                                      <GraduationCap className="w-4 h-4 text-emerald-700" />
+                                    ) : isReg ? (
+                                      <User className="w-4 h-4 text-teal-700" />
+                                    ) : (
+                                      <Clock className="w-4 h-4 text-amber-700" />
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <p className="text-xs font-extrabold text-gray-900 group-hover:text-[#0A6B43] truncate">
+                                          {item.youthName}
+                                        </p>
+                                        <span className="text-[10px] text-gray-400 font-medium shrink-0">
+                                          ({item.purokOrBrgy})
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-gray-400 font-medium shrink-0 tabular-nums">
+                                        {item.dateStr}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                                      <p className="text-[11px] text-gray-600 truncate font-medium">
+                                        {item.title}
+                                      </p>
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border shrink-0 ${item.statusClass}`}>
+                                        {item.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </AnimatedCard>
+
+                {/* Right (40% / 4 cols): Quick Actions */}
+                <AnimatedCard
+                  delay={0.25}
+                  className="lg:col-span-4 bg-white rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100/80 flex flex-col justify-between h-full"
+                >
+                  {(isInView) => (
+                    <div className="space-y-4">
+                      <div className="pb-3 border-b border-gray-100 flex flex-col justify-center">
+                        <h4 className="text-[18px] font-extrabold text-gray-900 tracking-tight">Quick Actions</h4>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">Fast shortcuts for barangay administration & youth oversight</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {/* Action 1: Inspect KK Directory */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => setCurrentScreen(BarangayCaptainScreen.YOUTH_DIRECTORY)}
+                          className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Inspect KK Directory
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                              {localYouthProfiles.length}
+                            </span>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                        </motion.button>
+
+                        {/* Action 2: Review Applications */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => setCurrentScreen(BarangayCaptainScreen.APPLICATIONS)}
+                          className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Program Applications
+                            </span>
+                            {localReferrals.length > 0 && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black">
+                                {localReferrals.length}
+                              </span>
+                            )}
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                        </motion.button>
+
+                        {/* Action 3: SK Council Team */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => setCurrentScreen(BarangayCaptainScreen.SK_COUNCIL)}
+                          className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              SK Council Team
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-black">
+                              {localCouncilors.length + (localSKChair ? 1 : 0)}
+                            </span>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                        </motion.button>
+
+                        {/* Action 4: Browse Training Programs */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => setCurrentScreen(BarangayCaptainScreen.TESDA_PROGRAMS)}
+                          className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Browse Training Programs
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-black">
+                              {programs.length}
+                            </span>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                        </motion.button>
+
+                        {/* Action 5: Executive Governance Settings */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => {
+                            setProfileActiveTab("badge");
+                            setCurrentScreen(BarangayCaptainScreen.PROFILE);
+                          }}
+                          className="w-full p-3 rounded-xl border border-dashed border-gray-300 hover:border-emerald-500 hover:bg-emerald-50/20 active:scale-[0.99] transition-all flex items-center justify-between group cursor-pointer text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-gray-800 group-hover:text-[#0A6B43] inline-block origin-left transition-all duration-200 group-hover:scale-105 group-hover:translate-x-0.5">
+                              Barangay Executive Credentials
+                            </span>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#0A6B43] group-hover:translate-x-1 transition-all shrink-0" />
+                        </motion.button>
+                      </div>
+                    </div>
+                  )}
+                </AnimatedCard>
               </div>
+
 
             </div>
           )}
