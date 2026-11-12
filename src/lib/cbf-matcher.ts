@@ -94,6 +94,83 @@ export function resolveYouthNormalizedData(youth: YouthProfile): {
 /**
  * Calculates full 4-factor detailed score breakdown for a youth and TESDA program
  */
+/**
+ * Checks whether a candidate's skill is relevant to a specific TESDA program.
+ * Validates that the skill is in the same category AND aligns with the specific trade/competencies of the program.
+ */
+export function isSkillRelevantToProgram(
+  skill: { raw: string; value: string; categoryId: string | null },
+  program: TESDAProgram,
+  programCategoryId: string
+): boolean {
+  if (!skill.categoryId || skill.categoryId !== programCategoryId) {
+    return false;
+  }
+
+  const sVal = (skill.value || skill.raw || "").toLowerCase().trim();
+  const sRaw = (skill.raw || "").toLowerCase().trim();
+  const progTitle = (program.title || "").toLowerCase().trim();
+  const reqSkills: string[] = Array.isArray(program.requiredSkills)
+    ? program.requiredSkills.map(r => r.toLowerCase().trim())
+    : [];
+
+  // 1. Direct match with program's requiredSkills
+  if (reqSkills.length > 0) {
+    const matchesReq = reqSkills.some(req =>
+      req.includes(sVal) || sVal.includes(req) || req.includes(sRaw) || sRaw.includes(req)
+    );
+    if (matchesReq) return true;
+  }
+
+  // 2. Direct match with program title key terms
+  // e.g. "Bartending" matches "Bartending NC II", "Cooking" matches "Cookery NC II", "Driving" matches "Driving NC II"
+  const titleClean = progTitle
+    .replace(/\bnc\s+[ivx\d]+\b/gi, "")
+    .replace(/\b(level|with|w\/|\d+\s*hours|sil)\b/gi, "")
+    .replace(/[\(\)\,\.\-\/]/g, " ")
+    .trim();
+  const titleTokens = titleClean.split(/\s+/).filter(t => t.length > 2);
+  const matchesTitle = titleTokens.some(t => {
+    const stem = t.length > 4 ? t.slice(0, 4) : t;
+    return sVal.includes(t) || sRaw.includes(t) || sVal.includes(stem) || sRaw.includes(stem);
+  });
+  if (matchesTitle) return true;
+
+  // 3. For Category 17 (Tourism) - protect separate and distinct hospitality/tourism trades
+  // Tour Guiding, Bartending, Housekeeping, and Food & Beverage Service must not cross-match arbitrarily
+  if (programCategoryId === "17") {
+    const isTourGuidingSkill = sVal.includes("tour") || sVal.includes("travel");
+    const isBartendingSkill = sVal.includes("bartend") || sVal.includes("beverage") || sVal.includes("bar ") || sVal.endsWith("bar");
+    const isHousekeepingSkill = sVal.includes("housekeep") || sVal.includes("room") || sVal.includes("linen") || sVal.includes("bed making");
+    const isFAndBSkill = sVal.includes("food and beverage service") || sVal.includes("dining") || sVal.includes("waiter") || sVal.includes("waitress") || sVal.includes("table setting");
+
+    const isTourGuidingProg = progTitle.includes("tour") || progTitle.includes("travel");
+    const isBartendingProg = progTitle.includes("bartend");
+    const isHousekeepingProg = progTitle.includes("housekeep");
+    const isFAndBProg = progTitle.includes("food and beverage") || progTitle.includes("dining");
+
+    if (isTourGuidingSkill) return isTourGuidingProg;
+    if (isBartendingSkill) return isBartendingProg;
+    if (isHousekeepingSkill) return isHousekeepingProg;
+    if (isFAndBSkill) return isFAndBProg;
+  }
+
+  // 4. For Category 15 (Process Food and Beverages) - distinct Baking vs Cooking
+  if (programCategoryId === "15") {
+    const isBakingSkill = sVal.includes("bak") || sVal.includes("pastry") || sVal.includes("bread") || sVal.includes("cake") || sVal.includes("panader");
+    const isCookingSkill = sVal.includes("cook") || sVal.includes("culinary") || sVal.includes("kitchen") || sVal.includes("chef") || sVal.includes("kusiner");
+
+    const isBakingProg = progTitle.includes("pastry") || progTitle.includes("bread") || progTitle.includes("baking");
+    const isCookingProg = progTitle.includes("cook") || progTitle.includes("culinary");
+
+    if (isBakingSkill && !isCookingSkill) return isBakingProg;
+    if (isCookingSkill && !isBakingSkill) return isCookingProg;
+  }
+
+  // 5. Default within-category match if no distinct trade conflict
+  return true;
+}
+
 export function calculateDetailedCBFMatch(
   youth: YouthProfile,
   program: TESDAProgram
@@ -126,16 +203,28 @@ export function calculateDetailedCBFMatch(
   const { skills, preferences, experiences, goal } = resolveYouthNormalizedData(youth);
 
   // 1. Skill Match (Weight: 50%)
-  // Denominator: Total number of unique resolved canonical skills
+  // Matches skills that are relevant to this specific program and trade
   const resolvedSkills = skills.filter(s => !s.isUnresolved && s.categoryId !== null);
   const totalUniqueResolvedSkills = resolvedSkills.length;
   
-  const matchingSkills = resolvedSkills.filter(s => s.categoryId === programCategoryId);
+  const matchingSkills = resolvedSkills.filter(s =>
+    isSkillRelevantToProgram(s, program, programCategoryId)
+  );
   const matchingUniqueSkillsCount = matchingSkills.length;
 
-  const skillMatch = totalUniqueResolvedSkills > 0 
-    ? Math.round((matchingUniqueSkillsCount / totalUniqueResolvedSkills) * 100)
-    : 0;
+  // Calculate skill competency match for THIS program domain (0 to 100%)
+  // Competencies in unrelated categories (e.g. adding electrical skills when you have IT skills)
+  // do NOT dilute, penalize, or lessen your score in this program.
+  let skillMatch = 0;
+  if (matchingUniqueSkillsCount >= 3) {
+    skillMatch = 100;
+  } else if (matchingUniqueSkillsCount === 2) {
+    skillMatch = 80;
+  } else if (matchingUniqueSkillsCount === 1) {
+    skillMatch = 50;
+  } else {
+    skillMatch = 0;
+  }
 
   const skillPoints = Number((skillMatch * 0.50).toFixed(2));
 

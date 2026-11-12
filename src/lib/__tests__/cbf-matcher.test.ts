@@ -117,24 +117,24 @@ function runTests() {
   };
 
   const matchICT = calculateDetailedCBFMatch(benchmarkYouth, programICT);
-  assert(matchICT.skillMatch === 40, "ICT Program Skill Match is 40% (2/5 skills in Cat 11)");
-  assert(matchICT.skillPoints === 20, "ICT Program Skill Points is 20 (40 x 0.50)");
+  assert(matchICT.skillMatch === 80, "ICT Program Skill Match is 80% (2 matching ICT skills)");
+  assert(matchICT.skillPoints === 40, "ICT Program Skill Points is 40 (80 x 0.50)");
   assert(matchICT.preferenceMatch === 100, "ICT Program Preference Match is 100%");
   assert(matchICT.preferencePoints === 25, "ICT Program Preference Points is 25 (100 x 0.25)");
   assert(matchICT.experienceMatch === 100, "ICT Program Experience Match is 100%");
   assert(matchICT.experiencePoints === 15, "ICT Program Experience Points is 15 (100 x 0.15)");
   assert(matchICT.goalMatch === 100, "ICT Program Goal Match is 100%");
   assert(matchICT.goalPoints === 10, "ICT Program Goal Points is 10 (100 x 0.10)");
-  assert(matchICT.finalScore === 70, `ICT Program Final Score is exactly 70% (Actual: ${matchICT.finalScore}%)`);
+  assert(matchICT.finalScore === 90, `ICT Program Final Score is 90% (Actual: ${matchICT.finalScore}%)`);
   assert(matchICT.passedSkillGate === true, "ICT Program passes Skill Relevance Gate");
 
   const matchSMAW = calculateDetailedCBFMatch(benchmarkYouth, programSMAW);
-  assert(matchSMAW.skillMatch === 20, "SMAW Program Skill Match is 20% (1/5 skills in Cat 4)");
-  assert(matchSMAW.skillPoints === 10, "SMAW Program Skill Points is 10 (20 x 0.50)");
+  assert(matchSMAW.skillMatch === 50, "SMAW Program Skill Match is 50% (1 matching welding skill)");
+  assert(matchSMAW.skillPoints === 25, "SMAW Program Skill Points is 25 (50 x 0.50)");
   assert(matchSMAW.preferenceMatch === 0, "SMAW Program Preference Match is 0%");
   assert(matchSMAW.experienceMatch === 0, "SMAW Program Experience Match is 0%");
   assert(matchSMAW.goalMatch === 0, "SMAW Program Goal Match is 0%");
-  assert(matchSMAW.finalScore === 10, `SMAW Program Final Score is 10% (Actual: ${matchSMAW.finalScore}%)`);
+  assert(matchSMAW.finalScore === 25, `SMAW Program Final Score is 25% (Actual: ${matchSMAW.finalScore}%)`);
   assert(matchSMAW.passedSkillGate === true, "SMAW Program passes Skill Relevance Gate (has 1 matching skill)");
 
   const matchElectrical = calculateDetailedCBFMatch(benchmarkYouth, programElectrical);
@@ -146,7 +146,8 @@ function runTests() {
   console.log("\n2. Test 2 — Four-Factor Weights Verification");
   const test2Youth: YouthProfile = {
     ...benchmarkYouth,
-    skillsRaw: ["Computer"], // 1/1 = 100% skill match on ICT
+    skills: ["Computer", "Programming", "Web Development"], // 3 ICT skills = 100% skill match
+    skillsRaw: ["Computer", "Programming", "Web Development"],
     preferencesRaw: ["Technology"], // 100%
     experiencesRaw: ["Computer Shop Helper"], // 100%
     goalRaw: "IT Professional" // 100%
@@ -162,7 +163,8 @@ function runTests() {
   console.log("\n3. Test 3 — Skill Gate Exclusion with 100% Pref/Exp/Goal");
   const test3Youth: YouthProfile = {
     ...benchmarkYouth,
-    skillsRaw: ["Cooking"], // 0 ICT skills
+    skills: ["Cooking"], // 0 ICT skills
+    skillsRaw: ["Cooking"],
     preferencesRaw: ["Technology"],
     experiencesRaw: ["Computer Shop Helper"],
     goalRaw: "Become an IT Professional"
@@ -260,6 +262,90 @@ function runTests() {
   const nullMatch = calculateDetailedCBFMatch(benchmarkYouth, uncategorizedProgram);
   assert(nullMatch.excluded === true, "Uncategorized program (categoryId = null) is marked EXCLUDED");
   assert(nullMatch.finalScore === 0, "Uncategorized program score is 0");
+
+  // --- Test 16: Adding unrelated skills does NOT lessen matching program score ---
+  console.log("\n16. Test 16 — Non-Diminishing Match on Adding Skills (User Issue Fix)");
+  const ictOnlyYouth: YouthProfile = {
+    ...benchmarkYouth,
+    skills: ["Computer", "Programming", "Hardware", "Networking", "Web Development"],
+    skillsRaw: ["Computer", "Programming", "Hardware", "Networking", "Web Development"]
+  };
+  const matchBefore = calculateDetailedCBFMatch(ictOnlyYouth, programICT);
+  assert(matchBefore.skillMatch === 100, "5 ICT skills produces 100% skillMatch on ICT program");
+
+  // Add electrical skills
+  const multiSkillYouth: YouthProfile = {
+    ...ictOnlyYouth,
+    skills: [...ictOnlyYouth.skills, "Electrical Wiring", "Electronics"],
+    skillsRaw: [...ictOnlyYouth.skills, "Electrical Wiring", "Electronics"]
+  };
+  const matchAfter = calculateDetailedCBFMatch(multiSkillYouth, programICT);
+  assert(matchAfter.skillMatch === 100, "ICT skillMatch REMAINS 100% after adding electrical skills");
+  assert(matchAfter.finalScore === matchBefore.finalScore, "ICT finalScore does NOT decrease when adding electrical skills");
+
+  const matchElec = calculateDetailedCBFMatch(multiSkillYouth, programElectrical);
+  assert(matchElec.skillMatch === 80, "Electrical program receives 80% skill match (2 electrical skills)");
+  assert(matchElec.passedSkillGate === true, "Electrical program passes skill gate");
+
+  // --- Test 17: Tour Guide does not match unrelated Tourism programs ---
+  console.log("\n17. Test 17 — Trade Specificity (Tour Guide does NOT match Cookery/Bartending/Housekeeping)");
+  const tourGuideYouth: YouthProfile = {
+    ...benchmarkYouth,
+    skills: ["Tour Guide"],
+    skillsRaw: ["Tour Guide"],
+    interests: [],
+    preferencesRaw: [],
+    experiencesRaw: [],
+    goalRaw: ""
+  };
+
+  const programBartending: TESDAProgram = {
+    id: "prog-bar",
+    title: "Bartending NC II",
+    provider: "TESDA GPSAT",
+    type: "Training",
+    location: "Guiguinto, Bulacan",
+    trainingHours: 286,
+    cost: "Free",
+    slotsTotal: 25,
+    slotsRemaining: 10,
+    youthMatched: 0,
+    eligibility: "Open to all",
+    contactPerson: "Admin",
+    contactNumber: "09123456789",
+    activeStatus: "Active",
+    categoryId: "17",
+    category: "Tourism",
+    requiredSkills: ["Bartending", "Beverage Preparation", "Bar Operations"]
+  };
+
+  const programHousekeeping: TESDAProgram = {
+    id: "prog-hk",
+    title: "Housekeeping (w/ 120 hours SIL) NC II",
+    provider: "TESDA GPSAT",
+    type: "Training",
+    location: "Guiguinto, Bulacan",
+    trainingHours: 436,
+    cost: "Free",
+    slotsTotal: 25,
+    slotsRemaining: 10,
+    youthMatched: 0,
+    eligibility: "Open to all",
+    contactPerson: "Admin",
+    contactNumber: "09123456789",
+    activeStatus: "Active",
+    categoryId: "17",
+    category: "Tourism",
+    requiredSkills: ["Bed Making", "Room Cleaning", "Linen & Laundry Operations"]
+  };
+
+  const barMatch = calculateDetailedCBFMatch(tourGuideYouth, programBartending);
+  assert(barMatch.excluded === true, "Tour Guide youth is EXCLUDED from Bartending NC II");
+  assert(barMatch.finalScore === 0, "Tour Guide youth receives 0% score for Bartending NC II");
+
+  const hkMatch = calculateDetailedCBFMatch(tourGuideYouth, programHousekeeping);
+  assert(hkMatch.excluded === true, "Tour Guide youth is EXCLUDED from Housekeeping NC II");
+  assert(hkMatch.finalScore === 0, "Tour Guide youth receives 0% score for Housekeeping NC II");
 
   console.log("\n=================================================");
   console.log(` SUMMARY: ${passed} PASSED, ${failed} FAILED `);

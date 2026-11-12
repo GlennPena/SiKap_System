@@ -83,6 +83,17 @@ async function main() {
     }
   }
 
+  // Ensure Culinary and Bakery qualifications are classified in Category 15 (Process Food and Beverages)
+  await prisma.tESDAProgram.updateMany({
+    where: {
+      OR: [
+        { title: { contains: "Cookery" } },
+        { title: { contains: "Bread and Pastry" } }
+      ]
+    },
+    data: { categoryId: "15" }
+  });
+
   // 4. Delete old aliases before seeding clean canonical aliases to prevent orphan or stale records
   console.log("Refreshing Alias table with clean canonical taxonomy...");
   await prisma.alias.deleteMany();
